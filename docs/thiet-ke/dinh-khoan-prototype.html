@@ -1,0 +1,1229 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Kho tri thức kế toán — Định khoản (prototype)</title>
+<!--
+  Bản bàn giao giao diện — HTML + CSS + JavaScript thuần, một file, chạy không cần mạng.
+  - Không framework, không tải font/biểu tượng/thư viện từ internet; font hệ thống (Segoe UI).
+  - Mọi dữ liệu trong file là DỮ LIỆU GIẢ (10 giao dịch tháng 08/2026, đối tác giả).
+  - Các chỗ cần nối với phần lõi đề xuất bút toán được đánh dấu "NỐI LÕI".
+  - Xem trạng thái mẫu: ô "Xem trạng thái mẫu" ở chân menu trái, hoặc thêm ?trang-thai=<mã> vào địa chỉ.
+    Mã: danh-sach, chua-co-file, dang-xu-ly, mo-giao-dich, giao-dich-do, ngan-sua,
+        dong-y-hang-loat, xuat-file, loi-chan, nguon-du-lieu, tra-cuu, lich-su
+-->
+<style>
+:root{
+  --nen:#F4F5F7; --be-mat:#FFFFFF; --vien:#DDE1E6; --vien-o:#C3C9D1; --vien-nhat:#EEF0F3;
+  --chu:#17202B; --chu-2:#3B4553; --chu-phu:#4A5463; --chu-nhat:#5A6472;
+  --chinh:#1F4E9E; --chinh-nen:#E8EFFB; --chinh-nhat:#F4F7FC;
+  --xanh:#17663E; --xanh-nen:#E6F4EC; --xanh-vien:#A9D8BD;
+  --vang:#7A4D00; --vang-nen:#FFF3D1; --vang-vien:#EBC870;
+  --do:#A8231A; --do-nen:#FDECEA; --do-vien:#F0B4AE; --do-o:#C4321F;
+  --js:#3B4553; --js-nen:#EEF0F3; --js-vien:#CDD2D9;
+  --font:'Segoe UI', system-ui, -apple-system, 'Helvetica Neue', sans-serif;
+  --mono:Consolas, 'Cascadia Mono', 'Courier New', monospace;
+}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{margin:0;background:var(--nen);color:var(--chu);font-family:var(--font);font-size:14px;line-height:1.45}
+button,input,select{font:inherit;color:inherit}
+button{cursor:pointer}
+.ic{flex:none;display:block}
+.sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+:focus-visible{outline:2px solid var(--chinh);outline-offset:2px}
+input::placeholder{color:#6B7482}
+.tnum{font-variant-numeric:tabular-nums}
+
+/* ---------- khung ---------- */
+.app{height:100vh;min-width:1280px;display:grid;grid-template-rows:56px minmax(0,1fr);grid-template-columns:216px minmax(0,1fr);position:relative;overflow:hidden}
+.topbar{grid-column:1/-1;display:flex;align-items:center;gap:18px;padding:0 20px;background:var(--be-mat);border-bottom:1px solid var(--vien)}
+.brand{display:flex;align-items:center;gap:10px}
+.logo{width:30px;height:30px;border-radius:7px;background:var(--chinh);color:#fff;display:flex;align-items:center;justify-content:center}
+.brand-name{font-size:16px;font-weight:700}
+.tag-kho{font-size:11px;font-weight:700;letter-spacing:.08em;padding:3px 8px;border-radius:4px;background:var(--chu);color:#fff}
+.topbar-note{display:flex;align-items:center;gap:6px;font-size:13px;color:var(--chu-phu)}
+.topbar-status{margin-left:auto;display:flex;gap:10px;font-size:13px;color:var(--chu-phu);font-variant-numeric:tabular-nums}
+.topbar-status strong{color:var(--chu)}
+.nav{display:flex;flex-direction:column;gap:4px;padding:16px 12px;background:var(--be-mat);border-right:1px solid var(--vien);overflow:auto}
+.nav-item{display:flex;align-items:center;gap:10px;width:100%;height:42px;padding:0 12px;border:0;border-radius:8px;background:transparent;text-align:left;font-weight:500}
+.nav-item:hover{background:#F1F3F6}
+.nav-item[aria-current="page"]{background:var(--chinh-nen);color:var(--chinh);font-weight:700}
+.nav-num{width:22px;height:22px;flex:none;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;background:var(--js-nen);color:var(--chu-2)}
+.nav-item[aria-current="page"] .nav-num{background:var(--chinh);color:#fff}
+.nav-foot{margin-top:auto;padding:12px 4px 0;border-top:1px solid #E6E9ED;display:flex;flex-direction:column;gap:6px;font-size:12px;color:var(--chu-nhat)}
+.nav-foot select{height:32px;border:1px solid var(--vien-o);border-radius:6px;background:#fff;font-size:12.5px;padding:0 6px}
+.main{overflow:auto;padding:20px 24px 96px}
+.page{max-width:1600px;margin:0 auto;display:flex;flex-direction:column;gap:14px}
+.page--mid{max-width:1280px}
+.page--narrow{max-width:1100px}
+.page-head{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap}
+.page-head--stack{flex-direction:column;align-items:flex-start;gap:2px}
+h1{margin:0;font-size:20px;font-weight:700}
+h2{margin:0;font-size:18px}
+.sub{color:var(--chu-phu);font-size:13px}
+.card{background:var(--be-mat);border:1px solid var(--vien);border-radius:10px}
+
+/* ---------- nút ---------- */
+.btn{height:36px;padding:0 14px;display:inline-flex;align-items:center;justify-content:center;gap:6px;border-radius:7px;border:1px solid transparent;font-size:14px;font-weight:500;white-space:nowrap;background:transparent}
+.btn:hover{filter:brightness(.95)}
+.btn-sm{height:32px;padding:0 12px;font-size:13.5px}
+.btn-lg{height:40px}
+.btn-primary{background:var(--chinh);border-color:var(--chinh);color:#fff;font-weight:600}
+.btn-secondary{background:#fff;border-color:var(--vien-o);color:var(--chu)}
+.btn-ghost{color:var(--chu-2)}
+.btn-ghost:hover{background:#F1F3F6;filter:none}
+.btn-link{color:var(--chinh);padding:0 10px;font-size:13px}
+.btn-dark{background:var(--chu-2);border-color:var(--chu-2);color:#fff;font-weight:600}
+.btn-dashed{background:#fff;border:1px dashed #9AA3AF;color:var(--chu)}
+.btn-soft-ok{background:var(--xanh-nen);border-color:var(--xanh-vien);color:var(--xanh);font-weight:600}
+.btn-danger{color:var(--do)}
+.btn[aria-disabled="true"]{background:#E9ECF0;border-color:var(--vien);color:var(--chu-nhat);cursor:not-allowed;filter:none}
+.btn-row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.btn-row--end{justify-content:flex-end}
+
+/* ---------- nhập file ---------- */
+.dropzone{width:100%;min-height:230px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;padding:24px;border:2px dashed #9AA3AF;border-radius:12px;background:#fff;color:var(--chu)}
+.dropzone:hover,.dropzone.is-over{border-color:var(--chinh);background:var(--chinh-nhat)}
+.drop-icon{width:54px;height:54px;border-radius:12px;background:var(--chinh-nen);color:var(--chinh);display:flex;align-items:center;justify-content:center}
+.drop-title{font-size:18px;font-weight:600}
+.recent{overflow:hidden}
+.recent h2{font-size:14px;padding:12px 16px;border-bottom:1px solid #E6E9ED}
+.recent-item{display:flex;align-items:center;gap:12px;padding:10px 16px;border-bottom:1px solid var(--vien-nhat);color:var(--chu-phu)}
+.recent-item:last-child{border-bottom:0}
+.recent-text{flex:1;min-width:0;display:flex;flex-direction:column;color:var(--chu)}
+.recent-text b{font-weight:600}
+.recent-text span{font-size:13px;color:var(--chu-nhat)}
+.file-row{display:flex;gap:12px;align-items:stretch;flex-wrap:wrap}
+.file-card{flex:1 1 640px;min-width:0;display:flex;align-items:center;gap:14px;padding:12px 16px}
+.file-icon{width:40px;height:40px;flex:none;border-radius:9px;background:var(--chinh-nen);color:var(--chinh);display:flex;align-items:center;justify-content:center}
+.file-meta{display:flex;flex-wrap:wrap;gap:2px 8px;align-items:center;font-weight:600;font-variant-numeric:tabular-nums}
+.dot{color:#9AA3AF}
+.ok-text{display:inline-flex;align-items:center;gap:4px;color:var(--xanh)}
+.file-name{font-size:13px;color:var(--chu-nhat)}
+.btn-newfile{min-height:56px;height:auto;padding:0 18px;border-radius:10px;border:1.5px dashed #9AA3AF;background:#fff}
+.proc{padding:18px 20px;display:flex;flex-direction:column;gap:10px}
+.proc-top{display:flex;justify-content:space-between;align-items:baseline;gap:12px;font-variant-numeric:tabular-nums}
+.proc-title{font-size:16px;font-weight:600}
+.bar{height:8px;border-radius:999px;background:#E6E9ED;overflow:hidden}
+.bar>span{display:block;height:100%;border-radius:999px;background:var(--chinh);transition:width .15s}
+.bar--ok>span{background:var(--xanh)}
+.skel{overflow:hidden}
+.skel-row{display:grid;grid-template-columns:82px 160px minmax(0,1fr) 170px 128px 220px;gap:12px;align-items:center;height:56px;padding:0 16px 0 46px;border-bottom:1px solid var(--vien-nhat)}
+.skel-row span{height:10px;border-radius:4px;background:#E6E9ED}
+.block-error{display:flex;gap:18px;align-items:flex-start;padding:28px;border:1px solid var(--do-vien);border-radius:12px;background:#fff}
+.err-icon{width:46px;height:46px;flex:none;border-radius:10px;background:var(--do-nen);color:var(--do);display:flex;align-items:center;justify-content:center}
+.err-body{display:flex;flex-direction:column;gap:8px;max-width:760px}
+.err-body p{margin:0;color:var(--chu-2)}
+
+/* ---------- tổng & lọc ---------- */
+.summary{display:flex;gap:12px;align-items:stretch;flex-wrap:wrap}
+.tiles{flex:3 1 640px;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
+.tile{text-align:left;padding:12px 14px;border-radius:10px;border:1px solid var(--vien);background:#fff;display:flex;flex-direction:column;gap:4px}
+.tile:hover{filter:brightness(.97)}
+.tile-label{display:flex;align-items:center;gap:6px;font-weight:600;font-size:13.5px}
+.tile-count{font-size:22px;font-weight:700;font-variant-numeric:tabular-nums}
+.tile-count small{font-size:13px;font-weight:500;color:var(--chu-phu)}
+.tile-total{font-size:13px;color:var(--chu-2);font-variant-numeric:tabular-nums}
+.tile--xanh .tile-label{color:var(--xanh)} .tile--vang .tile-label{color:var(--vang)} .tile--do .tile-label{color:var(--do)} .tile--junsky .tile-label{color:var(--js)}
+.tile--xanh[aria-pressed="true"]{background:var(--xanh-nen);border-color:var(--xanh);box-shadow:inset 0 0 0 1px var(--xanh)}
+.tile--vang[aria-pressed="true"]{background:var(--vang-nen);border-color:var(--vang);box-shadow:inset 0 0 0 1px var(--vang)}
+.tile--do[aria-pressed="true"]{background:var(--do-nen);border-color:var(--do);box-shadow:inset 0 0 0 1px var(--do)}
+.tile--junsky[aria-pressed="true"]{background:var(--js-nen);border-color:var(--js);box-shadow:inset 0 0 0 1px var(--js)}
+.review{flex:1 1 260px;max-width:380px;display:flex;flex-direction:column;justify-content:space-between;gap:10px;padding:12px 14px}
+.review-top{display:flex;justify-content:space-between;align-items:baseline;gap:8px;font-variant-numeric:tabular-nums}
+.review-top b{font-weight:700}
+.review-top span{font-size:13px;color:var(--chu-phu)}
+.filters{display:flex;flex-wrap:wrap;align-items:center;gap:10px 22px;padding:10px 14px}
+.fgroup{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.fgroup-label{font-size:12.5px;font-weight:600;color:var(--chu-phu);margin-right:2px}
+.pill{height:30px;padding:0 11px;border-radius:999px;font-size:13px;border:1px solid var(--vien-o);background:#fff}
+.pill:hover{background:#F1F3F6}
+.pill[aria-pressed="true"]{background:var(--chinh);border-color:var(--chinh);color:#fff;font-weight:600}
+.search{display:flex;align-items:center;gap:8px;height:34px;padding:0 10px;border:1px solid var(--vien-o);border-radius:7px;background:#fff;flex:1 1 240px;max-width:360px;color:var(--chu-nhat)}
+.search:focus-within{outline:2px solid var(--chinh);outline-offset:1px}
+.search input{border:0;outline:none;flex:1;min-width:0;background:transparent;color:var(--chu)}
+.search--lg{height:46px;max-width:none;padding:0 14px;border-radius:9px}
+.search--lg input{font-size:15px}
+.filters .bulk{margin-left:auto}
+.hint{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;font-size:12.5px;color:var(--chu-phu)}
+.hint-keys{display:flex;align-items:center;gap:5px;flex-wrap:wrap}
+kbd{display:inline-flex;align-items:center;justify-content:center;min-width:22px;height:22px;padding:0 6px;border:1px solid var(--vien-o);border-bottom-width:2px;border-radius:5px;background:#fff;font-family:inherit;font-size:12px;color:var(--chu)}
+
+/* ---------- danh sách giao dịch ---------- */
+.txn-list{overflow:hidden}
+.txn-cols{display:grid;grid-template-columns:20px 82px 160px minmax(0,1fr) 170px 128px;gap:12px;align-items:center}
+.txn-head{display:grid;grid-template-columns:minmax(0,1fr) 244px;background:#F7F8FA;border-bottom:1px solid var(--vien);font-size:12.5px;font-weight:600;color:var(--chu-phu)}
+.txn-head .txn-cols{padding:8px 8px 8px 14px}
+.txn-head .act-h{padding:8px 16px 8px 0;text-align:right}
+.txn{border-bottom:1px solid #E6E9ED;background:#fff}
+.txn:last-child{border-bottom:0}
+.txn--dongy{background:#F2F8F4}
+.txn--boqua{background:#F8F9FA}
+.txn--junsky{background:#F7F8FA}
+.txn.is-cursor{background:#EEF3FB;box-shadow:inset 0 0 0 2px var(--chinh)}
+.txn-row{display:grid;grid-template-columns:minmax(0,1fr) 244px;align-items:center}
+.txn-main{min-height:56px;width:100%;padding:8px 8px 8px 14px;border:0;background:transparent;text-align:left;color:var(--chu)}
+.txn-main:hover{background:rgba(31,78,158,.05)}
+.txn--junsky .txn-main{opacity:.62}
+.txn--boqua .txn-main{opacity:.75}
+.chev{color:var(--chu-nhat);display:flex}
+.date{color:var(--chu-2);font-variant-numeric:tabular-nums}
+.money{display:flex;align-items:center;gap:8px;min-width:0}
+.dir{flex:none;font-size:12px;font-weight:700;padding:2px 7px;border-radius:4px}
+.dir--thu{background:var(--xanh-nen);color:var(--xanh)}
+.dir--chi{background:var(--js-nen);color:var(--chu-2)}
+.amt{font-weight:700;font-variant-numeric:tabular-nums;white-space:nowrap}
+.amt--thu{color:var(--xanh)}
+.desc-cell{min-width:0;display:flex;flex-direction:column;gap:1px}
+.desc,.obj{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.desc{font-weight:500}
+.obj{font-size:13px;color:var(--chu-phu)}
+.obj--missing{color:var(--do)}
+.entry{font-size:13.5px;font-weight:600;font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.badge{display:inline-flex;align-items:center;gap:5px;padding:3px 9px;border-radius:999px;font-size:12.5px;font-weight:600;white-space:nowrap;border:1px solid}
+.badge--xanh{color:var(--xanh);background:var(--xanh-nen);border-color:var(--xanh-vien)}
+.badge--vang{color:var(--vang);background:var(--vang-nen);border-color:var(--vang-vien)}
+.badge--do{color:var(--do);background:var(--do-nen);border-color:var(--do-vien)}
+.badge--junsky{color:var(--js);background:var(--js-nen);border-color:var(--js-vien)}
+.txn-actions{display:flex;align-items:center;justify-content:flex-end;gap:6px;padding:0 12px 0 4px}
+.state{display:inline-flex;align-items:center;gap:5px;font-weight:600;font-size:13.5px;color:var(--chu-phu)}
+.state--ok{color:var(--xanh)}
+.js-no{font-size:13px;color:var(--chu-2);white-space:nowrap}
+.empty-filter{padding:36px;text-align:center;color:var(--chu-phu);display:flex;flex-direction:column;align-items:center;gap:10px}
+
+/* ---------- chi tiết giao dịch ---------- */
+.detail{padding:2px 16px 16px 46px;display:flex;flex-direction:column;gap:12px}
+.note-js{display:flex;gap:10px;align-items:flex-start;padding:12px 14px;border-radius:8px;background:#F1F3F6;color:var(--chu-2)}
+.et{border:1px solid var(--vien);border-radius:8px;overflow-x:auto;background:#fff}
+.txn--junsky .et{opacity:.62}
+.et-inner{min-width:900px}
+.et-grid{display:grid;grid-template-columns:56px minmax(200px,1.5fr) 130px minmax(170px,1.3fr) minmax(130px,1fr) minmax(150px,1fr) minmax(130px,1fr);gap:10px;align-items:center;padding:8px 12px}
+.et-head{background:#F7F8FA;border-bottom:1px solid #E6E9ED;font-size:12px;font-weight:600;color:var(--chu-phu)}
+.et-row{border-bottom:1px solid var(--vien-nhat);font-size:13.5px}
+.et-side{font-weight:700}
+.et-num{text-align:right;font-variant-numeric:tabular-nums;font-weight:600}
+.c2{color:var(--chu-2)}
+.dash{color:#8A929E}
+.miss-box{display:inline-flex;align-items:center;gap:5px;min-width:150px;height:26px;padding:0 8px;border:1.5px solid var(--do-o);border-radius:5px;background:#fff;color:var(--do);font-size:12.5px;font-weight:600}
+.et-foot{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;padding:8px 12px;background:#FAFBFC;font-size:13px;color:var(--chu-2);font-variant-numeric:tabular-nums}
+.et-foot strong{color:var(--chu)}
+.bal-ok,.bal-bad{display:inline-flex;align-items:center;gap:5px;font-weight:700}
+.bal-ok{color:var(--xanh)}
+.bal-bad{color:var(--do)}
+.why-row{display:flex;gap:12px;flex-wrap:wrap;align-items:flex-start}
+.why{flex:1 1 380px;display:flex;flex-direction:column;gap:8px;padding:12px 14px;border-radius:8px;background:var(--chinh-nhat);border:1px solid #DCE5F3}
+.eyebrow{font-size:12px;font-weight:700;letter-spacing:.06em}
+.eyebrow--blue{color:var(--chinh)}
+.eyebrow--amber{color:var(--vang)}
+.eyebrow--gray{color:var(--chu-phu)}
+.btn-basis{align-self:flex-start;height:30px;padding:0 12px;border-radius:7px;border:1px solid #9DB5DE;background:#fff;color:var(--chinh);font-size:13px;font-weight:600}
+.side{flex:1 1 380px;display:flex;flex-direction:column;gap:10px}
+.miss{display:flex;gap:8px;align-items:flex-start;padding:10px 12px;border-radius:8px;background:var(--do-nen);border:1px solid var(--do-vien);color:var(--do);font-weight:600}
+.suggest{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.suggest-title{font-size:13px;color:var(--chu-2)}
+.chip{height:30px;padding:0 10px;border-radius:999px;border:1px solid #9DB5DE;background:var(--chinh-nen);color:var(--chinh);font-weight:600;font-size:13px;display:inline-flex;align-items:center;gap:5px}
+.chip:hover{filter:brightness(.96)}
+.options{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:8px}
+.option{display:flex;flex-direction:column;gap:6px;padding:10px 12px;border-radius:8px;border:1.5px solid var(--vien);background:#fff}
+.option.is-active{border-color:var(--chinh);background:var(--chinh-nhat)}
+.option-title{font-weight:600;font-size:13.5px}
+.option-sum{font-weight:600;font-size:13.5px;font-variant-numeric:tabular-nums}
+.option-note{font-size:12.5px;color:var(--chu-phu)}
+.option .btn{align-self:flex-start;height:30px;font-size:13px;font-weight:600}
+.in-use{align-self:flex-start;display:inline-flex;align-items:center;gap:5px;font-size:12.5px;font-weight:700;color:var(--chinh);height:30px}
+.basis{border:1px solid var(--vien);border-radius:8px;overflow-x:auto}
+.basis-inner{min-width:760px}
+.basis-grid{display:grid;grid-template-columns:100px 150px minmax(0,1.4fr) minmax(0,1fr);gap:10px;padding:7px 12px;font-size:13px;font-variant-numeric:tabular-nums;border-bottom:1px solid var(--vien-nhat)}
+.basis-grid:last-child{border-bottom:0}
+.basis-head{background:#F7F8FA;font-size:12px;font-weight:600;color:var(--chu-phu);border-bottom-color:#E6E9ED}
+.basis-grid b{font-weight:600}
+.skip-note{margin:0;font-size:13px;color:var(--chu-2)}
+
+/* ---------- ngăn Sửa ---------- */
+.backdrop{position:absolute;inset:0;border:0;padding:0;margin:0;background:rgba(23,32,43,.32);cursor:default;z-index:20}
+.drawer{position:absolute;top:0;right:0;bottom:0;z-index:21;width:min(760px,94%);display:flex;flex-direction:column;background:#fff;box-shadow:-16px 0 40px rgba(23,32,43,.18)}
+.drawer-head{flex:none;display:flex;align-items:flex-start;gap:12px;padding:16px 20px;border-bottom:1px solid #E6E9ED}
+.drawer-title{flex:1;min-width:0;display:flex;flex-direction:column;gap:4px}
+.drawer-title .meta{font-size:13.5px;color:var(--chu-2);font-variant-numeric:tabular-nums}
+.drawer-title .meta strong{color:var(--chu)}
+.icon-btn{width:36px;height:36px;flex:none;display:flex;align-items:center;justify-content:center;border-radius:7px;border:1px solid transparent;background:transparent;color:var(--chu-2)}
+.icon-btn:hover{background:#F1F3F6}
+.drawer-body{flex:1;min-height:0;overflow:auto;padding:16px 20px;display:flex;flex-direction:column;gap:12px}
+.line-card{border:1px solid var(--vien);border-radius:10px;padding:12px 14px;display:flex;flex-direction:column;gap:12px}
+.line-top{display:flex;align-items:flex-end;gap:14px;flex-wrap:wrap}
+.line-no{font-size:12.5px;font-weight:700;color:var(--chu-phu);align-self:center}
+.lbl{font-size:12.5px;font-weight:600;color:var(--chu-phu)}
+.stack{display:flex;flex-direction:column;gap:4px}
+.seg{display:flex;border:1px solid var(--vien-o);border-radius:7px;overflow:hidden}
+.seg button{height:34px;width:54px;border:0;background:#fff;font-weight:600}
+.seg button+button{border-left:1px solid var(--vien-o)}
+.seg button[aria-pressed="true"]{background:var(--chinh);color:#fff}
+.input{height:36px;border:1.5px solid var(--vien-o);border-radius:6px;padding:0 10px;background:#fff;width:100%}
+.input:focus{outline:none;border-color:var(--chinh)}
+.input-amt{width:190px;text-align:right;font-weight:600;font-variant-numeric:tabular-nums}
+.input-date{width:160px;font-variant-numeric:tabular-nums}
+.remove-line{margin-left:auto}
+.fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.field{position:relative;display:flex;flex-direction:column;gap:4px}
+.field--wide{grid-column:1/-1}
+.field .input{padding-right:34px}
+.field .input.is-active{border-color:var(--chinh)}
+.field .input.is-error{border-color:var(--do-o)}
+.req{color:var(--do)}
+.field-clear{position:absolute;right:4px;top:26px;width:28px;height:28px;display:flex;align-items:center;justify-content:center;border:0;border-radius:5px;background:transparent;color:var(--chu-nhat)}
+.field-clear:hover{background:#F1F3F6}
+.combo-list{position:absolute;top:64px;left:0;right:0;z-index:5;background:#fff;border:1px solid var(--vien-o);border-radius:8px;box-shadow:0 12px 28px rgba(23,32,43,.16);max-height:230px;overflow:auto;padding:4px}
+.combo-opt{display:flex;gap:8px;width:100%;text-align:left;padding:7px 10px;border:0;border-radius:5px;background:transparent;font-size:13.5px}
+.combo-opt span{color:var(--chu-2)}
+.combo-opt.is-current{background:var(--chinh-nhat)}
+.combo-opt:hover,.combo-opt.is-first{background:#EEF3FB}
+.combo-empty{padding:10px;font-size:13px;color:var(--chu-phu)}
+.field-err{font-size:12px;color:var(--do)}
+.bal{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;padding:10px 14px;border-radius:8px;border:1px solid;font-variant-numeric:tabular-nums}
+.bal--ok{background:#F2F8F4;border-color:var(--xanh-vien)}
+.bal--bad{background:var(--do-nen);border-color:var(--do-vien)}
+.drawer-foot{flex:none;padding:14px 20px;border-top:1px solid #E6E9ED;display:flex;flex-direction:column;gap:12px;background:#FAFBFC}
+.check-row{display:flex;gap:10px;align-items:flex-start;cursor:pointer}
+.check-row input{width:18px;height:18px;margin:1px 0 0;accent-color:var(--chinh);flex:none}
+.foot-reason{font-size:13px;color:var(--do);margin-right:auto}
+
+/* ---------- hộp thoại & thông báo ---------- */
+.modal-wrap{position:absolute;inset:0;z-index:30;display:flex;align-items:center;justify-content:center;padding:24px;background:rgba(23,32,43,.4)}
+.modal{width:min(560px,100%);max-height:100%;overflow:auto;background:#fff;border-radius:12px;box-shadow:0 24px 60px rgba(23,32,43,.28);padding:22px 24px;display:flex;flex-direction:column;gap:14px}
+.modal p{margin:0}
+.lead{font-size:15.5px}
+.small{font-size:13px;color:var(--chu-phu)}
+.mini-list{border:1px solid #E6E9ED;border-radius:8px;max-height:220px;overflow:auto}
+.mini-row{display:grid;grid-template-columns:86px 130px minmax(0,1fr);gap:10px;padding:7px 12px;border-bottom:1px solid var(--vien-nhat);font-size:13px;font-variant-numeric:tabular-nums}
+.mini-row:last-child{border-bottom:0}
+.mini-row b{text-align:right}
+.stat-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.stat{padding:12px 14px;border-radius:8px;display:flex;flex-direction:column;gap:2px;font-size:13px}
+.stat--ok{background:var(--xanh-nen);color:var(--xanh)}
+.stat--gray{background:#F1F3F6;color:var(--chu-2)}
+.stat b{font-size:22px;font-variant-numeric:tabular-nums}
+.warn-box{display:flex;gap:8px;align-items:flex-start;padding:10px 12px;border-radius:8px;background:var(--vang-nen);border:1px solid var(--vang-vien);color:var(--vang);font-size:13.5px}
+.export-opt{display:flex;gap:10px;align-items:flex-start;padding:12px 14px;border:1px solid var(--vien);border-radius:8px}
+.export-opt--locked{border-style:dashed;background:#F7F8FA;color:var(--chu-phu)}
+.export-opt input{width:18px;height:18px;margin:1px 0 0;accent-color:var(--chinh);flex:none}
+.export-opt span{display:flex;flex-direction:column;gap:2px}
+.export-opt strong{display:inline-flex;align-items:center;gap:6px}
+.export-opt small{font-size:13px;color:var(--chu-phu)}
+.done-head{display:flex;align-items:center;gap:12px}
+.done-icon{width:42px;height:42px;flex:none;border-radius:10px;background:var(--xanh-nen);color:var(--xanh);display:flex;align-items:center;justify-content:center}
+.path{padding:10px 12px;border-radius:8px;background:var(--nen);border:1px solid var(--vien);font-family:var(--mono);font-size:13px;word-break:break-all}
+.toast{position:absolute;left:50%;bottom:24px;transform:translateX(-50%);z-index:40;display:flex;align-items:center;gap:14px;padding:9px 10px 9px 16px;border-radius:10px;background:var(--chu);color:#fff;box-shadow:0 12px 30px rgba(23,32,43,.3);max-width:min(760px,90%)}
+.toast-undo{height:30px;padding:0 12px;border-radius:6px;border:1px solid #5B6B82;background:transparent;color:#BFD4FF;font-weight:700}
+.toast-close{width:30px;height:30px;flex:none;display:flex;align-items:center;justify-content:center;border:0;border-radius:6px;background:transparent;color:#C9D1DC}
+
+/* ---------- màn hình 2–4 ---------- */
+.grid-2{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(440px,100%),1fr));gap:12px}
+.src{padding:16px;display:flex;flex-direction:column;gap:10px}
+.src.is-err{border-color:var(--do-vien)}
+.src-top{display:flex;align-items:flex-start;gap:12px}
+.src-title{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
+.src-title b{font-size:15px}
+.src-title span{font-size:13px;color:var(--chu-phu)}
+.st{flex:none;display:inline-flex;align-items:center;gap:5px;padding:3px 9px;border-radius:999px;font-size:12.5px;font-weight:600}
+.st--ok{background:var(--xanh-nen);color:var(--xanh)}
+.st--warn{background:var(--vang-nen);color:var(--vang)}
+.st--err{background:var(--do-nen);color:var(--do)}
+.st--load{background:var(--chinh-nen);color:var(--chinh)}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip-sm{display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:5px;font-size:12.5px;background:#F1F3F6;color:var(--chu-2)}
+.chip-sm.is-bad{background:var(--do-nen);color:var(--do)}
+.src-meta{display:flex;gap:16px;flex-wrap:wrap;font-size:13px;color:var(--chu-2);font-variant-numeric:tabular-nums}
+.msg{padding:10px 12px;border-radius:8px;font-size:13.5px;border:1px solid}
+.msg--err{background:var(--do-nen);color:var(--do);border-color:var(--do-vien)}
+.msg--warn{background:#FFF8E6;color:var(--vang);border-color:var(--vang-vien)}
+.panel{padding:16px;display:flex;flex-direction:column;gap:10px}
+.panel-title{font-size:15px;font-weight:700}
+.mini-table{border:1px solid #E6E9ED;border-radius:8px;overflow:hidden}
+.mini-table .r{display:grid;grid-template-columns:minmax(0,1.3fr) 120px minmax(0,1fr);gap:10px;padding:9px 12px;border-top:1px solid var(--vien-nhat);font-size:13.5px}
+.mini-table .r.h{background:#F7F8FA;font-size:12px;font-weight:600;color:var(--chu-phu);border-top:0}
+.kb{padding:14px 16px;display:grid;grid-template-columns:70px minmax(0,1fr);gap:8px 14px;align-items:baseline}
+.kb-when{font-weight:600}
+.kb-why{color:var(--chu-2)}
+.tags{display:flex;gap:6px;flex-wrap:wrap}
+.tag{padding:1px 8px;border-radius:5px;background:var(--js-nen);color:var(--chu-2);font-size:12.5px}
+.empty-card{padding:32px;text-align:center;color:var(--chu-phu)}
+.hist{overflow-x:auto}
+.hist-inner{min-width:900px}
+.hist-grid{display:grid;grid-template-columns:150px 120px 170px minmax(0,1fr) 230px;gap:12px;align-items:center;padding:10px 16px;border-bottom:1px solid var(--vien-nhat);font-variant-numeric:tabular-nums}
+.hist-grid:last-child{border-bottom:0}
+.hist-head{background:#F7F8FA;border-bottom-color:var(--vien);font-size:12.5px;font-weight:600;color:var(--chu-phu);padding:9px 16px}
+.right{text-align:right}
+.ell{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.acts{display:flex;gap:6px;justify-content:flex-end}
+</style>
+</head>
+<body>
+<div id="app"></div>
+<script>
+'use strict';
+
+/* =====================================================================
+   1. TIỆN ÍCH
+   ===================================================================== */
+const p2 = (n) => (n < 10 ? '0' : '') + n;
+const fmt = (n) => String(Math.round(Math.abs(n || 0))).replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const norm = (s) => String(s || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/đ/g, 'd');
+const clone = (lines) => lines.map((l) => Object.assign({}, l));
+const EXPORT_DIR = 'D:\\KhoTriThuc\\XuatFile';
+
+/* Tài khoản công nợ bắt buộc có đối tượng — CẦN XÁC NHẬN danh sách */
+const DEBT_ACCOUNTS = ['131', '331', '141', '344', '1388', '3388'];
+const isDebt = (tk) => DEBT_ACCOUNTS.indexOf(tk) >= 0;
+
+const ICONS = {
+  check: '<path d="M5 12.5l4.5 4.5L19 7.5"/>',
+  checks: '<path d="M4 12.5l4 4L18 6.5"/><path d="M12 16.5l1 1L21 9"/>',
+  checkCircle: '<circle cx="12" cy="12" r="9.5"/><path d="M8 12.5l2.7 2.7L16.2 9.6"/>',
+  xCircle: '<circle cx="12" cy="12" r="9.5"/><path d="M9 9l6 6M15 9l-6 6"/>',
+  warn: '<path d="M12 3.5L21.5 20h-19z"/><path d="M12 10v4.5"/><path d="M12 17.6v.01"/>',
+  book: '<path d="M5 4h11a3 3 0 0 1 3 3v13H8a3 3 0 0 1-3-3z"/><path d="M5 17a3 3 0 0 1 3-3h11"/>',
+  shield: '<path d="M12 3l8 3v6c0 4.5-3.4 8-8 9-4.6-1-8-4.5-8-9V6z"/>',
+  upload: '<path d="M12 16V4"/><path d="M7 9l5-5 5 5"/><path d="M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3"/>',
+  download: '<path d="M12 4v12"/><path d="M7 11l5 5 5-5"/><path d="M4 18v1a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-1"/>',
+  file: '<path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/><path d="M9 13h6M9 17h6"/>',
+  search: '<circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/>',
+  lock: '<rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/>',
+  chevRight: '<path d="M9 6l6 6-6 6"/>',
+  chevDown: '<path d="M6 9l6 6 6-6"/>',
+  x: '<path d="M6 6l12 12M18 6L6 18"/>',
+  plus: '<path d="M12 5v14M5 12h14"/>',
+  folder: '<path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>',
+  refresh: '<path d="M20 11a8 8 0 1 0-2.3 5.7"/><path d="M20 4v7h-7"/>'
+};
+const icon = (n, size, sw) => `<svg class="ic" width="${size || 16}" height="${size || 16}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="${sw || 2}" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">${ICONS[n]}</svg>`;
+
+const LV = {
+  xanh: { label: 'Đủ căn cứ', tile: 'Xanh · Đủ căn cứ', icon: 'checkCircle' },
+  vang: { label: 'Cần xem', tile: 'Vàng · Cần xem', icon: 'warn' },
+  do: { label: 'Thiếu căn cứ', tile: 'Đỏ · Thiếu căn cứ', icon: 'xCircle' },
+  junsky: { label: 'Có trong Junsky', tile: 'Đã có trong Junsky', icon: 'book' }
+};
+const badge = (k) => `<span class="badge badge--${k}">${icon(LV[k].icon, 14, 2.6)}${LV[k].label}</span>`;
+
+/* =====================================================================
+   2. DANH MỤC (DỮ LIỆU GIẢ) — NỐI LÕI: thay bằng danh mục nạp từ Junsky
+   ===================================================================== */
+const CAT = {
+  tk: [['1111', 'Tiền mặt – VND'], ['1121', 'Tiền gửi ngân hàng – VND'], ['131', 'Phải thu của khách hàng'], ['1331', 'Thuế GTGT được khấu trừ của HHDV'], ['1388', 'Phải thu khác'], ['141', 'Tạm ứng'], ['154', 'Chi phí SXKD dở dang'], ['2412', 'Xây dựng cơ bản dở dang'], ['331', 'Phải trả cho người bán'], ['3331', 'Thuế GTGT phải nộp'], ['334', 'Phải trả người lao động'], ['3388', 'Phải trả, phải nộp khác'], ['344', 'Nhận ký quỹ, ký cược'], ['511', 'Doanh thu bán hàng và cung cấp dịch vụ'], ['515', 'Doanh thu hoạt động tài chính'], ['635', 'Chi phí tài chính'], ['6425', 'Thuế, phí và lệ phí'], ['6427', 'Chi phí dịch vụ mua ngoài'], ['6428', 'Chi phí bằng tiền khác'], ['811', 'Chi phí khác']],
+  dt: [['NH.MAU', 'Ngân hàng TMCP Mẫu'], ['KH.ALPHA', 'Công ty TNHH Alpha'], ['KH.BETA', 'Công ty CP Beta'], ['NCC.GAMMA', 'Công ty Xây dựng Gamma'], ['NCC.DELTA', 'Công ty Kiểm toán Delta'], ['NCC.DIEN', 'Công ty Điện lực Mẫu'], ['NV.0012', 'Nhân viên Mẫu A']],
+  da: [['DA.KCN01', 'KCN Mẫu – giai đoạn 1'], ['DA.KCN02', 'KCN Mẫu – giai đoạn 2'], ['DA.CHUNG', 'Dùng chung']],
+  km: [['KM.PQL', 'Phí quản lý hạ tầng'], ['KM.PNH', 'Phí ngân hàng'], ['KM.XD', 'Xây dựng hạ tầng nội bộ'], ['KM.DIEN', 'Điện năng'], ['KM.XANG', 'Xăng dầu cho máy cắt cỏ'], ['KM.LAI', 'Lãi tiền gửi'], ['KM.KT', 'Phí kiểm toán'], ['KM.COC', 'Đặt cọc thuê đất']],
+  cp: [['TT.VP', 'Văn phòng công ty'], ['TT.VH', 'Vận hành KCN'], ['TT.DA', 'Ban quản lý dự án']]
+};
+const FIELD_LABEL = { tk: 'Tài khoản', dt: 'Đối tượng', da: 'Dự án', km: 'Khoản mục', cp: 'Trung tâm chi phí' };
+const nameOf = (k, code) => { const r = CAT[k].find((x) => x[0] === code); return r ? r[1] : ''; };
+const lbl = (k, code) => (code ? code + ' – ' + nameOf(k, code) : '');
+const filterCat = (k, q) => { const nq = norm(q).trim(); return CAT[k].filter((r) => !nq || norm(r[0] + ' ' + r[1]).indexOf(nq) >= 0); };
+
+/* =====================================================================
+   3. DỮ LIỆU GIẢ: 10 GIAO DỊCH 08/2026 — NỐI LÕI: thay bằng kết quả đề xuất
+   Cấu trúc một giao dịch: xem tài liệu bàn giao, mục "Dữ liệu một giao dịch".
+   ===================================================================== */
+const L = (side, tk, amt, dt, da, km, cp) => ({ side, tk: tk || '', amt: amt || 0, dt: dt || '', da: da || '', km: km || '', cp: cp || '' });
+function hist(n, day, pre, mk) {
+  const out = [];
+  for (let i = 0; i < n; i++) { const m = 6 - i; const r = mk(m, i); out.push({ d: p2(day) + '/' + p2(m) + '/2026', no: pre + '26' + p2(m) + '-00' + p2(11 + i * 7), desc: r[0], hk: r[1] }); }
+  return out;
+}
+function seed() {
+  const T = (o) => { const t = Object.assign({ status: 'cho', options: null, chosen: 0, suggest: null, sgTitle: '', basis: [], junskyNo: '', skipReason: '' }, o); if (t.options && !t.lines) t.lines = clone(t.options[0].lines); return t; };
+  return [
+    T({ id: 1, date: '02/08/2026', dir: 'chi', amt: 55000, desc: 'Thu phi SMS BDSD T7/2026', level: 'xanh',
+      lines: [L('N', '6427', 50000, 'NH.MAU', '', 'KM.PNH', 'TT.VP'), L('N', '1331', 5000, 'NH.MAU'), L('C', '1121', 55000, 'NH.MAU')],
+      why: '5/5 chứng từ cũ giống nhất hạch toán Nợ 6427 + 1331 / Có 1121, đối tượng NH.MAU.',
+      basis: hist(5, 2, '02BP', (m) => ['Thu phi SMS BDSD T' + (m - 1) + '/2026', 'Nợ 6427 + 1331 / Có 1121']) }),
+    T({ id: 2, date: '05/08/2026', dir: 'thu', amt: 85000000, desc: 'CTY TNHH ALPHA chuyen tien phi quan ly T8', level: 'xanh',
+      lines: [L('N', '1121', 85000000, 'KH.ALPHA'), L('C', '131', 85000000, 'KH.ALPHA', 'DA.KCN01', 'KM.PQL')],
+      why: 'Số tài khoản đối ứng thuộc đối tượng KH.ALPHA theo danh bạ (độ tin cậy Cao); 4/4 lần thu trước của KH.ALPHA hạch toán Có 131.',
+      basis: hist(4, 5, '02BT', (m) => ['CTY TNHH ALPHA chuyen tien phi quan ly T' + m, 'Nợ 1121 / Có 131 · KH.ALPHA']) }),
+    T({ id: 3, date: '08/08/2026', dir: 'chi', amt: 120000000, desc: 'TT dot 2 HD 15/2026 thi cong duong noi bo', level: 'vang',
+      options: [
+        { label: 'Trả nợ nhà cung cấp', note: '3/5 chứng từ cũ của NCC.GAMMA (đã có hóa đơn)', lines: [L('N', '331', 120000000, 'NCC.GAMMA', 'DA.KCN01', 'KM.XD'), L('C', '1121', 120000000, 'NCC.GAMMA')] },
+        { label: 'Ghi thẳng XDCB dở dang', note: '2/5 chứng từ cũ (thanh toán trước hóa đơn)', lines: [L('N', '2412', 120000000, 'NCC.GAMMA', 'DA.KCN01', 'KM.XD'), L('C', '1121', 120000000, 'NCC.GAMMA')] }
+      ],
+      why: 'Đối tượng NCC.GAMMA xác định theo danh bạ (độ tin cậy Cao), nhưng cách hạch toán chưa thống nhất: 3/5 chứng từ cũ ghi Nợ 331, 2/5 ghi thẳng Nợ 2412.',
+      basis: hist(5, 8, '02BP', (m, i) => [['TT dot 1 HD 15/2026 thi cong duong noi bo', 'TT HD 09/2026 nang cap mat duong', 'TT dot 3 HD 04/2026 thoat nuoc mua', 'TT tam ung HD 04/2026 thoat nuoc mua', 'TT dot 2 HD 04/2026 thoat nuoc mua'][i], (i === 1 || i === 3) ? 'Nợ 2412 / Có 1121 · NCC.GAMMA' : 'Nợ 331 / Có 1121 · NCC.GAMMA']) }),
+    T({ id: 4, date: '12/08/2026', dir: 'thu', amt: 300000000, desc: 'CTY BETA chuyen tien', level: 'vang',
+      options: [
+        { label: 'Thu tiền thanh toán', note: '2/3 chứng từ cũ của KH.BETA', lines: [L('N', '1121', 300000000, 'KH.BETA'), L('C', '131', 300000000, 'KH.BETA', 'DA.KCN02', 'KM.PQL')] },
+        { label: 'Nhận đặt cọc', note: '1/3 chứng từ cũ (đặt cọc thuê đất)', lines: [L('N', '1121', 300000000, 'KH.BETA'), L('C', '344', 300000000, 'KH.BETA', 'DA.KCN02', 'KM.COC')] }
+      ],
+      why: 'Đối tượng KH.BETA theo danh bạ (độ tin cậy Cao). Diễn giải không nêu nội dung; KH.BETA từng có cả khoản thanh toán (Có 131) và khoản đặt cọc (Có 344) — nên đối chiếu hợp đồng.',
+      basis: hist(3, 12, '02BT', (m, i) => [['CTY BETA chuyen tien TT phi ha tang', 'CTY BETA dat coc thue dat lo B3', 'CTY BETA TT phi quan ly T4'][i], i === 1 ? 'Nợ 1121 / Có 344 · KH.BETA' : 'Nợ 1121 / Có 131 · KH.BETA']) }),
+    T({ id: 5, date: '15/08/2026', dir: 'chi', amt: 15400000, desc: 'Thanh toan tien dien thang 7', level: 'vang',
+      lines: [L('N', '331', 15400000, '', '', 'KM.DIEN', 'TT.VH'), L('C', '1121', 15400000)],
+      suggest: [{ kind: 'dt', value: 'NCC.DIEN' }], sgTitle: 'Đối tượng hay gặp với “tiền điện”:',
+      why: '4/4 chứng từ tiền điện cũ hạch toán Nợ 331. Số tài khoản đối ứng chưa có trong danh bạ nên chưa xác định được đối tượng.',
+      basis: hist(4, 10, '02BP', (m) => ['Thanh toan tien dien thang ' + (m - 1), 'Nợ 331 / Có 1121 · NCC.DIEN']) }),
+    T({ id: 6, date: '18/08/2026', dir: 'chi', amt: 2000000, desc: 'Chuyen tien', level: 'do',
+      lines: [L('N', '', 2000000), L('C', '1121', 2000000)],
+      suggest: [{ kind: 'tk', value: '331' }, { kind: 'tk', value: '6427' }, { kind: 'tk', value: '141' }], sgTitle: 'TK hay gặp cho chi tiền:',
+      why: 'Diễn giải “Chuyen tien” quá chung, số tài khoản đối ứng chưa có trong danh bạ và không có chứng từ cũ đủ giống.' }),
+    T({ id: 7, date: '20/08/2026', dir: 'thu', amt: 1250000, desc: 'Tra lai tai khoan DDA', level: 'xanh',
+      lines: [L('N', '1121', 1250000, 'NH.MAU'), L('C', '515', 1250000, 'NH.MAU', '', 'KM.LAI')],
+      why: '4/4 chứng từ trả lãi cũ hạch toán Nợ 1121 / Có 515.',
+      basis: hist(4, 25, '02BT', () => ['Tra lai tai khoan DDA', 'Nợ 1121 / Có 515']) }),
+    T({ id: 8, date: '22/08/2026', dir: 'chi', amt: 50000000, desc: 'Rut tien mat ve quy', level: 'xanh',
+      lines: [L('N', '1111', 50000000), L('C', '1121', 50000000)],
+      why: '5/5 chứng từ “Rút tiền mặt về quỹ” gần nhất hạch toán Nợ 1111 / Có 1121.',
+      basis: hist(5, 15, '02BP', () => ['Rut tien mat ve quy', 'Nợ 1111 / Có 1121']) }),
+    T({ id: 9, date: '25/08/2026', dir: 'chi', amt: 7800000, desc: 'TT phi kiem toan', level: 'junsky', status: 'junsky', junskyNo: '02BP2608-0012',
+      lines: [L('N', '331', 7800000, 'NCC.DELTA', '', 'KM.KT', 'TT.VP'), L('C', '1121', 7800000, 'NCC.DELTA')],
+      why: 'Đã có chứng từ 02BP2608-0012 trong sổ Junsky: cùng ngày, cùng số tiền, cùng tài khoản ngân hàng.' }),
+    T({ id: 10, date: '28/08/2026', dir: 'chi', amt: 4500000, desc: 'Mua xang may cat co T8', level: 'xanh', status: 'dongy',
+      lines: [L('N', '154', 4500000, '', 'DA.KCN01', 'KM.XANG', 'TT.VH'), L('C', '1121', 4500000)],
+      why: '3/3 chứng từ mua xăng máy cắt cỏ cũ hạch toán Nợ 154, khoản mục Xăng dầu cho máy cắt cỏ.',
+      basis: hist(3, 28, '02BP', (m) => ['Mua xang may cat co T' + m, 'Nợ 154 / Có 1121 · KM.XANG']) })
+  ];
+}
+/* NỐI LÕI: tri thức đã học (màn hình Tra cứu) */
+const KB_RULES = [
+  { when: 'Diễn giải có “phi SMS” / “phí SMS BĐSD”', then: 'Nợ 6427 + Nợ 1331 / Có 1121 · đối tượng NH.MAU · khoản mục KM.PNH', why: '5/5 chứng từ cũ (02–06/2026) hạch toán như vậy; thuế GTGT tách riêng vào 1331.', tags: ['6427', '1331', 'NH.MAU', 'Phí ngân hàng'] },
+  { when: 'Số tài khoản đối ứng thuộc KH.ALPHA – Công ty TNHH Alpha (theo danh bạ)', then: 'Nợ 1121 / Có 131 · đối tượng KH.ALPHA · dự án DA.KCN01 · khoản mục KM.PQL', why: '4/4 lần thu trước của KH.ALPHA là thu phí quản lý hạ tầng.', tags: ['1121', '131', 'KH.ALPHA', 'Alpha'] },
+  { when: 'Đối tượng là NCC.GAMMA – Công ty Xây dựng Gamma', then: 'Nợ 331 (thường gặp) hoặc Nợ 2412 / Có 1121 · dự án DA.KCN01 · khoản mục KM.XD', why: 'Chưa thống nhất: 3/5 chứng từ cũ ghi 331, 2/5 ghi thẳng 2412 — nên giao dịch của NCC.GAMMA thường ở mức Vàng.', tags: ['331', '2412', 'NCC.GAMMA', 'Gamma'] },
+  { when: 'Diễn giải có “tien dien” / “tiền điện”', then: 'Nợ 331 / Có 1121 · đối tượng thường là NCC.DIEN · khoản mục KM.DIEN', why: '4/4 chứng từ tiền điện cũ hạch toán Nợ 331 cho NCC.DIEN – Công ty Điện lực Mẫu.', tags: ['331', 'NCC.DIEN', 'Điện'] },
+  { when: 'Diễn giải có “tra lai” / “trả lãi”', then: 'Nợ 1121 / Có 515 · khoản mục KM.LAI', why: '4/4 chứng từ trả lãi tiền gửi cũ hạch toán vào doanh thu hoạt động tài chính.', tags: ['1121', '515', 'Lãi tiền gửi'] },
+  { when: 'Diễn giải có “rut tien mat”', then: 'Nợ 1111 / Có 1121', why: '5/5 lần rút tiền mặt về quỹ gần nhất.', tags: ['1111', '1121', 'Tiền mặt'] },
+  { when: 'Diễn giải có “xang” và “may cat co”', then: 'Nợ 154 / Có 1121 · khoản mục KM.XANG · trung tâm chi phí TT.VH', why: '3/3 chứng từ cũ; chi phí vận hành KCN đưa vào 154.', tags: ['154', 'KM.XANG', 'Xăng dầu'] }
+];
+
+/* =====================================================================
+   4. TRẠNG THÁI
+   ===================================================================== */
+const DEMO_STATES = [
+  ['danh-sach', 'Danh sách đầy đủ'], ['chua-co-file', 'Chưa có file'], ['dang-xu-ly', 'Đang xử lý'],
+  ['mo-giao-dich', 'Mở giao dịch Vàng'], ['giao-dich-do', 'Mở giao dịch Đỏ'], ['ngan-sua', 'Ngăn Sửa đang mở'],
+  ['dong-y-hang-loat', 'Xác nhận đồng ý hàng loạt'], ['xuat-file', 'Hộp xuất file'], ['loi-chan', 'Lỗi chặn'],
+  ['nguon-du-lieu', 'Nguồn dữ liệu'], ['tra-cuu', 'Tra cứu tri thức'], ['lich-su', 'Lịch sử xuất file']
+];
+function initState(mode) {
+  const s = {
+    demo: mode, screen: 'dk', phase: 'loaded', progress: 10, txns: seed(),
+    open: null, cursor: null, basisOpen: null,
+    fLevel: 'all', fStatus: 'all', fDir: 'all', q: '',
+    drawer: null, modal: null, skipId: null, skipReason: '',
+    exportDone: false, exportFile: '', toast: null, kbQ: '',
+    moc: '30/06/2026', mocDraft: '30/06/2026', catErr: false, dragOver: false,
+    srcLoading: '', srcFresh: {},
+    history: [
+      { at: '05/08/2026 16:40', n: 98, who: 'Kế toán tổng hợp', file: 'SoatDinhKhoan_TK1121_2026-07.xlsx' },
+      { at: '04/07/2026 10:12', n: 87, who: 'Kế toán tổng hợp', file: 'SoatDinhKhoan_TK1121_2026-06.xlsx' }
+    ]
+  };
+  if (mode === 'chua-co-file') s.phase = 'empty';
+  else if (mode === 'dang-xu-ly') { s.phase = 'processing'; s.progress = 6; }
+  else if (mode === 'mo-giao-dich') { s.open = 3; s.cursor = 3; }
+  else if (mode === 'giao-dich-do') { s.open = 6; s.cursor = 6; }
+  else if (mode === 'ngan-sua') { s.open = 5; s.cursor = 5; s.drawer = { id: 5, lines: clone(s.txns[4].lines), remember: true, combo: { li: 0, key: 'dt' }, q: 'dien' }; }
+  else if (mode === 'dong-y-hang-loat') { s.fLevel = 'xanh'; s.modal = 'bulk'; }
+  else if (mode === 'xuat-file') { s.txns.forEach((t) => { if ([1, 2, 7, 8].indexOf(t.id) >= 0) t.status = 'dongy'; }); s.modal = 'export'; }
+  else if (mode === 'loi-chan') { s.phase = 'error'; s.catErr = true; }
+  else if (mode === 'nguon-du-lieu') s.screen = 'nguon';
+  else if (mode === 'tra-cuu') s.screen = 'tracuu';
+  else if (mode === 'lich-su') s.screen = 'lichsu';
+  return s;
+}
+function startMode() {
+  try { const m = new URLSearchParams(location.search).get('trang-thai'); if (m && DEMO_STATES.some((d) => d[0] === m)) return m; } catch (e) { /* bỏ qua */ }
+  return 'danh-sach';
+}
+
+let S = initState(startMode());
+const timers = {};
+let lastScreen = S.screen;
+function set(patch) { S = Object.assign({}, S, typeof patch === 'function' ? patch(S) : patch); render(); }
+function focusLater(id) { setTimeout(() => { const el = document.getElementById(id); if (el) el.focus(); }, 0); }
+function toast(text, undo, extra) {
+  const k = Date.now() + Math.random();
+  set(Object.assign({}, extra || {}, { toast: { k, text, undo: undo || null } }));
+  clearTimeout(timers.toast);
+  timers.toast = setTimeout(() => { if (S.toast && S.toast.k === k) set({ toast: null }); }, undo ? 6000 : 4000);
+}
+
+/* =====================================================================
+   5. QUY TẮC NGHIỆP VỤ TRÊN GIAO DIỆN
+   ===================================================================== */
+function check(lines) {
+  let n = 0, c = 0; const miss = [];
+  lines.forEach((l) => { if (l.side === 'N') n += l.amt || 0; else c += l.amt || 0; });
+  if (lines.some((l) => !l.tk)) miss.push('tài khoản đối ứng');
+  lines.forEach((l) => { if (l.tk && isDebt(l.tk) && !l.dt) { const m = 'đối tượng cho TK ' + l.tk; if (miss.indexOf(m) < 0) miss.push(m); } });
+  const bal = n === c && n > 0;
+  return { miss, bal, n, c, ok: miss.length === 0 && bal };
+}
+function reasonText(ck) {
+  const parts = [];
+  if (ck.miss.length) parts.push('Thiếu: ' + ck.miss.join(' · '));
+  if (!ck.bal) parts.push(ck.n === 0 && ck.c === 0 ? 'Chưa có số tiền' : 'Nợ ≠ Có (lệch ' + fmt(ck.n - ck.c) + ' VND)');
+  return parts.join(' — ');
+}
+function entrySum(lines) {
+  const d = lines.filter((l) => l.side === 'N').map((l) => l.tk || '?');
+  const c = lines.filter((l) => l.side === 'C').map((l) => l.tk || '?');
+  return 'Nợ ' + d.join(' + ') + ' / Có ' + c.join(' + ');
+}
+function objText(t) { const l = t.lines.find((x) => x.dt); return l ? lbl('dt', l.dt) : ''; }
+function visible(s) {
+  const q = norm(s.q).trim(); const qd = s.q.replace(/\D/g, '');
+  return s.txns.filter((t) => (s.fLevel === 'all' || t.level === s.fLevel)
+    && (s.fStatus === 'all' || t.status === s.fStatus)
+    && (s.fDir === 'all' || t.dir === s.fDir)
+    && (!q || norm(t.desc + ' ' + objText(t)).indexOf(q) >= 0 || (qd.length >= 3 && String(t.amt).indexOf(qd) >= 0)));
+}
+function nextPending(s, fromId) {
+  const vis = visible(s).map((t) => t.id); const order = s.txns.map((t) => t.id); const start = order.indexOf(fromId);
+  for (let k = 1; k <= order.length; k++) {
+    const id = order[(start + k) % order.length]; const t = s.txns.find((x) => x.id === id);
+    if (t.status === 'cho' && vis.indexOf(id) >= 0) return id;
+  }
+  return null;
+}
+const bulkList = (s) => visible(s).filter((t) => t.level === 'xanh' && t.status === 'cho' && check(t.lines).ok);
+const findTxn = (id) => S.txns.find((x) => x.id === id);
+
+/* =====================================================================
+   6. HÀNH ĐỘNG
+   ===================================================================== */
+function startLoad() {
+  /* NỐI LÕI: đọc file thả vào → tự nhận loại → gửi lõi đề xuất → cập nhật S.progress theo tiến độ thật */
+  clearInterval(timers.load);
+  set({ phase: 'processing', progress: 0, screen: 'dk', dragOver: false, open: null, modal: null });
+  timers.load = setInterval(() => {
+    if (S.progress >= 9) { clearInterval(timers.load); set({ progress: 10, phase: S.catErr ? 'error' : 'loaded' }); }
+    else set({ progress: S.progress + 1 });
+  }, 170);
+}
+function approve(id) {
+  const t = findTxn(id); if (!t || t.status !== 'cho') return;
+  const ck = check(t.lines);
+  if (!ck.ok) { toast('Chưa đồng ý được: ' + reasonText(ck), null, { open: id, cursor: id }); return; }
+  const txns = S.txns.map((x) => x.id === id ? Object.assign({}, x, { status: 'dongy' }) : x);
+  const next = nextPending(Object.assign({}, S, { txns }), id);
+  toast('Đã đồng ý · ' + t.date + ' · ' + fmt(t.amt) + ' VND', { txns: S.txns, open: id }, { txns, open: next, cursor: next });
+}
+function edit(id) {
+  const t = findTxn(id); if (!t || t.status === 'junsky') return;
+  set({ drawer: { id, lines: clone(t.lines), remember: true, combo: null, q: '' }, cursor: id });
+  focusLater('drawer-close');
+}
+function skip(id) {
+  const t = findTxn(id); if (!t || t.status !== 'cho') return;
+  set({ modal: 'skip', skipId: id, skipReason: '', cursor: id });
+  focusLater('ly-do');
+}
+function confirmSkip() {
+  const id = S.skipId; const t = findTxn(id); if (!t) return;
+  const txns = S.txns.map((x) => x.id === id ? Object.assign({}, x, { status: 'boqua', skipReason: S.skipReason.trim() }) : x);
+  const next = nextPending(Object.assign({}, S, { txns }), id);
+  toast('Đã bỏ qua · ' + t.date + ' · ' + fmt(t.amt) + ' VND', { txns: S.txns, open: id }, { txns, modal: null, open: next, cursor: next });
+}
+function reopen(id) { set((s) => ({ txns: s.txns.map((x) => x.id === id ? Object.assign({}, x, { status: 'cho', skipReason: '' }) : x), open: id, cursor: id })); }
+function useOption(id, i) { set((s) => ({ txns: s.txns.map((x) => x.id === id ? Object.assign({}, x, { chosen: i, lines: clone(x.options[i].lines) }) : x) })); }
+function pickSuggest(id, i) {
+  set((s) => ({ txns: s.txns.map((x) => {
+    if (x.id !== id || !x.suggest) return x;
+    const g = x.suggest[i]; const lines = clone(x.lines); let done = false;
+    lines.forEach((l) => {
+      if (done) return;
+      if (g.kind === 'tk' && !l.tk) { l.tk = g.value; done = true; }
+      if (g.kind === 'dt' && l.tk && isDebt(l.tk) && !l.dt) { l.dt = g.value; done = true; }
+    });
+    return Object.assign({}, x, { lines });
+  }) }));
+}
+function confirmBulk() {
+  const ids = bulkList(S).map((t) => t.id);
+  if (!ids.length) { set({ modal: null }); return; }
+  const txns = S.txns.map((x) => ids.indexOf(x.id) >= 0 ? Object.assign({}, x, { status: 'dongy' }) : x);
+  toast('Đã đồng ý ' + ids.length + ' giao dịch Xanh', { txns: S.txns, open: null }, { txns, modal: null, open: null });
+}
+function doExport() {
+  /* NỐI LÕI: ghi File soát (Excel) chỉ gồm giao dịch status = "dongy"; trả về đường dẫn thật */
+  const n = S.txns.filter((t) => t.status === 'dongy').length; if (!n) return;
+  const d = new Date();
+  const at = p2(d.getDate()) + '/' + p2(d.getMonth() + 1) + '/' + d.getFullYear() + ' ' + p2(d.getHours()) + ':' + p2(d.getMinutes());
+  const k = S.history.filter((h) => h.file.indexOf('2026-08') >= 0).length;
+  const file = 'SoatDinhKhoan_TK1121_2026-08' + (k ? '_lan' + (k + 1) : '') + '.xlsx';
+  set((s) => ({ exportDone: true, exportFile: file, history: [{ at, n, who: 'Bạn', file }].concat(s.history) }));
+}
+function reloadSrc(k) {
+  /* NỐI LÕI: nạp lại nguồn dữ liệu tương ứng */
+  const titles = { so: 'Sổ Junsky', cn: 'Danh sách chứng từ công nợ', dm: 'Danh mục', db: 'Danh bạ đối tác' };
+  if (S.srcLoading) return;
+  set({ srcLoading: k });
+  setTimeout(() => {
+    const f = Object.assign({}, S.srcFresh); f[k] = true;
+    const p = { srcLoading: '', srcFresh: f }; if (k === 'dm') p.catErr = false;
+    set(p); toast('Đã nạp lại: ' + titles[k]);
+  }, 1200);
+}
+function applyMoc() {
+  const v = S.mocDraft.trim();
+  if (/^\d{2}\/\d{2}\/\d{4}$/.test(v)) { set({ moc: v }); toast('Đã đổi mốc học: máy học từ sổ đến ' + v); }
+  else toast('Ngày chưa đúng dạng dd/mm/yyyy');
+}
+/* ngăn Sửa */
+function dUpd(fn) {
+  if (!S.drawer) return;
+  const d = Object.assign({}, S.drawer, { lines: clone(S.drawer.lines) });
+  fn(d); set({ drawer: d });
+}
+function dSet(li, key, val, close) { dUpd((d) => { if (d.lines[li]) d.lines[li][key] = val; if (close) d.combo = null; }); }
+function comboActive(li, key) { const d = S.drawer; return !!(d && d.combo && d.combo.li === li && d.combo.key === key); }
+function openCombo(li, key) { if (!comboActive(li, key)) dUpd((d) => { d.combo = { li, key }; d.q = ''; }); }
+function saveDrawer() {
+  const d = S.drawer; if (!d) return;
+  const ck = check(d.lines);
+  if (!ck.ok) { toast('Chưa lưu được: ' + reasonText(ck)); return; }
+  /* NỐI LÕI: nếu d.remember = true → gửi lõi ghi nhớ quy tắc theo số tài khoản đối ứng */
+  const t = findTxn(d.id);
+  const txns = S.txns.map((x) => x.id === d.id ? Object.assign({}, x, { lines: clone(d.lines), status: 'dongy' }) : x);
+  const next = nextPending(Object.assign({}, S, { txns }), d.id);
+  toast('Đã lưu và đồng ý · ' + t.date + ' · ' + fmt(t.amt) + ' VND' + (d.remember ? ' · đã ghi nhớ cho lần sau' : ''), { txns: S.txns, open: d.id }, { txns, drawer: null, open: next, cursor: next });
+}
+function loadDemo(mode) {
+  clearInterval(timers.load); clearTimeout(timers.toast);
+  S = initState(mode); render();
+  try { history.replaceState(null, '', '?trang-thai=' + mode); } catch (e) { /* file:// có thể chặn */ }
+}
+
+const ACT = {
+  nav: (d) => set({ screen: d.screen }),
+  'start-load': startLoad,
+  'reset-file': () => { clearInterval(timers.load); set({ phase: 'empty', open: null, cursor: null }); },
+  'go-nguon': () => set({ screen: 'nguon' }),
+  tile: (d) => set((s) => ({ fLevel: s.fLevel === d.level ? 'all' : d.level })),
+  pill: (d) => set({ [d.key]: d.val }),
+  'clear-filters': () => set({ fLevel: 'all', fStatus: 'all', fDir: 'all', q: '' }),
+  'open-bulk': () => { if (bulkList(S).length) { set({ modal: 'bulk' }); focusLater('modal-cancel'); } else toast('Không có giao dịch Xanh nào đủ điều kiện trong danh sách đang lọc'); },
+  'confirm-bulk': confirmBulk,
+  'open-export': () => { set({ modal: 'export', exportDone: false }); focusLater('modal-cancel'); },
+  'do-export': doExport,
+  'open-folder': () => toast('Đang mở thư mục ' + EXPORT_DIR),
+  'close-modal': () => set({ modal: null }),
+  toggle: (d) => { const id = +d.id; set((s) => ({ cursor: id, open: s.open === id ? null : id })); },
+  approve: (d) => approve(+d.id),
+  edit: (d) => edit(+d.id),
+  skip: (d) => skip(+d.id),
+  reopen: (d) => reopen(+d.id),
+  basis: (d) => { const id = +d.id; set((s) => ({ basisOpen: s.basisOpen === id ? null : id })); },
+  'use-option': (d) => useOption(+d.id, +d.i),
+  suggest: (d) => pickSuggest(+d.id, +d.i),
+  'confirm-skip': confirmSkip,
+  'close-drawer': () => set({ drawer: null }),
+  'add-line': () => dUpd((d) => { d.lines.push(L('N', '', 0)); d.combo = null; }),
+  'remove-line': (x) => dUpd((d) => { d.lines.splice(+x.li, 1); d.combo = null; }),
+  side: (x) => dSet(+x.li, 'side', x.side),
+  'clear-field': (x) => dSet(+x.li, x.key, ''),
+  'save-drawer': saveDrawer,
+  undo: () => { const t = S.toast; if (t && t.undo) set({ txns: t.undo.txns, open: t.undo.open, cursor: t.undo.open, toast: null }); },
+  'close-toast': () => set({ toast: null }),
+  'reload-src': (x) => reloadSrc(x.k),
+  'apply-moc': applyMoc,
+  'add-bank': () => toast('Bản thiết kế: thêm tài khoản ngân hàng sẽ làm khi dựng thật'),
+  'open-file': (x) => toast('Đang mở ' + S.history[+x.i].file),
+  'hist-folder': () => toast('Đang mở thư mục ' + EXPORT_DIR)
+};
+
+/* =====================================================================
+   7. GIAO DIỆN (HTML dựng từ trạng thái)
+   ===================================================================== */
+function viewTopbar(s) {
+  return `<header class="topbar">
+    <div class="brand"><span class="logo">${icon('book', 18)}</span><span class="brand-name">Kho tri thức kế toán</span><span class="tag-kho">KHO THẬT</span></div>
+    <span class="topbar-note">${icon('shield', 15)}Không tự nhập Junsky — chỉ tạo file</span>
+    <div class="topbar-status"><span>Sổ Junsky đến <strong>29/08/2026</strong></span><span aria-hidden="true">·</span><span>Máy học đến <strong>${esc(s.moc)}</strong></span></div>
+  </header>`;
+}
+function viewNav(s) {
+  const items = [['dk', 'Định khoản'], ['nguon', 'Nguồn dữ liệu'], ['tracuu', 'Tra cứu tri thức'], ['lichsu', 'Lịch sử xuất file']];
+  return `<nav class="nav" aria-label="Menu chính">
+    ${items.map((n, i) => `<button type="button" class="nav-item" data-act="nav" data-screen="${n[0]}" aria-current="${s.screen === n[0] ? 'page' : 'false'}"><span class="nav-num">${i + 1}</span><span>${n[1]}</span></button>`).join('')}
+    <div class="nav-foot">
+      <label for="demo-state">Xem trạng thái mẫu (chỉ có trong prototype)</label>
+      <select id="demo-state" data-demo>${DEMO_STATES.map((d) => `<option value="${d[0]}"${d[0] === s.demo ? ' selected' : ''}>${d[1]}</option>`).join('')}</select>
+      <span>Bản thiết kế · dữ liệu giả</span>
+    </div>
+  </nav>`;
+}
+
+function viewFileRow(s) {
+  return `<div class="file-row">
+    <div class="card file-card">
+      <span class="file-icon">${icon('file', 20)}</span>
+      <div style="min-width:0;display:flex;flex-direction:column;gap:2px">
+        <div class="file-meta"><span>Sao kê ngân hàng</span><span class="dot" aria-hidden="true">·</span><span>TK 1121</span><span class="dot" aria-hidden="true">·</span><span>01/08/2026–31/08/2026</span><span class="dot" aria-hidden="true">·</span><span>${s.txns.length} giao dịch</span><span class="dot" aria-hidden="true">·</span><span class="ok-text">${icon('checkCircle', 15, 2.4)}Số dư đầu–cuối khớp</span></div>
+        <span class="file-name">SaoKe_TK1121_08-2026.xlsx · nạp lúc 03/10/2026 09:12</span>
+      </div>
+    </div>
+    ${s.phase === 'loaded' ? `<button type="button" class="btn btn-newfile" data-act="reset-file">${icon('upload', 16)}Thả file khác</button>` : ''}
+  </div>`;
+}
+function viewEmpty(s) {
+  const recent = [['Sao kê ngân hàng · TK 1121 · 07/2026', '98 giao dịch · đã xuất 05/08/2026'], ['Sao kê ngân hàng · TK 1121 · 06/2026', '87 giao dịch · đã xuất 04/07/2026']];
+  return `<button type="button" class="dropzone${s.dragOver ? ' is-over' : ''}" id="dropzone" data-act="start-load">
+      <span class="drop-icon">${icon('upload', 26)}</span>
+      <span class="drop-title">Thả file vào đây hoặc bấm để chọn</span>
+      <span class="sub" style="font-size:14px">Sao kê ngân hàng (.xlsx, .xls) · Hóa đơn điện tử XML (nhiều file hoặc cả thư mục) · Bảng kê</span>
+      <span style="color:var(--chu-nhat);font-size:13px">Phần mềm tự nhận loại file, không cần chọn trước.</span>
+    </button>
+    <section class="card recent" aria-labelledby="h-recent">
+      <h2 id="h-recent">Đã làm gần đây</h2>
+      ${recent.map((r) => `<div class="recent-item">${icon('file', 20)}<div class="recent-text"><b>${r[0]}</b><span>${r[1]}</span></div><button type="button" class="btn btn-secondary btn-sm" data-act="start-load">Mở lại</button></div>`).join('')}
+    </section>`;
+}
+function viewProc(s) {
+  const pct = s.progress * 10;
+  const ws = ['80%', '62%', '74%', '55%', '68%'];
+  return `<div class="card proc">
+      <div class="proc-top"><span class="proc-title">Đang đề xuất ${s.progress}/${s.txns.length}…</span><span class="sub" style="font-size:14px">${pct}%</span></div>
+      <div class="bar" role="progressbar" aria-label="Tiến độ đề xuất" aria-valuemin="0" aria-valuemax="${s.txns.length}" aria-valuenow="${s.progress}"><span style="width:${pct}%"></span></div>
+      <span style="font-size:13px;color:var(--chu-nhat)">Đang so từng giao dịch với sổ Junsky, danh bạ đối tác và chứng từ cũ. Có thể chuyển sang màn hình khác trong lúc chờ.</span>
+    </div>
+    <div class="card skel" aria-hidden="true">${ws.map((w, i) => `<div class="skel-row" style="opacity:${1 - i * 0.18}"><span></span><span style="width:70%"></span><span style="width:${w}"></span><span></span><span style="height:18px;border-radius:999px;width:90px;background:#EEF0F3"></span><span style="background:#EEF0F3"></span></div>`).join('')}</div>`;
+}
+function viewError() {
+  return `<div class="block-error" role="alert">
+    <span class="err-icon">${icon('xCircle', 24, 2.2)}</span>
+    <div class="err-body">
+      <h2>Chưa có danh mục đối tượng</h2>
+      <p>Phần mềm cần danh mục đối tượng để gắn đối tượng cho các tài khoản công nợ (131, 331, 141, 344…), nên chưa đề xuất bút toán cho file vừa thả. File vẫn được giữ, không cần thả lại.</p>
+      <p><strong>Việc cần làm:</strong> nạp danh mục đối tượng ở màn hình Nguồn dữ liệu, rồi quay lại bấm Thử lại.</p>
+      <div class="btn-row" style="margin-top:6px"><button type="button" class="btn btn-primary" data-act="go-nguon">Sang Nguồn dữ liệu</button><button type="button" class="btn btn-secondary" data-act="start-load">Thử lại</button></div>
+    </div>
+  </div>`;
+}
+
+function viewSummary(s) {
+  const all = s.txns;
+  const tiles = ['xanh', 'vang', 'do', 'junsky'].map((k) => {
+    const ts = all.filter((t) => t.level === k);
+    return `<button type="button" class="tile tile--${k}" data-act="tile" data-level="${k}" aria-pressed="${s.fLevel === k}" title="Bấm để lọc theo mức này">
+      <span class="tile-label">${icon(LV[k].icon, 16, 2.4)}${LV[k].tile}</span>
+      <span class="tile-count">${ts.length} <small>giao dịch</small></span>
+      <span class="tile-total">${fmt(ts.reduce((a, t) => a + t.amt, 0))} VND</span>
+    </button>`;
+  }).join('');
+  const review = all.filter((t) => t.status !== 'junsky').length;
+  const done = all.filter((t) => t.status === 'dongy' || t.status === 'boqua').length;
+  const pending = all.filter((t) => t.status === 'cho').length;
+  const pct = review ? Math.round(done * 100 / review) : 0;
+  return `<div class="summary">
+    <div class="tiles">${tiles}</div>
+    <div class="card review">
+      <div style="display:flex;flex-direction:column;gap:6px">
+        <div class="review-top"><b>Đã duyệt ${done}/${review}</b><span>${pending} chờ duyệt</span></div>
+        <div class="bar bar--ok" role="progressbar" aria-label="Tiến độ duyệt" aria-valuemin="0" aria-valuemax="${review}" aria-valuenow="${done}"><span style="width:${pct}%"></span></div>
+      </div>
+      <button type="button" class="btn btn-primary btn-lg" data-act="open-export">${icon('download', 16)}Xuất file</button>
+    </div>
+  </div>`;
+}
+function viewFilters(s) {
+  const pills = (key, arr) => arr.map((a) => `<button type="button" class="pill" data-act="pill" data-key="${key}" data-val="${a[0]}" aria-pressed="${s[key] === a[0]}">${a[1]}</button>`).join('');
+  const bl = bulkList(s);
+  return `<div class="card filters">
+    <div class="fgroup"><span class="fgroup-label">Mức</span>${pills('fLevel', [['all', 'Tất cả'], ['xanh', 'Xanh'], ['vang', 'Vàng'], ['do', 'Đỏ'], ['junsky', 'Đã có trong Junsky']])}</div>
+    <div class="fgroup"><span class="fgroup-label">Trạng thái</span>${pills('fStatus', [['all', 'Tất cả'], ['cho', 'Chờ duyệt'], ['dongy', 'Đã đồng ý'], ['boqua', 'Đã bỏ qua'], ['junsky', 'Đã có trong Junsky']])}</div>
+    <div class="fgroup"><span class="fgroup-label">Chiều</span>${pills('fDir', [['all', 'Tất cả'], ['thu', 'Thu'], ['chi', 'Chi']])}</div>
+    <label class="search">${icon('search', 16)}<span class="sr-only">Tìm giao dịch</span><input id="tim-giao-dich" type="search" data-input="q" value="${esc(s.q)}" placeholder="Tìm diễn giải, đối tượng, số tiền…"></label>
+    <button type="button" class="btn btn-sm btn-soft-ok bulk" data-act="open-bulk" aria-disabled="${bl.length === 0}" title="${bl.length ? 'Đồng ý các giao dịch Xanh đủ điều kiện trong danh sách đang lọc' : 'Không có giao dịch Xanh nào đủ điều kiện trong danh sách đang lọc'}">${icon('checks', 16, 2.4)}Đồng ý tất cả dòng Xanh đang lọc (${bl.length})</button>
+  </div>`;
+}
+function missBox(text) { return `<span class="miss-box">${icon('xCircle', 13, 2.6)}${text}</span>`; }
+function optCell(k, v) { return v ? esc(lbl(k, v)) : '<span class="dash">—</span>'; }
+function viewDetail(t, s, ck) {
+  const isJ = t.status === 'junsky', pend = t.status === 'cho';
+  const lines = t.lines.map((l) => {
+    const dm = l.tk && isDebt(l.tk) && !l.dt;
+    return `<div class="et-grid et-row">
+      <span class="et-side">${l.side === 'N' ? 'Nợ' : 'Có'}</span>
+      <span>${l.tk ? `<strong>${esc(l.tk)}</strong> <span class="c2">– ${esc(nameOf('tk', l.tk))}</span>` : missBox('Thiếu tài khoản')}</span>
+      <span class="et-num">${fmt(l.amt)}</span>
+      <span>${dm ? missBox('Thiếu đối tượng') : optCell('dt', l.dt)}</span>
+      <span>${optCell('da', l.da)}</span><span>${optCell('km', l.km)}</span><span>${optCell('cp', l.cp)}</span>
+    </div>`;
+  }).join('');
+  let h = `<div class="detail">`;
+  if (isJ) h += `<div class="note-js">${icon('book', 18)}<span>${esc(t.why)} Không cần duyệt và không được xuất lại.</span></div>`;
+  h += `<div class="et"><div class="et-inner">
+      <div class="et-grid et-head"><span>Nợ/Có</span><span>Tài khoản</span><span class="right">Số tiền (VND)</span><span>Đối tượng</span><span>Dự án</span><span>Khoản mục</span><span>Trung tâm chi phí</span></div>
+      ${lines}
+      <div class="et-foot"><span>Tổng Nợ <strong>${fmt(ck.n)}</strong> · Tổng Có <strong>${fmt(ck.c)}</strong></span>${ck.bal ? `<span class="bal-ok">${icon('checkCircle', 15, 2.4)}Nợ = Có</span>` : `<span class="bal-bad">${icon('xCircle', 15, 2.4)}Lệch ${fmt(ck.n - ck.c)} VND (Nợ ≠ Có)</span>`}</div>
+    </div></div>`;
+  if (!isJ) {
+    const sgShow = !!(pend && t.suggest && t.suggest.some((g) => g.kind === 'tk' ? t.lines.some((l) => !l.tk) : t.lines.some((l) => l.tk && isDebt(l.tk) && !l.dt)));
+    const miss = pend && !ck.ok;
+    const hasOpt = pend && t.options;
+    const basisOpen = s.basisOpen === t.id;
+    h += `<div class="why-row">
+      <div class="why">
+        <span class="eyebrow eyebrow--blue">VÌ SAO</span>
+        <span>${esc(t.why)}</span>
+        ${t.basis.length ? `<button type="button" class="btn-basis" data-act="basis" data-id="${t.id}" aria-expanded="${basisOpen}">${basisOpen ? 'Ẩn căn cứ' : 'Xem căn cứ (' + t.basis.length + ' chứng từ)'}</button>` : `<span style="font-size:13px;color:var(--chu-phu)">Không có chứng từ cũ đủ giống để làm căn cứ.</span>`}
+      </div>`;
+    if (miss || sgShow || hasOpt) {
+      h += `<div class="side">`;
+      if (miss) h += `<div class="miss">${icon('xCircle', 17, 2.4)}<span>${esc(reasonText(ck))}</span></div>`;
+      if (sgShow) h += `<div class="suggest"><span class="suggest-title">${esc(t.sgTitle)}</span>${t.suggest.map((g, i) => `<button type="button" class="chip" data-act="suggest" data-id="${t.id}" data-i="${i}" title="Bấm để điền vào bút toán">${icon('plus', 13, 2.6)}${esc(g.kind === 'tk' ? g.value + ' – ' + nameOf('tk', g.value) : lbl('dt', g.value))}</button>`).join('')}</div>`;
+      if (hasOpt) {
+        h += `<span class="eyebrow eyebrow--amber">CÁC PHƯƠNG ÁN</span><div class="options">${t.options.map((o, i) => `<div class="option${t.chosen === i ? ' is-active' : ''}">
+          <span class="option-title">Phương án ${i + 1} · ${esc(o.label)}</span>
+          <span class="option-sum">${esc(entrySum(o.lines))}</span>
+          <span class="option-note">${esc(o.note)}</span>
+          ${t.chosen === i ? `<span class="in-use">${icon('checkCircle', 14, 2.6)}Đang dùng</span>` : `<button type="button" class="btn btn-secondary" data-act="use-option" data-id="${t.id}" data-i="${i}">Dùng phương án này</button>`}
+        </div>`).join('')}</div>`;
+      }
+      h += `</div>`;
+    }
+    h += `</div>`;
+    if (basisOpen) {
+      h += `<div class="basis"><div class="basis-inner"><div class="basis-grid basis-head"><span>Ngày</span><span>Số chứng từ</span><span>Diễn giải</span><span>Hạch toán</span></div>${t.basis.map((b) => `<div class="basis-grid"><span>${esc(b.d)}</span><span>${esc(b.no)}</span><span>${esc(b.desc)}</span><b>${esc(b.hk)}</b></div>`).join('')}</div></div>`;
+    }
+    if (t.status === 'boqua') h += `<p class="skip-note">Lý do bỏ qua: ${esc(t.skipReason || 'không ghi')}</p>`;
+  }
+  return h + `</div>`;
+}
+function viewRow(t, s) {
+  const ck = check(t.lines);
+  const open = s.open === t.id, cur = s.cursor === t.id;
+  const obj = objText(t);
+  let actions = '';
+  if (t.status === 'cho') {
+    const dis = !ck.ok;
+    actions = `<button type="button" class="btn btn-sm btn-primary" data-act="approve" data-id="${t.id}" aria-disabled="${dis}" title="${esc(dis ? 'Chưa đồng ý được — ' + reasonText(ck) : 'Đồng ý bút toán này (phím A)')}">${icon('check', 14, 2.8)}Đồng ý</button>
+      <button type="button" class="btn btn-sm btn-secondary" data-act="edit" data-id="${t.id}" title="Sửa bút toán (phím E)">Sửa</button>
+      <button type="button" class="btn btn-sm btn-ghost" data-act="skip" data-id="${t.id}" title="Bỏ qua, để kế toán hạch toán tay (phím S)">Bỏ qua</button>`;
+  } else if (t.status === 'dongy') {
+    actions = `<span class="state state--ok">${icon('checkCircle', 16, 2.4)}Đã đồng ý</span><button type="button" class="btn btn-sm btn-link" data-act="reopen" data-id="${t.id}">Mở lại</button>`;
+  } else if (t.status === 'boqua') {
+    actions = `<span class="state" title="${esc(t.skipReason ? 'Lý do: ' + t.skipReason : 'Không ghi lý do')}">Đã bỏ qua</span><button type="button" class="btn btn-sm btn-link" data-act="reopen" data-id="${t.id}">Duyệt lại</button>`;
+  } else {
+    actions = `<span class="js-no">Số CT <strong class="tnum">${esc(t.junskyNo)}</strong></span>`;
+  }
+  return `<div class="txn txn--${t.status}${cur ? ' is-cursor' : ''}">
+    <div class="txn-row">
+      <button type="button" class="txn-main txn-cols" id="row-${t.id}" data-act="toggle" data-id="${t.id}" aria-expanded="${open}">
+        <span class="chev">${icon(open ? 'chevDown' : 'chevRight', 16, 2.2)}</span>
+        <span class="date">${esc(t.date)}</span>
+        <span class="money"><span class="dir dir--${t.dir}">${t.dir === 'thu' ? 'Thu' : 'Chi'}</span><span class="amt amt--${t.dir}">${t.dir === 'thu' ? '+' : '−'}${fmt(t.amt)}</span></span>
+        <span class="desc-cell"><span class="desc" title="${esc(t.desc)}">${esc(t.desc)}</span><span class="obj${obj ? '' : ' obj--missing'}">${esc(obj || 'Chưa có đối tượng')}</span></span>
+        <span class="entry">${esc(entrySum(t.lines))}</span>
+        <span style="display:flex">${badge(t.level)}</span>
+      </button>
+      <div class="txn-actions">${actions}</div>
+    </div>
+    ${open ? viewDetail(t, s, ck) : ''}
+  </div>`;
+}
+function viewList(s) {
+  const vis = visible(s);
+  return `<div class="hint"><span class="tnum">Đang hiện ${vis.length}/${s.txns.length} giao dịch</span><span class="hint-keys">Phím tắt (bấm vào danh sách trước): <kbd>↑</kbd><kbd>↓</kbd> chuyển · <kbd>Enter</kbd> mở/đóng · <kbd>A</kbd> đồng ý · <kbd>E</kbd> sửa · <kbd>S</kbd> bỏ qua</span></div>
+  <section class="card txn-list" id="ds-giao-dich" tabindex="0" aria-label="Danh sách giao dịch, dùng phím mũi tên để chuyển">
+    <div class="txn-head"><div class="txn-cols"><span></span><span>Ngày</span><span>Thu/Chi · Số tiền</span><span>Diễn giải gốc · Đối tượng</span><span>Bút toán đề xuất</span><span>Mức</span></div><div class="act-h">Thao tác</div></div>
+    ${vis.map((t) => viewRow(t, s)).join('')}
+    ${vis.length ? '' : `<div class="empty-filter"><span>Không có giao dịch khớp bộ lọc.</span><button type="button" class="btn btn-secondary" data-act="clear-filters">Xóa bộ lọc</button></div>`}
+  </section>`;
+}
+function pageDK(s) {
+  let h = `<div class="page"><div class="page-head"><h1>Định khoản</h1><span class="sub">Thả sao kê → máy đề xuất bút toán → duyệt từng giao dịch → xuất file</span></div>`;
+  if (s.phase === 'empty') h += viewEmpty(s);
+  else {
+    h += viewFileRow(s);
+    if (s.phase === 'processing') h += viewProc(s);
+    else if (s.phase === 'error') h += viewError();
+    else h += viewSummary(s) + viewFilters(s) + viewList(s);
+  }
+  return h + `</div>`;
+}
+
+function pageNguon(s) {
+  const fresh = s.srcFresh || {};
+  const defs = [
+    { k: 'so', title: 'Sổ Junsky', desc: 'Sổ chi tiết các tài khoản, xuất từ Junsky', dataTo: 'Dữ liệu đến 29/08/2026', updated: 'Cập nhật 30/08/2026 08:15' },
+    { k: 'cn', title: 'Danh sách chứng từ công nợ', desc: 'Chứng từ còn số dư công nợ theo đối tượng', dataTo: 'Dữ liệu đến 29/08/2026', updated: 'Cập nhật 30/08/2026 08:16' },
+    { k: 'dm', title: 'Danh mục', desc: 'Dùng để chọn mã khi sửa bút toán và kiểm tra mã hợp lệ', dataTo: s.catErr ? '4/5 danh mục' : '5/5 danh mục', updated: 'Cập nhật 30/08/2026 08:16', chips: ['Đối tượng', 'Tài khoản', 'Khoản mục', 'Dự án', 'Trung tâm chi phí'],
+      err: s.catErr ? 'Chưa có danh mục đối tượng nên chưa gắn được đối tượng cho tài khoản công nợ. Việc cần làm: xuất danh mục đối tượng từ Junsky ra Excel rồi bấm Nạp lại.' : '' },
+    { k: 'db', title: 'Danh bạ đối tác', desc: 'Số tài khoản ngân hàng đã biết của khách hàng, nhà cung cấp', dataTo: 'Dùng để nhận ra đối tượng', updated: 'Cập nhật 28/08/2026 17:30',
+      warn: 'Có 2 đối tác chưa có số tài khoản ngân hàng nên giao dịch của họ sẽ thiếu đối tượng. Việc cần làm: bổ sung cột “Số tài khoản” trong file danh bạ rồi bấm Nạp lại.' }
+  ];
+  const cards = defs.map((c) => {
+    const loading = s.srcLoading === c.k; const err = !loading && !!c.err; const warn = !loading && !err && !!c.warn;
+    const st = loading ? ['load', 'refresh', 'Đang nạp…'] : err ? ['err', 'xCircle', 'Lỗi'] : warn ? ['warn', 'warn', 'Cần bổ sung'] : ['ok', 'checkCircle', 'Sẵn sàng'];
+    return `<div class="card src${err ? ' is-err' : ''}">
+      <div class="src-top"><div class="src-title"><b>${c.title}</b><span>${c.desc}</span></div><span class="st st--${st[0]}">${icon(st[1], 14, 2.6)}${st[2]}</span></div>
+      ${c.chips ? `<div class="chips">${c.chips.map((ch) => { const bad = s.catErr && ch === 'Đối tượng'; return `<span class="chip-sm${bad ? ' is-bad' : ''}">${icon(bad ? 'x' : 'check', 12, 3)}${ch}</span>`; }).join('')}</div>` : ''}
+      <div class="src-meta"><span>${c.dataTo}</span><span>${fresh[c.k] ? 'Cập nhật vừa xong' : c.updated}</span></div>
+      ${err ? `<div class="msg msg--err">${c.err}</div>` : warn ? `<div class="msg msg--warn">${c.warn}</div>` : ''}
+      <div><button type="button" class="btn btn-secondary" data-act="reload-src" data-k="${c.k}"${loading ? ' aria-disabled="true"' : ''}>${icon('refresh', 15)}${loading ? 'Đang nạp…' : 'Nạp lại'}</button></div>
+    </div>`;
+  }).join('');
+  return `<div class="page page--mid">
+    <div class="page-head page-head--stack"><h1>Nguồn dữ liệu</h1><span class="sub">Dữ liệu nền máy dùng để đề xuất bút toán. Nạp lại mỗi khi có số liệu mới từ Junsky.</span></div>
+    <div class="grid-2">${cards}</div>
+    <div class="grid-2">
+      <div class="card panel">
+        <span class="panel-title">Mốc học</span>
+        <span class="sub">Máy chỉ học từ chứng từ trong sổ Junsky đến ngày này. Chứng từ sau mốc học dùng để kiểm tra, không dùng để học.</span>
+        <div class="btn-row" style="align-items:flex-end">
+          <div class="stack"><label class="lbl" for="moc-hoc">Máy học từ sổ đến</label><input id="moc-hoc" class="input input-date" type="text" inputmode="numeric" data-input="mocDraft" value="${esc(s.mocDraft)}" placeholder="dd/mm/yyyy"></div>
+          <button type="button" class="btn btn-primary" data-act="apply-moc">Áp dụng</button>
+        </div>
+        <span style="font-size:12.5px;color:var(--chu-nhat)">Đổi mốc học sẽ học lại từ sổ; đề xuất đang mở giữ nguyên cho đến khi thả lại file.</span>
+      </div>
+      <div class="card panel">
+        <span class="panel-title">Tài khoản ngân hàng ↔ tài khoản kế toán</span>
+        <div class="mini-table">
+          <div class="r h"><span>Ngân hàng</span><span>Số tài khoản</span><span>Tài khoản kế toán</span></div>
+          <div class="r"><span>Ngân hàng TMCP Mẫu – CN Khu công nghiệp</span><span class="tnum">•••• 1234</span><span><strong>1121</strong> – Tiền gửi ngân hàng – VND</span></div>
+          <div class="r"><span>Ngân hàng TMCP Mẫu 2 – CN Trung tâm</span><span class="tnum">•••• 5678</span><span><strong>1121</strong> – Tiền gửi ngân hàng – VND</span></div>
+        </div>
+        <div><button type="button" class="btn btn-dashed" data-act="add-bank">${icon('plus', 14, 2.4)}Thêm tài khoản</button></div>
+      </div>
+    </div>
+  </div>`;
+}
+function pageTC(s) {
+  /* gõ có dấu → so khớp đúng dấu; gõ không dấu → so khớp bỏ dấu */
+  const raw = s.kbQ.trim().toLowerCase(); const accent = norm(raw) !== raw;
+  const kq = accent ? raw : norm(raw);
+  const hay = (r) => { const t = r.when + ' ' + r.then + ' ' + r.why + ' ' + r.tags.join(' ') + ' ' + r.then.replace(/[A-Z]+\.[A-Z0-9]+/g, (m) => nameOf('dt', m)); return accent ? t.toLowerCase() : norm(t); };
+  const kb = KB_RULES.filter((r) => !kq || hay(r).indexOf(kq) >= 0);
+  return `<div class="page page--narrow">
+    <div class="page-head page-head--stack"><h1>Tra cứu tri thức</h1><span class="sub">Các quy tắc máy đã học từ sổ. Chỉ đọc — muốn đổi thì sửa bút toán và bật “Ghi nhớ cho lần sau”.</span></div>
+    <label class="search search--lg">${icon('search', 18)}<span class="sr-only">Tìm quy tắc</span><input id="tim-tri-thuc" type="search" data-input="kbQ" value="${esc(s.kbQ)}" placeholder="Tìm theo số tài khoản, tên đối tượng hoặc từ khóa (ví dụ: 331, Alpha, tiền điện)"></label>
+    <span class="sub">${kb.length} quy tắc · học từ sổ đến ${esc(s.moc)}</span>
+    ${kb.map((r) => `<article class="card kb">
+      <span class="eyebrow eyebrow--gray">KHI</span><span class="kb-when">${esc(r.when)}</span>
+      <span class="eyebrow eyebrow--blue">THÌ</span><span>${esc(r.then)}</span>
+      <span class="eyebrow eyebrow--gray">VÌ SAO</span><span class="kb-why">${esc(r.why)}</span>
+      <span></span><span class="tags">${r.tags.map((t) => `<span class="tag">${esc(t)}</span>`).join('')}</span>
+    </article>`).join('')}
+    ${kb.length ? '' : '<div class="card empty-card">Không tìm thấy quy tắc phù hợp. Thử số tài khoản (ví dụ 131) hoặc mã đối tượng.</div>'}
+  </div>`;
+}
+function pageLS(s) {
+  return `<div class="page page--mid">
+    <div class="page-head page-head--stack"><h1>Lịch sử xuất file</h1><span class="sub">File được lưu trong thư mục ${esc(EXPORT_DIR)}. Phần mềm không tự nhập Junsky.</span></div>
+    <div class="card hist"><div class="hist-inner">
+      <div class="hist-grid hist-head"><span>Ngày giờ</span><span class="right">Số giao dịch</span><span>Người duyệt</span><span>Tên file</span><span class="right">Thao tác</span></div>
+      ${s.history.map((h, i) => `<div class="hist-grid"><span>${esc(h.at)}</span><span class="right"><strong>${h.n}</strong></span><span>${esc(h.who)}</span><span class="ell" title="${esc(h.file)}">${esc(h.file)}</span><span class="acts"><button type="button" class="btn btn-sm btn-secondary" data-act="open-file" data-i="${i}">Mở file</button><button type="button" class="btn btn-sm btn-link" data-act="hist-folder">${icon('folder', 15)}Mở thư mục</button></span></div>`).join('')}
+    </div></div>
+  </div>`;
+}
+
+function viewField(d, l, li, key) {
+  const active = !!(d.combo && d.combo.li === li && d.combo.key === key);
+  const code = l[key];
+  const req = key === 'tk' || (key === 'dt' && isDebt(l.tk));
+  const err = req && !code && !active;
+  const id = 'f-' + li + '-' + key;
+  const opts = active ? filterCat(key, d.q) : [];
+  return `<div class="field${key === 'cp' ? ' field--wide' : ''}">
+    <label class="lbl" for="${id}">${FIELD_LABEL[key]}${req ? ' <span class="req">*</span>' : ''}</label>
+    <input id="${id}" class="input${active ? ' is-active' : err ? ' is-error' : ''}" type="text" autocomplete="off" role="combobox" aria-expanded="${active}" aria-controls="${id}-list" data-combo data-li="${li}" data-key="${key}" value="${esc(active ? d.q : (code ? lbl(key, code) : ''))}" placeholder="${esc(active && code ? lbl(key, code) : 'Tìm theo mã hoặc tên…')}">
+    ${code && !active ? `<button type="button" class="field-clear" aria-label="Xóa ${FIELD_LABEL[key]}" data-act="clear-field" data-li="${li}" data-key="${key}">${icon('x', 14, 2.4)}</button>` : ''}
+    ${active ? `<div class="combo-list" id="${id}-list" role="listbox">${opts.length ? opts.map((r, i) => `<button type="button" role="option" class="combo-opt${i === 0 && d.q ? ' is-first' : ''}${r[0] === code ? ' is-current' : ''}" data-pick data-li="${li}" data-key="${key}" data-code="${esc(r[0])}"><strong>${esc(r[0])}</strong><span>${esc(r[1])}</span></button>`).join('') : '<div class="combo-empty">Không tìm thấy trong danh mục.</div>'}</div>` : ''}
+    ${err ? `<span class="field-err">${key === 'tk' ? 'Chưa chọn tài khoản' : 'Tài khoản công nợ cần có đối tượng'}</span>` : ''}
+  </div>`;
+}
+function viewDrawer(s) {
+  const d = s.drawer; const t = s.txns.find((x) => x.id === d.id); const ck = check(d.lines);
+  return `<button type="button" class="backdrop" aria-label="Đóng ngăn Sửa" data-act="close-drawer"></button>
+  <aside class="drawer" aria-label="Sửa bút toán">
+    <div class="drawer-head">
+      <div class="drawer-title"><h2>Sửa bút toán</h2><span class="meta">${esc(t.date)} · ${t.dir === 'thu' ? 'Thu' : 'Chi'} <strong>${fmt(t.amt)} VND</strong> · ${esc(t.desc)}</span></div>
+      <button type="button" class="icon-btn" id="drawer-close" aria-label="Đóng" data-act="close-drawer">${icon('x', 18, 2.2)}</button>
+    </div>
+    <div class="drawer-body" id="drawer-body">
+      ${d.lines.map((l, li) => `<div class="line-card">
+        <div class="line-top">
+          <span class="line-no">Dòng ${li + 1}</span>
+          <div class="stack"><span class="lbl">Nợ/Có</span><div class="seg"><button type="button" data-act="side" data-li="${li}" data-side="N" aria-pressed="${l.side === 'N'}">Nợ</button><button type="button" data-act="side" data-li="${li}" data-side="C" aria-pressed="${l.side === 'C'}">Có</button></div></div>
+          <div class="stack"><label class="lbl" for="amt-${li}">Số tiền (VND)</label><input id="amt-${li}" class="input input-amt" type="text" inputmode="numeric" data-input="amt" data-li="${li}" value="${l.amt ? fmt(l.amt) : ''}"></div>
+          ${d.lines.length > 2 ? `<button type="button" class="btn btn-sm btn-ghost btn-danger remove-line" aria-label="Xóa dòng ${li + 1}" data-act="remove-line" data-li="${li}">${icon('x', 15, 2.2)}Xóa dòng</button>` : ''}
+        </div>
+        <div class="fields">${['tk', 'dt', 'da', 'km', 'cp'].map((k) => viewField(d, l, li, k)).join('')}</div>
+      </div>`).join('')}
+      <button type="button" class="btn btn-dashed" style="align-self:flex-start" data-act="add-line">${icon('plus', 14, 2.4)}Thêm dòng bút toán</button>
+      <div class="bal ${ck.bal ? 'bal--ok' : 'bal--bad'}">
+        <span>Tổng Nợ <strong>${fmt(ck.n)}</strong> · Tổng Có <strong>${fmt(ck.c)}</strong></span>
+        ${ck.bal ? `<span class="bal-ok">${icon('checkCircle', 15, 2.4)}Nợ = Có</span>` : `<span class="bal-bad">${icon('xCircle', 15, 2.4)}Lệch ${fmt(ck.n - ck.c)} VND</span>`}
+      </div>
+    </div>
+    <div class="drawer-foot">
+      <label class="check-row"><input type="checkbox" data-remember${d.remember ? ' checked' : ''}><span><strong>Ghi nhớ cho lần sau:</strong> áp dụng cho các giao dịch cùng số tài khoản đối ứng</span></label>
+      <div class="btn-row btn-row--end">
+        ${ck.ok ? '' : `<span class="foot-reason">Chưa lưu được — ${esc(reasonText(ck))}</span>`}
+        <button type="button" class="btn btn-secondary" data-act="close-drawer">Hủy</button>
+        <button type="button" class="btn btn-primary" data-act="save-drawer" aria-disabled="${!ck.ok}">${icon('check', 15, 2.8)}Lưu và đồng ý</button>
+      </div>
+    </div>
+  </aside>`;
+}
+function viewModal(s) {
+  let body = '', label = '';
+  if (s.modal === 'bulk') {
+    const bl = bulkList(s); label = 'Đồng ý hàng loạt';
+    body = `<h2>Đồng ý hàng loạt</h2>
+      <p class="lead">Anh sắp đồng ý <strong>${bl.length} giao dịch</strong>, tổng <strong class="tnum">${fmt(bl.reduce((a, t) => a + t.amt, 0))} VND</strong>.</p>
+      <div class="mini-list">${bl.map((t) => `<div class="mini-row"><span>${esc(t.date)}</span><b>${fmt(t.amt)}</b><span class="ell">${esc(t.desc)}</span></div>`).join('')}</div>
+      <p class="small">Chỉ gồm giao dịch mức Xanh, đang chờ duyệt, khớp bộ lọc hiện tại và đủ điều kiện (Nợ = Có, tài khoản công nợ có đối tượng). Có thể hoàn tác ngay sau khi đồng ý.</p>
+      <div class="btn-row btn-row--end"><button type="button" class="btn btn-secondary" id="modal-cancel" data-act="close-modal">Hủy</button><button type="button" class="btn btn-primary" data-act="confirm-bulk">Đồng ý ${bl.length} giao dịch</button></div>`;
+  } else if (s.modal === 'skip') {
+    const t = s.txns.find((x) => x.id === s.skipId); label = 'Bỏ qua giao dịch';
+    body = `<h2>Bỏ qua giao dịch</h2>
+      <p class="tnum">${t ? esc(t.date + ' · ' + (t.dir === 'thu' ? 'Thu ' : 'Chi ') + fmt(t.amt) + ' VND · ' + t.desc) : ''}</p>
+      <p class="small">Giao dịch sẽ không có trong file xuất; kế toán hạch toán tay trong Junsky.</p>
+      <div class="stack"><label class="lbl" for="ly-do">Lý do (không bắt buộc)</label><input id="ly-do" class="input" type="text" data-input="skipReason" value="${esc(s.skipReason)}" placeholder="Ví dụ: chờ hợp đồng, cần hỏi lại phòng kinh doanh"></div>
+      <div class="btn-row btn-row--end"><button type="button" class="btn btn-secondary" id="modal-cancel" data-act="close-modal">Hủy</button><button type="button" class="btn btn-dark" data-act="confirm-skip">Bỏ qua giao dịch</button></div>`;
+  } else {
+    const ap = s.txns.filter((t) => t.status === 'dongy'); const apTotal = fmt(ap.reduce((a, t) => a + t.amt, 0));
+    const pd = s.txns.filter((t) => t.status === 'cho').length; label = 'Xuất file';
+    if (!s.exportDone) {
+      body = `<h2>Xuất file</h2>
+        <div class="stat-grid">
+          <div class="stat stat--ok"><span style="font-weight:600">Đã đồng ý</span><b>${ap.length}</b><span class="tnum">${apTotal} VND</span></div>
+          <div class="stat stat--gray"><span style="font-weight:600">Còn chờ duyệt</span><b>${pd}</b><span>sẽ không có trong file</span></div>
+        </div>
+        ${pd ? `<div class="warn-box">${icon('warn', 17, 2.4)}<span>Còn ${pd} giao dịch chờ duyệt. Có thể xuất ngay rồi xuất bổ sung sau khi duyệt xong.</span></div>` : ''}
+        <label class="export-opt"><input type="checkbox" checked disabled><span><strong>File soát (Excel)</strong><small>Luôn bật — bút toán đã đồng ý kèm căn cứ, để soát trước khi nhập.</small></span></label>
+        <label class="export-opt export-opt--locked"><input type="checkbox" disabled><span><strong>${icon('lock', 14, 2.2)}File nhập Junsky (Phiếu thu / Phiếu chi ngân hàng)</strong><small>Tạm khóa — mở sau khi nhập thử thành công.</small></span></label>
+        <div class="btn-row btn-row--end"><button type="button" class="btn btn-secondary" id="modal-cancel" data-act="close-modal">Hủy</button><button type="button" class="btn btn-primary" data-act="do-export" aria-disabled="${ap.length === 0}">${icon('download', 16)}Xuất</button></div>`;
+    } else {
+      body = `<div class="done-head"><span class="done-icon">${icon('check', 22, 2.6)}</span><h2>Đã xuất file soát</h2></div>
+        <p>${ap.length} giao dịch đã đồng ý, tổng ${apTotal} VND.</p>
+        <div class="path">${esc(EXPORT_DIR + '\\' + s.exportFile)}</div>
+        <div class="btn-row btn-row--end"><button type="button" class="btn btn-secondary" id="modal-cancel" data-act="close-modal">Đóng</button><button type="button" class="btn btn-primary" data-act="open-folder">${icon('folder', 16)}Mở thư mục</button></div>`;
+    }
+  }
+  return `<div class="modal-wrap"><div class="modal" role="dialog" aria-modal="true" aria-label="${label}">${body}</div></div>`;
+}
+function viewToast(s) {
+  return `<div class="toast" role="status"><span>${esc(s.toast.text)}</span>${s.toast.undo ? '<button type="button" class="toast-undo" data-act="undo">Hoàn tác</button>' : ''}<button type="button" class="toast-close" aria-label="Đóng thông báo" data-act="close-toast">${icon('x', 15, 2.4)}</button></div>`;
+}
+function view(s) {
+  const page = s.screen === 'dk' ? pageDK(s) : s.screen === 'nguon' ? pageNguon(s) : s.screen === 'tracuu' ? pageTC(s) : pageLS(s);
+  return `<div class="app">${viewTopbar(s)}${viewNav(s)}<main class="main" id="main">${page}</main>${s.drawer ? viewDrawer(s) : ''}${s.modal ? viewModal(s) : ''}${s.toast ? viewToast(s) : ''}</div>`;
+}
+
+/* =====================================================================
+   8. VẼ LẠI (giữ tiêu điểm, vị trí con trỏ chữ, vị trí cuộn)
+   ===================================================================== */
+const $app = document.getElementById('app');
+let restoring = false;
+function render() {
+  const ae = document.activeElement; const fid = ae && ae.id ? ae.id : null;
+  let selS = null, selE = null;
+  try { if (fid && typeof ae.selectionStart === 'number') { selS = ae.selectionStart; selE = ae.selectionEnd; } } catch (e) { /* bỏ qua */ }
+  const m = document.getElementById('main'); let mainTop = m ? m.scrollTop : 0;
+  const db = document.getElementById('drawer-body'); const dTop = db ? db.scrollTop : 0;
+  if (S.screen !== lastScreen) { mainTop = 0; lastScreen = S.screen; }
+  $app.innerHTML = view(S);
+  const m2 = document.getElementById('main'); if (m2) m2.scrollTop = mainTop;
+  const d2 = document.getElementById('drawer-body'); if (d2) d2.scrollTop = dTop;
+  if (fid) {
+    const el = document.getElementById(fid);
+    if (el) {
+      restoring = true; el.focus({ preventScroll: true }); restoring = false;
+      if (selS !== null && el.setSelectionRange) {
+        try { if (fid.indexOf('amt-') === 0) { const n = el.value.length; el.setSelectionRange(n, n); } else el.setSelectionRange(selS, selE); } catch (e) { /* bỏ qua */ }
+      }
+    }
+  }
+}
+
+/* =====================================================================
+   9. SỰ KIỆN (ủy quyền trên #app)
+   ===================================================================== */
+$app.addEventListener('click', (e) => {
+  const combo = e.target.closest('[data-combo]');
+  if (combo) { openCombo(+combo.dataset.li, combo.dataset.key); return; }
+  const el = e.target.closest('[data-act]');
+  if (!el) return;
+  const fn = ACT[el.dataset.act];
+  if (fn) fn(el.dataset, e);
+});
+$app.addEventListener('mousedown', (e) => {
+  const o = e.target.closest('[data-pick]');
+  if (o) { e.preventDefault(); dSet(+o.dataset.li, o.dataset.key, o.dataset.code, true); }
+});
+$app.addEventListener('input', (e) => {
+  const t = e.target;
+  if (t.matches('[data-combo]')) { const li = +t.dataset.li, key = t.dataset.key, v = t.value; dUpd((d) => { d.q = v; d.combo = { li, key }; }); return; }
+  const f = t.dataset.input; if (!f) return;
+  if (f === 'amt') { const v = t.value.replace(/\D/g, ''); dSet(+t.dataset.li, 'amt', v ? Number(v) : 0); return; }
+  set({ [f]: t.value });
+});
+$app.addEventListener('change', (e) => {
+  const t = e.target;
+  if (t.matches('[data-remember]')) dUpd((d) => { d.remember = t.checked; });
+  else if (t.matches('[data-demo]')) loadDemo(t.value);
+});
+$app.addEventListener('focusin', (e) => {
+  const t = e.target;
+  if (!restoring && t.matches && t.matches('[data-combo]')) openCombo(+t.dataset.li, t.dataset.key);
+});
+$app.addEventListener('focusout', (e) => {
+  const t = e.target;
+  if (!(t.matches && t.matches('[data-combo]'))) return;
+  const id = t.id, li = +t.dataset.li, key = t.dataset.key;
+  setTimeout(() => {
+    const a = document.activeElement; if (a && a.id === id) return;
+    if (comboActive(li, key)) dUpd((d) => { d.combo = null; });
+  }, 160);
+});
+$app.addEventListener('dragover', (e) => {
+  if (!e.target.closest('#dropzone')) return;
+  e.preventDefault(); if (!S.dragOver) set({ dragOver: true });
+});
+$app.addEventListener('dragleave', (e) => {
+  if (e.target.closest('#dropzone') && !(e.relatedTarget && e.relatedTarget.closest && e.relatedTarget.closest('#dropzone'))) set({ dragOver: false });
+});
+$app.addEventListener('drop', (e) => {
+  if (!e.target.closest('#dropzone')) return;
+  e.preventDefault(); startLoad(); /* NỐI LÕI: e.dataTransfer.files là các file thả vào */
+});
+document.addEventListener('keydown', (e) => {
+  const t = e.target;
+  if (t.matches && t.matches('[data-combo]')) {
+    const li = +t.dataset.li, key = t.dataset.key;
+    if (e.key === 'Escape' && comboActive(li, key)) { e.preventDefault(); dUpd((d) => { d.combo = null; }); }
+    else if (e.key === 'Enter' && comboActive(li, key)) { e.preventDefault(); const f = filterCat(key, S.drawer.q)[0]; if (f) dSet(li, key, f[0], true); }
+    return;
+  }
+  if (e.key === 'Escape') { if (S.modal) { set({ modal: null }); return; } if (S.drawer) { set({ drawer: null }); return; } }
+  if (t.closest && t.closest('#ds-giao-dich')) listKey(e);
+});
+function listKey(e) {
+  const t = e.target;
+  if (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || S.drawer || S.modal) return;
+  const ids = visible(S).map((x) => x.id); if (!ids.length) return;
+  const i = ids.indexOf(S.cursor); const k = e.key;
+  if (k === 'ArrowDown' || k === 'ArrowUp') {
+    e.preventDefault();
+    const j = k === 'ArrowDown' ? Math.min(ids.length - 1, i + 1) : Math.max(0, i - 1);
+    set((s) => ({ cursor: ids[j], open: s.open !== null ? ids[j] : null }));
+    const b = document.getElementById('row-' + ids[j]); if (b) b.focus();
+  } else if (k === 'Enter') {
+    const onRow = t.id === 'ds-giao-dich' || t.classList.contains('txn-main');
+    if (!onRow) return;
+    e.preventDefault(); const id = t.classList.contains('txn-main') ? +t.dataset.id : (i >= 0 ? ids[i] : ids[0]);
+    set((s) => ({ cursor: id, open: s.open === id ? null : id }));
+  } else if ((k === 'a' || k === 'A') && i >= 0) { e.preventDefault(); approve(ids[i]); }
+  else if ((k === 'e' || k === 'E') && i >= 0) { e.preventDefault(); edit(ids[i]); }
+  else if ((k === 's' || k === 'S') && i >= 0) { e.preventDefault(); skip(ids[i]); }
+}
+
+render();
+</script>
+</body>
+</html>

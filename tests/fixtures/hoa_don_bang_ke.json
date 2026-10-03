@@ -1,0 +1,35 @@
+{
+  "format": "ktt-fixture-v1",
+  "synthetic": true,
+  "source": "hoa_don_bang_ke",
+  "manifest": {
+    "entity_id": "PLHN_FIXTURE",
+    "source_system": "SYSTEM_FIXTURE",
+    "as_of": "2026-09-16",
+    "coverage_from": "2026-09-01",
+    "coverage_to_exclusive": "2026-09-17",
+    "exported_at": "2026-09-17T08:00:00+07:00",
+    "known_at": "2026-09-17T08:01:00+07:00",
+    "known_at_basis": "synthetic test clock; not historical evidence",
+    "scope": "complete fixture examples"
+  },
+  "controls": {
+    "count": 1,
+    "totals": {
+      "INVOICE/VND": "200"
+    }
+  },
+  "records": [
+    {
+      "business_date": "2026-09-14",
+      "currency": "VND",
+      "amount": "200",
+      "seller_tax_id": "000001_FIXTURE",
+      "buyer_tax_id": "PLHN_FIXTURE",
+      "series": "1C26FIXTURE",
+      "number": "000001",
+      "invoice_type": "FIXTURE",
+      "source_status": "ACTIVE"
+    }
+  ]
+}

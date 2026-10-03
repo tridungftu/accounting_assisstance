@@ -1,0 +1,24 @@
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+var/
+build/
+dist/
+
+# V10 (03/10/2026): dữ liệu thật và kết quả nội bộ — không đưa lên GitHub
+*.xlsx
+*.xls
+*.xlsm
+*.csv
+*.xml
+*.zip
+*.sqlite
+*.sqlite-*
+*.db
+*.log
+*.png
+*.jpg
+*.jpeg
+*.pdf
+source-settings.json

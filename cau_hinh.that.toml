@@ -1,0 +1,38 @@
+[app]
+environment = "that"
+entity_id = "PLHN"
+data_dir = "var/plhn-that"
+
+[entity]
+tax_id = "0700850958"
+
+[money]
+currency = "VND"
+scale = 0
+
+[operation]
+junsky_export_enabled = false
+junsky_import_enabled = false
+posted_journal_statuses = ["POSTED"]
+quarantine_max_ratio = 0.2
+# Danh mục là trạng thái hiện hành; thay bằng ngày kết xuất khi phạm vi hẹp hơn.
+catalog_valid_from = "1900-01-01"
+# Ngưỡng cần bằng chứng thanh toán qua ngân hàng; có thể đổi theo chính sách thuế hiện hành.
+vat_payment_evidence_threshold_minor = 20000000
+knowledge_approval_actor = "CFO_NTD"
+
+[source]
+# Thay khi cổng thuế xác nhận TGTKCThue đã nằm trong TgTCThue.
+invoice_non_taxable_in_taxable_total = false
+journal_history_extend_coverage = true
+tax_gateway_statuses = { "1" = "SOURCE_STATUS_1" }
+
+# Có thể bổ sung mã chi tiết hoặc tiền tố TK khi nhận danh mục chính thức.
+[account_nature]
+"331" = "CREDIT"
+"338" = "CREDIT"
+"3388" = "CREDIT"
+"341" = "CREDIT"
+"131" = "DEBIT"
+"141" = "DEBIT"
+"1388" = "DEBIT"

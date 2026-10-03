@@ -1,0 +1,48 @@
+{
+  "format": "ktt-fixture-v1",
+  "synthetic": true,
+  "source": "sao_ke",
+  "manifest": {
+    "entity_id": "PLHN_FIXTURE",
+    "source_system": "SYSTEM_FIXTURE",
+    "as_of": "2026-09-16",
+    "coverage_from": "2026-09-01",
+    "coverage_to_exclusive": "2026-09-17",
+    "exported_at": "2026-09-17T08:00:00+07:00",
+    "known_at": "2026-09-17T08:01:00+07:00",
+    "known_at_basis": "synthetic test clock; not historical evidence",
+    "scope": "complete fixture examples"
+  },
+  "controls": {
+    "count": 2,
+    "totals": {
+      "BANK/VND": "-200"
+    },
+    "opening_balance": "1000",
+    "closing_balance": "800"
+  },
+  "records": [
+    {
+      "business_date": "2026-09-15",
+      "currency": "VND",
+      "amount": "-100",
+      "bank": "BANK_FIXTURE",
+      "account": "00001234",
+      "id_scope": "stable-fixture-v1",
+      "reference": "000001",
+      "identity_verified": true,
+      "description": "Phi giao dich gia lap - ĐIỆN"
+    },
+    {
+      "business_date": "2026-09-15",
+      "currency": "VND",
+      "amount": "-100",
+      "bank": "BANK_FIXTURE",
+      "account": "00001234",
+      "id_scope": "stable-fixture-v1",
+      "reference": "000002",
+      "identity_verified": true,
+      "description": "Phi giao dich gia lap - ĐIỆN"
+    }
+  ]
+}

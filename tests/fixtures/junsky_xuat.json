@@ -1,0 +1,121 @@
+{
+  "format": "ktt-fixture-v1",
+  "synthetic": true,
+  "source": "junsky_xuat",
+  "manifest": {
+    "entity_id": "PLHN_FIXTURE",
+    "source_system": "SYSTEM_FIXTURE",
+    "as_of": "2026-09-16",
+    "coverage_from": "2026-09-01",
+    "coverage_to_exclusive": "2026-09-17",
+    "exported_at": "2026-09-17T08:00:00+07:00",
+    "known_at": "2026-09-17T08:01:00+07:00",
+    "known_at_basis": "synthetic test clock; not historical evidence",
+    "scope": "complete fixture examples",
+    "snapshot_id": "SNAPSHOT_FIXTURE_20260916"
+  },
+  "controls": {
+    "count": 8,
+    "totals": {
+      "OPEN_ITEM/VND": "-200",
+      "JOURNAL/VND": "0"
+    }
+  },
+  "records": [
+    {
+      "kind": "OPEN_ITEM",
+      "business_date": "2026-09-16",
+      "currency": "VND",
+      "amount": "-200",
+      "account": "331_FIXTURE",
+      "counterparty": "0001",
+      "item_id": "DEBT_FIXTURE_01",
+      "item_type": "INVOICE",
+      "invoice_reference": "1C26FIXTURE/000001"
+    },
+    {
+      "kind": "COUNTERPARTY",
+      "business_date": "2026-09-16",
+      "code": "0001",
+      "version": "v1",
+      "name": "Doi tuong gia lap",
+      "source_status": "ACTIVE",
+      "valid_from": "2026-09-01",
+      "valid_to": null
+    },
+    {
+      "kind": "ACCOUNT",
+      "business_date": "2026-09-16",
+      "code": "331_FIXTURE",
+      "version": "v1",
+      "name": "TK gia lap",
+      "source_status": "ACTIVE",
+      "valid_from": "2026-09-01",
+      "valid_to": null
+    },
+    {
+      "kind": "EXPENSE",
+      "business_date": "2026-09-16",
+      "code": "0001",
+      "version": "v1",
+      "name": "Khoan muc gia lap",
+      "source_status": "ACTIVE",
+      "valid_from": "2026-09-01",
+      "valid_to": null
+    },
+    {
+      "kind": "PROJECT",
+      "business_date": "2026-09-16",
+      "code": "0001",
+      "version": "v1",
+      "name": "Du an gia lap",
+      "source_status": "ACTIVE",
+      "valid_from": "2026-09-01",
+      "valid_to": null
+    },
+    {
+      "kind": "COST_CENTER",
+      "business_date": "2026-09-16",
+      "code": "0001",
+      "version": "v1",
+      "name": "Trung tam chi phi gia lap",
+      "source_status": "ACTIVE",
+      "valid_from": "2026-09-01",
+      "valid_to": null
+    },
+    {
+      "kind": "LOCK_PERIOD",
+      "business_date": "2026-09-16",
+      "valid_from": "2026-08-01",
+      "valid_to": "2026-09-01",
+      "scope": "all-fixture",
+      "source_status": "LOCKED"
+    },
+    {
+      "kind": "JOURNAL",
+      "business_date": "2026-09-16",
+      "currency": "VND",
+      "amount": "0",
+      "book": "NKC_FIXTURE",
+      "fiscal_year": "2026",
+      "voucher_type": "CT_FIXTURE",
+      "voucher_number": "000001",
+      "source_status": "POSTED_SOURCE_FIXTURE",
+      "complete_voucher": true,
+      "lines": [
+        {
+          "line_id": "001",
+          "account": "331_FIXTURE",
+          "debit": "200",
+          "credit": "0"
+        },
+        {
+          "line_id": "002",
+          "account": "112_FIXTURE",
+          "debit": "0",
+          "credit": "200"
+        }
+      ]
+    }
+  ]
+}

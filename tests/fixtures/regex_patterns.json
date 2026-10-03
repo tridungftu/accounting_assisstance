@@ -1,0 +1,6 @@
+{
+  "UNG HO": "(?<!\\w)UNG\\ HO(?!\\w)(?!P\\b)",
+  "MUA HOA": "(?<!\\w)MUA\\ HOA(?!\\w)(?!\\s+CHAT\\b)",
+  "DAU": "(?<!\\w)DAU(?!\\w)(?!\\s+TU\\b)",
+  "HOA CHAT": "(?<!\\w)HOA\\ CHAT(?!\\w)(?!\\s+NHUA\\b)"
+}

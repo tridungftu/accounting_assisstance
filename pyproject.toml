@@ -1,0 +1,22 @@
+[build-system]
+requires = ["setuptools>=65"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "kho-tri-thuc"
+version = "0.3.0"
+description = "Kho tri thuc offline: local HTML intake and M1-M6 fixture workflow"
+requires-python = ">=3.11"
+dependencies = ["openpyxl>=3.1,<4"]
+
+[project.optional-dependencies]
+source-xls = ["xlrd==2.0.2"]
+
+[project.scripts]
+kho-tri-thuc = "kho_tri_thuc.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+"kho_tri_thuc.giao_dien" = ["assets/*.html", "assets/*.css", "assets/*.js", "assets/*.svg"]
