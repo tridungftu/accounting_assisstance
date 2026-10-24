@@ -1,0 +1,10 @@
+{
+  "ma_policy": "POLICY-TIENTE-01",
+  "phien_ban": "v1",
+  "tien_te_noi_dia": "VND",
+  "ty_gia_noi_dia": "1",
+  "mst_vn": {
+    "do_dai": [10, 13],
+    "bo_ky_tu": "-"
+  }
+}
