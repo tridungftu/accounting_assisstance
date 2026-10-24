@@ -7,6 +7,7 @@ chunk gọi `con_hop_le()` của coordinator (quyền hiện hành) — trả Fa
 
 from __future__ import annotations
 
+import hashlib
 import http.client
 import json
 import re
@@ -106,20 +107,34 @@ class KhachNode:
                         "ly_do": _ma_an_toan(p.get("ly_do"), "PROFILE_UNREADABLE") if p.get("ly_do") is not None else None})
         return out
 
-    def _kiem_run(self, v: dict, context: dict, digest: str, cho_phep: tuple) -> dict:
-        if v.get("status") not in cho_phep or v.get("run_id") != context["run"]["run_id"] or v.get("context_digest") != digest \
-                or not isinstance(v.get("request_key_sha256"), str) or not RE_HEX64.fullmatch(v["request_key_sha256"]):
+    @staticmethod
+    def _run_cua(context) -> tuple[str, str]:
+        """(run_id, SHA-256 UTF-8 của CHÍNH context.run.request_key). Thiếu/sai kiểu → lỗi có mã, trước mọi IO."""
+        run = context.get("run") if isinstance(context, dict) else None
+        if not isinstance(run, dict) or not isinstance(run.get("run_id"), str) or not isinstance(run.get("request_key"), str) \
+                or not run["request_key"]:
+            raise LoiKhach("KHACH_CONTEXT_SAI")
+        return run["run_id"], hashlib.sha256(run["request_key"].encode("utf-8")).hexdigest()
+
+    def _kiem_run(self, v: dict, run: tuple, digest: str, cho_phep: tuple) -> dict:
+        run_id, khoa_sha = run
+        if v.get("status") not in cho_phep or v.get("run_id") != run_id or v.get("context_digest") != digest \
+                or not isinstance(v.get("request_key_sha256"), str) or not RE_HEX64.fullmatch(v["request_key_sha256"]) \
+                or v["request_key_sha256"] != khoa_sha:
             raise LoiKhach("KHACH_DTO_KHAC_RUN", 200)
         return v
 
     def start(self, context: dict, digest: str) -> dict:
-        return self._kiem_run(self._goi("POST", "/api/start", {"context": context}), context, digest, TRANG_THAI_START)
+        run = self._run_cua(context)
+        return self._kiem_run(self._goi("POST", "/api/start", {"context": context}), run, digest, TRANG_THAI_START)
 
     def status(self, context: dict, digest: str) -> dict:
-        return self._kiem_run(self._goi("POST", "/api/status", {"context": context}), context, digest, TRANG_THAI_STATUS)
+        run = self._run_cua(context)
+        return self._kiem_run(self._goi("POST", "/api/status", {"context": context}), run, digest, TRANG_THAI_STATUS)
 
     def reconcile(self, context: dict, digest: str) -> dict:
-        return self._kiem_run(self._goi("POST", "/api/reconcile", {"context": context}), context, digest, TRANG_THAI_STATUS)
+        run = self._run_cua(context)
+        return self._kiem_run(self._goi("POST", "/api/reconcile", {"context": context}), run, digest, TRANG_THAI_STATUS)
 
     def open_folder(self, context: dict, run_rel: str) -> dict:
         v = self._goi("POST", "/api/open-folder", {"context": context, "run_rel": run_rel})

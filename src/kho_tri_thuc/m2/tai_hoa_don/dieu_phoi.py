@@ -278,10 +278,10 @@ class DieuPhoiTaiHoaDon:
         return b
 
     def _binding_cua_phien(self, sid, run_handle) -> dict:
+        sid_ref, _ = self._phien(sid)  # phiên TRƯỚC mọi tra cache/tệp binding: phiên sai/hết hạn không đọc, không lộ run có tồn tại
         b = self._doc_binding(run_handle)
         if b is None:
             raise DataError("M2_00B_RUN_KHONG_CO", "Không có run này.")
-        sid_ref, _ = self._phien(sid)
         if sid_ref != b["sid_ref"]:
             raise DataError("M2_00B_CAN_DOI_SOAT", "Run thuộc phiên khác — cần đối soát.")
         return b
@@ -337,7 +337,7 @@ class DieuPhoiTaiHoaDon:
     def profiles(self, sid) -> dict:
         """PN/profile được phép của phiên hiện hành (+ sẵn sàng tệp profile do Node kiểm, không credential). Kiểm lại sau IO Node."""
         sid_ref, login = self._phien(sid)
-        truoc, giu = self._tap_profiles(login)
+        truoc = self._tap_profiles(login)
         san_sang = {}
         if truoc and self._tt.dang_chay():
             try:
@@ -356,7 +356,7 @@ class DieuPhoiTaiHoaDon:
         sid_ref2, login2 = self._phien(sid)
         if (sid_ref2, login2) != (sid_ref, login):
             raise DataError("M2_00B_PHIEN_DOI", "Phiên đổi trong lúc đọc — không trả dữ liệu cũ.")
-        sau, giu = self._tap_profiles(login)  # quyền hiện hành SAU IO: chỉ trả giao của hai lần kiểm
+        sau = self._tap_profiles(login)  # quyền hiện hành SAU IO: chỉ trả giao của hai lần kiểm
         khoa_sau = {(m["source_instance"], m["scope_ref"], m["company_key"], m["profile_revision"], m["phap_nhan"]["uuid"]) for m in sau}
         muc = []
         for m in truoc:
@@ -369,10 +369,11 @@ class DieuPhoiTaiHoaDon:
                 ss, ly_do = san_sang[(m["phap_nhan"]["ma"], m["profile_revision"])]
             muc.append({"source_instance": m["source_instance"], "scope_ref": m["scope_ref"], "company_key": m["company_key"],
                         "phap_nhan_ma": m["phap_nhan"]["ma"], "profile_revision": m["profile_revision"], "san_sang": ss, "ly_do": ly_do})
-        return {"phien_ban": "m2_00b.profiles.v1", "muc": muc, "giu": giu}
+        return {"phien_ban": "m2_00b.profiles.v1", "muc": muc}
 
-    def _tap_profiles(self, login) -> tuple[list, list]:
-        muc, giu = [], []
+    def _tap_profiles(self, login) -> list:
+        """Chỉ company/PN đã resolve VÀ authorize hiện hành. Mapping thiếu/mơ hồ không phải quyền nhìn identifier → bỏ hẳn, không lộ key/số lượng."""
+        muc = []
         with self._khoa:
             with self._guard(login) as (m2, crm, conn, dt):
                 for inst in sorted(m2._instances_m2()):
@@ -394,9 +395,7 @@ class DieuPhoiTaiHoaDon:
                         if not isinstance(scope_ref, str) or not RE_INSTANCE.fullmatch(scope_ref):
                             continue
                         scope = nguon_chung.doc_pham_vi(conn, inst, profile, scope_ref)
-                        cong_ty, hold = m2._cong_ty(conn, inst, profile, scope["company_keys"])
-                        for h in hold:  # chỉ company key + lý do (không PN)
-                            giu.append({"source_instance": inst, "scope_ref": scope_ref, "company_key": h["company_key"], "ly_do": h["reason"]})
+                        cong_ty, _hold = m2._cong_ty(conn, inst, profile, scope["company_keys"])  # hold = chưa resolve PN → không hiện
                         for k in sorted(cong_ty):
                             try:
                                 f = self._quyet_dinh(m2, conn, dt, inst, scope_ref, k)
@@ -404,7 +403,7 @@ class DieuPhoiTaiHoaDon:
                                 continue  # PN/module ngoài quyền: không hiện (X không thấy B)
                             muc.append({"source_instance": inst, "scope_ref": scope_ref, "company_key": k, "phap_nhan": f["phap_nhan"],
                                         "profile_revision": f["source_profile"]["sha256"]})
-        return muc, giu
+        return muc
 
     def start(self, sid, selection):
         """Một lựa chọn → một job. Danh sách ('Tải tất cả') → hàng đợi tuần tự, kiểm quyền lại trước MỖI job."""

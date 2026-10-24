@@ -6,12 +6,16 @@ Thu hồi khi run SỞ HỮU đang chạy → dừng hữu hạn tiến trình s
 
 from __future__ import annotations
 
+import json
 import unittest
+from contextlib import contextmanager
+from pathlib import Path
 
 from kho_tri_thuc.ha_tang.primitives import DataError
 from kho_tri_thuc.k2.hoa_don import HoaDonK2
 
 from test_m2_00b_tinh import CTY_A, CTY_B, INST, MA_A, PAYLOAD, PN_A, PN_B, SHA, SHA_MOI, SID_KT, SID_XA, U_KT, CoSoM2B, KetNoiGia, _Cur
+from test_m2_00b_tinh import MA_B, SID_KT2
 
 
 class M2BTuChoiTruocIO(CoSoM2B):
@@ -192,6 +196,85 @@ class M2BThuHoiSauIO(CoSoM2B):
         for row in self.conn.nhat_ky:
             self.assertEqual(row["phap_nhan_id"], PN_A)
         self.assertNotIn(SID_KT, repr(e.exception))
+
+
+class M2BFix01(CoSoM2B):
+    """FIX01 — hai causal gap ở tầng điều phối (FIX-B01 profiles HOLD, FIX-B03 phiên trước binding IO). FIX-B02 ở test_m2_00b_tien_trinh."""
+
+    def _khong_lo_b(self, r):
+        s = json.dumps(r, ensure_ascii=False)
+        for bi_mat in (CTY_B, PN_B, MA_B):
+            self.assertNotIn(bi_mat, s)
+        for _, v in self.node.than:  # cũng không gửi sang Node
+            self.assertNotIn(CTY_B, json.dumps(v))
+            self.assertNotIn(PN_B, json.dumps(v))
+
+    def test_b05_fix01_profiles_mapping_thieu_hoac_mo_ho_khong_lo_company_ngoai_quyen(self):
+        self.node.san_sang = {MA_A: (True, None), MA_B: (True, None)}
+        r0 = self.dp.profiles(SID_KT)  # positive: actor đủ quyền A+B, mapping đủ → cả hai hiện
+        self.assertEqual([m["company_key"] for m in r0["muc"]], [CTY_A, CTY_B])
+        goc = [dict(m) for m in self.conn.anh_xa]
+        ca = {"THIEU": [m for m in goc if m["subject_key"] != CTY_B],
+              "MO_HO": goc + [{**goc[0], "id": "c0000000-0000-4000-8000-00000000000c", "subject_key": CTY_B, "phap_nhan_id": PN_A}]}
+        for ten, anh_xa in ca.items():
+            with self.subTest(mapping=ten):
+                self.conn.anh_xa = [dict(m) for m in anh_xa]
+                self.node.than.clear()
+                r = self.dp.profiles(SID_XA)  # XEM chỉ có M2/PN_A, có INTAKE+READ_SOURCE trên nguồn khai A/B
+                self.assertEqual(set(r), {"phien_ban", "muc"})  # không nhánh HOLD/đếm item ngoài quyền
+                self.assertEqual([(m["company_key"], m["phap_nhan_ma"], m["san_sang"]) for m in r["muc"]], [(CTY_A, MA_A, True)])
+                self._khong_lo_b(r)
+                rk = self.dp.profiles(SID_KT)  # actor có quyền PN_B nhưng mapping B thiếu/mơ hồ: vẫn không cấp quyền nhìn B
+                self.assertEqual([m["company_key"] for m in rk["muc"]], [CTY_A])
+                self.assertNotIn(CTY_B, json.dumps(rk))
+        self.assertEqual(self.conn.nhat_ky, [])
+
+    @contextmanager
+    def _dem_doc_binding(self, handle):
+        dich = self.cfg.goc_dieu_phoi / "m2-00b-binding" / f"{handle}.json"
+        doc, goc = [], Path.read_bytes
+
+        def theo_doi(p):
+            if p == dich:
+                doc.append(1)
+            return goc(p)
+        Path.read_bytes = theo_doi
+        try:
+            yield doc
+        finally:
+            Path.read_bytes = goc
+
+    def test_b06_fix01_phien_sai_hoac_het_chan_truoc_doc_binding(self):
+        run = self.dp.start(SID_KT, self.chon())
+        h = run["run_handle"]
+        rel = "/".join([MA_A, "2026-09", "mua_vao", run["run_id"]])
+        self.app.bo_phien(SID_KT2)  # phiên từng có, nay hết hạn
+        goi = {"status": lambda d, s: d.status(s, h), "reconcile": lambda d, s: d.reconcile(s, h),
+               "events": lambda d, s: next(d.events(s, h, 0)), "mo_thu_muc": lambda d, s: d.mo_thu_muc(s, h, rel)}
+        for ten, fn in goi.items():
+            for sid in ("invalid-demo-session", SID_KT2, "", None):
+                with self.subTest(ham=ten, sid=sid):
+                    moi = self.dp_moi()  # cache binding rỗng → chỉ còn tệp trên đĩa
+                    so_goi = len(self.node.goi)
+                    with self._dem_doc_binding(h) as doc:
+                        with self.assertRaises(DataError) as e:
+                            fn(moi, sid)
+                    self.assertEqual(e.exception.code, "CRM_PHIEN")
+                    self.assertEqual(doc, [])  # 0 đọc binding, không lộ run có tồn tại
+                    self.assertEqual(moi._binding, {})
+                    self.assertEqual(len(self.node.goi), so_goi)  # 0 Node IO
+        moi = self.dp_moi()
+        with self._dem_doc_binding(h) as doc:  # phiên đúng: đọc binding rồi kiểm quyền hiện hành như cũ
+            r = moi.status(SID_KT, h)
+        self.assertEqual((r["run_handle"], len(doc)), (h, 1))
+        self.conn.phan_quyen = [q for q in self.conn.phan_quyen if not (q["nguoi_dung_id"] == U_KT and q["phap_nhan_id"] == PN_A)]
+        moi = self.dp_moi()
+        so_status = len([p for _, p in self.node.goi if p == "/api/status"])
+        with self._dem_doc_binding(h) as doc:
+            with self.assertRaises(DataError) as e:
+                moi.status(SID_KT, h)
+        self.assertEqual((e.exception.code, len(doc)), ("KHONG_CO_QUYEN_PHAP_NHAN", 1))
+        self.assertEqual(len([p for _, p in self.node.goi if p == "/api/status"]), so_status)
 
 
 if __name__ == "__main__":

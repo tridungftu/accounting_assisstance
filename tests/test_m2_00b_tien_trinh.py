@@ -7,6 +7,7 @@ Kèm kiểm `KhachNode` thật: header Host/capability, không query, SSE sai th
 
 from __future__ import annotations
 
+import hashlib
 import io
 import json
 import subprocess
@@ -359,6 +360,35 @@ class M2BKhach(CoSoTienTrinh):
         out = self._sse(": open\n\n" + self._frame(1) + self._frame(2), con_hop_le=con)
         self.assertEqual(out, [{"ket_thuc": "QUYEN_THAY_DOI"}])  # lần 1: trước đọc; lần 2: nhịp ': open'; lần 3: trước chunk 1 → dừng
         self.assertEqual(len(dem), 3)
+
+    def test_b07_fix01_request_key_sha_phai_dung_chinh_context(self):
+        """FIX-B02: run_id + context_digest đúng KHÔNG thay được hash đúng của context.run.request_key (hex hợp lệ nhưng sai → từ chối)."""
+        ctx = {"run": {"run_id": "20261023-093000", "request_key": "m2b_DEMO-request-key-0001"}}
+        dung = hashlib.sha256(b"m2b_DEMO-request-key-0001").hexdigest()
+        khac = hashlib.sha256(b"m2b_DEMO-request-key-0002").hexdigest()
+
+        def tra(status, key):
+            v = {"ok": True, "status": status, "run_id": "20261023-093000", "context_digest": self.DG, "request_key_sha256": key}
+            return _Resp(200, "application/json", json.dumps(v).encode())
+        for ten, status in (("start", "STARTED"), ("status", "RUNNING"), ("reconcile", "RUNNING")):
+            for sai in ("f" * 64, khac, dung.upper(), None):
+                with self.subTest(ham=ten, sai=sai):
+                    with self.assertRaises(LoiKhach) as e:
+                        getattr(self.khach(tra(status, sai)), ten)(ctx, self.DG)
+                    self.assertEqual((e.exception.ma, e.exception.http_status), ("KHACH_DTO_KHAC_RUN", 200))
+            with self.subTest(ham=ten, dung=True):
+                v = getattr(self.khach(tra(status, dung)), ten)(ctx, self.DG)
+                self.assertEqual((v["status"], v["request_key_sha256"]), (status, dung))
+                self.assertEqual(json.loads(self.ghi[0][3])["context"], ctx)
+            for ctx_sai in ({"run": {"run_id": "20261023-093000"}}, {"run": {"run_id": "20261023-093000", "request_key": 7}},
+                            {"run": "x"}, {}, None):
+                with self.subTest(ham=ten, ctx_sai=ctx_sai):
+                    k = self.khach(tra(status, dung))
+                    with self.assertRaises(LoiKhach) as e:
+                        getattr(k, ten)(ctx_sai, self.DG)
+                    self.assertEqual(e.exception.ma, "KHACH_CONTEXT_SAI")
+                    self.assertEqual(self.ghi, [])  # lỗi có mã TRƯỚC IO, không KeyError/body thô
+                    self.assertNotIn(self.CAP, repr(e.exception))
 
 
 if __name__ == "__main__":
