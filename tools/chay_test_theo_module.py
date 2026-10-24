@@ -5,13 +5,14 @@ không kéo cả bộ test treo theo (bộ chạy cũ `tests/run_suite.py` chạ
 
 Dùng:
     python -X utf8 tools/chay_test_theo_module.py <duong_dan_repo> [--ra nen-test.json] [--module test_m1 ...]
-                                                  [--gioi-han 180] [--nhat-ky <thu_muc>]
+                                                  [--gioi-han 180] [--nhat-ky <thu_muc>] [--runtime runtime.local.json]
 
 - <duong_dan_repo>: thư mục gốc có `src\\` và `tests\\` (worktree hiện tại, hay worktree đo nhánh khác).
-- Cách tìm test và môi trường giống `test.ps1` → `tests/run_suite.py`: `tests/test_*.py`, PYTHONPATH=<repo>/src, `-X utf8`,
+- Cách tìm test và môi trường giống `test.ps1` → `tests/run_suite.py`: `tests/test_*.py`, PYTHONPATH gồm <repo>/src và <repo>, `-X utf8`,
   engine sqlite (bỏ mọi biến KHO_* và PG* khỏi môi trường tiến trình con để không chạm PostgreSQL).
 - Mỗi module chạy một tiến trình con; quá --gioi-han giây (mặc định 180) thì giết cả cây tiến trình, ghi treo=1 và test đang chạy.
 - --ra: JSON module -> {ok, error, fail, skip, treo, giay} (+ tong, ids_loi, test_treo, loi_dau). Ghi lại sau mỗi module.
+- --runtime: chỉ dùng python và duong_dan_phu_thuoc; đường dẫn tương đối tính từ thư mục chứa file runtime.
 - Không sửa gì trong repo được đo; log và thư mục tạm của test nằm trong --nhat-ky (mặc định thư mục tạm hệ điều hành).
 - Không dùng dữ liệu thật; không PostgreSQL; không mạng.
 
@@ -106,8 +107,8 @@ def _chay_con(repo: Path, module: str, tep_tien_do: Path) -> int:
     # Bỏ thư mục chứa script này (tools/) khỏi sys.path để không che module của repo được đo.
     thu_muc_script = str(Path(__file__).resolve().parent)
     sys.path[:] = [p for p in sys.path if p and str(Path(p).resolve()) != thu_muc_script]
-    # Giống discover(start_dir=tests): thư mục tests/ đứng đầu sys.path; src/ đã có qua PYTHONPATH (thêm lại cho chắc).
-    for p in (repo / "src", repo / "tests"):
+    # Giữ tests/ để nạp tên module ngắn, thêm repo để from tests.xxx hoạt động.
+    for p in (repo, repo / "src", repo / "tests"):
         sys.path.insert(0, str(p))
     os.chdir(repo)
     with open(tep_tien_do, "a", encoding="utf-8", buffering=1) as tep:
@@ -137,16 +138,43 @@ def _giet_cay(proc: subprocess.Popen):
         pass
 
 
-def _moi_truong(repo: Path, thu_muc_tam: Path) -> dict:
+def _doc_runtime(tep: Path) -> tuple[str, tuple[Path, ...]]:
+    """Chỉ lấy hai khóa runtime; không nạp cấu hình kết nối hay guard của app."""
+    tep = tep.resolve()
+    data = json.loads(tep.read_text(encoding="utf-8-sig"))
+    if not isinstance(data, dict):
+        raise ValueError("Runtime phải là JSON object.")
+    python = data.get("python")
+    phu_thuoc = data.get("duong_dan_phu_thuoc")
+    if not isinstance(python, str) or not python.strip():
+        raise ValueError("Runtime cần khóa python là đường dẫn không rỗng.")
+    if not isinstance(phu_thuoc, list) or any(not isinstance(p, str) or not p.strip() for p in phu_thuoc):
+        raise ValueError("Runtime cần duong_dan_phu_thuoc là danh sách đường dẫn thư mục.")
+
+    def duong_dan(p: str) -> Path:
+        path = Path(p)
+        return (path if path.is_absolute() else tep.parent / path).resolve()
+
+    executable = duong_dan(python)
+    dependencies = tuple(duong_dan(p) for p in phu_thuoc)
+    if not executable.is_file():
+        raise ValueError("Không thấy file Python của runtime.")
+    if any(not p.is_dir() for p in dependencies):
+        raise ValueError("Không thấy thư mục phụ thuộc của runtime.")
+    return str(executable), dependencies
+
+
+def _moi_truong(repo: Path, thu_muc_tam: Path, phu_thuoc: tuple[Path, ...] = ()) -> dict:
     env = {k: v for k, v in os.environ.items() if not (k.upper().startswith("KHO_") or k.upper().startswith("PG"))}
-    env["PYTHONPATH"] = str(repo / "src")
+    env["PYTHONPATH"] = os.pathsep.join(str(p) for p in (repo / "src", repo, *phu_thuoc))
     env["PYTHONIOENCODING"] = "utf-8"
     env["PYTHONDONTWRITEBYTECODE"] = "1"
     env["TEMP"] = env["TMP"] = env["TMPDIR"] = str(thu_muc_tam)
     return env
 
 
-def _chay_mot_module(repo: Path, module: str, gioi_han: int, thu_muc_nhat_ky: Path, python: str) -> dict:
+def _chay_mot_module(repo: Path, module: str, gioi_han: int, thu_muc_nhat_ky: Path, python: str,
+                    phu_thuoc: tuple[Path, ...] = ()) -> dict:
     tep_tien_do = thu_muc_nhat_ky / f"{module}.tiendo.jsonl"
     tep_log = thu_muc_nhat_ky / f"{module}.log"
     thu_muc_tam = thu_muc_nhat_ky / "tam" / module
@@ -162,7 +190,7 @@ def _chay_mot_module(repo: Path, module: str, gioi_han: int, thu_muc_nhat_ky: Pa
     ma_ra = None
     bat_dau = time.monotonic()
     with open(tep_log, "wb") as log:
-        proc = subprocess.Popen(lenh, cwd=str(repo), env=_moi_truong(repo, thu_muc_tam), stdin=subprocess.DEVNULL,
+        proc = subprocess.Popen(lenh, cwd=str(repo), env=_moi_truong(repo, thu_muc_tam, phu_thuoc), stdin=subprocess.DEVNULL,
                                 stdout=log, stderr=subprocess.STDOUT, **kwargs)
         try:
             ma_ra = proc.wait(timeout=gioi_han)
@@ -255,8 +283,17 @@ def main(argv=None) -> int:
     ap.add_argument("--gioi-han", type=int, default=GIOI_HAN_MAC_DINH, help="giây tối đa cho mỗi module (mặc định 180)")
     ap.add_argument("--ra", type=Path, help="ghi JSON kết quả (module -> {ok,error,fail,skip,treo,giay,...}) vào file này")
     ap.add_argument("--nhat-ky", type=Path, help="thư mục log + thư mục tạm của test (mặc định: thư mục tạm hệ điều hành)")
-    ap.add_argument("--python", default=sys.executable, help="python.exe dùng chạy test (mặc định: chính python đang chạy script)")
+    runtime = ap.add_mutually_exclusive_group()
+    runtime.add_argument("--python", default=sys.executable, help="python.exe dùng chạy test (mặc định: chính python đang chạy script)")
+    runtime.add_argument("--runtime", type=Path, help="runtime.local.json: dùng python và duong_dan_phu_thuoc, không dùng kết nối PostgreSQL")
     args = ap.parse_args(argv)
+
+    phu_thuoc = ()
+    if args.runtime:
+        try:
+            args.python, phu_thuoc = _doc_runtime(args.runtime)
+        except (OSError, ValueError) as exc:
+            ap.error(f"Không đọc được runtime: {exc}")
 
     repo = args.repo.resolve()
     if not (repo / "tests").is_dir() or not (repo / "src").is_dir():
@@ -281,7 +318,7 @@ def main(argv=None) -> int:
     ket_qua = {}
     bat_dau = time.monotonic()
     for i, m in enumerate(modules, 1):
-        r = _chay_mot_module(repo, m, args.gioi_han, nhat_ky, args.python)
+        r = _chay_mot_module(repo, m, args.gioi_han, nhat_ky, args.python, phu_thuoc)
         ket_qua[m] = r
         co = "TREO" if r["treo"] else ("LOI" if (r["error"] or r["fail"]) else "ok")
         print(f"[{i:>3}/{len(modules)}] {co:<4} {m:<42} ok={r['ok']:<4} ERROR={r['error']:<4} FAIL={r['fail']:<3} skip={r['skip']:<4} {r['giay']:>6}s"
