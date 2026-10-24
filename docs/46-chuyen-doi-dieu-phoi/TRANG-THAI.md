@@ -1,6 +1,6 @@
 # Trạng thái — lead Claude Code cập nhật khi lát đổi trạng thái
 
-Trạng thái lát: Đang code → Chờ kiểm → Chờ Anh (cổng A/B) → Sửa → Xong · Bị chặn. Kế hoạch và hàng đợi đầy đủ: `4-KE-HOACH-LEAD.md`. Nền test: `NEN-TEST.md` (đang đo lại nền v2 trên hop-nhat 7b114e2, có `--runtime`).
+Trạng thái lát: Đang code → Chờ kiểm → Chờ Anh (cổng A/B) → Sửa → Xong · Bị chặn. Kế hoạch và hàng đợi đầy đủ: `4-KE-HOACH-LEAD.md`. Nền test: `NEN-TEST.md` mục 0b — **nền v2** hop-nhat 7b114e2: 1276/34/57/292, 1 treo; so với chinh chỉ 3 module có lỗi mới, đều là test lỗi thời (→ L0-3c).
 
 ## Lát đang chạy (tối đa 3 worker)
 
@@ -8,7 +8,7 @@ Trạng thái lát: Đang code → Chờ kiểm → Chờ Anh (cổng A/B) → S
 |---|---|---|---|---|---|
 | BG-1a | CRM · Báo giá gói 1 phía máy chủ: ô Giá trị thông minh, ghi đè tổng có cảnh báo, nhãn tên, mốc chuẩn | Codex | `lat/bg-1a` · `.claude/worktrees/lat-bg-1a` | 24/10 | Đang code |
 | L0-4b | CSDL CRM DEMO riêng cho lập trình (Anh chốt 24/10) | Claude Sonnet | `lat/l0-4b` · `.claude/worktrees/lat-l0-4b` | 24/10 | Đang code |
-| M2b | M2-00 · đọc/kiểm manifest + POLICY-TIENTE-01 v1 | Codex (code) · Claude (review) | `lat/m2b` (fffad5a) | 24/10 | Chờ kiểm — review chéo vòng 1 đang chạy; Codex báo 63/63 test đạt |
+| M2b | M2-00 · đọc/kiểm manifest + POLICY-TIENTE-01 v1 | Codex (code) · Claude (review) | `lat/m2b` (fffad5a) | 24/10 | Sửa — review Claude vòng 1: Đạt, 2 điểm Nên sửa lệch TL 43 §6 (DVTTe=VND không cần MST; hóa đơn thiếu khóa thành ngoại lệ, không từ chối cả manifest) → Codex sửa vòng 2 |
 
 ## Lát đã xong (24/10)
 
