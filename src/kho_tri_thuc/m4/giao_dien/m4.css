@@ -64,6 +64,21 @@
 .m4 .m4-grid > div { min-width: 0; }
 @media (min-width: 1280px) { .m4 .m4-grid { grid-template-columns: 300px minmax(0, 1fr); } }
 @media (min-width: 1440px) { .m4 .m4-grid { grid-template-columns: 330px minmax(0, 1fr); } .m4 .m4-bang { max-height: 560px; } }
+/* M4-02C — tab Duyệt & PDF (m4_duyet_pdf.js): phiên bản, kết luận NT/TT, duyệt, PDF hồ sơ đợt, hai nhánh KT/Request. Chỉ dưới .m4 .m4-dp*. */
+.m4 .m4-dp { min-width: 0; }
+.m4 .m4-dp-dau { justify-content: space-between; margin-bottom: 4px; }
+.m4 .m4-dp-dau h3 { margin: 0; }
+.m4 .m4-dp-ban { border-color: var(--m4-navy); }
+.m4 .m4-dp-o { display: flex; flex-direction: column; gap: 4px; margin: 8px 0; font-size: 13px; color: var(--m4-muted); }
+.m4 .m4-dp-o textarea, .m4 .m4-dp-kl textarea, .m4 .m4-dp-duyet textarea { width: 100%; box-sizing: border-box; font: inherit; }
+.m4 .m4-dp-kl .m4-form label { display: flex; flex-direction: column; gap: 4px; }
+.m4 .m4-dp-kl input[type="text"] { font-variant-numeric: tabular-nums; text-align: right; }
+.m4 .m4-dp-kl h4, .m4 .m4-dp-pdf h4 { margin: 12px 0 6px; font-size: 14px; color: var(--m4-navy); }
+.m4 .m4-dp-duyet { border-left: 3px solid var(--m4-amber); }
+.m4 .m4-dp-pdf { border-left: 3px solid var(--m4-navy); }
+.m4 .m4-dp-nhanh td:first-child { font-weight: 600; white-space: nowrap; }
+.m4 .m4-dp-ydinh { margin: 6px 0; padding: 8px 10px; border: 1px solid var(--m4-amber); border-radius: 6px; background: var(--m4-amber-bg); }
+.m4 .m4-dp-status { min-height: 1.2em; }
 /* M4-02A — vùng Review L1/L2 (bố cục màn Kiểm tra đợt của Review nguồn: stat-strip, panel, bảng kiểm, cây truy vết, bằng chứng). Chỉ dưới .m4 .m4-rv*. */
 .m4 .m4-rv { min-width: 0; }
 .m4 .m4-rv-hang { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
