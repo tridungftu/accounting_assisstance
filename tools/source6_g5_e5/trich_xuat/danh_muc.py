@@ -14,9 +14,11 @@ DANH_MUC_THAM_SO.xlsx (trong thư mục trich_xuat), cột đọc theo TÊN tiê
 Tham số hỏi thêm cho một lượt (giao diện / YEU_CAU_THEM.txt) được đánh mã Y-01, Y-02… và AI tự tìm vị trí.
 """
 import datetime
+import hashlib
 import os
 import re
 import shutil
+from pathlib import Path
 
 from .cau_hinh import DANH_MUC_THAM_SO
 from .xlsx_mini import read_xlsx, write_xlsx
@@ -237,10 +239,41 @@ def save_catalog(rows, path=None):
 
 
 # ================================================================== common/v1 (CRM-41-01): catalog ghim + chọn mã nghiêm ngặt
-# Registry catalog của contract 'trich-tham-so-common/v1': loại HĐ → (catalog_id, SHA-256 nội dung đã bind, tệp). Chỉ XD có catalog thật;
-# loại khác (KCN/nhà ở/MUA…) chưa có catalog → không hỗ trợ, KHÔNG mượn XD. SHA là phiên bản nội dung, không bịa version.
-CATALOG_COMMON = {"XD": {"catalog_id": "XD", "sha256": "05846a2acd60f2cde708d13a163a137ee3fb0b4e08fd84f85a7e14e7ef861bcd",
-                         "path": DANH_MUC_THAM_SO}}
+# Registry catalog của contract 'trich-tham-so-common/v1': loại HĐ → (catalog_id, SHA-256 nội dung đã bind, tệp).
+# E1-1: ghim đúng bytes danh mục thiết kế TL 44; khi áp bản vá, các tệp mua đặt cạnh tệp XD.
+# DV là bản gọn dùng cho dịch vụ; DV_KY/DV_1L chỉ dùng khi yêu cầu tường minh, không tự chọn/thay thế DV.
+# Đăng ký catalog không đăng ký bộ trích E5: các loại mua dùng RULE_ONLY, không mượn BO_TRICH_E5 của XD.
+CATALOG_COMMON = {
+    "XD": {"catalog_id": "XD", "sha256": "05846a2acd60f2cde708d13a163a137ee3fb0b4e08fd84f85a7e14e7ef861bcd",
+           "path": DANH_MUC_THAM_SO},
+    "DV": {"catalog_id": "DV", "sha256": "16e9a167b280a6c0c64ea5eb4c4f329300683277f026ecddcbaf163827cbf422",
+           "path": Path(DANH_MUC_THAM_SO).with_name("DANH_MUC_THAM_SO_DV.xlsx")},
+    "MUA_HH": {"catalog_id": "MUA_HH", "sha256": "7e11356292e050a57bccc5a89509bd24085990543911484fdeb3b743901c2352",
+               "path": Path(DANH_MUC_THAM_SO).with_name("DANH_MUC_THAM_SO_MUA_HH.xlsx")},
+    "THUE_TS": {"catalog_id": "THUE_TS", "sha256": "ca1c3e687059c612c823bb6803e8ce39e0b729dc200a0f9d4ce3761c2c9658fc",
+                "path": Path(DANH_MUC_THAM_SO).with_name("DANH_MUC_THAM_SO_THUE_TS.xlsx")},
+    "NHAP_KHAU": {"catalog_id": "NHAP_KHAU", "sha256": "201befac6d1fabdddb4f38ffe7103f90cc775e48903e195526194d9fd6ccbe47",
+                  "path": Path(DANH_MUC_THAM_SO).with_name("DANH_MUC_THAM_SO_NHAP_KHAU.xlsx")},
+    "DV_KY": {"catalog_id": "DV_KY", "sha256": "45dc1c12a6b745973ba73f940fc62b65855cd2af53c8542960de238a651ec379",
+              "path": Path(DANH_MUC_THAM_SO).with_name("DANH_MUC_THAM_SO_DV_KY.xlsx")},
+    "DV_1L": {"catalog_id": "DV_1L", "sha256": "a6546a4f4757f04c0b2ae1d1c68effebf796846427eb661a52432f8fde5326e2",
+              "path": Path(DANH_MUC_THAM_SO).with_name("DANH_MUC_THAM_SO_DV_1L.xlsx")},
+}
+
+
+def danh_muc_theo_loai(loai) -> Path:
+    """Đường dẫn catalog đã đăng ký và kiểm SHA; không tạo file, không fallback XD."""
+    if not isinstance(loai, str) or loai not in CATALOG_COMMON:
+        raise ValueError(f"Loại hợp đồng {loai!r} chưa đăng ký danh mục tham số")
+    reg = CATALOG_COMMON[loai]
+    path = Path(reg["path"])
+    if not path.is_file():
+        raise FileNotFoundError(f"Thiếu danh mục tham số cho loại {loai}: {path}")
+    sha = hashlib.sha256(path.read_bytes()).hexdigest()
+    if sha != reg["sha256"]:
+        raise ValueError(f"SHA-256 danh mục loại {loai} lệch phiên bản đã ghim: "
+                         f"cần {reg['sha256']}, thực tế {sha}")
+    return path
 
 
 class LoiChonMa(ValueError):
@@ -300,7 +333,7 @@ BO_TRICH_TEN = ("QUY_TAC_TC", "NEO_DONG", "BANG_DONG")
 # Bộ trích THẬT cho đối chiếu bản ký theo catalog đã ghim: mã → (bộ trích, kiểu). QUY_TAC_TC = quy tắc master_hd (TrichXuat.tc_theo_quy_tac);
 # NEO_DONG = dòng neo theo từ khoá nội dung/bắt buộc/loại trừ của CHÍNH bản chụp catalog + token typed (số/tiền/ngày, giữ đơn vị/tiền tệ);
 # BANG_DONG = dòng lịch theo khoá dòng (ô đầu) + ô typed theo thứ tự. Mã KHÔNG có ở đây → chưa có bộ trích → CHUA_DOI_CHIEU_DUOC (không đoán).
-# Chỉ XD có catalog; KCN/NHAO chưa đăng ký catalog → không có mục, không mượn XD. Gán kiểu cho TT-20 = bảng là assignment DEMO (chưa nghiệm thu).
+# Chỉ XD có bộ trích E5; các loại khác không có mục, không mượn XD. Gán kiểu cho TT-20 = bảng là assignment DEMO (chưa nghiệm thu).
 BO_TRICH_E5 = {"XD": {"TC-01": ("QUY_TAC_TC", "text"), "TC-02": ("QUY_TAC_TC", "ngay"), "TT-02": ("NEO_DONG", "tien"),
                       "TT-04": ("NEO_DONG", "so"), "TT-10": ("NEO_DONG", "so"), "TT-20": ("BANG_DONG", "bang")}}
 _RE_MUC_GHIM = re.compile(r"([0-3])(?:\.0+)?")
