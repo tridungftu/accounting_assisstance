@@ -1,6 +1,6 @@
 # Trạng thái — lead Claude Code cập nhật khi lát đổi trạng thái
 
-Trạng thái lát: Đang code → Chờ kiểm → Chờ Anh (cổng A/B) → Sửa → Xong · Bị chặn. Kế hoạch và hàng đợi đầy đủ: `4-KE-HOACH-LEAD.md`. Nền test: `NEN-TEST.md` mục 0b — **nền v2** hop-nhat 7b114e2: 1276/34/57/292, 1 treo; so với chinh chỉ 3 module có lỗi mới, đều là test lỗi thời (→ L0-3c).
+Trạng thái lát: Đang code → Chờ kiểm → Chờ Anh (cổng A/B) → Sửa → Xong · Bị chặn. Kế hoạch và hàng đợi đầy đủ: `4-KE-HOACH-LEAD.md`. Nền test: `NEN-TEST.md` mục 0b — **nền v3** (mục 0a, sau L0-3c): 1408/22/44/360, 1 treo.
 
 ## Lát đang chạy (tối đa 3 worker)
 
@@ -10,12 +10,12 @@ Trạng thái lát: Đang code → Chờ kiểm → Chờ Anh (cổng A/B) → S
 | M2d | M2-00 · sinh manifest hồi cứu (HOI_CUU) cho dữ liệu đã tải, không ghi vào thư mục cũ (ca M2-00-09 trên dữ liệu giả) | Codex | `lat/m2d` | 24/10 | Đang code |
 | E1-1 | E1-MUA · đăng ký 6 loại danh mục tham số trong bản vá #6 (`CATALOG_COMMON`), từ chối loại lạ, XD giữ nguyên | Codex | `lat/e1-1` | 24/10 | Đang code |
 | L0-6 | Chẩn đoán engine trích #6 DEMO ngắt sau lệnh trích đầu (chặn dựng đợt M4 DEMO) | Claude Sonnet | `lat/l0-6` · DEMO 8786 | 24/10 | Đang code |
-| L0-3c | Cập nhật test lỗi thời (N5) | Codex | `lat/l0-3c` (nền ff9503f) | 24/10 | Đang code — lượt thử lại (lần 1 lỗi model quá tải) |
 
 ## Lát đã xong (24/10)
 
 | Lát | Kết quả | Gộp vào hop-nhat |
 |---|---|---|
+| L0-3c | 12 test lỗi thời N5 cập nhật (không nới ý nghĩa); pin crm_giao_ket theo BG-1a; toàn bộ test: ok 1276→1408, ERROR 34→22, FAIL 57→44 → **nền v3** | ad7d3d4 |
 | M2c | M2-00 · nhận hóa đơn theo manifest qua đường K2 sẵn có; review Đạt, vòng 2 sửa 4 điểm (độ phủ, giữ chờ theo mục, thiếu bảng kê, số 0 đầu SHDon); 141/141 | b190569 |
 | M4-2 | M4 · giao diện Duyệt đợt & PDF: hop-nhat đã có logic fix01 (3 lỗi); thêm 15 dòng style + test hồi quy fix01 12/12 (chứng minh bắt lỗi trên bản chưa sửa). Chưa chụp được màn có dữ liệu: engine #6 DEMO ngắt sau lệnh trích đầu (→ L0-6) | ff9503f |
 | L0-2c | M4 · Nghiệm thu & chi phí dự án: gộp backend duyệt/PDF (13 xung đột, giữ HN mới hơn) + đăng ký M0026/M0027 (27 migration, chỉ append); ok 728→757, ERROR 27→18; Request M4 103/0 | c4deb00 |
@@ -45,7 +45,7 @@ Worktree đo nền: `.claude/worktrees/nen-chinh-59b7d8e` (chinh) · `.claude/wo
 | `giao_dien\crm_g.py`, `k2\crm_giao_ket.py` | — |
 | `giao_dien\assets\crm_g.js`, `style.css` | BG-1b |
 | `m4\*` dùng chung | — |
-| `tests\` (chỉ test lỗi thời N5) | L0-3c (chờ) |
+| `tests\` (chỉ test lỗi thời N5) | — |
 | `m4\giao_dien\m4_duyet_pdf.js`, `m4.js`, `m4.css` | — |
 | `tools\mo_demo_worktree.ps1`, `CLAUDE.md` | lead |
 

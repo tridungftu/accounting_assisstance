@@ -2,6 +2,17 @@
 
 Nền để "xanh" = **không thêm lỗi so với bảng này**. Đo bằng `tools/chay_test_theo_module.py`: mỗi module test chạy trong tiến trình con riêng, giới hạn 180 giây/module, engine sqlite, không PostgreSQL, không đụng kho thật.
 
+## 0a. Nền v3 — dùng từ 24/10 tối (hop-nhat sau L0-2c, M4-2, BG-1a, M2b, L0-3c)
+
+Đo toàn bộ trên nhánh `lat/l0-3c` (= hop-nhat `ff9503f` + 12 test N5 đã sửa), có `--runtime`. Dạng máy đọc: `nen-test-hop-nhat-v3.json`. **Lát mới so với nền v3** (module mới gộp sau, như M2c `test_m2_00_nhan_tinh`, chưa có trong file — so với chạy trước/sau của chính lát).
+
+| | ok / ERROR / FAIL / skip | treo |
+|---|---|---|
+| v2 `7b114e2` | 1276 / 34 / 57 / 292 | 1 |
+| **v3** | **1408 / 22 / 44 / 360** | **1** (`test_source6_g5_e5`, lát L0-3b) |
+
+So với v2 theo mã lỗi: chỉ 3 mã mới, đều `NOT_VERIFIED` vì thiếu biến môi trường bản sao CSDL G6A (`test_crm_g6a_m25_integration` 2, `test_crm_kiem_hd` 1) — môi trường, không phải lỗi sản phẩm.
+
 ## 0b. Nền v2 — dùng từ 24/10 chiều (hop-nhat `7b114e2`, sau P0 + L0-3a)
 
 Đo bằng `python -X utf8 tools/chay_test_theo_module.py <worktree> --runtime <repo chính>/var/web/crm-demo/runtime.local.json` trên worktree mới `nen-hop-nhat-v2` (checkout mới nên `.gitattributes` có hiệu lực). Dạng máy đọc: `nen-test-hop-nhat-v2.json`. **Lát mới so với nền v2**, không so với v1.
