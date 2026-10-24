@@ -261,3 +261,11 @@ V9b giữ nguyên các nguyên tắc N1–N5 của V9. Mọi kết quả F và s
 | GIẢ ĐỊNH-V9b-8 | Không có mẫu Xanh ghép duy nhất thì chỉ số đúng của Xanh ghi `NOT_EVALUABLE`, không ghi 100% và không tự đổi ngưỡng. | Siết ngưỡng không giải quyết thiếu mapping TK tiền hoặc chứng cứ MST → TK; số đo rỗng không phải chất lượng đạt. | Cấp mapping/căn cứ còn thiếu, chạy lại F với ngưỡng cấu hình và đánh giá lại mục tiêu 98%. |
 
 Các giả định trên không phải phê duyệt dữ liệu, mapping Junsky hoặc tri thức cụ thể. Thay đổi tham số phải được lưu cấu hình/audit và chạy lại F trước khi dùng kết quả mới.
+
+## 24/10/2026 — Quyết định của Anh trong phiên lead Claude Code
+
+| Mã | Quyết định | Căn cứ / hệ quả |
+|---|---|---|
+| QD-20261024-01 | **CSDL CRM DEMO riêng cho lập trình** (bảng chọn): worker, lead và cổng A chạy trên CSDL `kho_crm_demo_lt_<hậu tố>`; CSDL DEMO của Anh không bị nâng schema hay lẫn dữ liệu thử. | Lát L0-4b, `tools\mo_demo_worktree.ps1 -CsdlRieng`. |
+| QD-20261024-02 | **Báo giá → Ký: giữ chặn ở bước Ký** (bảng chọn, khuyến nghị): báo giá ghi đè tổng hoặc chia tiền không tròn % qua được In/Chuyển (TL 45) nhưng bước Ký vẫn kiểm tổng = đơn giá × diện tích và % hữu hạn; kế toán đối chiếu lại khi ký. | Không mở lát sửa bước Ký. Màn Báo giá đã báo trước "Tổng ghi đè sẽ được kiểm lại khi ký hợp đồng". |
+| QD-20261024-03 | Cài Codex CLI làm worker (bảng chọn). | `codex-cli 0.164.0`, đăng nhập ChatGPT sẵn có. |

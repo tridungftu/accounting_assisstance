@@ -90,7 +90,7 @@ Căn cứ: lệnh của Anh 24/10 (mọi module đã chốt thiết kế; M9 d�
 
 **Chưa chốt thiết kế — lead soạn checklist, hỏi Anh bằng bảng chọn khi tới lượt (không hỏi dồn):**
 - **M2-00 · khoảng thiếu đường nhận K2 (từ M2c):** `kho.m2_tieu_thu_quan_sat` tạo revision theo semantic digest — đổi hash bytes hoặc riêng `tthai_cong` chưa tạo revision như TL 43 §6; K2 chưa lưu mức bằng chứng `BANG_KE`, tiền tệ theo policy, quan hệ điều chỉnh/thay thế; bán ra chỉ là ứng viên nguồn. Cần lát SQL + migration (M2c-2) — hỏi Anh phạm vi khi tới M2e.
-- **Báo giá → Ký (hỏi cùng phiếu cổng A gói 1):** bước kiểm lịch khi Ký (`k2/sql_crm_kiem_hd.py` `crm_kiem_lich_ky`) vẫn tính tổng = đơn giá × diện tích và đòi % hữu hạn → báo giá có tổng ghi đè, hoặc chia tiền không tròn %, qua được In/Chuyển nhưng bị chặn ở Ký. Phương án: (a) giữ chặn ở Ký (kế toán đối chiếu lại); (b) lát SQL + migration cho bước Ký đọc tổng ghi đè và kiểm Σ tiền. Ngoài phạm vi TL 45 (không đụng Ký).
+- ~~Báo giá → Ký~~ — **Anh chốt 24/10: giữ chặn ở bước Ký** (QD-20261024-02), không mở lát sửa Ký.
 - M4 · ghi nhận công nợ nội bộ (kế toán xác nhận giá trị/thuế → công nợ): chưa có thiết kế gói; 03B chỉ là quan hệ căn cứ.
 - BG-09 nguồn danh mục lô/căn (bảng mới + dữ liệu DEMO, hay kế toán nhập).
 - CRM: Q-B (luồng B do CFO hay KT), Q-SAMPLE, Q-RETURN, Q-INPUT, Q-PII, Q-UI; quyền xem công nợ Junsky của Bán hàng.
