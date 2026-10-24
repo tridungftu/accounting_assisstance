@@ -387,6 +387,72 @@ class ManifestTinh(unittest.TestCase):
         self.m["tong"]["bang_ke"]["hash"] = self.m["tong"]["bang_ke"]["sha256"]
         self.tu_choi(ma="TRUONG_LA")
 
+    def hoi_cuu_ngoai_run(self):
+        cu = self.goc / "nguon-cu"
+        cu.mkdir()
+        h = self.m["hoa_don"][0]
+        for ten in (h["file_xml"], h["file_pdf"], self.m["tong"]["bang_ke"]["file"]):
+            (cu / ten).write_bytes((self.goc / ten).read_bytes())
+        h["file_xml"] = str(cu / h["file_xml"])
+        h["file_pdf"] = str(cu / h["file_pdf"])
+        h["xml_tep"][0]["file"] = h["file_xml"]
+        b = self.m["tong"]["bang_ke"]
+        b.update(file=str(cu / b["file"]), so_cot=15)
+        self.m.update(nguon="HOI_CUU", xap_xi=True, thu_muc_tep_goc=str(cu))
+        return cu
+
+    def test_hoi_cuu_nguon_cu_ngoai_run_15_cot_van_kiem_hash(self):
+        cu = self.hoi_cuu_ngoai_run()
+        self.ghi()
+        self.assertEqual(doc_manifest(self.goc), self.m)
+        self.assertEqual(phan_loai_file_tren_dia(self.goc, self.m), [])
+        xml = Path(self.m["hoa_don"][0]["file_xml"])
+        raw = xml.read_bytes()
+        xml.write_bytes(raw.replace(b"0000000001", b"0000000002"))
+        self.tu_choi(ma="HASH_LECH", file=str(xml))
+
+    def test_hoi_cuu_khong_cho_tham_chieu_ngoai_goc(self):
+        self.hoi_cuu_ngoai_run()
+        h = self.m["hoa_don"][0]
+        h["file_xml"] = str(self.goc / "DEMO__0000000001.xml")
+        h["xml_tep"][0]["file"] = h["file_xml"]
+        self.tu_choi(ma="DUONG_DAN_SAI")
+
+    def test_hoi_cuu_khong_cho_parent_traversal_va_goc_tuong_doi(self):
+        cu = self.hoi_cuu_ngoai_run()
+        for file in ("DEMO__0000000001.xml", str(cu / ".." / "DEMO__0000000001.xml")):
+            with self.subTest(file=file):
+                m = copy.deepcopy(self.m)
+                m["hoa_don"][0]["file_xml"] = file
+                m["hoa_don"][0]["xml_tep"][0]["file"] = file
+                self.tu_choi(m, "DUONG_DAN_SAI")
+        self.m["thu_muc_tep_goc"] = "nguon-cu"
+        self.tu_choi(ma="TEP_KHONG_AN_TOAN")
+
+    def test_tai_moi_khong_duoc_mo_rong_goc_hoac_bang_ke_15_cot(self):
+        self.m["tong"]["bang_ke"]["so_cot"] = 15
+        self.tu_choi()
+        self.m["tong"]["bang_ke"]["so_cot"] = 20
+        self.m["thu_muc_tep_goc"] = str(self.goc)
+        self.tu_choi(ma="TRUONG_LA")
+
+    def test_hoi_cuu_ngoai_run_van_quet_credential(self):
+        self.hoi_cuu_ngoai_run()
+        self.m["nguoi_bam"] = "password=DEMO_SECRET"
+        self.tu_choi(ma="CO_BI_MAT")
+
+    def test_hoi_cuu_ngoai_run_chan_symlink(self):
+        cu = self.hoi_cuu_ngoai_run()
+        link = cu / "DEMO-link.xml"
+        try:
+            link.symlink_to(self.goc / "DEMO__0000000001.xml")
+        except (OSError, NotImplementedError):
+            self.skipTest("Máy không cho tạo symlink DEMO")
+        h = self.m["hoa_don"][0]
+        h["file_xml"] = str(link)
+        h["xml_tep"][0]["file"] = str(link)
+        self.tu_choi(ma="TEP_KHONG_AN_TOAN")
+
 
 if __name__ == "__main__":
     unittest.main()
