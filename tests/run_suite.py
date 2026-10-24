@@ -4,6 +4,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import os
 import platform
 import sys
 import unittest
@@ -45,6 +46,10 @@ def main():
                         help="V13: chạy cùng bộ test trên engine nào; postgres cần KHO_PG_DSN_TEST (DSN chủ) — tạo CSDL tạm rồi xóa")
     args = parser.parse_args()
     root = Path(__file__).resolve().parents[1]
+    # Hỗ trợ cả import kho_tri_thuc và from tests.xxx, kể cả tiến trình con của test.
+    paths = [str(root / "src"), str(root)]
+    sys.path[:0] = [p for p in paths if p not in sys.path]
+    os.environ["PYTHONPATH"] = os.pathsep.join(paths + ([os.environ["PYTHONPATH"]] if os.environ.get("PYTHONPATH") else []))
     tam = None
     if args.engine == "postgres":
         tam = _mo_csdl_tam()

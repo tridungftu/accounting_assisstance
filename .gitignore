@@ -38,3 +38,8 @@ source-settings.json
 /.claude/worktrees/
 /.claude/settings.local.json
 /.claude/lenh-test.txt
+
+# Fixture DEMO (L0-3a 24/10/2026: 19 file đã kiểm là giả, có DEMO) — ngoại lệ hẹp, chỉ hai thư mục này
+!/tests/fixtures/m2_invoice_xml/inputs/*.xml
+!/tests/fixtures/m2_invoice_xml/inputs/*.zip
+!/tests/fixtures/l11_quantity/native/*.xml

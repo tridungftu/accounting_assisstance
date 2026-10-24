@@ -1,0 +1,19 @@
+# Byte/SHA pins: chỉ các fixture và file nguồn được test ghim, không áp toàn repo.
+/tests/fixtures/kho_10/**/*.json text eol=lf
+/tests/fixtures/kho_10/README.txt text eol=lf
+/tests/fixtures/m0_m5/**/*.json text eol=lf
+/tests/fixtures/m2_bridge/**/*.json text eol=lf
+/tests/fixtures/l11_quantity/**/*.json text eol=lf
+/tests/fixtures/l11_quantity/native/new-thung-one.xml text eol=lf
+/tests/fixtures/m2_invoice_xml/**/*.json text eol=lf
+/tests/fixtures/m2_invoice_xml/inputs/*.xml text eol=lf
+/tests/fixtures/m2_invoice_xml/profile.md text eol=lf
+/src/kho_tri_thuc/ha_tang/pg_migrations.py text eol=lf
+/src/kho_tri_thuc/k2/crm_giao_ket.py text eol=lf
+/src/kho_tri_thuc/k2/sql_crm_kiem_hd.py text eol=lf
+/src/kho_tri_thuc/m4/sql_review.py text eol=lf
+/src/kho_tri_thuc/m4/sql_ke_toan_nghiem_thu.py text eol=lf
+/src/kho_tri_thuc/nguon/that.py text eol=lf
+/tests/test_m4_02c_pg.py text eol=lf
+/tests/m4_01c_async.cjs text eol=lf
+/docs/L11-QUANTITY-CASES-01.json text eol=lf
