@@ -49,15 +49,17 @@ class TinhM0015(unittest.TestCase):
         for p in pins["prefix_1_12"]:
             m = PG_MIGRATIONS[p["version"] - 1]
             self.assertEqual((len(m), H(m)), (p["statement_count"], p["checksum"]), p["version"])
-        self.assertEqual(PG_SCHEMA_VERSION, 15)
+        self.assertGreaterEqual(len(PG_MIGRATIONS), 15)
+        self.assertEqual(PG_SCHEMA_VERSION, len(PG_MIGRATIONS))
         self.assertIs(PG_MIGRATIONS[12], M0013_COMMON)
         self.assertIs(PG_MIGRATIONS[13], M0014_M5)
         self.assertIs(PG_MIGRATIONS[14], M0015_M2_BRIDGE)
         self.assertNotEqual(H(M0013_COMMON), LEGACY_FULL_M9_M0013_SHA256)
         hist = [(i + 1, H(m)) for i, m in enumerate(PG_MIGRATIONS)]
-        self.assertEqual(pg.kiem_lich_su(hist), 15)
+        self.assertEqual(pg.kiem_lich_su(hist[:15]), 15)
+        self.assertEqual(pg.kiem_lich_su(hist), PG_SCHEMA_VERSION)
         self.assertEqual(pg.kiem_lich_su(hist[:14]), 14)  # DB 14 vẫn đúng lineage để nâng cấp
-        for xau in (hist[:14] + [(15, "0" * 64)], hist[:12] + [(13, LEGACY_FULL_M9_M0013_SHA256)], hist + [(16, "a" * 64)]):
+        for xau in (hist[:14] + [(15, "0" * 64)], hist[:12] + [(13, LEGACY_FULL_M9_M0013_SHA256)], hist + [(PG_SCHEMA_VERSION + 1, "a" * 64)]):
             with self.assertRaises(DataError):
                 pg.kiem_lich_su(xau)
 

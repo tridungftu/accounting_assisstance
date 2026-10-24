@@ -119,8 +119,13 @@ class PrefixMigration(unittest.TestCase):
         self.assertEqual(hashlib.sha256(raw[:870225]).hexdigest(), "7082f25843f12ced5c71ccbe8b23991ce458d9836d2e9448f29a598d0eeac5f2")
         duoi = raw[870225:].decode("utf-8")
         self.assertIn("M0021_CRM_G2G3 = (", duoi)
+        # Các gói sau M21 chỉ nối thêm sau khối đăng ký này; pin prefix không đổi.
+        cuoi = "PG_MIGRATIONS = (*PG_MIGRATIONS, M0021_CRM_G2G3)\nPG_SCHEMA_VERSION = len(PG_MIGRATIONS)"
+        self.assertEqual(duoi.count(cuoi), 1)
+        duoi = duoi.split("\n# ---------------------------------------------------------------------------\n# 0022", 1)[0]
         self.assertTrue(duoi.rstrip().endswith("PG_MIGRATIONS = (*PG_MIGRATIONS, M0021_CRM_G2G3)\nPG_SCHEMA_VERSION = len(PG_MIGRATIONS)"), duoi[-200:])
-        self.assertEqual((PM.PG_SCHEMA_VERSION, len(PM.PG_MIGRATIONS)), (21, 21))
+        self.assertGreaterEqual(len(PM.PG_MIGRATIONS), 21)
+        self.assertEqual(PM.PG_SCHEMA_VERSION, len(PM.PG_MIGRATIONS))
         self.assertIs(PM.PG_MIGRATIONS[20], PM.M0021_CRM_G2G3)
         for f in ("sql_review.py", "sql_m17.py"):  # protected: không nằm trong phạm vi ghi; chỉ được import như cũ
             self.assertIn(f"from ..m4.{f[:-3]} import", raw[:870225].decode("utf-8"))

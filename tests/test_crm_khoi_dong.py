@@ -16,6 +16,7 @@ import tempfile
 import threading
 import time
 import unittest
+from contextlib import ExitStack, contextmanager
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
@@ -23,7 +24,7 @@ from unittest.mock import patch
 from psycopg.conninfo import conninfo_to_dict
 
 from kho_tri_thuc.ha_tang import pg_cum
-from kho_tri_thuc.ha_tang.pg_migrations import PG_SCHEMA_VERSION
+from kho_tri_thuc.ha_tang.pg_migrations import PG_MIGRATIONS, PG_SCHEMA_VERSION
 from kho_tri_thuc.ha_tang.primitives import DataError
 from kho_tri_thuc.k2 import crm_khoi_dong as kd
 
@@ -99,11 +100,50 @@ class ValidatorTests(unittest.TestCase):
         _ma(self, "KET_NOI_KHAC_ENDPOINT", lambda: kd.doc_ket_noi(path))
 
 
+@contextmanager
+def _seed_bo_sung_gia(seed):
+    # Các gói M5/M2/L11/M4/CRM-G đã thêm bootstrap; test nút mở vẫn dùng seed giả, không chạy SQL seed thật.
+    with ExitStack() as stack:
+        for ten in ("m5", "m2", "l11", "m4", "crm_g"):
+            stack.enter_context(patch(f"kho_tri_thuc.k2.{ten}_demo.khoi_tao",
+                                      lambda c, ten=ten: seed.append(ten) or {"stub": ten}))
+        yield
+
+
 class _KetNoiGia:
     """Kết nối PostgreSQL giả cho chuan_bi: trả hàng cố định theo câu truy vấn. Ghi lại thứ tự để kiểm."""
 
-    def __init__(self, ten, nhat_ky, dich=("127.0.0.1", 5432, 777, DB), role=("demo_app", DB, False, False, True, False, 0, 0)):
+    def __init__(self, ten, nhat_ky, dich=("127.0.0.1", 5432, 777, DB), role=("demo_app", DB, False, False, True, False, 0, 0), history=None):
         self.ten, self.nhat_ky, self.dich, self.role = ten, nhat_ky, dich, role
+        self.history = ([(i, hashlib.sha256("\n".join(m).encode("utf-8")).hexdigest())
+                         for i, m in enumerate(PG_MIGRATIONS, 1)] if history is None else history)
+        self._rows = []
+
+    @contextmanager
+    def transaction(self, savepoint_name=None, force_rollback=False):
+        # Giao diện psycopg dùng trong ha_tang/postgres.py; không đóng connection khi thoát transaction.
+        self.nhat_ky.append((self.ten, "begin"))
+        try:
+            yield
+        except BaseException:
+            self.nhat_ky.append((self.ten, "rollback"))
+            raise
+        else:
+            self.nhat_ky.append((self.ten, "rollback" if force_rollback else "commit"))
+
+    @contextmanager
+    def cursor(self):
+        yield self
+
+    def fetchone(self):
+        return self._rows.pop(0) if self._rows else None
+
+    def fetchall(self):
+        rows, self._rows = self._rows, []
+        return rows
+
+    def __iter__(self):
+        return iter(self.fetchall())
 
     def execute(self, sql, params=None):
         self.nhat_ky.append((self.ten, sql.split()[0] + ":" + ("dich" if "inet_server_addr" in sql else "role" if "pg_roles" in sql else
@@ -112,11 +152,16 @@ class _KetNoiGia:
             row = self.dich
         elif "pg_roles" in sql:
             row = self.role
+        elif "SELECT version, checksum" in sql:
+            self._rows = list(self.history)
+            return self
         elif "schema_migrations" in sql:
             row = (PG_SCHEMA_VERSION,)
         else:
-            return iter([])
-        return SimpleNamespace(fetchone=lambda: row)
+            self._rows = []
+            return self
+        self._rows = [row]
+        return self
 
     def close(self):
         self.nhat_ky.append((self.ten, "close"))
@@ -138,6 +183,7 @@ class ChuanBiStubTests(unittest.TestCase):
             ket_noi.append(conninfo_to_dict(ci))
             return _KetNoiGia("admin" if conninfo_to_dict(ci).get("user") == "demo_admin" else "app", nhat_ky, **gia.get(conninfo_to_dict(ci).get("user"), {}))
         with patch("psycopg.connect", connect), patch("kho_tri_thuc.k2.crm_demo.khoi_tao", lambda c: seed.append(1) or {"PN_DEMO_A": 1, "PN_DEMO_B": 2}), \
+                _seed_bo_sung_gia(seed), \
                 patch("kho_tri_thuc.ha_tang.postgres.schema_version", lambda c: PG_SCHEMA_VERSION):
             try:
                 return kd.chuan_bi(kn), ket_noi, seed, nhat_ky
@@ -157,7 +203,8 @@ class ChuanBiStubTests(unittest.TestCase):
 
     def test_control_duong_va_kiem_sau_ket_noi(self):
         out, ket_noi, seed, nhat_ky = self._chay({"app_dsn": APP, "admin_dsn": ADMIN})
-        self.assertEqual((out["trang_thai"], out["endpoint"], out["schema_sau"], seed), ("SAN_SANG", "127.0.0.1:5432", PG_SCHEMA_VERSION, [1]))
+        self.assertEqual((out["trang_thai"], out["endpoint"], out["schema_sau"], seed),
+                         ("SAN_SANG", "127.0.0.1:5432", PG_SCHEMA_VERSION, [1, "m5", "m2", "l11", "m4", "crm_g"]))
         self.assertEqual([d["hostaddr"] for d in ket_noi], ["127.0.0.1", "127.0.0.1"])  # kết nối bằng chuỗi đã chuẩn hóa
         self.assertEqual(nhat_ky[0], ("admin", "SELECT:dich"))
         # đích thực khác (OID DB khác) → từ chối; app là chủ bảng → từ chối; app superuser → từ chối
@@ -169,6 +216,13 @@ class ChuanBiStubTests(unittest.TestCase):
         self.assertEqual(out.code, "ROLE_UNG_DUNG_LA_CHU")
         out, *_ = self._chay({"app_dsn": APP, "admin_dsn": ADMIN}, demo_app={"role": ("demo_app", DB, True, False, True, False, 0, 0)})
         self.assertEqual(out.code, "ROLE_UNG_DUNG_SAI")
+        # Không stub cổng lineage: có max(version) đúng nhưng checksum sai vẫn phải bị chặn.
+        hist = _KetNoiGia("app", []).history
+        sai = hist[:-1] + [(PG_SCHEMA_VERSION, "0" * 64)]
+        for history, code in ((sai, "MIGRATION_CHANGED"), (hist[:-1], "SCHEMA_CHUA_NANG_CAP")):
+            out, *_ = self._chay({"app_dsn": APP, "admin_dsn": ADMIN}, demo_app={"history": history})
+            self.assertIsInstance(out, DataError)
+            self.assertEqual(out.code, code)
 
 
 class ServerEnvTests(unittest.TestCase):
@@ -440,13 +494,13 @@ class _KetNoiGiaDict(_KetNoiGia):
         self.adapters = SimpleNamespace(register_dumper=lambda *x: None)
 
     def execute(self, sql, params=None):
-        r = super().execute(sql, params)
-        if not hasattr(r, "fetchone"):
-            return r
-        row = r.fetchone()
-        names = {"pg_roles": ("ten", "db", "sup", "byp", "app_web", "chu_db", "chu_schema", "chu_bang"), "schema_migrations": ("v",)}
+        super().execute(sql, params)
+        names = {"pg_roles": ("ten", "db", "sup", "byp", "app_web", "chu_db", "chu_schema", "chu_bang"),
+                 "schema_migrations": ("version", "checksum") if "SELECT version, checksum" in sql else ("v",)}
         key = "pg_roles" if "pg_roles" in sql else "schema_migrations" if "schema_migrations" in sql else None
-        return SimpleNamespace(fetchone=lambda: dict(zip(names[key], row)) if key else row)
+        if key:
+            self._rows = [dict(zip(names[key], row)) for row in self._rows]
+        return self
 
 
 class ChuoiNutTests(unittest.TestCase):
@@ -481,11 +535,13 @@ class ChuoiNutTests(unittest.TestCase):
         path = self._tep({"phien_ban": 1, "app_dsn": f"host=localhost port=5432 dbname={DB} user=demo_app", "admin_dsn": ADMIN})
         with patch.dict(os.environ, {"PGHOSTADDR": "10.9.9.9", "PGSERVICE": "khac", "PGPORT": "6543"}), patch("psycopg.connect", connect), \
                 patch("kho_tri_thuc.k2.crm_demo.khoi_tao", lambda c: seed.append(1) or {"PN_DEMO_A": 1, "PN_DEMO_B": 2}), \
+                _seed_bo_sung_gia(seed), \
                 patch("kho_tri_thuc.ha_tang.postgres.schema_version", lambda c: PG_SCHEMA_VERSION):
             parsed = kd.doc_ket_noi(path)
             out = kd.chuan_bi(parsed)  # bootstrap thật kiểm lại đầu ra của doc_ket_noi
             again = kd.chuan_bi(kd.doc_ket_noi(self._tep({"phien_ban": 1, "app_dsn": parsed["app_dsn"], "admin_dsn": parsed["admin_dsn"]})))
-        self.assertEqual((out["trang_thai"], again["trang_thai"], seed), ("SAN_SANG", "SAN_SANG", [1, 1]))
+        self.assertEqual((out["trang_thai"], again["trang_thai"], seed),
+                         ("SAN_SANG", "SAN_SANG", [1, "m5", "m2", "l11", "m4", "crm_g"] * 2))
         self.assertEqual(len(ket_noi), 4)
         self.assertTrue(all((d["hostaddr"], d["port"], d["dbname"]) == ("127.0.0.1", "5432", DB) for d in ket_noi))  # môi trường không đổi đích
         self.assertNotIn("service", "".join(json.dumps(d) for d in ket_noi))

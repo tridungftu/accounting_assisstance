@@ -56,8 +56,13 @@ class M22Tinh(unittest.TestCase):
         self.assertEqual(hashlib.sha256(raw[:927604]).hexdigest(), "0e87d8e1a39aef582d79ffd7cef30b7dcdf523d151009729e6cb1d5b64452dce")
         duoi = raw[927604:].decode("utf-8")
         self.assertIn("from ..m4.sql_chung_tu import M0022_M4_CHUNG_TU", duoi)
+        # CRM-41-04A và các gói sau nối thêm sau khối M22; pin prefix vẫn giữ nguyên.
+        cuoi = "PG_MIGRATIONS = (*PG_MIGRATIONS, M0022_M4_CHUNG_TU)\nPG_SCHEMA_VERSION = len(PG_MIGRATIONS)"
+        self.assertEqual(duoi.count(cuoi), 1)
+        duoi = duoi.split("\n# ---------------------------------------------------------------------------\n# 0023", 1)[0]
         self.assertTrue(duoi.rstrip().endswith("PG_MIGRATIONS = (*PG_MIGRATIONS, M0022_M4_CHUNG_TU)\nPG_SCHEMA_VERSION = len(PG_MIGRATIONS)"), duoi[-200:])
-        self.assertEqual((PM.PG_SCHEMA_VERSION, len(PM.PG_MIGRATIONS)), (22, 22))  # M22 candidate; KHÔNG có M23
+        self.assertGreaterEqual(len(PM.PG_MIGRATIONS), 22)
+        self.assertEqual(PM.PG_SCHEMA_VERSION, len(PM.PG_MIGRATIONS))
         self.assertIs(PM.PG_MIGRATIONS[21], SC.M0022_M4_CHUNG_TU)
         self.assertIs(PM.PG_MIGRATIONS[20], PM.M0021_CRM_G2G3)
 

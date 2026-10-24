@@ -59,11 +59,13 @@ class TinhM0016(unittest.TestCase):
         for p in pins:
             m = PG_MIGRATIONS[p["version"] - 1]
             self.assertEqual((len(m), H(m)), (p["statement_count"], p["checksum"]), p["version"])
-        self.assertEqual(PG_SCHEMA_VERSION, 16)
+        self.assertGreaterEqual(len(PG_MIGRATIONS), 16)
+        self.assertEqual(PG_SCHEMA_VERSION, len(PG_MIGRATIONS))
         self.assertIs(PG_MIGRATIONS[14], M0015_M2_BRIDGE)
         self.assertIs(PG_MIGRATIONS[15], M0016_L11_QUANTITY)
         hist = [(i + 1, H(m)) for i, m in enumerate(PG_MIGRATIONS)]
-        self.assertEqual(pg.kiem_lich_su(hist), 16)
+        self.assertEqual(pg.kiem_lich_su(hist[:16]), 16)
+        self.assertEqual(pg.kiem_lich_su(hist), PG_SCHEMA_VERSION)
         self.assertEqual(pg.kiem_lich_su(hist[:15]), 15)  # DB 15 đúng lineage vẫn nâng cấp được
 
     def test_sql_pham_vi_va_definer(self):

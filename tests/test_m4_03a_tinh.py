@@ -1,7 +1,7 @@
 """M4-03A — kiểm TĨNH + THUẦN cho inbox kế toán / xác nhận nguồn nghiệm thu (không PostgreSQL, không mạng). CODE_ONLY: WRITTEN_NOT_RUN.
 
 Phân loại (nhãn trung thực):
-- `SqlTinh`: chuỗi `M4_03A_SQL` (hằng, KHÔNG đăng ký registry, không ordinal): giữ vai cũ + thêm KE_TOAN; bảng ghi thêm + FK tổ hợp; không UPDATE/
+- `SqlTinh`: chuỗi `M4_03A_SQL` (hằng, đăng ký qua alias M0026 trong registry): giữ vai cũ + thêm KE_TOAN; bảng ghi thêm + FK tổ hợp; không UPDATE/
   DELETE hàng M24; lệnh không GRANT; app_web chỉ EXECUTE hàm đọc; REVOKE PUBLIC; RLS; không AP/sổ cái/Request.
 - `KiemDauVao`: validator thật `kiem_luu` / `kiem_xac_nhan_body` (allowlist, khóa thẩm quyền, NULL ≠ "0", tiền tệ/độ chính xác/bool/float,
   VAT ba trạng thái, trường CAS).
@@ -23,6 +23,7 @@ from contextlib import contextmanager
 from pathlib import Path
 
 from kho_tri_thuc.ha_tang.primitives import DataError
+from kho_tri_thuc.ha_tang import pg_migrations as PM
 from kho_tri_thuc.m4 import ke_toan_nghiem_thu as KT
 from kho_tri_thuc.m4 import sql_duyet as SD
 from kho_tri_thuc.m4 import sql_ke_toan_nghiem_thu as SK
@@ -121,8 +122,13 @@ class SqlTinh(unittest.TestCase):
         self.assertNotIn("PG_MIGRATIONS", nguon)
         self.assertNotRegex(nguon, r"M00\d\d")
         pgm = (SRC / "ha_tang" / "pg_migrations.py").read_text(encoding="utf-8")
-        self.assertNotIn("sql_ke_toan_nghiem_thu", pgm)
-        self.assertNotIn("M4_03A_SQL", pgm)
+        # Gói tích hợp M4-03A M0026 đã đăng ký đúng một lần bằng chính object SQL.
+        self.assertIn("from ..m4.sql_ke_toan_nghiem_thu import M4_03A_SQL", pgm)
+        self.assertGreaterEqual(len(PM.PG_MIGRATIONS), 26)
+        self.assertEqual(PM.PG_SCHEMA_VERSION, len(PM.PG_MIGRATIONS))
+        self.assertIs(PM.M0026_M4_KT, SK.M4_03A_SQL)
+        self.assertIs(PM.PG_MIGRATIONS[25], SK.M4_03A_SQL)
+        self.assertEqual(sum(m is SK.M4_03A_SQL for m in PM.PG_MIGRATIONS), 1)
 
     def test_vai_cu_giu_nguyen_them_ke_toan(self):
         self.assertIn("CHECK (vai IN ('PHU_TRACH','XEM','REVIEW','DUYET','KE_TOAN'))", NOI)

@@ -63,14 +63,16 @@ class TinhLineage(unittest.TestCase):
         self.assertEqual(PG_MIGRATIONS[:12], PG_MIGRATIONS_LICH_SU_FULL_M9[:12])
         self.assertIs(PG_MIGRATIONS[12], M0013_COMMON)
         self.assertIs(PG_MIGRATIONS[13], M0014_M5)
-        self.assertEqual(PG_SCHEMA_VERSION, 14)
+        self.assertGreaterEqual(len(PG_MIGRATIONS), 14)
+        self.assertEqual(PG_SCHEMA_VERSION, len(PG_MIGRATIONS))
         self.assertNotEqual(H(M0013_COMMON), LEGACY_FULL_M9_M0013_SHA256)
 
     def test_kiem_lich_su_duong_va_am(self):
         self.assertEqual(pg.kiem_lich_su([]), 0)
         self.assertEqual(pg.kiem_lich_su(lich_su(12)), 12)
         self.assertEqual(pg.kiem_lich_su(lich_su(13)), 13)
-        self.assertEqual(pg.kiem_lich_su(lich_su()), 14)
+        self.assertEqual(pg.kiem_lich_su(lich_su(14)), 14)
+        self.assertEqual(pg.kiem_lich_su(lich_su()), PG_SCHEMA_VERSION)
         compat = lich_su(12)
         compat[9] = (10, H(M0010_V1_BAN_GIAO_DAU))  # tiền thân M0010 liệt kê chính xác
         self.assertEqual(pg.kiem_lich_su(compat), 12)
@@ -80,7 +82,7 @@ class TinhLineage(unittest.TestCase):
             "MIGRATION_HISTORY": [lich_su(12)[:5] + lich_su(12)[6:], lich_su(3) + [(3, H(PG_MIGRATIONS[2]))], [(1, H(PG_MIGRATIONS[0]), "x")],
                                   [("1", H(PG_MIGRATIONS[0]))], "khong-phai-list", [(True, H(PG_MIGRATIONS[0]))]],
             "MIGRATION_CHANGED": [lich_su(12) + [(13, "0" * 64)], lich_su(2)[:1] + [(2, "f" * 64)]],
-            "FUTURE_SCHEMA": [lich_su() + [(15, "a" * 64)]],
+            "FUTURE_SCHEMA": [lich_su() + [(PG_SCHEMA_VERSION + 1, "a" * 64)]],
         }
         for code, histories in cases.items():
             for i, h in enumerate(histories):
