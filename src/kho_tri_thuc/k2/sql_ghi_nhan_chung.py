@@ -54,6 +54,14 @@ FIX03 (docs/GIAO-CODE-M4-03B-FIX03.md) — chứng thực producer có chữ ký
   từ giao dịch khác → DC_BAT_BIEN). Thay kiểm xmin cũ.
 - Giới hạn: owner/superuser đọc được khóa hoặc đổi schema/tắt trigger, hoặc tự SET chứng thực 03A rồi gọi issuer — ngoài phạm vi; đây là ràng buộc giao
   thức trusted service, không chống chủ CSDL độc hại.
+
+FIX04 (docs/GIAO-CODE-M4-03B-FIX04-CURRENT-SOURCE.md) — chứng thực phải gắn căn cứ nguồn HIỆN HÀNH:
+- Ngữ cảnh ký thêm `nguon` = `kho._dc_nt_nguon(cho)` (`m4.source-context/v1`), máy chủ resolve cho → đợt → hồ sơ HĐ/master: h.revision/rev_tham_so/
+  tệp HĐ + SHA/trạng thái PL, đợt revision/trạng thái/ngày NT, nộp ID/digest/revision, phiên bản duyệt mới nhất; cộng các luồng phiên bản riêng không
+  làm tăng h.revision (tệp đợt, tham số, trích/xác nhận, PL, BOQ hiện hành, ghép tay L2 theo HĐ, metadata + ghép tay L3 theo đợt, L2/L3 công bố mới
+  nhất) dưới dạng định danh hoặc {so, sha256} của phép chiếu có thứ tự. Thiếu cha → NULL (fail closed).
+- Reader tính lại TOÀN BỘ ngữ cảnh (gồm nguon) và so đúng trước khi trả hiện hành — đổi nguồn sau issue trong CÙNG giao dịch (lệnh nguồn công khai)
+  → HOLD ở lưu/xác nhận trực tiếp lẫn ràng buộc deferred; mục cũ thiếu nguon → HOLD. Không đọc chứng thực 03A toàn cục cho mục cũ (giữ nhiều NT).
 """
 
 from __future__ import annotations
@@ -85,8 +93,10 @@ MODULE_BIEN_NHAN = ("M4", "M2")
 BANG_NOI_BO = ("mua_doi_chieu_chung_thuc_khoa",)
 DOMAIN_CHUNG_THUC = "m4-03b-nt-attestation/v1"
 DO_DAI_KHOA = 32
+NGU_CANH_NGUON = "m4.source-context/v1"
 HAM_DOC = ("kho.dc_doc_hoa_don(uuid)",)
-HAM_CHUNG_THUC = ("kho._dc_ck_json(text)", "kho._dc_ck_khoa()", "kho._dc_ck_ky(jsonb)", "kho._dc_ck_hop_le(jsonb)", "kho._dc_nt_ngu_canh(uuid)")
+HAM_CHUNG_THUC = ("kho._dc_ck_json(text)", "kho._dc_ck_khoa()", "kho._dc_ck_ky(jsonb)", "kho._dc_ck_hop_le(jsonb)", "kho._dc_nt_ngu_canh(uuid)",
+                  "kho._dc_nt_nguon(uuid)")
 HAM_NOI_BO = ("kho._dc_m2_doc(uuid)", "kho._dc_kt_toan_cuc(uuid)", "kho._dc_quyen(jsonb, boolean)", "kho._dc_doc_duoc(jsonb)",
               "kho._dc_nt_ghi(uuid)", "kho._dc_nt_hien_hanh(uuid)", "kho._dc_thu_tu_nt(jsonb)", "kho._dc_do_thi(jsonb)",
               "kho._dc_thieu(jsonb, jsonb)", "kho._dc_khoa_hoa_don(jsonb)", "kho._dc_khoa_goc(jsonb)", "kho._dc_cap_nguon(jsonb, text, uuid)",
@@ -158,6 +168,35 @@ _HIEN_HANH = """
 
 _TRUONG_PB = ("doi_chieu_id, phap_nhan_id, revision, truoc_id, loai, nhap_id, noi_dung, noi_dung_sha256, do_thi, graph_sha256, thieu, "
               "tap_sha256, hop_dong_id, doi_tac_id, ly_do, tao_boi, tao_boi_id")
+
+
+def _van_tay(hang: str, nguon: str, thu_tu: str) -> str:
+    """FIX04: {so, sha256} của phép chiếu CÓ THỨ TỰ các định danh/revision bất biến hiện hành của một luồng nguồn (gọn — không phình GUC ký)."""
+    agg = f"coalesce(jsonb_agg({hang} ORDER BY {thu_tu}), '[]'::jsonb)"
+    return f"(SELECT jsonb_build_object('so', count(*), 'sha256', {_SHA.format(x=agg)}) FROM {nguon})"
+
+
+# FIX04 — ngữ cảnh nguồn hiện hành của MỘT gốc NT, máy chủ resolve từ cho → đợt → HĐ/hồ sơ/master + các luồng phiên bản độc lập (cùng cột/lọc/thứ tự
+# producer xay_dung._co_so/_chung_tu_co_so/_chung_tu_l2 và duyet_dot._l3_cong_bo). Không đọc caller/body/GUC; không giờ hiện tại/xmin; không số tiền
+# (tham số/PL/BOQ/ghép tay chỉ vào dưới dạng SHA của phép chiếu có thứ tự). Thiếu đợt/hồ sơ HĐ/HĐ master hoặc lệch HĐ/dự án → không hàng → NULL.
+# Ghép tay L2 pin TOÀN BỘ quyết định hiện hành theo khóa của HĐ (không lọc quyền phiên như GUI) — tập lớn hơn, chỉ có thể làm HOLD khi thật sự đổi.
+_NT_DOT_TEP = _van_tay("jsonb_build_array(dk.tep_id, dk.muc, dt.raw_sha256)",
+                       "m4.dot_tep dk JOIN m4.tep dt ON dt.id = dk.tep_id WHERE dk.dot_id = d.id", "dk.muc, dk.tep_id")
+_NT_THAM_SO = _van_tay("jsonb_build_array(ts.ma, ts.trang_thai, ts.gia_tri, ts.don_vi, ts.trich_xuat_id, ts.nguon)",
+                       "m4.tham_so ts WHERE ts.hop_dong_id = h.hop_dong_id", "ts.ma")
+_NT_PHU_LUC = _van_tay("jsonb_build_array(pl.id, pl.so_pl, pl.ngay_ky, pl.ngay_hieu_luc, pl.trang_thai, pl.doi_boq, pl.tep_id)",
+                       "m4.phu_luc pl WHERE pl.hop_dong_id = h.hop_dong_id", "pl.ngay_hieu_luc, pl.so_pl, pl.tao_luc, pl.id")
+_NT_BOQ = _van_tay("jsonb_build_array(bq.id, bq.lan, bq.phu_luc_id, bq.tep_id, bq.raw_sha256, bq.trang_thai)",
+                   "m4.boq bq WHERE bq.hop_dong_id = h.hop_dong_id AND bq.lan = (SELECT max(bz.lan) FROM m4.boq bz "
+                   "WHERE bz.hop_dong_id = bq.hop_dong_id AND bz.phu_luc_id IS NOT DISTINCT FROM bq.phu_luc_id)", "bq.lan, bq.id")
+_NT_MAP_L2 = _van_tay("jsonb_build_array(mm.id, mm.khoa_hstt, mm.revision, mm.ma_hm, mm.boq_id, mm.boq_dong, mm.run_id)",
+                      "(SELECT DISTINCT ON (m2.khoa_hstt) m2.* FROM m4.review_manual_map m2 WHERE m2.hop_dong_id = h.hop_dong_id "
+                      "ORDER BY m2.khoa_hstt, m2.revision DESC) mm", "mm.khoa_hstt")
+_NT_MAP_L3 = _van_tay("jsonb_build_array(m3.id, m3.row_id, m3.revision, m3.ma_hm, m3.boq_id, m3.boq_dong, m3.tep_id, m3.raw_sha256, m3.locator, "
+                      "m3.revision_chung_tu, m3.run_id)",
+                      "(SELECT DISTINCT ON (m3x.row_id) m3x.* FROM m4.chung_tu_manual_map m3x WHERE m3x.dot_id = d.id "
+                      "ORDER BY m3x.row_id, m3x.revision DESC) m3", "m3.row_id")
+_NT_TAI_LIEU_L3 = _SHA.format(x="cr.tai_lieu")
 
 
 M4_03B_COMMON_SQL = (
@@ -636,8 +675,60 @@ M4_03B_COMMON_SQL = (
             END IF;
             RETURN kho._dc_ck_ky(p_entry - 'mac') = (p_entry->>'mac');
         END $$""",
+    # FIX04: căn cứ nguồn hiện hành (m4.source-context/v1) — hồ sơ HĐ (revision/rev_tham_so/tệp HĐ + SHA/trạng thái PL, số HĐ master), đợt
+    # (revision/trạng thái/ngày NT/HĐ/dự án), nộp (ID/digest/revision hồ sơ + đợt), phiên bản duyệt mới nhất, và các luồng phiên bản RIÊNG không làm tăng
+    # h.revision: tệp đợt, tham số, trích/xác nhận mới nhất, PL, BOQ hiện hành từng nguồn, ghép tay L2 theo HĐ, metadata L3 + ghép tay L3 theo đợt,
+    # L2/L3 công bố mới nhất (run/kết quả/basis SHA).
+    f"""CREATE OR REPLACE FUNCTION kho._dc_nt_nguon(p_cho uuid) RETURNS jsonb
+        LANGUAGE sql STABLE SET search_path = master, m4, pg_temp AS $$
+        SELECT jsonb_build_object(
+            'phien_ban', '{NGU_CANH_NGUON}',
+            'ho_so', jsonb_build_object('hop_dong_id', h.hop_dong_id, 'phap_nhan_id', h.phap_nhan_id, 'du_an_id', h.du_an_id, 'so_hop_dong', hd.so_hop_dong,
+                                        'revision', h.revision, 'rev_tham_so', h.rev_tham_so, 'tep_hop_dong_id', h.tep_hop_dong_id,
+                                        'tep_hop_dong_sha256', (SELECT ht.raw_sha256 FROM m4.tep ht WHERE ht.id = h.tep_hop_dong_id),
+                                        'trang_thai_pl', h.trang_thai_pl),
+            'dot', jsonb_build_object('id', d.id, 'hop_dong_id', d.hop_dong_id, 'du_an_id', d.du_an_id, 'so_dot', d.so_dot, 'revision', d.revision,
+                                      'trang_thai', d.trang_thai, 'ngay_nghiem_thu', d.ngay_nghiem_thu),
+            'nop', (SELECT jsonb_build_object('id', np.id, 'digest', np.digest, 'hop_dong_id', np.hop_dong_id, 'revision_ho_so', np.revision_ho_so,
+                                              'revision_dot', np.revision_dot) FROM m4.nop np WHERE np.dot_id = d.id),
+            'phien_ban_duyet', (SELECT jsonb_build_object('id', pv.id, 'so', pv.so, 'trang_thai', pv.trang_thai, 'nop_id', pv.nop_id, 'digest', pv.digest,
+                                                          'revision_ho_so', pv.revision_ho_so)
+                                FROM m4.duyet_phien_ban pv WHERE pv.dot_id = d.id ORDER BY pv.so DESC LIMIT 1),
+            'dot_tep', {_NT_DOT_TEP},
+            'tham_so', {_NT_THAM_SO},
+            'trich_xuat', (SELECT jsonb_build_object('id', tx.id, 'lan', tx.lan, 'trang_thai', tx.trang_thai, 'tep_id', tx.tep_id, 'raw_sha256', tx.raw_sha256,
+                                                     'catalog_sha256', tx.catalog_sha256)
+                           FROM m4.trich_xuat tx WHERE tx.hop_dong_id = h.hop_dong_id ORDER BY tx.lan DESC LIMIT 1),
+            'xac_nhan_tham_so', (SELECT jsonb_build_object('id', xn.id, 'rev_tham_so', xn.rev_tham_so, 'trich_xuat_id', xn.trich_xuat_id,
+                                                           'tham_so_digest', xn.tham_so_digest, 'catalog_sha256', xn.catalog_sha256)
+                                 FROM m4.xac_nhan_tham_so xn WHERE xn.hop_dong_id = h.hop_dong_id ORDER BY xn.rev_tham_so DESC LIMIT 1),
+            'phu_luc', {_NT_PHU_LUC},
+            'boq', {_NT_BOQ},
+            'manual_map_l2', {_NT_MAP_L2},
+            'metadata_l3', (SELECT jsonb_build_object('id', cr.id, 'revision', cr.revision, 'run_id', cr.run_id, 'tai_lieu_sha256', {_NT_TAI_LIEU_L3})
+                            FROM m4.chung_tu_revision cr WHERE cr.dot_id = d.id ORDER BY cr.revision DESC LIMIT 1),
+            'manual_map_l3', {_NT_MAP_L3},
+            'l2_cong_bo', (SELECT jsonb_build_object('run_id', rr.id, 'tep_id', rr.tep_id, 'trang_thai', rr.trang_thai, 'basis_sha256', rr.basis_sha256,
+                                                     'engine_sha256', rr.engine_sha256, 'ket_qua_sha256', rx.ket_qua_sha256,
+                                                     'basis_cong_bo_sha256', rx.basis_cong_bo_sha256)
+                           FROM m4.review_run rr JOIN m4.review_result rx ON rx.run_id = rr.id
+                           WHERE rr.dot_id = d.id AND rr.che_do = 'L1_L2' AND rr.trang_thai IN ('SUCCEEDED','PARTIAL') AND rx.cong_bo
+                           ORDER BY rr.xong_luc DESC, rr.id LIMIT 1),
+            'l3_cong_bo', (SELECT jsonb_build_object('run_id', lr.id, 'revision', lr.revision, 'trang_thai', lr.trang_thai, 'basis_sha256', lr.basis_sha256,
+                                                     'engine_sha256', lr.engine_sha256, 'ket_qua_sha256', lx.ket_qua_sha256,
+                                                     'basis_cong_bo_sha256', lx.basis_cong_bo_sha256)
+                           FROM m4.chung_tu_run lr JOIN m4.chung_tu_result lx ON lx.run_id = lr.id
+                           WHERE lr.dot_id = d.id AND lr.trang_thai IN ('SUCCEEDED','PARTIAL') AND lx.cong_bo
+                           ORDER BY lr.xong_luc DESC NULLS LAST, lr.tao_luc DESC, lr.id LIMIT 1))
+        FROM m4.duyet_kt_cho c
+        JOIN m4.dot d ON d.id = c.dot_id AND d.hop_dong_id = c.hop_dong_id AND d.du_an_id = c.du_an_id
+        JOIN m4.ho_so_hop_dong h ON h.hop_dong_id = d.hop_dong_id AND h.du_an_id = d.du_an_id
+        JOIN master.hop_dong hd ON hd.id = h.hop_dong_id
+        WHERE c.id = p_cho
+        $$""",
     # ngữ cảnh NT do máy chủ resolve NGAY BÂY GIỜ (gốc/PB mới nhất/seal/kết luận/phiên bản/revision KT/toàn vẹn/đồ thị L3 công bố) — issuer ký,
     # reader tính lại và so ĐÚNG (khác → mục cũ, HOLD). Không gọi m4._kt_hien_hanh (chứng thực 03A chỉ giữ một gốc mỗi lúc).
+    # FIX04: + 'nguon' = kho._dc_nt_nguon (căn cứ nguồn hiện hành); thiếu → không hàng → NULL (fail closed).
     """CREATE OR REPLACE FUNCTION kho._dc_nt_ngu_canh(p_cho uuid) RETURNS jsonb
         LANGUAGE sql STABLE SET search_path = master, m4, pg_temp AS $$
         SELECT jsonb_build_object('cho_id', c.id, 'phap_nhan_id', c.phap_nhan_id, 'du_an_id', c.du_an_id, 'hop_dong_id', c.hop_dong_id,
@@ -649,12 +740,14 @@ M4_03B_COMMON_SQL = (
                                   'kt_revision_id', (SELECT x.id FROM m4.kt_xac_nhan x WHERE x.phong_bi_id = b.id ORDER BY x.revision DESC LIMIT 1),
                                   'kt_xac_nhan_id', (SELECT x.id FROM m4.kt_xac_nhan x WHERE x.phong_bi_id = b.id AND x.loai = 'XAC_NHAN'),
                                   'toan_ven', CASE WHEN b.id IS NULL THEN false ELSE coalesce(m4._kt_toan_ven(b.id), false) END,
-                                  'do_thi_hien_hanh', CASE WHEN b.id IS NULL THEN false ELSE coalesce(m4._kt_do_thi_hien_hanh(b.id), false) END)
+                                  'do_thi_hien_hanh', CASE WHEN b.id IS NULL THEN false ELSE coalesce(m4._kt_do_thi_hien_hanh(b.id), false) END,
+                                  'nguon', nn.v)
         FROM m4.duyet_kt_cho c
+        CROSS JOIN LATERAL (SELECT kho._dc_nt_nguon(c.id) AS v) nn
         LEFT JOIN LATERAL (SELECT y.* FROM m4.duyet_kt_phong_bi y WHERE y.cho_id = c.id ORDER BY y.thu_tu DESC LIMIT 1) b ON true
         LEFT JOIN m4.duyet_seal s ON s.id = b.seal_id
         LEFT JOIN m4.duyet_ket_luan k ON k.id = s.ket_luan_id
-        WHERE c.id = p_cho
+        WHERE c.id = p_cho AND nn.v IS NOT NULL
         $$""",
     # ISSUER (gọi NGAY sau producer 03A của đúng gốc, dưới khóa): phiên chủ bảng thật + danh tính ID/login + quyền KT → kết quả hiện hành do DB tính
     # (m4._kt_hien_hanh, gồm khớp chứng thực producer 03A) + ngữ cảnh + tuple → ký MỤC của gốc này. Mục cũ: chỉ chép NGUYÊN VĂN khi MAC riêng hợp lệ
@@ -738,6 +831,11 @@ M4_03B_COMMON_SQL = (
                OR (v_e->>'actor') IS DISTINCT FROM master.ktt_danh_tinh() THEN
                 RETURN NULL;
             END IF;
+            -- FIX04: mục ký trước khi có căn cứ nguồn (thiếu/khác phiên bản source-context) → HOLD, không nâng cấp
+            IF (v_e->'ngu_canh'->'nguon'->>'phien_ban') IS DISTINCT FROM '{NGU_CANH_NGUON}' THEN
+                RETURN NULL;
+            END IF;
+            -- căn cứ nguồn tính lại NGAY BÂY GIỜ (kể cả trong ràng buộc deferred) phải bằng TOÀN BỘ ngữ cảnh đã ký
             v_nc := kho._dc_nt_ngu_canh(p_cho);
             IF v_nc IS NULL OR v_nc IS DISTINCT FROM (v_e->'ngu_canh') OR NOT coalesce(m4.kt_doc_cho(p_cho), false) THEN
                 RETURN NULL;

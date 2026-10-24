@@ -15,6 +15,9 @@ FIX02 (`TenPlpgsql`, static — KHÔNG phải bằng chứng native): hồi quy 
 mọi hàm/khối plpgsql của hằng common không có alias quan hệ/cột SQL hay cột bảng mới trùng tham số/biến; bộ dò tự kiểm trên mẫu lỗi đã thấy.
 FIX03 (`ChungThucFix03`, static — KHÔNG phải bằng chứng native): khóa kỹ thuật không literal + ACL/RLS/bất biến; issuer/reader MAC HMAC-SHA256 có domain,
 tuple, actor, ngữ cảnh nguồn; không ký lại mục chưa xác minh; fail closed; stamp top transaction do trigger gán thay xmin, revision giao dịch khác bị chặn.
+FIX04 (`NguonHienHanhFix04`, static — KHÔNG phải bằng chứng native): ngữ cảnh ký gồm căn cứ nguồn `m4.source-context/v1` do máy chủ resolve (hồ sơ HĐ/
+đợt/nộp/phiên bản + luồng phiên bản riêng ghép tay L2/L3, metadata L3, L2/L3 công bố… cùng lọc/thứ tự producer, vân tay SHA gọn); reader so TOÀN BỘ,
+mục cũ thiếu nguồn → HOLD; lưu/xác nhận/deferred đều qua reader; không 03A toàn cục, không giờ/xmin/GUC/tiền, không khóa mới.
 """
 
 from __future__ import annotations
@@ -545,6 +548,120 @@ class ChungThucFix03(unittest.TestCase):
         # stamp không lộ qua lịch sử/DTO
         self.assertNotIn("tao_txid", _ham("kho._dc_lich_su"))
         self.assertNotIn("tao_txid", (SRC / "k2" / "ghi_nhan_chung.py").read_text(encoding="utf-8"))
+
+
+# ================================================================================================== FIX04: căn cứ nguồn hiện hành trong ngữ cảnh ký
+class NguonHienHanhFix04(unittest.TestCase):
+    """STATIC — chỉ chứng minh chuỗi SQL; bằng chứng thật là native13 + EXTRA3 (E03 phải DC_CAN_KIEM_LAI) do Root chạy."""
+
+    def setUp(self):
+        self.n = _than("kho._dc_nt_nguon")
+
+    def test_nguon_noi_vao_ngu_canh_ky_va_acl_noi_bo(self):
+        self.assertEqual(SG.NGU_CANH_NGUON, "m4.source-context/v1")
+        self.assertIn(f"'phien_ban', '{SG.NGU_CANH_NGUON}'", self.n)
+        self.assertIn("kho._dc_nt_nguon(uuid)", SG.HAM_CHUNG_THUC)
+        dau = _dau("kho._dc_nt_nguon")
+        self.assertIn("LANGUAGE sql STABLE SET search_path = master, m4, pg_temp", dau)
+        self.assertNotIn("SECURITY DEFINER", dau)
+        rv = next(s for s in SG.M4_03B_COMMON_SQL if s.startswith("REVOKE EXECUTE ON FUNCTION"))
+        do = next(s for s in SG.M4_03B_COMMON_SQL if "TO app_web" in s)
+        self.assertIn("kho._dc_nt_nguon(uuid)", rv)
+        self.assertIn("kho._dc_nt_nguon(uuid)", do[:do.index("GRANT")])
+        self.assertEqual(re.findall(r"GRANT ([^;]+?) TO app_web", NOI), ["EXECUTE ON FUNCTION kho.dc_doc_hoa_don(uuid)"])
+        nc = _than("kho._dc_nt_ngu_canh")
+        self.assertIn("'nguon', nn.v)", nc)
+        self.assertIn("CROSS JOIN LATERAL (SELECT kho._dc_nt_nguon(c.id) AS v) nn", nc)
+        self.assertIn("WHERE c.id = p_cho AND nn.v IS NOT NULL", nc, "thiếu căn cứ nguồn → không hàng → NULL (fail closed)")
+        g = _than("kho._dc_nt_ghi")
+        self.assertIn("'ngu_canh', v_nc", g)
+        self.assertIn("IF v_h IS NULL OR v_nc IS NULL THEN", g)
+        self.assertEqual(g.count("kho._dc_ck_ky("), 1, "vẫn chỉ ký mục mới — không nâng cấp mục cũ thiếu nguon")
+
+    def test_ghim_loi_ho_so_dot_nop_phien_ban(self):
+        for k in ("'revision', h.revision", "'rev_tham_so', h.rev_tham_so", "'tep_hop_dong_id', h.tep_hop_dong_id",
+                  "'tep_hop_dong_sha256', (SELECT ht.raw_sha256 FROM m4.tep ht WHERE ht.id = h.tep_hop_dong_id)", "'trang_thai_pl', h.trang_thai_pl",
+                  "'so_hop_dong', hd.so_hop_dong", "'revision', d.revision", "'trang_thai', d.trang_thai", "'ngay_nghiem_thu', d.ngay_nghiem_thu",
+                  "'id', np.id, 'digest', np.digest", "'revision_ho_so', np.revision_ho_so", "'revision_dot', np.revision_dot",
+                  "FROM m4.nop np WHERE np.dot_id = d.id",
+                  "FROM m4.duyet_phien_ban pv WHERE pv.dot_id = d.id ORDER BY pv.so DESC LIMIT 1"):
+            self.assertIn(k, self.n)
+        # cha bắt buộc: INNER JOIN và khớp HĐ/dự án — thiếu/lệch → NULL, không giả hiện hành
+        for k in ("JOIN m4.dot d ON d.id = c.dot_id AND d.hop_dong_id = c.hop_dong_id AND d.du_an_id = c.du_an_id",
+                  "JOIN m4.ho_so_hop_dong h ON h.hop_dong_id = d.hop_dong_id AND h.du_an_id = d.du_an_id",
+                  "JOIN master.hop_dong hd ON hd.id = h.hop_dong_id", "WHERE c.id = p_cho"):
+            self.assertIn(k, self.n)
+        self.assertNotRegex(self.n, r"LEFT JOIN (m4\.dot|m4\.ho_so_hop_dong|master\.hop_dong)\b")
+
+    def test_luong_phien_ban_rieng_khong_tang_h_revision(self):
+        # ghép tay L2 theo (HĐ, khóa), metadata + ghép tay L3 theo đợt: cùng lọc/thứ tự producer, pin TỪNG khóa (không max(revision) toàn bảng)
+        xd = (SRC / "k2" / "xay_dung.py").read_text(encoding="utf-8")
+        dd = (SRC / "m4" / "duyet_dot.py").read_text(encoding="utf-8")
+        self.assertIn("ORDER BY m.khoa_hstt, m.revision DESC", xd)
+        self.assertIn("FROM m4.review_manual_map m2 WHERE m2.hop_dong_id = h.hop_dong_id ORDER BY m2.khoa_hstt, m2.revision DESC", self.n)
+        self.assertIn("ORDER BY m.row_id, m.revision DESC", xd)
+        self.assertIn("FROM m4.chung_tu_manual_map m3x WHERE m3x.dot_id = d.id ORDER BY m3x.row_id, m3x.revision DESC", self.n)
+        self.assertIn("FROM m4.chung_tu_revision cr WHERE cr.dot_id = d.id ORDER BY cr.revision DESC LIMIT 1", self.n)
+        self.assertNotRegex(self.n, r"max\([\w.]*revision\)")
+        # L2/L3 công bố mới nhất: đúng lọc/thứ tự của _chung_tu_l2 và duyet_dot._l3_cong_bo
+        self.assertIn("r.che_do = 'L1_L2' AND r.trang_thai IN ('SUCCEEDED','PARTIAL') AND x.cong_bo", xd)
+        self.assertIn("ORDER BY r.xong_luc DESC, r.id LIMIT 1", xd)
+        self.assertIn("rr.che_do = 'L1_L2' AND rr.trang_thai IN ('SUCCEEDED','PARTIAL') AND rx.cong_bo", self.n)
+        self.assertIn("ORDER BY rr.xong_luc DESC, rr.id LIMIT 1", self.n)
+        self.assertIn("ORDER BY r.xong_luc DESC NULLS LAST, r.tao_luc DESC, r.id LIMIT 1", dd)
+        self.assertIn("lr.trang_thai IN ('SUCCEEDED','PARTIAL') AND lx.cong_bo", self.n)
+        self.assertIn("ORDER BY lr.xong_luc DESC NULLS LAST, lr.tao_luc DESC, lr.id LIMIT 1", self.n)
+        for k in ("'basis_sha256', rr.basis_sha256", "'ket_qua_sha256', rx.ket_qua_sha256", "'basis_cong_bo_sha256', rx.basis_cong_bo_sha256",
+                  "'basis_sha256', lr.basis_sha256", "'ket_qua_sha256', lx.ket_qua_sha256", "'basis_cong_bo_sha256', lx.basis_cong_bo_sha256"):
+            self.assertIn(k, self.n)
+        # BOQ hiện hành từng nguồn (đúng điều kiện lan của producer), tham số/PL/tệp đợt/trích/xác nhận
+        self.assertIn("bz.phu_luc_id IS NOT DISTINCT FROM bq.phu_luc_id", self.n)
+        for k in ("'dot_tep'", "'tham_so'", "'trich_xuat'", "'xac_nhan_tham_so'", "'phu_luc'", "'boq'", "'manual_map_l2'", "'metadata_l3'",
+                  "'manual_map_l3'", "'l2_cong_bo'", "'l3_cong_bo'"):
+            self.assertEqual(self.n.count(k + ","), 1, k)
+        self.assertIn("ORDER BY tx.lan DESC LIMIT 1", self.n)
+        self.assertIn("ORDER BY xn.rev_tham_so DESC LIMIT 1", self.n)
+
+    def test_van_tay_gon_khong_tien_khong_gio_khong_client(self):
+        dau = "(SELECT jsonb_build_object('so', count(*), 'sha256', encode(sha256(convert_to(coalesce(jsonb_agg("
+        for f in (SG._NT_DOT_TEP, SG._NT_THAM_SO, SG._NT_PHU_LUC, SG._NT_BOQ, SG._NT_MAP_L2, SG._NT_MAP_L3):
+            self.assertTrue(f.startswith(dau), f[:80])
+            self.assertIn(" ORDER BY ", f)
+            self.assertIn(f, self.n)
+        self.assertEqual(self.n.count("'so', count(*)"), 6)
+        # giá trị tham số chỉ vào dưới dạng SHA; không cột tiền/dòng BOQ; không giờ hiện tại/xmin/GUC/thân yêu cầu; không khóa mới
+        self.assertEqual(self.n.count("ts.gia_tri"), 1)
+        self.assertNotRegex(self.n, r"\b(don_gia|thanh_tien|so_tien)\b|_minor|m4\.boq_dong\b")
+        self.assertNotRegex(self.n, r"(?i)\bnow\(|clock_timestamp|current_timestamp|statement_timestamp|\bxmin\b|txid_current|random\(")
+        self.assertNotRegex(self.n, r"current_setting|ktt\.|p_yc|p_refs|kt_chung_thuc")
+        self.assertNotIn("'tao_luc'", self.n)
+        self.assertNotRegex(self.n, r"(?i)for\s+(update|share|no\s+key\s+update)\b", "không đổi thứ tự khóa của m4.kt_khoa")
+        self.assertIn("length(p_t) > 1000000", _than("kho._dc_ck_json"), "giữ trần 1MB của GUC")
+
+    def test_reader_so_toan_bo_nguon_khong_03A_toan_cuc(self):
+        r = _than("kho._dc_nt_hien_hanh")
+        bp = f"(v_e->'ngu_canh'->'nguon'->>'phien_ban') IS DISTINCT FROM '{SG.NGU_CANH_NGUON}'"
+        thu_tu = [r.index("kho._dc_ck_hop_le(v_e)"), r.index("(v_e->>'actor') IS DISTINCT FROM master.ktt_danh_tinh()"), r.index(bp),
+                  r.index("v_nc := kho._dc_nt_ngu_canh(p_cho)"), r.index("v_nc IS DISTINCT FROM (v_e->'ngu_canh')"), r.index("RETURN jsonb_build_object(")]
+        self.assertEqual(thu_tu, sorted(thu_tu))
+        self.assertEqual(r[r.index(bp):].split("END IF;")[0].count("RETURN NULL;"), 1)
+        # multiNT: không so chứng thực 03A toàn cục của NT cuối, không gọi lại producer trên gốc cũ
+        for h in ("kho._dc_nt_hien_hanh", "kho._dc_nt_ngu_canh", "kho._dc_nt_nguon"):
+            b = _than(h)
+            self.assertNotIn("kt_chung_thuc", b, h)
+            self.assertNotIn("_kt_hien_hanh", b, h)
+            self.assertNotIn("_kt_co_so_hien_hanh", b, h)
+
+    def test_luu_xac_nhan_deferred_deu_qua_reader(self):
+        dt = _than("kho._dc_do_thi")
+        self.assertIn("h := kho._dc_nt_hien_hanh(c.id);", dt)
+        self.assertIn("'hien_hanh', coalesce((h->>'hien_hanh')::boolean, false)", dt)
+        for h in ("kho.dc_luu", "kho.dc_xac_nhan", "kho._dc_phien_ban_hoan_tat"):
+            b = _than(h)
+            i = b.index("kho._dc_do_thi(")
+            self.assertGreater(b.index("DC_CAN_KIEM_LAI: nguồn nghiệm thu không còn hiện hành", i), i, h)
+        self.assertIn("DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION kho._dc_phien_ban_hoan_tat()", NOI)
+        self.assertNotRegex(NOI, r"(?i)variable_conflict|DISABLE\s+TRIGGER|session_replication_role")
 
 
 # ================================================================================================== đầu vào
