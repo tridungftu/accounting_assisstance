@@ -609,6 +609,7 @@
   const goc = $("crm-gk");
   if (!goc) return;
   const TT_BG = {NHAP: "Nháp", DA_CHUYEN: "Đã chuyển sang Soạn", HUY: "Đã hủy"};
+  const VAI_VN = {KE_TOAN: "Kế toán", KE_TOAN_TRUONG: "Kế toán trưởng", CFO: "CFO", NHAP_JUNSKY: "Nhập Junsky", XEM: "Chỉ xem", BAN_HANG: "Bán hàng", DU_AN: "Dự án"};
   const TT_SO = {SOAN_THAO: "Đang soạn", CHO_KY: "Chờ ký (đã xuất DOCX+PDF)", DA_KY: "Đã ký — chờ kế toán kiểm"};
   const TT_XUAT = {PDF_DAT: "DOCX + PDF đạt", PDF_CHUA_SAN_SANG: "DOCX đã giữ · PDF chưa sẵn sàng", PDF_LOI: "DOCX đã giữ · PDF lỗi", DA_CU: "Bản cũ (revision đã đổi)"};
 
@@ -617,7 +618,12 @@
   // FIX01 #3: số lần sửa NỘI DUNG form (bg-/so-) và mốc đồng bộ với revision máy chủ — In/Chuyển/Xuất chỉ khi không còn thay đổi chưa lưu
   // FIX03 R1: `nhapMoi` = ĐỊNH DANH của một lần bắt đầu nháp MỚI ({so, tao}) — "+ Báo giá mới" luôn tạo định danh mới (MOI → MOI là nháp KHÁC);
   // gõ tiếp cùng nháp giữ định danh. ACK tạo mới chỉ ghi vào đúng định danh của ý định đó (`tao` = {id, revision} của báo giá đã tạo).
-  let soSua = 0, dongBo = 0, xemTruoc = null, nhapMoi = null, soNhapMoi = 0;
+  let soSua = 0, dongBo = 0, nhapMoi = null, soNhapMoi = 0;
+  // BG-1b (BG-03): kết quả tính TỰ ĐỘNG của máy chủ cho form báo giá (xem-truoc). `tinhBg` = {khoa, tinh, nhan,…} của lần trả về mới nhất khớp form;
+  // `tinhCho` = đang chờ (ngừng gõ 400 ms hoặc yêu cầu đang bay) → ô mờ hiện "…"; `tinhSeq` loại phản hồi cũ; lỗi mạng giữ `tinhBg` cũ + `tinhLoi`.
+  let tinhBg = null, tinhCho = false, tinhLoi = "", tinhSeq = 0, tinhHen = null, tinhBay = null, tinhLai = 0, tinhLaiHen = null;
+  let mocChuan = null, mocChuanCho = false, bangMocDem = null;  // danh mục mốc chuẩn từ máy chủ (GET /api/crm/bao-gia/moc-chuan)
+  let dsMoBg = [], dsLoiMocBg = [], dsNutBg = [], oTongBg = null, oGoiYTong = null, oLuuYTong = null, oKiemBg = null, oTinhLoi = null, oNguCanh = null, oTongNhap = null;
   // CRM-41-04A G4: `kyCt` = điều kiện/căn cứ/bản ký của bản soạn đang mở (GET mới nhất theo `genKy`); `kyMo` = căn cứ dialog chụp lúc mở
   // ({soan, revision, xuat_id}); `kyTep` = File đã chọn. `kyYD` = ý định ký theo (vai, bản soạn, căn cứ, File, khai báo) — giữ ĐÚNG File + header +
   // khóa tới kết quả thật; chưa rõ → nút gửi lại y nguyên trong khối G4 của ĐÚNG bản soạn (không dùng nút gửi lại chung), đổi vai/HĐ không xóa.
@@ -664,15 +670,25 @@
   let oTrangThai = null, oGuiLai = null, oNoiDung = null;
   function trangThai(msg, loi = false) { if (oTrangThai) { oTrangThai.textContent = msg || ""; oTrangThai.className = "upload-status" + (loi ? " error" : ""); } }
   const gt = (id, md = "") => nhapGt.has("gk-" + id) ? nhapGt.get("gk-" + id) : md;
-  function o(id, el, md = "", khiDoi) {
+  // BG-03: ô nội dung BÁO GIÁ (trừ ghi chú/liên hệ/mô tả không ảnh hưởng số tính) → đánh dấu "đang chờ" và hẹn máy chủ tính: ngừng gõ 400 ms hoặc rời ô
+  // (change) = tính ngay. `dinhDang` (nếu có) chỉ đổi dạng chữ khi rời ô (dấu chấm hàng nghìn, dd/mm/yyyy), không đổi giá trị.
+  const KHONG_TINH = /^gk-bg-(gc|l-gc-\d+|lo-mt|khach-lh)$/;
+  function o(id, el, md = "", khiDoi, dinhDang) {
     el.id = "gk-" + id;
     if (!nhapGt.has(el.id)) nhapGt.set(el.id, md);
     el.value = nhapGt.get(el.id);
-    const doi = () => { nhapGt.set(el.id, el.value); genForm += 1; if (NOI_DUNG.test(el.id)) { soSua += 1; khoaChuaLuu(); } if (khiDoi) khiDoi(el); };
-    el.addEventListener("input", doi); el.addEventListener("change", doi);
+    const tinhTuDong = /^gk-bg-/.test(el.id) && NOI_DUNG.test(el.id) && !KHONG_TINH.test(el.id);
+    const doi = roi => {
+      if (roi && dinhDang) { const v = dinhDang(el.value); if (v !== el.value) el.value = v; }
+      nhapGt.set(el.id, el.value); genForm += 1; if (NOI_DUNG.test(el.id)) { soSua += 1; khoaChuaLuu(); }
+      if (tinhTuDong) { datCho(); henTinh(roi ? 0 : 400); }
+      if (khiDoi) khiDoi(el);
+    };
+    el.addEventListener("input", () => doi(false)); el.addEventListener("change", () => doi(true));
+    el.addEventListener("blur", () => { if (tinhHen) henTinh(0); });
     return el;
   }
-  function nhap(id, md, type = "text", khiDoi) { const i = node("input"); i.type = type; i.autocomplete = "off"; return o(id, i, md ?? "", khiDoi); }
+  function nhap(id, md, type = "text", khiDoi, dinhDang) { const i = node("input"); i.type = type; i.autocomplete = "off"; return o(id, i, md ?? "", khiDoi, dinhDang); }
   function chon(id, opts, md, dau, khiDoi) {
     const s = node("select");
     if (dau !== undefined) { const op = node("option", dau); op.value = ""; s.append(op); }
@@ -687,12 +703,12 @@
   let dsCanLuu = [], dsLyDo = [], dsTuTinh = [], dsKiemTong = [];  // phần tử của lần vẽ hiện tại (đặt lại mỗi ve())
   function oLyDo(ly) { const s = node("span", ly, "gk-ly-do"); s.dataset.lyChuaLuu = "1"; s.setAttribute("role", "note"); dsLyDo.push(s); return s; }
   // FIX02 #4: số tự tính/VND tham chiếu đang hiện thuộc form CŨ → hết hiệu lực NGAY trên DOM khi nội dung đổi (không vẽ lại form, không mất caret,
-  // không tính ở trình duyệt, không POST mỗi phím). Tính lại = Tính thử (máy chủ) hoặc Lưu.
-  const TU_TINH_CU = "— đã sửa: chưa tính lại (Tính thử hoặc Lưu)";
+  // không tính ở trình duyệt, không POST mỗi phím). Chỉ còn dùng cho lịch của Soạn; lịch BÁO GIÁ tính tự động theo máy chủ (BG-03, `tinhNgay`).
+  const TU_TINH_CU = "— đã sửa: Lưu để máy chủ tính lại";
   function khoaChuaLuu() {
     if (!chuaLuu()) return;
-    xemTruoc = null;
     dsCanLuu.forEach(b => { if (b.dataset.canLuu) { b.disabled = true; b.title = LY_CHUA_LUU; } });
+    capNhatNutBg();
     dsLyDo.forEach(s => { s.textContent = LY_CHUA_LUU; });
     dsTuTinh.forEach(s => { s.textContent = TU_TINH_CU; s.dataset.hetHieuLuc = "1"; });
     dsKiemTong.forEach(s => { s.dataset.hetHieuLuc = "1"; if (!s.textContent.startsWith("[Revision đã lưu")) s.textContent = "[Revision đã lưu — form có thay đổi chưa lưu] " + s.textContent; });
@@ -706,6 +722,101 @@
   }
   const xoaNhap = p => { for (const k of [...nhapGt.keys()]) if (k.startsWith("gk-" + p)) nhapGt.delete(k); };
   const s0 = x => { const v = String(x ?? "").trim(); return v === "" ? null : v; };
+
+  // ------------------------------------------------------------------ BG-1b · ô nhập kiểu Việt (CHỈ đổi dạng chuỗi người gõ; không tính tiền ở trình duyệt)
+  // Số: `15.000`, `1.500.000,50` (dấu chấm = hàng nghìn, dấu phẩy = thập phân) → chuỗi thập phân chuẩn cho các trường typed; Ngày: dd/mm/yyyy ↔ ISO.
+  const RE_SO_VN = /^(?:[0-9]+|[0-9]{1,3}(?:\.[0-9]{3})+)(?:,[0-9]{1,12})?$/;
+  const nhomNghin = s => s.replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+  function hienSo(dec) {  // chuỗi thập phân chuẩn ("1500000.5") → kiểu Việt ("1.500.000,5"); không phải số → trả nguyên
+    const m = /^(\d+)(?:\.(\d+))?$/.exec(String(dec ?? ""));
+    if (!m) return dec === null || dec === undefined ? "" : String(dec);
+    const le = (m[2] || "").replace(/0+$/, ""), ng = m[1].replace(/^0+(?=\d)/, "");
+    return nhomNghin(ng) + (le ? "," + le : "");
+  }
+  const docSo = t => { const s = String(t ?? "").trim(); return RE_SO_VN.test(s) ? s.replace(/\./g, "").replace(",", ".") : null; };
+  const chuanSo = t => { const d = docSo(t); return d === null ? String(t ?? "") : hienSo(d); };
+  function chuanGt(t) {  // ô Giá trị thông minh: `30 %` → `30%`, `450000` → `450.000`; sai dạng → giữ nguyên để máy chủ báo
+    const s = String(t ?? "").trim(); if (!s) return "";
+    const pc = s.endsWith("%"), d = docSo(pc ? s.slice(0, -1) : s);
+    return d === null ? s : hienSo(d) + (pc ? "%" : "");
+  }
+  const hienNgay = iso => { const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(iso ?? "")); return m ? `${m[3]}/${m[2]}/${m[1]}` : ""; };
+  function docNgay(t) {  // dd/mm/yyyy (hoặc yyyy-mm-dd) → ISO; ngày không tồn tại → null
+    const s = String(t ?? "").trim(); let m, y, mo, d;
+    if ((m = /^(\d{1,2})[\/.-](\d{1,2})[\/.-](\d{4})$/.exec(s))) { d = +m[1]; mo = +m[2]; y = +m[3]; }
+    else if ((m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s))) { y = +m[1]; mo = +m[2]; d = +m[3]; }
+    else return null;
+    const dt = new Date(Date.UTC(y, mo - 1, d));
+    if (dt.getUTCFullYear() !== y || dt.getUTCMonth() !== mo - 1 || dt.getUTCDate() !== d) return null;
+    return `${String(y).padStart(4, "0")}-${String(mo).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+  }
+  const chuanNgay = t => { const d = docNgay(t); return d === null ? String(t ?? "") : hienNgay(d); };
+  const chuanTim = s => String(s ?? "").replace(/[đĐ]/g, "d").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/\+/g, " ").replace(/\s+/g, " ").trim();
+  const thoatRe = s => s.replace(/[.*+?^${}()|[\]\]/g, "\$&");
+  // Mốc thời gian một ô: chọn sự kiện của danh mục máy chủ (Ký · Bàn giao · Sổ · Xây xong tầng n · Sau ký + n ngày) hoặc gõ ngày dd/mm/yyyy.
+  function bangMoc() {
+    if (bangMocDem) return bangMocDem;
+    const m = mocChuan || {moc: [], moc_tham_so: []};
+    bangMocDem = {co: m.moc.map(x => ({ma: x.ma, nhan: x.nhan, k: chuanTim(x.nhan)})),
+      mau: (m.moc_tham_so || []).map(p => ({nhan: p.nhan, mau_ma: p.mau_ma, min: p.toi_thieu ?? 0,
+        re: new RegExp("^" + thoatRe(chuanTim(p.nhan)).replace(/(^|\s)n(?=\s|$)/, "$1(\d{1,4})") + "$"),
+        reMa: new RegExp("^" + thoatRe(p.mau_ma).replace("<n>", "(\d+)") + "$")}))};
+    return bangMocDem;
+  }
+  function nhanMoc(ma) {
+    if (!ma) return "";
+    const b = bangMoc(), c = b.co.find(x => x.ma === ma);
+    if (c) return c.nhan;
+    for (const p of b.mau) { const m = p.reMa.exec(ma); if (m) return p.nhan.replace(/(^|\s)n(?=\s|$)/, "$1" + String(+m[1])); }
+    return "Sự kiện khác (chưa có nhãn)";
+  }
+  const textMoc = g => g.ml === "NGAY" ? hienNgay(g.mn) : g.ml === "SU_KIEN" ? nhanMoc(g.ms) : "";
+  function docMoc(text) {  // → {moc_loai, moc_ngay, moc_su_kien}; không hiểu → null
+    const t = String(text ?? "").trim();
+    if (!t) return {moc_loai: null, moc_ngay: null, moc_su_kien: null};
+    const ng = docNgay(t);
+    if (ng) return {moc_loai: "NGAY", moc_ngay: ng, moc_su_kien: null};
+    const k = chuanTim(t), b = bangMoc(), c = b.co.find(x => x.k === k);
+    if (c) return {moc_loai: "SU_KIEN", moc_ngay: null, moc_su_kien: c.ma};
+    for (const p of b.mau) { const m = p.re.exec(k); if (m && +m[1] >= p.min) return {moc_loai: "SU_KIEN", moc_ngay: null, moc_su_kien: p.mau_ma.replace("<n>", String(+m[1]))}; }
+    return null;
+  }
+  const gocMoc = i => ({ml: s0(gt(`bg-l-ml-${i}`)), mn: s0(gt(`bg-l-mn-${i}`)), ms: s0(gt(`bg-l-ms-${i}`))});
+  // Dòng mốc chưa sửa so với dữ liệu máy chủ → gửi lại NGUYÊN (kể cả mã sự kiện chưa có nhãn); đã sửa → đọc từ chữ người gõ.
+  function mocCuaDong(i) {
+    const text = (gt(`bg-l-mo-${i}`) || "").trim(), g = gocMoc(i);
+    if (text && chuanTim(text) === chuanTim(textMoc(g))) return {moc: {moc_loai: g.ml, moc_ngay: g.mn, moc_su_kien: g.ms}, loi: null};
+    const m = docMoc(text);
+    return m ? {moc: m, loi: null} : {moc: {moc_loai: null, moc_ngay: null, moc_su_kien: null},
+      loi: `Dòng ${i + 1}: chưa hiểu mốc "${text}" — chọn trong danh sách (thay n bằng số) hoặc gõ ngày dd/mm/yyyy.`};
+  }
+  // Lịch thanh toán báo giá: 4 cột (Lần tự đánh số · Giá trị một ô · Mốc một ô · Ghi chú). Khóa nhập theo dòng: id (mã dòng giữ qua revision), gt (chuỗi giá trị
+  // người gõ), mo (chữ mốc đang hiện), ml/mn/ms (mốc gốc của máy chủ để gửi lại nguyên khi chưa sửa), gc (ghi chú).
+  const COT_B = ["id", "gt", "mo", "ml", "mn", "ms", "gc"];
+  function ghiLichBg(rows, tt) {  // dòng dạng máy chủ → ô nhập; trả danh sách cảnh báo nạp (không nạp giá trị mơ hồ)
+    xoaNhap("bg-l-"); const canh = [];
+    rows.forEach((r, i) => {
+      let g = "";
+      if (r.gia_tri_nhap != null) g = chuanGt(r.gia_tri_nhap);
+      else if (r.loai === "PERCENT" && r.ty_le != null) g = hienSo(r.ty_le) + "%";
+      else if (r.loai === "AMOUNT" && r.so_tien != null) {
+        if (r.tien_te && tt && r.tien_te !== tt) canh.push(`Dòng ${i + 1}: số tiền ghi bằng ${r.tien_te} còn báo giá tính bằng ${tt} — nhập lại giá trị.`);
+        else g = hienSo(r.so_tien);
+      }
+      const v = {id: r.dong_id || "", gt: g, ml: r.moc_loai || "", mn: r.moc_ngay || "", ms: r.moc_su_kien || "", gc: r.ghi_chu || ""};
+      COT_B.forEach(c => { if (c !== "mo") nhapGt.set(`gk-bg-l-${c}-${i}`, v[c]); });
+    });
+    return canh;
+  }
+  const docLichRaw = n => Array.from({length: n}, (_, i) => { const o_ = {}; COT_B.forEach(c => { o_[c] = gt(`bg-l-${c}-${i}`); }); return o_; });
+  function ghiLichRaw(rows) { xoaNhap("bg-l-"); rows.forEach((r, i) => COT_B.forEach(c => nhapGt.set(`gk-bg-l-${c}-${i}`, r[c] ?? ""))); }
+  function docLichBg(n, loi) {  // dòng gửi máy chủ: chỉ chuỗi người gõ (`gia_tri_nhap`) + mốc; loại/tỷ lệ/tiền do MÁY CHỦ suy ra
+    return Array.from({length: n}, (_, i) => {
+      const g = c => gt(`bg-l-${c}-${i}`), mc = mocCuaDong(i);
+      if (mc.loi) loi.push(mc.loi);
+      return {dong_id: s0(g("id")), lan: String(i + 1), gia_tri_nhap: String(g("gt") ?? "").trim(), ...mc.moc, ghi_chu: s0(g("gc"))};
+    });
+  }
 
   // ------------------------------------------------------------------ lệnh có khóa (giữ khóa đến khi có kết quả thật)
   // FIX02 #2: `f` = fence vận chuyển (epoch + actor + lựa chọn + chế độ) quyết định có gửi/ghi nhận trạng thái vận chuyển; `fv` = fence HIỂN THỊ của
@@ -838,29 +949,155 @@
     const q = d.du_lieu, set = (k, v) => nhapGt.set("gk-bg-" + k, v ?? "");
     set("loai", q.loai_hinh_id); set("du-an", q.du_an_id); set("g7", q.giai_doan_g7); set("nguon", q.nguon_lich); set("lo", q.don_vi.ma); set("lo-mt", q.don_vi.mo_ta);
     set("khach", q.khach.doi_tac_id); set("khach-dt", q.khach.du_thao && q.khach.du_thao.ten); set("khach-lh", q.khach.du_thao && q.khach.du_thao.lien_he);
-    set("tt", q.gia.tien_te); set("dg", q.gia.don_gia); set("dt", q.gia.dien_tich); set("tong", q.gia.tong); set("thue", q.gia.co_so_thue); set("vat", q.gia.vat_phan_tram);
-    set("fx", q.fx && q.fx.ty_gia); set("fx-ngay", q.fx && q.fx.ngay); set("pbt", q.phi_bao_tri && q.phi_bao_tri.gia_tri);
-    set("pbt-tt", q.phi_bao_tri && q.phi_bao_tri.tien_te); set("pbt-cs", q.phi_bao_tri && q.phi_bao_tri.co_so); set("het", q.het_han); set("gc", q.ghi_chu);
-    ghiLich("bg-", q.lich); soDongBg = Math.max(1, q.lich.length);
-    dongBo = soSua; xemTruoc = null; revDaLuu.delete(d.bao_gia.id);  // form = đúng revision máy chủ
+    // BG-05: số hiện kiểu Việt (dấu chấm hàng nghìn), ngày dd/mm/yyyy; BG-04: ô Tổng giá trị = số ghi đè (hoặc tổng khai kiểu cũ), trống = máy tự tính
+    set("tt", q.gia.tien_te); set("dg", hienSo(q.gia.don_gia)); set("dt", hienSo(q.gia.dien_tich));
+    set("tong", q.tong_gia_tri_ghi_de != null ? chuanSo(q.tong_gia_tri_ghi_de) : hienSo(q.gia.tong));  // ghi đè lưu NGUYÊN chuỗi người gõ (kiểu Việt); tổng khai kiểu cũ là thập phân chuẩn
+    set("thue", q.gia.co_so_thue); set("vat", hienSo(q.gia.vat_phan_tram));
+    set("fx", hienSo(q.fx && q.fx.ty_gia)); set("fx-ngay", hienNgay(q.fx && q.fx.ngay)); set("pbt", hienSo(q.phi_bao_tri && q.phi_bao_tri.gia_tri));
+    set("pbt-tt", q.phi_bao_tri && q.phi_bao_tri.tien_te); set("pbt-cs", q.phi_bao_tri && q.phi_bao_tri.co_so); set("het", hienNgay(q.het_han)); set("gc", q.ghi_chu);
+    const canh = ghiLichBg(q.lich, q.gia.tien_te); soDongBg = Math.max(1, q.lich.length);
+    dongBo = soSua; resetTinh(); revDaLuu.delete(d.bao_gia.id);  // form = đúng revision máy chủ
+    if (canh.length) trangThai(canh.join(" "), true);
   }
-  function docBaoGia() {
-    const g = k => s0(gt("bg-" + k)), dt = g("khach-dt");
-    return {loai_hinh_id: g("loai"), du_an_id: g("du-an"), giai_doan_g7: g("g7"), nguon_lich: g("nguon") || "KHACH",
+  // Dữ liệu gửi máy chủ + danh sách lỗi dạng nhập phát hiện ở trình duyệt (số/ngày sai dạng: trường đó bỏ khỏi yêu cầu, Lưu bị chặn kèm câu rõ).
+  // Giá trị lịch gửi NGUYÊN chuỗi người gõ (`gia_tri_nhap`); tổng ghi đè gửi nguyên chuỗi người gõ; các số còn lại đổi sang chuỗi thập phân chuẩn.
+  function docBaoGiaKem() {
+    const loi = [], g = k => s0(gt("bg-" + k)), dt = g("khach-dt");
+    const so = (k, ten) => { const v = g(k); if (v === null) return null; const d = docSo(v); if (d === null) loi.push(`${ten}: nhập số kiểu 15.000 hoặc 1.500,50.`); return d; };
+    const ngay = (k, ten) => { const v = g(k); if (v === null) return null; const d = docNgay(v); if (d === null) loi.push(`${ten}: nhập ngày dạng dd/mm/yyyy.`); return d; };
+    const tongV = g("tong");  // máy chủ đọc kiểu Việt và báo lỗi theo trường (chan_in.truong = tong_gia_tri_ghi_de)
+    const fxv = so("fx", "Tỷ giá"), fxn = ngay("fx-ngay", "Ngày tỷ giá"), pbv = so("pbt", "Phí bảo trì"), het = ngay("het", "Hết hạn");
+    const du = {loai_hinh_id: g("loai"), du_an_id: g("du-an"), giai_doan_g7: g("g7"), nguon_lich: g("nguon") || "KHACH",
       don_vi: {ma: g("lo"), mo_ta: g("lo-mt")}, khach: {doi_tac_id: g("khach"), du_thao: dt ? {ten: dt, lien_he: g("khach-lh")} : null},
-      gia: {tien_te: g("tt"), don_gia: g("dg"), dien_tich: g("dt"), tong: g("tong"), co_so_thue: g("thue"), vat_phan_tram: g("vat")},
-      fx: g("fx") ? {cap: "USD/VND", ty_gia: g("fx"), ngay: g("fx-ngay")} : null,
-      phi_bao_tri: g("pbt") ? {gia_tri: g("pbt"), tien_te: g("pbt-tt"), co_so: g("pbt-cs")} : null,
-      lich: docLich("bg-", soDongBg), het_han: g("het"), ghi_chu: g("gc")};
+      gia: {tien_te: g("tt"), don_gia: so("dg", "Đơn giá"), dien_tich: so("dt", "Diện tích"), tong: null, co_so_thue: g("thue"), vat_phan_tram: so("vat", "VAT")},
+      fx: fxv !== null ? {cap: "USD/VND", ty_gia: fxv, ngay: fxn} : null,
+      phi_bao_tri: pbv !== null ? {gia_tri: pbv, tien_te: g("pbt-tt"), co_so: g("pbt-cs")} : null,
+      lich: docLichBg(soDongBg, loi), het_han: het, ghi_chu: g("gc")};
+    if (tongV !== null) du.tong_gia_tri_ghi_de = tongV;
+    return {du, loi};
   }
-  // FIX01 #4: phía tự tính (tỷ lệ ↔ số tiền) + VND tham chiếu TỪNG dòng, CHỈ ĐỌC, lấy từ phép tính typed của MÁY CHỦ: kết quả tính thử khớp ĐÚNG form
-  // hiện tại, hoặc revision đã lưu khi không có thay đổi chưa lưu; ngoài ra hiện “chưa tính”.
-  function tinhChoForm(p) {
-    if (p === "bg-") { if (xemTruoc && xemTruoc.khoa === JSON.stringify(docBaoGia())) return xemTruoc.tinh; return !chuaLuu() && bgCt && bgChon !== "MOI" ? bgCt.tinh : null; }
+  const docBaoGia = () => docBaoGiaKem().du;
+
+  // ------------------------------------------------------------------ BG-03 · tính TỰ ĐỘNG theo máy chủ (không nút "Tính thử"; trình duyệt không tự tính)
+  function tinhHienTai() {  // kết quả máy chủ đang hiện: lần trả về gần nhất của form này, hoặc revision đã lưu khi form chưa sửa
+    if (tinhBg) return tinhBg.tinh;
+    return !chuaLuu() && bgCt && bgChon && bgChon !== "MOI" ? bgCt.tinh : null;
+  }
+  function resetTinh() { clearTimeout(tinhHen); clearTimeout(tinhLaiHen); tinhHen = tinhLaiHen = null; tinhSeq += 1; tinhBg = null; tinhCho = false; tinhLoi = ""; tinhBay = null; tinhLai = 0; }
+  function datCho() { tinhCho = true; apDungTinh(); }
+  function henTinh(ms) {
+    clearTimeout(tinhHen); tinhHen = null;
+    const chay = () => { tinhHen = null; chayTinh().catch(e => { tinhCho = false; tinhLoi = (e && e.message) || "Không tính được."; apDungTinh(); }); };
+    if (!ms) chay(); else tinhHen = setTimeout(chay, ms);
+  }
+  const DU_TRUONG_MOI = t => !!t && "ly_do_chan_in" in t && (t.dong || []).every(x => "hien_thi_mo" in x);
+  async function chayTinh() {
+    if (cheDo !== "bao_gia" || !bgChon || K.vaiDangChan("crm_gk")) { tinhCho = false; return; }
+    if (bgChon !== "MOI" && !(bgCt && bgCt.bao_gia.id === bgChon && bgCt.bao_gia.trang_thai === "NHAP")) { tinhCho = false; apDungTinh(); return; }
+    const {du} = docBaoGiaKem(), khoa = JSON.stringify(du);
+    if (tinhBg && tinhBg.khoa === khoa) { tinhCho = false; tinhLoi = ""; apDungTinh(); return; }  // form đúng như lần máy chủ đã trả
+    if (tinhBay && tinhBay.khoa === khoa) return;  // đã có yêu cầu y hệt đang bay
+    const seq = ++tinhSeq, id = bgChon, nm = nhapMoi, f = fence(() => bgChon === id && cheDo === "bao_gia" && (id !== "MOI" || nhapMoi === nm));
+    tinhBay = {seq, khoa}; tinhCho = true; apDungTinh();
+    try {
+      const r = await docJson(await goi("/api/crm/bao-gia/xem-truoc", {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify({du_lieu: du})}));
+      if (seq !== tinhSeq || !f()) return;  // phản hồi của form đã đổi/báo giá khác: bỏ
+      tinhBg = {khoa, tinh: r.tinh, nhan: r.nhan || null, fx_ngay_hien_thi: r.fx_ngay_hien_thi || null}; tinhBay = null; tinhCho = false; tinhLoi = ""; tinhLai = 0;
+      apDungTinh();
+    } catch (e) {
+      if (seq !== tinhSeq || !f()) return;
+      tinhBay = null; tinhCho = false;
+      const mang = !e || e.status === 0 || e.status >= 500;
+      tinhLoi = mang ? "Chưa cập nhật được số tính (mất kết nối) — đang hiện kết quả lần trước, máy sẽ tự thử lại." : ((e && e.message) || "Không tính được.");
+      apDungTinh();
+      if (mang && tinhLai < 3) { tinhLai += 1; clearTimeout(tinhLaiHen); tinhLaiHen = setTimeout(() => { tinhLaiHen = null; henTinh(0); }, 5000); }
+    }
+  }
+  function lyChanBg(loai) { const t = tinhHienTai(); return t ? String((loai === "in" ? t.ly_do_chan_in : t.ly_do_chan_chuyen) || "") : ""; }
+  function capNhatNutBg() {  // In/Chuyển: mờ khi còn thay đổi chưa lưu HOẶC máy chủ báo chặn; rê chuột thấy lý do
+    for (const b of dsNutBg) {
+      const chua = chuaLuu(), ly = lyChanBg(b.dataset.chanBg);
+      b.disabled = chua || !!ly; b.title = [chua ? LY_CHUA_LUU : "", ly].filter(Boolean).join("\n"); b.dataset.lyChan = ly;
+    }
+  }
+  function nutLuuTruocBg(loai, text, fn, cls) {
+    const b = nut(text, async bt => {
+      if (chuaLuu()) { trangThai(LY_CHUA_LUU, true); return; }
+      const ly = lyChanBg(loai); if (ly) { trangThai(ly.split("\n").join(" · "), true); return; }
+      await fn(bt);
+    }, cls);
+    b.dataset.chanBg = loai; dsNutBg.push(b); capNhatNutBg(); return b;
+  }
+  function trieuVn(dec) {  // dự phòng khi máy chủ chưa trả chuỗi VND của tổng: dời dấu thập phân 6 chữ số trên CHUỖI (không float), chỉ để hiện
+    const m = /^(\d+)(?:\.(\d+))?$/.exec(String(dec ?? "")); if (!m) return "";
+    const a = m[1].padStart(7, "0"), le = (a.slice(-6) + (m[2] || "")).replace(/0+$/, "");
+    return "≈ " + hienSo(a.slice(0, -6) + (le ? "." + le : "")) + " tr VND";
+  }
+  function apDungTinh() {  // cập nhật TẠI CHỖ (không vẽ lại form, không mất caret) mọi chỗ hiện kết quả của máy chủ
+    const t = tinhHienTai(), cho = tinhCho;
+    dsMoBg.forEach((s, i) => {
+      const tx = String(gt(`bg-l-gt-${i}`) || "").trim(), x = t && t.dong && t.dong[i];
+      let text = "", loiDong = false;
+      if (tx && x) { const l = (x.loi_chi_tiet || [])[0]; if (l) { text = String(l.thong_bao || "").replace(/^Dòng \d+:\s*/, ""); loiDong = true; } else text = x.hien_thi_mo || ""; }
+      s.textContent = cho && tx ? (text ? text + " …" : "…") : text;
+      s.className = "gk-mo" + (loiDong ? " gk-loi" : "") + (cho ? " gk-cho" : "");
+    });
+    dsLoiMocBg.forEach(({el, i}) => { const mc = mocCuaDong(i); el.textContent = mc.loi ? mc.loi.replace(/^Dòng \d+: /, "") : ""; });
+    if (oTongBg) {
+      const kids = [];
+      if (!t) kids.push(node("span", cho ? "Σ …" : "Σ —", "gk-tong-o"));
+      else {
+        const ok = !!t.tong_ty_le_khop, okT = !!t.tong_tien_khop;
+        const pc = node("span", "Σ " + (t.tong_ty_le_hien_thi || "—") + (ok ? " ✓" : ""), "gk-tong-o " + (ok ? "gk-ok" : "gk-sai")); pc.dataset.tongTyLe = ok ? "khop" : "lech";
+        const tien = node("span", "Σ tiền " + (t.tong_dong_hien_thi || "—") + (okT ? " = Tổng giá trị ✓" : t.tong_hien_thi ? " ≠ Tổng giá trị " + t.tong_hien_thi : " · chưa có tổng giá trị"),
+          "gk-tong-o " + (okT ? "gk-ok" : "gk-sai")); tien.dataset.tongTien = okT ? "khop" : "lech";
+        kids.push(pc, tien);
+        const vnd = t.vnd_tong_hien_thi || (t.vnd_tham_chieu && (t.vnd_tham_chieu.tong_hien_thi || trieuVn(t.vnd_tham_chieu.tong)));
+        if (vnd) kids.push(node("span", vnd, "gk-tong-o"));
+        const fx = String(gt("bg-fx") || "").trim();
+        if (t.tien_te === "USD" && fx) kids.push(node("span", "Tỷ giá " + fx + (tinhBg && tinhBg.fx_ngay_hien_thi ? " · " + tinhBg.fx_ngay_hien_thi : ""), "gk-tong-o"));
+        if (t.ly_do_chan_in) kids.push(node("div", t.ly_do_chan_in.split("\n").join(" · "), "gk-tong-ly"));
+      }
+      if (cho && t) kids.push(node("span", "…", "gk-tong-o"));
+      oTongBg.replaceChildren(...kids); oTongBg.className = "gk-tong-dong" + (cho ? " gk-cho" : "");
+    }
+    const ghiDe = String(gt("bg-tong") || "").trim();
+    if (oGoiYTong) {
+      const lech = t && (t.canh_bao || []).find(c => c.ma === "TONG_LECH_DON_GIA_X_DIEN_TICH");
+      const sai = t && (t.chan_in || []).find(c => c.truong === "tong_gia_tri_ghi_de" && c.thong_bao);
+      let text, cls = "gk-goi-y";
+      if (sai) { text = sai.thong_bao; cls += " gk-loi"; }
+      else if (lech) { text = lech.thong_bao; cls += " gk-canh"; }
+      else if (t && t.tong_hien_thi) text = (ghiDe || t.tong_tinh_minor == null ? "Tổng giá trị: " : "Tổng giá trị tự tính (đơn giá × diện tích): ") + t.tong_hien_thi;
+      else text = cho ? "…" : "Để trống: máy tự tính từ đơn giá × diện tích.";
+      oGoiYTong.textContent = cho && text !== "…" ? text + " …" : text; oGoiYTong.className = cls + (cho ? " gk-cho" : "");
+    }
+    if (oLuuYTong) oLuuYTong.textContent = ghiDe && t && t.tong_tinh_minor != null ? "Tổng ghi đè sẽ được kiểm lại khi ký hợp đồng" : "";
+    if (oKiemBg) { oKiemBg.replaceChildren(); doKiem(oKiemBg, t, null, true); }
+    if (oTinhLoi) oTinhLoi.textContent = tinhLoi;
+    if (oNguCanh) { const n = tinhBg && tinhBg.nhan; oNguCanh.textContent = n ? [n.phap_nhan && n.phap_nhan.ten, n.loai_hinh && n.loai_hinh.ten, n.du_an && n.du_an.ten].filter(Boolean).join(" · ") : ""; }
+    capNhatNutBg();
+  }
+  async function napMocChuan() {
+    if (mocChuan || mocChuanCho) return;
+    mocChuanCho = true;
+    try {
+      const d = await (await goi("/api/crm/bao-gia/moc-chuan")).json();
+      mocChuan = {moc: Array.isArray(d.moc) ? d.moc : [], moc_tham_so: Array.isArray(d.moc_tham_so) ? d.moc_tham_so : []};
+    } catch (err) {
+      mocChuanCho = false;
+      if (loiAnNinh(err)) return;  // chưa có phiên: lần mở form sau sẽ thử lại
+      mocChuan = {moc: [], moc_tham_so: [], loi: true};  // vẫn lập được báo giá: chỉ thiếu danh sách chọn sự kiện (gõ ngày dd/mm/yyyy được)
+    }
+    mocChuanCho = false; bangMocDem = null;
+    if (cheDo === "bao_gia" && bgChon) ve();
+  }
+  // Soạn (G3) vẫn dùng lịch cũ: phía tự tính CHỈ ĐỌC lấy từ revision đã lưu khi không có thay đổi chưa lưu.
+  function tinhChoForm() {
     return !chuaLuu() && soCt ? soCt.tinh : null;
   }
   function tuTinh(t, i, loai) {
-    if (!t || !t.dong || !t.dong[i]) return "— chưa tính (Lưu hoặc Tính thử)";
+    if (!t || !t.dong || !t.dong[i]) return "— chưa có số tính (Lưu để máy chủ tính)";
     const x = t.dong[i], tt = t.tien_te, out = [];
     if (loai === "PERCENT") out.push(x.so_tien_minor != null ? `= ${minorSangChinh(x.so_tien_minor, tt)} ${tt}` : "số tiền: chưa tính được");
     if (loai === "AMOUNT") out.push(x.ty_le != null ? `= ${x.ty_le}%` : "tỷ lệ: chưa tính được/không hữu hạn");
@@ -901,7 +1138,8 @@
   function ve() {
     if (!oNoiDung) dungKhung();
     dsCanLuu = []; dsLyDo = []; dsTuTinh = []; dsKiemTong = [];
-    $("gk-vai").textContent = ds ? `Vai hiện hành: ${ds.nguoi.dang_nhap} (${ds.nguoi.vai_tro})` : "Đang tải…";
+    dsMoBg = []; dsLoiMocBg = []; dsNutBg = []; oTongBg = oGoiYTong = oLuuYTong = oKiemBg = oTinhLoi = oNguCanh = oTongNhap = null;
+    $("gk-vai").textContent = ds ? `Vai hiện hành: ${ds.nguoi.dang_nhap} (${VAI_VN[ds.nguoi.vai_tro] || ds.nguoi.vai_tro})` : "Đang tải…";
     oNoiDung.replaceChildren(...(cheDo === "bao_gia" ? veBg() : veSo()));
   }
   function dungKhung() {
