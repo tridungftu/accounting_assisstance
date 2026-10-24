@@ -18,10 +18,17 @@
       login quan tri trong DSN -> CSDL cua Anh KHONG bi nang schema hay lan du lieu thu. Bo kiem chuoi migration (khong con dung chung).
       Tep ket-noi.local.json tu chuan bi khac (khong phai ban sao cua repo chinh, khong phai do script nay tao) khong bi ghi de.
       Tep khac tep cua repo chinh trong DataRoot van duoc coi la CSDL rieng (Anh/root tu chuan bi) khi KHONG dung -CsdlRieng.
-    - Fixture: buoc chuan bi CRM doc tests\fixtures va kiem SHA da pin tren byte cua repo chinh; worktree tao bang git thieu 19 tep
+    - Fixture + ma nguon Review M4: buoc chuan bi CRM doc tests\fixtures, M4 doc src\kho_tri_thuc\m4\review_goc; va kiem SHA da pin tren byte cua repo chinh; worktree tao bang git thieu 19 tep
       (.gitignore loai *.xml/*.zip) va bi doi LF/CRLF (core.autocrlf=true). Script dong bo tu repo chinh CHI tep thieu hoac khac nhau
       duy nhat o xuong dong (git van coi sach); tep khac noi dung that giu nguyen va duoc bao.
     - -KhongCrm: mo ung dung nhung KHONG noi CSDL PostgreSQL (trang CRM bao chua cau hinh).
+
+    - Chan numpy (L0-6): Python he thong cua runtime co numpy/pandas (khong thuoc phu thuoc cua ung dung; openpyxl chi import numpy neu co). Trong
+      tien trinh con engine #6, lan import numpy DAU TIEN nam o luong lam viec (master_hd -> openpyxl) luc may chu con dang phuc vu HTTP bi TREO cho
+      toi khi central dong stdin: lenh trich dau tien tra TRICH6_KHONG_KET_NOI sau 60 giay (client timeout), health san_sang:false. Script ghi vao
+      BAN SAO <DataRoot>\crm-demo\runtime.local.json (khong dung vao tep cua repo chinh) them thu muc runtime-chan-numpy (goi numpy gia, raise
+      ImportError) o DAU duong_dan_phu_thuoc -> openpyxl bo qua numpy; san pham va engine khong dung numpy. -KhongChanNumpy de tat. Sua tep xong ma
+      tren cong do dang co server khoi dong truoc do thi script bao va thoat 2 (phai tat server roi mo lai).
 
     Ma thoat: 0 = da mo; 1 = loi khoi dong; 2 = dung vi an toan CSDL (khong mo).
 #>
@@ -31,7 +38,8 @@ param(
     [string]$DataRoot,
     [string]$ConfigPath,
     [ValidatePattern('^(auto|[a-z0-9_]{1,47})$')][string]$CsdlRieng,
-    [switch]$KhongCrm
+    [switch]$KhongCrm,
+    [switch]$KhongChanNumpy
 )
 
 $ErrorActionPreference = 'Stop'
@@ -106,6 +114,40 @@ function Get-KttPythonTienIch {
     try { if (Test-Path -LiteralPath $kttRtDst -PathType Leaf) { $kttP = [string]((Get-Content -LiteralPath $kttRtDst -Raw -Encoding UTF8 | ConvertFrom-Json).python) } } catch { $kttP = $null }
     if (-not $kttP -or -not (Test-Path -LiteralPath $kttP -PathType Leaf)) { $kttC = Get-Command python -ErrorAction SilentlyContinue; if ($kttC) { $kttP = $kttC.Source } else { $kttP = $null } }
     return $kttP
+}
+
+# L0-6: chan numpy trong runtime cua DataRoot nay (xem .DESCRIPTION). Chi sua BAN SAO <DataRoot>\crm-demo\runtime.local.json; idempotent.
+$kttRtDoi = $false
+if (-not $KhongChanNumpy -and (Test-Path -LiteralPath $kttRtDst -PathType Leaf)) {
+    $kttStubDir = Join-Path $kttCrmDir 'runtime-chan-numpy'
+    $kttStubPkg = Join-Path $kttStubDir 'numpy'
+    try {
+        $kttRtObj = Get-Content -LiteralPath $kttRtDst -Raw -Encoding UTF8 | ConvertFrom-Json
+        $kttDeps = @()
+        if ($null -ne $kttRtObj.duong_dan_phu_thuoc) { $kttDeps = @($kttRtObj.duong_dan_phu_thuoc | ForEach-Object { [string]$_ }) }
+        if ($kttDeps -notcontains $kttStubDir) {
+            New-Item -ItemType Directory -Path $kttStubPkg -Force | Out-Null
+            $kttUtf8 = New-Object Text.UTF8Encoding($false)
+            [IO.File]::WriteAllText((Join-Path $kttStubPkg '__init__.py'), ("raise ImportError('numpy bi chan trong ban DEMO worktree (L0-6)')" + "`n"), $kttUtf8)
+            $kttNew = [ordered]@{ phien_ban = $kttRtObj.phien_ban; python = [string]$kttRtObj.python; duong_dan_phu_thuoc = @(@($kttStubDir) + $kttDeps) }
+            if ($kttRtObj.thu_muc_khoi_dong) { $kttNew['thu_muc_khoi_dong'] = [string]$kttRtObj.thu_muc_khoi_dong }
+            [IO.File]::WriteAllText($kttRtDst, (ConvertTo-Json -InputObject $kttNew -Depth 4), $kttUtf8)
+            $kttRtDoi = $true
+            Write-Host 'Da chan numpy trong runtime cua ban DEMO nay (engine #6 DEMO treo khi import numpy o luong lam viec; xem L0-6).'
+        }
+    } catch {
+        Write-Host ('CANH BAO: khong chan duoc numpy (' + $_.Exception.Message + ') - lenh trich dau tien co the treo 60 giay.')
+    }
+}
+if ($kttRtDoi) {
+    # Server dang chay tren cong nay khoi dong TRUOC khi runtime doi con giu moi truong cu (chua chan numpy): khong tai su dung
+    $kttH1 = $null
+    try { $kttH1 = Invoke-RestMethod -Uri ('http://127.0.0.1:' + $Port + '/api/health') -TimeoutSec 5 -ErrorAction Stop } catch { $kttH1 = $null }
+    if ($null -ne $kttH1) {
+        Write-Host ('DUNG: server dang chay tren cong ' + $Port + ' (pid ' + $kttH1.pid + ') khoi dong TRUOC khi runtime duoc chan numpy.')
+        Write-Host ('  Dung no:  Stop-Process -Id ' + $kttH1.pid + '   roi chay lai lenh nay.')
+        exit 2
+    }
 }
 
 $kttKnDst = Join-Path $kttCrmDir 'ket-noi.local.json'
@@ -236,16 +278,18 @@ if ($kttLyDo) {
     exit 2
 }
 
-# Fixture DEMO (buoc chuan bi CRM doc tests\fixtures, kiem SHA da pin tren byte cua repo chinh). Worktree tao bang git KHONG co du:
-# .gitignore loai *.xml/*.zip (19 tep m2_invoice_xml/l11_quantity chi co o repo chinh) va core.autocrlf=true doi LF/CRLF khac byte da pin.
-# Dong bo tu repo chinh CHI cac tep thieu hoac khac nhau duy nhat o xuong dong; tep khac noi dung that thi giu nguyen.
+# Byte-pin DEMO (buoc chuan bi CRM doc tests\fixtures; M4 doc ma nguon vendored src\kho_tri_thuc\m4\review_goc: SHA da pin tren byte cua repo chinh).
+# Worktree tao bang git KHONG co du: .gitignore loai *.xml/*.zip (19 tep m2_invoice_xml/l11_quantity chi co o repo chinh) va core.autocrlf=true doi
+# LF/CRLF khac byte da pin (L0-6: 20/21 tep review_goc bi CRLF -> M4_NGUON_REVIEW_SAI_PIN 503 o tham-so/sua va moi lenh dung loi nguon Review).
+# Dong bo tu repo chinh CHI cac tep thieu hoac khac nhau duy nhat o xuong dong; tep khac noi dung that thi giu nguyen va duoc bao.
 if (-not $KhongCrm -and ($kttWt -ne $kttMain)) {
-    $kttFxMain = Join-Path $kttMain 'tests\fixtures'
-    $kttFxWt = Join-Path $kttWt 'tests\fixtures'
-    if (Test-Path -LiteralPath $kttFxMain -PathType Container) {
+    $kttDuoiVanBan = @('.json', '.xml', '.txt', '.csv', '.md', '.toml', '.py', '.js', '.html', '.css')
+    foreach ($kttThuMuc in @(@('tests\fixtures', 'Fixture DEMO', 'FIXTURE_PIN'), @('src\kho_tri_thuc\m4\review_goc', 'Ma nguon Review M4 (review_goc)', 'M4_NGUON_REVIEW_SAI_PIN'))) {
+        $kttFxMain = Join-Path $kttMain $kttThuMuc[0]
+        $kttFxWt = Join-Path $kttWt $kttThuMuc[0]
+        if (-not (Test-Path -LiteralPath $kttFxMain -PathType Container)) { continue }
         $kttThem = 0; $kttSuaEol = 0; $kttGiu = @()
-        $kttDuoiVanBan = @('.json', '.xml', '.txt', '.csv', '.md', '.toml')
-        foreach ($kttF in (Get-ChildItem -LiteralPath $kttFxMain -Recurse -File)) {
+        foreach ($kttF in (Get-ChildItem -LiteralPath $kttFxMain -Recurse -File | Where-Object { $_.FullName -notlike '*\__pycache__\*' })) {
             $kttRel = $kttF.FullName.Substring($kttFxMain.Length).TrimStart('\')
             $kttDst = Join-Path $kttFxWt $kttRel
             if (-not (Test-Path -LiteralPath $kttDst -PathType Leaf)) {
@@ -262,8 +306,8 @@ if (-not $KhongCrm -and ($kttWt -ne $kttMain)) {
                 if ($kttGiong) { Copy-Item -LiteralPath $kttF.FullName -Destination $kttDst -Force; $kttSuaEol++ } else { $kttGiu += $kttRel }
             }
         }
-        Write-Host ('Fixture DEMO dong bo tu repo chinh: them ' + $kttThem + ' tep thieu, dua ' + $kttSuaEol + ' tep ve dung byte da pin (chi khac xuong dong).')
-        if ($kttGiu.Count -gt 0) { Write-Host ('  CANH BAO: ' + $kttGiu.Count + ' tep fixture khac NOI DUNG voi repo chinh, giu nguyen (CRM co the loi FIXTURE_PIN): ' + ($kttGiu -join ', ')) }
+        Write-Host ($kttThuMuc[1] + ' dong bo tu repo chinh: them ' + $kttThem + ' tep thieu, dua ' + $kttSuaEol + ' tep ve dung byte da pin (chi khac xuong dong).')
+        if ($kttGiu.Count -gt 0) { Write-Host ('  CANH BAO: ' + $kttGiu.Count + ' tep khac NOI DUNG voi repo chinh, giu nguyen (co the loi ' + $kttThuMuc[2] + '): ' + ($kttGiu -join ', ')) }
     }
 }
 
