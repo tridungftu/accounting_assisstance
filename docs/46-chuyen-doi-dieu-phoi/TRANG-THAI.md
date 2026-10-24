@@ -6,14 +6,15 @@ Trạng thái lát: Đang code → Chờ kiểm → Chờ Anh (cổng A/B) → S
 
 | Lát | Việc | Worker | Nhánh · worktree | Giao lúc | Trạng thái |
 |---|---|---|---|---|---|
-| BG-1b | CRM · Báo giá gói 1 màn hình (BG-01…05) → cổng A | Claude Sonnet | `lat/bg-1b` (từ `lat/bg-1a`) · `.claude/worktrees/lat-bg-1b` · DEMO cổng 8784, CSDL riêng `p8784` | 24/10 | Đang code |
+| BG-1b | CRM · Báo giá gói 1 màn hình (BG-01…05) → cổng A | Claude Sonnet | `lat/bg-1b` (từ `lat/bg-1a`) · `.claude/worktrees/lat-bg-1b` · DEMO cổng 8784, CSDL riêng `p8784` | 24/10 | Đang code — bị ngắt 1 lần (đứng 600 giây), đã nối lại; đã gộp BG-1a vòng 2; server DEMO 8784 đang chạy |
 | M2c | M2-00 · nhận hóa đơn theo manifest qua đường nhận K2 sẵn có (ca M2-00-03/-04/-05/-10) | Codex | `lat/m2c` · `.claude/worktrees/lat-m2c` | 24/10 | Đang code |
-| L0-2c | M4 · Nghiệm thu & chi phí dự án: gộp backend duyệt/PDF + đăng ký M0026/M0027 | Codex + lead | `lat/l0-2c` · `.claude/worktrees/lat-l0-2c` | 24/10 | Chờ kiểm — lượt 1 không mã lỗi mới (ERROR 25→16); lượt 2 (27 migration, chỉ append) lead đang chạy test |
+| L0-3c | Cập nhật test lỗi thời (N5): đếm cứng số migration, khẳng định trạng thái cũ, kết nối giả thiếu hàm — không nới ý nghĩa test | Codex | `lat/l0-3c` · `.claude/worktrees/lat-l0-3c` | 24/10 | Đang code |
 
 ## Lát đã xong (24/10)
 
 | Lát | Kết quả | Gộp vào hop-nhat |
 |---|---|---|
+| L0-2c | M4 · Nghiệm thu & chi phí dự án: gộp backend duyệt/PDF (13 xung đột, giữ HN mới hơn) + đăng ký M0026/M0027 (27 migration, chỉ append); ok 728→757, ERROR 27→18; Request M4 103/0 | c4deb00 |
 | BG-1a | CRM · Báo giá gói 1 máy chủ: ô thông minh, ghi đè tổng có cảnh báo + nhật ký, nhãn tên, mốc chuẩn; vòng 2: % xấp xỉ cho dòng nhập tiền, chặn Chuyển ở máy chủ, định dạng tiền, số kiểu Việt; 85 đạt, 0 lỗi mới | 5a8042a |
 | M2b | M2-00 · đọc/kiểm manifest + POLICY-TIENTE-01 v1 (ca M2-00-06, -10, 3 ràng buộc); review Claude Đạt, vòng 2 sửa 2 điểm lệch TL 43 §6; 67/67 | 4e1f6bb |
 | L0-4b | CSDL CRM DEMO riêng cho lập trình (`-CsdlRieng`); CSDL DEMO của Anh không đổi (schema 23, băm trước = sau) | 550f573 |
@@ -34,12 +35,13 @@ Worktree đo nền: `.claude/worktrees/nen-chinh-59b7d8e` (chinh) · `.claude/wo
 | File | Lát giữ |
 |---|---|
 | `src\kho_tri_thuc\giao_dien\server.py` | — |
-| `giao_dien\m4.py` | L0-2c |
+| `giao_dien\m4.py` | — |
 | `giao_dien\assets\app.js`, `index.html` | — |
-| `ha_tang\pg_migrations.py` | L0-2c (lượt 2) |
+| `ha_tang\pg_migrations.py` | — |
 | `giao_dien\crm_g.py`, `k2\crm_giao_ket.py` | — |
 | `giao_dien\assets\crm_g.js`, `style.css` | BG-1b |
-| `m4\*` dùng chung (`duyet_dot.py`, `fixtures_m4.py`, `m4_demo.py`, `xay_dung.py`) | L0-2c |
+| `m4\*` dùng chung | — |
+| `tests\` (chỉ test lỗi thời N5) | L0-3c |
 | `tools\mo_demo_worktree.ps1`, `CLAUDE.md` | lead |
 
 ## Màn hình / module chờ Anh
