@@ -15,10 +15,15 @@ không mặc định cổng, không redirect, không LAN; thiếu → NOT_READY.
 an toàn Windows; ID logic giữ trong 00_yeu_cau.json) lưu bytes + yêu cầu gốc, lượt (create common idempotent ở nguồn — FIX01 F2),
 phản hồi start và raw kết quả (write_immutable). Thử lại CÙNG ý định đối soát lượt/kết quả đã biết; khác body/catalog/mã → xung đột; kết nối
 đứt sau khi gửi lệnh có hiệu lực → ChuaRo (UNKNOWN), không tự tạo/chạy lại khi chưa rõ. Lệnh start nguồn idempotent theo request_id+body.
+
+SOURCE6-G5-E5 (CODE_ONLY): biến thể tagged `doi_chieu_ban_ky` trên CÙNG lifecycle/loopback/token/ý định bền — `doi_chieu_ban_ky()` gửi đúng 13
+khóa (8 legacy + signed_pdf_sha256/expected/expected_sha256/catalog_binding/catalog_binding_sha256) cho MỘT PDF ký gốc; body SHA E5 phủ đủ 13 khóa,
+legacy vẫn 8 khóa. Kết quả nhận thêm `g5` (CRM_G5_COMPARE_RESULT_V1) đã kiểm typed; không bao giờ dùng phán quyết substring cũ để KHỚP.
 """
 
 from __future__ import annotations
 
+import datetime
 import http.client
 import json
 import os
@@ -42,6 +47,34 @@ RE_LUOT = re.compile(r"\d{8}_\d{6}(?:_\d+)?")
 TRANG_THAI_XONG = ("xong",)
 TRANG_THAI_HONG = ("loi", "da_dung")
 THAM_SO_KEYS = ("ma", "nhom", "tham_so", "gia_tri", "don_vi", "dieu_khoan", "trich_dan", "ghi_chu", "kiem_tra", "vi_tri_do_duoc")
+KHOA_COMMON = ("contract", "mode", "loai_hop_dong", "catalog_id", "catalog_sha256", "source_sha256", "request_id", "tham_so")
+
+# SOURCE6-G5-E5 — contract đối chiếu bản ký (tagged variant, KHÔNG đổi MODE toàn cục)
+MODE_E5 = "doi_chieu_ban_ky"
+KHOA_E5 = KHOA_COMMON + ("signed_pdf_sha256", "expected", "expected_sha256", "catalog_binding", "catalog_binding_sha256")
+KIEU_EXPECTED, KIEU_BINDING, KIEU_G5 = "CRM_G5_EXPECTED_V1", "CRM_G5_CATALOG_BINDING_V1", "CRM_G5_COMPARE_RESULT_V1"
+KIEU_NANG_LUC_E5 = "nang_luc_e5/v1"
+KIEU_GIA_TRI_E5 = ("text", "so", "ngay", "tien", "bang")
+TRANG_THAI_G5 = ("KHOP", "LECH", "CHUA_DOI_CHIEU_DUOC")
+NGUON_DOC_E5 = ("PDF_LOP_CHU", "OCR_DOCX")
+RE_HEX64 = re.compile(r"[0-9a-f]{64}")
+RE_UUID = re.compile(r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}")
+RE_SO_E5 = re.compile(r"-?(?:0|[1-9]\d*)(?:\.\d*[1-9])?")   # thập phân canonical: không 0 đầu/thừa, không mũ, không '+'
+RE_NGAY_E5 = re.compile(r"\d{4}-\d{2}-\d{2}")
+RE_TIEN_TE = re.compile(r"[A-Z]{3}")
+LINEAGE_UUID = ("ky_id", "hop_dong_id", "soan_id", "xuat_id", "mau_phien_ban_id", "anh_xa_id")
+LINEAGE_HEX = ("g3_input_sha256", "g3_docx_sha256", "g3_pdf_sha256", "ban_do_sha256", "danh_muc_digest", "profile_sha256", "du_lieu_sha256")
+LINEAGE_INT = ("revision", "danh_muc_rev")
+KHOA_LINEAGE = frozenset(LINEAGE_UUID + LINEAGE_HEX + LINEAGE_INT + ("danh_muc_ref",))
+BINDING_LINEAGE = ("danh_muc_ref", "danh_muc_rev", "danh_muc_digest", "mau_phien_ban_id", "profile_sha256")
+KHOA_BINDING = frozenset(("kieu", "loai_hop_dong", "catalog_id", "catalog_sha256", "mapping") + BINDING_LINEAGE)
+KHOA_G5 = frozenset(("kieu", "source_sha256", "signed_pdf_sha256", "expected_sha256", "catalog_binding_sha256", "g3_pdf_sha256", "coverage",
+                     "trang_thai", "khop", "lech", "thieu", "nguon_doc"))
+KHOA_G5_KHOP = frozenset(("ma", "muc", "kieu", "gia_tri", "trich_dan", "vi_tri_do_duoc"))
+KHOA_G5_LECH = frozenset(("ma", "muc", "kieu", "gia_tri_ky_vong", "gia_tri_ban_ky", "trich_dan", "vi_tri_do_duoc"))
+KHOA_G5_THIEU = frozenset(("ma", "muc", "kieu", "ly_do", "gia_tri_ky_vong", "mot_phan"))
+KHOA_NGUON_DOC = frozenset(("kieu", "pdf_sha256", "ocr_docx_sha256", "so_trang", "loi"))
+KHOA_VI_TRI = frozenset(("nguon", "pdf_sha256", "ocr_docx_sha256", "trang", "dong"))
 
 
 class LoiNguon(DataError):
@@ -96,9 +129,151 @@ def yeu_cau_common(*, source_sha256: str, loai_hop_dong: str, tham_so, request_i
 
 
 def body_sha256(yc: dict) -> str:
-    """FIX03 R2: hash body canonical của ý định — CÙNG quy tắc nguồn (JSON sort_keys, không khoảng trắng, UTF-8) trên đúng tám trường contract."""
-    return sha256(canonical_json({k: yc[k] for k in ("contract", "mode", "loai_hop_dong", "catalog_id", "catalog_sha256", "source_sha256",
-                                                     "request_id", "tham_so")}).encode("utf-8"))
+    """FIX03 R2: hash body canonical của ý định — CÙNG quy tắc nguồn (JSON sort_keys, không khoảng trắng, UTF-8) trên đúng tám trường contract.
+    SOURCE6-G5-E5: chỉ thân tagged mode `doi_chieu_ban_ky` băm đủ 13 khóa; mọi thân khác giữ đúng tám khóa legacy."""
+    khoa = KHOA_E5 if yc.get("mode") == MODE_E5 else KHOA_COMMON
+    return sha256(canonical_json({k: yc[k] for k in khoa}).encode("utf-8"))
+
+
+# ================================================================================================== SOURCE6-G5-E5 — hình thức typed
+def _sai_e5(ma: str, thong_bao: str) -> DataError:
+    return DataError("TRICH6_E5_" + ma, thong_bao)
+
+
+def _la_int(v, toi_thieu: int, toi_da: int | None = None) -> bool:
+    return isinstance(v, int) and not isinstance(v, bool) and v >= toi_thieu and (toi_da is None or v <= toi_da)
+
+
+def _la_so_e5(s) -> bool:
+    return isinstance(s, str) and RE_SO_E5.fullmatch(s) is not None and s != "-0"
+
+
+def _gia_tri_don_e5(kieu: str, v) -> bool:
+    """Giá trị đơn typed: text = chuỗi không rỗng; ngay = ISO YYYY-MM-DD có thật; so = {so, don_vi|null}; tien = {so, tien_te ISO-4217 3 chữ hoa}.
+    Số là chuỗi thập phân canonical (0 hợp lệ, KHÁC null); không suy VAT/FX/% hay đổi đơn vị."""
+    if kieu == "text":
+        return isinstance(v, str) and v.strip() != ""
+    if kieu == "ngay":
+        if not isinstance(v, str) or not RE_NGAY_E5.fullmatch(v):
+            return False
+        try:
+            datetime.date.fromisoformat(v)
+        except ValueError:
+            return False
+        return True
+    if kieu == "so":
+        return isinstance(v, dict) and set(v) == {"so", "don_vi"} and _la_so_e5(v["so"]) and \
+            (v["don_vi"] is None or (isinstance(v["don_vi"], str) and v["don_vi"] != "" and v["don_vi"] == v["don_vi"].strip()))
+    if kieu == "tien":
+        return isinstance(v, dict) and set(v) == {"so", "tien_te"} and _la_so_e5(v["so"]) and \
+            isinstance(v["tien_te"], str) and RE_TIEN_TE.fullmatch(v["tien_te"]) is not None
+    return False
+
+
+def gia_tri_e5_hop_le(kieu: str, v) -> bool:
+    """Giá trị typed của một mã E5. bang = {cot:[{ten,kieu}], dong:[[ô...]]}: thứ tự dòng/ô giữ nguyên, cột đầu là khóa dòng text không null và
+    duy nhất; ô null = chưa có (KHÁC 0/chuỗi rỗng không hợp lệ); kiểu ô theo cột."""
+    if kieu != "bang":
+        return kieu in KIEU_GIA_TRI_E5 and _gia_tri_don_e5(kieu, v)
+    if not isinstance(v, dict) or set(v) != {"cot", "dong"} or not isinstance(v["cot"], list) or not v["cot"] \
+            or not isinstance(v["dong"], list) or not v["dong"]:
+        return False
+    cot = v["cot"]
+    if any(not isinstance(c, dict) or set(c) != {"ten", "kieu"} or not isinstance(c["ten"], str) or not c["ten"].strip()
+           or c["kieu"] not in ("text", "so", "ngay", "tien") for c in cot):
+        return False
+    if len({c["ten"] for c in cot}) != len(cot) or cot[0]["kieu"] != "text":
+        return False
+    khoa = []
+    for r in v["dong"]:
+        if not isinstance(r, list) or len(r) != len(cot) or r[0] is None:
+            return False
+        if any(x is not None and not _gia_tri_don_e5(c["kieu"], x) for c, x in zip(cot, r)):
+            return False
+        khoa.append(r[0])
+    return len(set(khoa)) == len(khoa)
+
+
+def kiem_expected(expected) -> dict:
+    """`expected` CRM_G5_EXPECTED_V1: khóa ĐÚNG, lineage UUID/int>=1/HEX64/text, tham_so không rỗng {ma,kieu,gia_tri} mã duy nhất, giá trị typed.
+    Chỉ kiểm cấu trúc — client KHÔNG đọc CRM DB, không dựng expected."""
+    if not isinstance(expected, dict) or set(expected) != {"kieu", "lineage", "tham_so"} or expected.get("kieu") != KIEU_EXPECTED:
+        raise _sai_e5("EXPECTED_SAI", "expected phải đúng {kieu=CRM_G5_EXPECTED_V1, lineage, tham_so}.")
+    ln = expected["lineage"]
+    if not isinstance(ln, dict) or set(ln) != KHOA_LINEAGE:
+        raise _sai_e5("LINEAGE_SAI", "expected.lineage thiếu/thừa trường.")
+    for k in LINEAGE_UUID:
+        if not isinstance(ln[k], str) or not RE_UUID.fullmatch(ln[k]):
+            raise _sai_e5("LINEAGE_SAI", f"expected.lineage.{k} phải là UUID chữ thường.")
+    for k in LINEAGE_HEX:
+        if not isinstance(ln[k], str) or not RE_HEX64.fullmatch(ln[k]):
+            raise _sai_e5("LINEAGE_SAI", f"expected.lineage.{k} phải là SHA-256 hex.")
+    for k in LINEAGE_INT:
+        if not _la_int(ln[k], 1):
+            raise _sai_e5("LINEAGE_SAI", f"expected.lineage.{k} phải là số nguyên >= 1.")
+    if not isinstance(ln["danh_muc_ref"], str) or not ln["danh_muc_ref"].strip() or len(ln["danh_muc_ref"]) > 200:
+        raise _sai_e5("LINEAGE_SAI", "expected.lineage.danh_muc_ref phải là chuỗi không rỗng.")
+    ts = expected["tham_so"]
+    if not isinstance(ts, list) or not ts:
+        raise _sai_e5("EXPECTED_RONG", "expected.tham_so phải là danh sách không rỗng.")
+    ma = []
+    for t in ts:
+        if not isinstance(t, dict) or set(t) != {"ma", "kieu", "gia_tri"} or not isinstance(t["ma"], str) or not t["ma"].strip() \
+                or t["ma"] != t["ma"].strip():
+            raise _sai_e5("EXPECTED_SAI", "Mỗi expected.tham_so phải đúng {ma, kieu, gia_tri}, mã là chuỗi.")
+        if t["kieu"] not in KIEU_GIA_TRI_E5:
+            raise _sai_e5("KIEU_SAI", f"Mã {t['ma']}: kiểu {t['kieu']!r} không thuộc text/so/ngay/tien/bang.")
+        if not gia_tri_e5_hop_le(t["kieu"], t["gia_tri"]):
+            raise _sai_e5("GIA_TRI_SAI", f"Mã {t['ma']}: giá trị không đúng kiểu {t['kieu']} canonical.")
+        ma.append(t["ma"])
+    if len(set(ma)) != len(ma):
+        raise _sai_e5("EXPECTED_TRUNG", "expected.tham_so có mã trùng.")
+    return expected
+
+
+def kiem_binding(binding, *, loai_hop_dong: str, lineage: dict) -> dict:
+    """`catalog_binding` CRM_G5_CATALOG_BINDING_V1: loại/catalog khớp catalog đã ghim của client; danh mục/mẫu/profile khớp expected.lineage (cùng
+    kiểu); mapping không rỗng {ma, crm_truong, muc 0..3} mã duy nhất. Mức so với catalog ghim do NGUỒN kiểm (không default 2)."""
+    cat = CATALOG[loai_hop_dong]
+    if not isinstance(binding, dict) or set(binding) != KHOA_BINDING or binding.get("kieu") != KIEU_BINDING:
+        raise _sai_e5("BINDING_SAI", "catalog_binding phải đúng khóa CRM_G5_CATALOG_BINDING_V1.")
+    if (binding["loai_hop_dong"], binding["catalog_id"], binding["catalog_sha256"]) != (loai_hop_dong, cat["catalog_id"], cat["catalog_sha256"]):
+        raise _sai_e5("BINDING_CATALOG", "catalog_binding khác loại/catalog đã ghim.")
+    for k in BINDING_LINEAGE:
+        if type(binding[k]) is not type(lineage[k]) or binding[k] != lineage[k]:
+            raise _sai_e5("BINDING_LINEAGE", f"catalog_binding.{k} khác expected.lineage.")
+    mp = binding["mapping"]
+    if not isinstance(mp, list) or not mp:
+        raise _sai_e5("BINDING_MAPPING", "catalog_binding.mapping phải là danh sách không rỗng.")
+    for m in mp:
+        if not isinstance(m, dict) or set(m) != {"ma", "crm_truong", "muc"} or not isinstance(m["ma"], str) or not m["ma"].strip() \
+                or not isinstance(m["crm_truong"], str) or not m["crm_truong"].strip() or not _la_int(m["muc"], 0, 3):
+            raise _sai_e5("BINDING_MAPPING", "Mỗi mapping phải đúng {ma, crm_truong, muc 0..3}.")
+    if len({m["ma"] for m in mp}) != len(mp):
+        raise _sai_e5("BINDING_TRUNG", "catalog_binding.mapping có mã trùng.")
+    return binding
+
+
+def yeu_cau_e5(*, signed_pdf_sha256: str, loai_hop_dong: str, tham_so, request_id: str, expected, expected_sha256, catalog_binding,
+               catalog_binding_sha256) -> dict:
+    """Body start E5 tường minh 13 khóa. source_sha256 = signed_pdf_sha256 (PDF ký gốc, do client tự băm bytes). Tập mã yêu cầu = mã expected =
+    mã mapping (không 'ALL'); SHA expected/binding tính lại canonical phải khớp SHA caller truyền. Lỗi → DataError TRƯỚC mọi side effect."""
+    base = yeu_cau_common(source_sha256=signed_pdf_sha256, loai_hop_dong=loai_hop_dong, tham_so=tham_so, request_id=request_id)
+    if base["tham_so"] == "ALL":
+        raise _sai_e5("THAM_SO_ALL", "Đối chiếu bản ký cần danh sách mã tường minh (= mã expected/mapping), không 'ALL'.")
+    kiem_expected(expected)
+    kiem_binding(catalog_binding, loai_hop_dong=loai_hop_dong, lineage=expected["lineage"])
+    ma_yc, ma_exp = set(base["tham_so"]), {t["ma"] for t in expected["tham_so"]}
+    if not ma_yc == ma_exp == {m["ma"] for m in catalog_binding["mapping"]}:
+        raise _sai_e5("MA_KHAC", "Tập mã yêu cầu, expected.tham_so và catalog_binding.mapping phải trùng nhau.")
+    for ten, obj, h in (("expected", expected, expected_sha256), ("catalog_binding", catalog_binding, catalog_binding_sha256)):
+        if not isinstance(h, str) or not RE_HEX64.fullmatch(h):
+            raise _sai_e5("SHA_SAI", f"{ten}_sha256 phải là SHA-256 hex.")
+        if sha256(canonical_json(obj).encode("utf-8")) != h:
+            raise _sai_e5("SHA_KHAC", f"{ten}_sha256 khác SHA canonical của {ten}.")
+    return {**base, "mode": MODE_E5, "signed_pdf_sha256": signed_pdf_sha256,
+            "expected": json.loads(canonical_json(expected)), "expected_sha256": expected_sha256,
+            "catalog_binding": json.loads(canonical_json(catalog_binding)), "catalog_binding_sha256": catalog_binding_sha256}
 
 
 def seal_hop_le(cm, luot: str, yc: dict) -> dict | None:
@@ -119,6 +294,13 @@ def seal_hop_le(cm, luot: str, yc: dict) -> dict | None:
     if (cm.get("request_id"), cm.get("body_sha256")) != (yc["request_id"], body_sha256(yc)):
         return None
     return s
+
+
+def seal_e5_hop_le(seal: dict, yc: dict, g5: dict) -> bool:
+    """SOURCE6-G5-E5: niêm phong của lượt đối chiếu phải mang ĐÚNG mode/SHA vai trò/expected/binding và trạng thái+coverage g5 của raw đã tải."""
+    return isinstance(seal, dict) and seal.get("mode") == MODE_E5 and seal.get("signed_pdf_sha256") == yc["signed_pdf_sha256"] \
+        and seal.get("expected_sha256") == yc["expected_sha256"] and seal.get("catalog_binding_sha256") == yc["catalog_binding_sha256"] \
+        and seal.get("g5_trang_thai") == g5["trang_thai"] and seal.get("g5_coverage") == g5["coverage"]
 
 
 _RE_TIEN_TO_O = re.compile(r"\\\\\?\\([A-Za-z]:\\)")
@@ -269,6 +451,27 @@ class Trich6Client:
             raise sai(f"loại {loai_hop_dong}/catalog đã ghim")
         return v
 
+    def nang_luc_e5(self, loai_hop_dong: str) -> dict:
+        """SOURCE6-G5-E5 — preflight CHỈ ĐỌC: common/v1 đạt như trên VÀ nguồn công bố mode `doi_chieu_ban_ky` + khối `e5` typed sẵn sàng cho đúng
+        loại/catalog đã ghim, có implementation E5 và ít nhất một bộ trích đã đăng ký. Không đạt → DataError TRICH6_KHONG_HO_TRO_E5 trước side effect."""
+        v = self.nang_luc(loai_hop_dong)
+
+        def sai(ly_do):
+            return DataError("TRICH6_KHONG_HO_TRO_E5", f"Preflight đối chiếu bản ký không đạt: {ly_do} — không tạo/tải/chạy.")
+        if MODE_E5 not in v["modes"]:
+            raise sai("mode doi_chieu_ban_ky")
+        e5 = v.get("e5")
+        if not isinstance(e5, dict) or e5.get("kieu") != KIEU_NANG_LUC_E5 or e5.get("san_sang") is not True:
+            raise sai("khối e5 chưa sẵn sàng")
+        if not isinstance(e5.get("implementation_sha256"), str) or not RE_HEX64.fullmatch(e5["implementation_sha256"]):
+            raise sai("implementation E5")
+        lo = e5.get("loai")
+        mot = lo.get(loai_hop_dong) if isinstance(lo, dict) else None
+        if not isinstance(mot, dict) or mot.get("san_sang") is not True or mot.get("catalog_sha256") != CATALOG[loai_hop_dong]["catalog_sha256"] \
+                or not isinstance(mot.get("bo_trich"), dict) or not mot["bo_trich"]:
+            raise sai(f"loại {loai_hop_dong}: catalog/bộ trích E5")
+        return v
+
     def tao_luot(self, yeu_cau: dict | None = None) -> str:
         """FIX01 F2: có `yeu_cau` → create common/v1 idempotent ở route create sẵn có ({contract, request_id, yeu_cau}): nguồn ghi bền ý định trước
         ACK, thử lại cùng ý định trả ĐÚNG lượt cũ, khác body → 409. Không có → body {} cũ (một lượt mới mỗi lần).
@@ -339,6 +542,30 @@ class Trich6Client:
         if not ten_tep.lower().endswith(".docx"):
             raise DataError("TRICH6_CHI_DOCX", "Engine common/v1 chỉ nhận đúng một tệp .docx.")
         yc = yeu_cau_common(source_sha256=sha256(bytes(raw)), loai_hop_dong=loai_hop_dong, tham_so=tham_so, request_id=request_id)
+        luot, raw_kq, h_kq, kq, _seal = self._vong_doi(raw, ten_tep=ten_tep, yc=yc, duoi="docx", preflight=lambda: self.nang_luc(loai_hop_dong))
+        common = kiem_ket_qua(kq, yc)
+        return {"luot": luot, "raw_ket_qua": raw_kq, "raw_sha256": h_kq, "ket_qua": kq, "common": common, "yeu_cau": yc}
+
+    def doi_chieu_ban_ky(self, raw: bytes, *, ten_tep: str, loai_hop_dong: str, tham_so, request_id: str, expected, expected_sha256,
+                         catalog_binding, catalog_binding_sha256) -> dict:
+        """SOURCE6-G5-E5 — đối chiếu MỘT PDF ký gốc với expected/binding do caller server tin cậy dựng (CRM-B). SHA PDF ký tự băm từ bytes (không tin
+        SHA người dùng); body tagged 13 khóa; CÙNG vòng đời ý định bền/preflight/UNKNOWN với `trich`. Trả cùng envelope `trich` + `g5` đã kiểm typed
+        (KHOP/LECH/CHUA_DOI_CHIEU_DUOC) và niêm phong E5 khớp. Không bao giờ suy KHỚP từ phán quyết substring cũ."""
+        if not isinstance(ten_tep, str) or not ten_tep.lower().endswith(".pdf") or not bytes(raw).startswith(b"%PDF"):
+            raise DataError("TRICH6_E5_CHI_PDF", "Đối chiếu bản ký chỉ nhận đúng một tệp PDF ký gốc (.pdf, bytes %PDF).")
+        yc = yeu_cau_e5(signed_pdf_sha256=sha256(bytes(raw)), loai_hop_dong=loai_hop_dong, tham_so=tham_so, request_id=request_id,
+                        expected=expected, expected_sha256=expected_sha256, catalog_binding=catalog_binding,
+                        catalog_binding_sha256=catalog_binding_sha256)
+        luot, raw_kq, h_kq, kq, seal = self._vong_doi(raw, ten_tep=ten_tep, yc=yc, duoi="pdf", preflight=lambda: self.nang_luc_e5(loai_hop_dong))
+        common, g5 = kiem_ket_qua_e5(kq, yc)
+        if not seal_e5_hop_le(seal, yc, g5):
+            raise DataError("TRICH6_E5_NIEM_PHONG_SAI", "Niêm phong E5 không khớp mode/SHA vai trò/trạng thái g5 của kết quả — không nhận.")
+        return {"luot": luot, "raw_ket_qua": raw_kq, "raw_sha256": h_kq, "ket_qua": kq, "common": common, "yeu_cau": yc, "g5": g5}
+
+    def _vong_doi(self, raw: bytes, *, ten_tep: str, yc: dict, duoi: str, preflight) -> tuple:
+        """Vòng đời DÙNG CHUNG (nguyên thân `trich` trước SOURCE6-G5-E5): tra ý định chỉ đọc → kiểm cấu hình theo giai đoạn → preflight → giữ bytes +
+        yêu cầu → create/upload/start/chờ niêm phong/tải raw. Trả (luot, raw, sha raw, kq dict, seal)."""
+        request_id = yc["request_id"]
         d = self._thu_muc(request_id)
         goc = None
         if d is not None:  # FIX05 R2: tra ý định bền CHỈ ĐỌC trước preflight (không ghi gì)
@@ -351,7 +578,7 @@ class Trich6Client:
                                                "khi engine sẵn sàng.")
             self._can_san_sang()  # ý định mới: lỗi rõ, zero POST, không ghi ý định
         try:
-            self.nang_luc(loai_hop_dong)  # FIX04 R5: preflight chỉ đọc TRƯỚC mọi create/upload/start; không đạt → lỗi rõ trước side effect
+            preflight()  # FIX04 R5: preflight chỉ đọc TRƯỚC mọi create/upload/start; không đạt → lỗi rõ trước side effect
         except DataError as exc:
             if goc is not None:
                 # FIX05 R2: ý định này ĐÃ được giữ bền (create có thể đã có hiệu lực ở nguồn) → preflight/engine không sẵn sàng lúc này KHÔNG phải lỗi
@@ -361,7 +588,7 @@ class Trich6Client:
             raise
         if d is not None:  # bytes gốc + yêu cầu gốc giữ TRƯỚC mọi tác động ra nguồn
             if goc is None:
-                write_immutable(d / f"01_nguon_{yc['source_sha256']}.docx", bytes(raw))
+                write_immutable(d / f"01_nguon_{yc['source_sha256']}.{duoi}", bytes(raw))
                 write_immutable(d / "00_yeu_cau.json", canonical_json({"request_id": request_id, "yeu_cau": yc}).encode("utf-8"))
         try:
             luot = self.tao_luot(yc)
@@ -408,8 +635,7 @@ class Trich6Client:
             kq = json.loads(raw_kq.decode("utf-8"))
         except (ValueError, UnicodeDecodeError):
             raise DataError("TRICH6_KET_QUA_SAI", "Kết quả engine #6 không phải JSON.") from None
-        common = kiem_ket_qua(kq, yc)
-        return {"luot": luot, "raw_ket_qua": raw_kq, "raw_sha256": h_kq, "ket_qua": kq, "common": common, "yeu_cau": yc}
+        return luot, raw_kq, h_kq, kq, seal
 
     def _cho_xong(self, luot: str, yc: dict) -> tuple[dict, dict]:
         """FIX03 R1: chỉ nhận khi trạng thái common 'done' CÓ niêm phong hợp lệ đúng ý định. Top-level xong, thiếu common hoặc thiếu/sai niêm phong
@@ -453,6 +679,130 @@ def kiem_ket_qua(kq: dict, yc: dict) -> dict:
     if sorted(d.get("ma") for d in kq["bang"]) != sorted(dung):
         raise DataError("TRICH6_KET_QUA_KHAC_YEU_CAU", "bang[] không đúng tập mã đã dùng.")
     return cm
+
+
+# ================================================================================================== SOURCE6-G5-E5 — kiểm kết quả đối chiếu
+TrichChung6 = Trich6Client  # tên contract E5 (`TrichChung6.doi_chieu_ban_ky`) — CÙNG một client, không lớp thứ hai
+
+
+def _canon_e5(x) -> str | None:
+    try:
+        return canonical_json(x)
+    except (TypeError, ValueError):
+        return None
+
+
+def kiem_ket_qua_e5(kq: dict, yc: dict) -> tuple[dict, dict]:
+    """Raw E5 phải mang bản chụp đúng 13 trường của CHÍNH yêu cầu (expected/binding so canonical, không so lỏng bool/int), che_do RULE_ONLY của
+    engine + mode E5 trong common, đúng tập mã; rồi `g5` qua `kiem_g5`. Trả (common, g5)."""
+    if not isinstance(kq, dict) or not isinstance(kq.get("bang"), list):
+        raise DataError("TRICH6_KET_QUA_SAI", "Kết quả engine #6 thiếu bang[].")
+    cm = kq.get("common")
+    if not isinstance(cm, dict):
+        raise DataError("TRICH6_KET_QUA_KHONG_COMMON", "Kết quả không mang bản chụp common/v1 — không nhận.")
+    for k in ("contract", "request_id", "source_sha256", "catalog_sha256", "loai_hop_dong", "catalog_id", "signed_pdf_sha256", "expected_sha256",
+              "catalog_binding_sha256"):
+        if cm.get(k) != yc[k]:
+            raise DataError("TRICH6_KET_QUA_KHAC_YEU_CAU", f"Bản chụp kết quả khác yêu cầu ở trường {k}.")
+    for k in ("expected", "catalog_binding"):
+        if _canon_e5(cm.get(k)) != canonical_json(yc[k]):
+            raise DataError("TRICH6_KET_QUA_KHAC_YEU_CAU", f"Bản chụp kết quả khác {k} đã gửi.")
+    if cm.get("body_sha256") != body_sha256(yc):
+        raise DataError("TRICH6_KET_QUA_KHAC_YEU_CAU", "Bản chụp kết quả khác body canonical 13 khóa của yêu cầu.")
+    if kq.get("che_do") != MODE or cm.get("mode") != MODE_E5:
+        raise DataError("TRICH6_KET_QUA_KHAC_YEU_CAU", "Kết quả không phải đối chiếu bản ký (RULE_ONLY + doi_chieu_ban_ky).")
+    dung = cm.get("tham_so_da_dung")
+    if not isinstance(dung, list) or sorted(x for x in dung if isinstance(x, str)) != sorted(yc["tham_so"]) or len(dung) != len(yc["tham_so"]):
+        raise DataError("TRICH6_KET_QUA_KHAC_YEU_CAU", "Tập mã đã dùng khác tập mã đã yêu cầu.")
+    if sorted(str(d.get("ma")) if isinstance(d, dict) else "" for d in kq["bang"]) != sorted(dung):
+        raise DataError("TRICH6_KET_QUA_KHAC_YEU_CAU", "bang[] không đúng tập mã đã dùng.")
+    return cm, kiem_g5(kq.get("g5"), yc)
+
+
+def kiem_g5(g5, yc: dict) -> dict:
+    """`g5` CRM_G5_COMPARE_RESULT_V1 kiểm typed so với CHÍNH yêu cầu: SHA vai trò (PDF ký = source; G3 PDF riêng từ lineage), coverage = mã expected
+    theo thứ tự, mỗi mã đúng MỘT trong khop/lech/thieu với kiểu/mức = expected/binding, giá trị kỳ vọng = expected (canonical); khop/lech cần trích dẫn +
+    vị trí truy về đúng PDF gốc (trang chỉ khi đọc lớp chữ PDF; OCR không bịa trang). Trạng thái: thiếu bất kỳ → CHUA_DOI_CHIEU_DUOC (giữ lệch một
+    phần); đủ mà ≥1 lệch → LECH; đủ và 0 lệch → KHOP. Sai bất kỳ → DataError (không nhận)."""
+    def sai(ly_do):
+        return DataError("TRICH6_E5_G5_SAI", f"Kết quả g5 không hợp lệ: {ly_do} — không nhận.")
+    if not isinstance(g5, dict) or set(g5) != KHOA_G5 or g5.get("kieu") != KIEU_G5:
+        raise sai("kiểu/khóa")
+    ln = yc["expected"]["lineage"]
+    if (g5["source_sha256"], g5["signed_pdf_sha256"], g5["expected_sha256"], g5["catalog_binding_sha256"], g5["g3_pdf_sha256"]) != \
+            (yc["source_sha256"], yc["signed_pdf_sha256"], yc["expected_sha256"], yc["catalog_binding_sha256"], ln["g3_pdf_sha256"]):
+        raise sai("SHA vai trò PDF ký/expected/binding/G3")
+    ma_exp = [t["ma"] for t in yc["expected"]["tham_so"]]
+    if g5["coverage"] != ma_exp:
+        raise sai("coverage khác mã expected")
+    ky_vong = {t["ma"]: t for t in yc["expected"]["tham_so"]}
+    muc = {m["ma"]: m["muc"] for m in yc["catalog_binding"]["mapping"]}
+    nd = g5["nguon_doc"]
+    if not isinstance(nd, dict) or set(nd) != KHOA_NGUON_DOC or nd["pdf_sha256"] != yc["source_sha256"] or nd["kieu"] not in (None,) + NGUON_DOC_E5:
+        raise sai("nguon_doc")
+    if nd["loi"] is not None and (not isinstance(nd["loi"], str) or not nd["loi"].strip()):
+        raise sai("nguon_doc.loi")
+    if nd["kieu"] == "PDF_LOP_CHU":
+        if not _la_int(nd["so_trang"], 1) or nd["ocr_docx_sha256"] is not None:
+            raise sai("nguon_doc PDF lớp chữ")
+    elif nd["kieu"] == "OCR_DOCX":
+        if not isinstance(nd["ocr_docx_sha256"], str) or not RE_HEX64.fullmatch(nd["ocr_docx_sha256"]) or \
+                (nd["so_trang"] is not None and not _la_int(nd["so_trang"], 1)):
+            raise sai("nguon_doc OCR")
+    elif nd["so_trang"] is not None or nd["ocr_docx_sha256"] is not None or nd["loi"] is None:
+        raise sai("nguon_doc không đọc được phải có lỗi, không trang/OCR")
+
+    def vi_tri_ok(vt):
+        if not isinstance(vt, list) or not vt:
+            return False
+        for x in vt:
+            if not isinstance(x, dict) or set(x) != KHOA_VI_TRI or x["nguon"] != nd["kieu"] or x["pdf_sha256"] != yc["source_sha256"] \
+                    or x["ocr_docx_sha256"] != nd["ocr_docx_sha256"] or not _la_int(x["dong"], 1):
+                return False
+            if nd["kieu"] == "PDF_LOP_CHU":
+                if not _la_int(x["trang"], 1, nd["so_trang"]):
+                    return False
+            elif x["trang"] is not None:
+                return False
+        return True
+    da = []
+
+    def chung(it, khoa, nhom):
+        if not isinstance(it, dict) or set(it) != khoa:
+            raise sai(f"khóa mục {nhom}")
+        m = it["ma"]
+        if not isinstance(m, str) or m not in ky_vong or m in da:
+            raise sai(f"mã {m!r} lạ/trùng trong {nhom}")
+        da.append(m)
+        if it["kieu"] != ky_vong[m]["kieu"] or not _la_int(it["muc"], 0, 3) or it["muc"] != muc[m]:
+            raise sai(f"{m}: kiểu/mức khác expected/binding")
+        return m
+    for nhom in ("khop", "lech", "thieu"):
+        if not isinstance(g5[nhom], list):
+            raise sai(f"{nhom} không phải mảng")
+    for it in g5["khop"]:
+        m = chung(it, KHOA_G5_KHOP, "khop")
+        if nd["kieu"] is None or not gia_tri_e5_hop_le(it["kieu"], it["gia_tri"]) or \
+                canonical_json(it["gia_tri"]) != canonical_json(ky_vong[m]["gia_tri"]) or \
+                not isinstance(it["trich_dan"], str) or not it["trich_dan"].strip() or not vi_tri_ok(it["vi_tri_do_duoc"]):
+            raise sai(f"{m}: mục khớp thiếu giá trị đúng/trích dẫn/vị trí")
+    for it in g5["lech"]:
+        m = chung(it, KHOA_G5_LECH, "lech")
+        if nd["kieu"] is None or _canon_e5(it["gia_tri_ky_vong"]) != canonical_json(ky_vong[m]["gia_tri"]) or \
+                not gia_tri_e5_hop_le(it["kieu"], it["gia_tri_ban_ky"]) or canonical_json(it["gia_tri_ban_ky"]) == canonical_json(ky_vong[m]["gia_tri"]) or \
+                not isinstance(it["trich_dan"], str) or not it["trich_dan"].strip() or not vi_tri_ok(it["vi_tri_do_duoc"]):
+            raise sai(f"{m}: mục lệch thiếu giá trị bản ký typed khác kỳ vọng/trích dẫn/vị trí")
+    for it in g5["thieu"]:
+        m = chung(it, KHOA_G5_THIEU, "thieu")
+        if not isinstance(it["ly_do"], str) or not it["ly_do"].strip() or _canon_e5(it["gia_tri_ky_vong"]) != canonical_json(ky_vong[m]["gia_tri"]) \
+                or not isinstance(it["mot_phan"], list) or not all(isinstance(x, dict) for x in it["mot_phan"]):
+            raise sai(f"{m}: mục thiếu sai lý do/giá trị kỳ vọng/một phần")
+    if sorted(da) != sorted(ma_exp):
+        raise sai("coverage không đủ mỗi mã đúng một nhóm")
+    tt = "CHUA_DOI_CHIEU_DUOC" if g5["thieu"] else ("LECH" if g5["lech"] else "KHOP")
+    if g5["trang_thai"] != tt:
+        raise sai(f"trang_thai {g5['trang_thai']!r} khác {tt}")
+    return g5
 
 
 # ================================================================================================== projection DUY NHẤT bang[] → tham_so[]
