@@ -71,17 +71,17 @@ Căn cứ: lệnh của Anh 24/10 (mọi module đã chốt thiết kế; M9 d�
 | C7 | CRM 42 · S9 báo cáo, file soát | Codex + Claude | C6; tỷ lệ kiểm mẫu chờ Q-SAMPLE | — | Chờ |
 | M2a | M2-00 · = L0-2e gộp `m2-00b-fix01` | Codex | — | — | Xong (= L0-2e) |
 | M2b | M2-00 · `manifest.py`, `chinh_sach_tien_te.py` (POLICY-TIENTE-01) + ca M2-00-06/10 | Codex | — | — | Xong 24/10 — gộp 4e1f6bb (review Đạt, vòng 2 sửa 2 điểm) |
-| M2c | M2-00 · `nhan.py` nhận theo manifest (identity, revision/xung đột, KHONG_XML_GOC → bảng kê) nối `k2\hoa_don.py` | Codex | M2b | (migration nếu cần → khóa) | Chờ kiểm (review Claude vòng 1) |
-| M2d | M2-00 · `hoi_cuu.py` manifest hồi cứu 33 tháng, fixture giả | Codex | M2b | — | Chờ |
+| M2c | M2-00 · `nhan.py` nhận theo manifest (identity, revision/xung đột, KHONG_XML_GOC → bảng kê) nối `k2\hoa_don.py` | Codex | M2b | (migration nếu cần → khóa) | Xong 24/10 — gộp b190569 |
+| M2d | M2-00 · `hoi_cuu.py` manifest hồi cứu 33 tháng, fixture giả | Codex | M2b | — | Đang code (24/10, Codex) |
 | M2e | M2-00 · nút "Tải từ cổng thuế" + route + cấu hình | Claude | M2a, M2c | `server.py`, `app.js`, `index.html` | Chờ |
 | M2f | M2-00 · ca -03/-07/-09 trên cổng thật, áp bản vá vào #7 thật | Anh | M2e | — | Chờ Anh (cần lệnh riêng: gọi cổng thuế thật) |
-| E1-1 | E1-MUA · đăng ký 5 loại + DV trong `CATALOG_COMMON`, `danh_muc_theo_loai`, từ chối loại lạ; test XD nguyên trạng | Codex | L0-2f | — | Chờ |
+| E1-1 | E1-MUA · đăng ký 5 loại + DV trong `CATALOG_COMMON`, `danh_muc_theo_loai`, từ chối loại lạ; test XD nguyên trạng | Codex | L0-2f | — | Đang code (24/10, Codex; trong bản vá tools/source6_g5_e5) |
 | E1-2 | E1-MUA · quy tắc theo loại + `phien_ban_danh_muc` | Codex | E1-1 | — | Chờ |
 | E1-3 | E1-MUA · bảng TT-05/TT-20 trên `source6_docx_tables` | Codex | E1-1 | — | Chờ |
 | E1-4 | E1-MUA · màn danh mục Sửa + nhật ký; mở loại ở trích chung #6 | Claude | E1-1 | `app.js` | Chờ |
 | E1-5 | E1-MUA · áp vào #6 thật, chấm 2 hợp đồng thật offline | Anh | E1-2 | — | Chờ Anh |
 | M4-2 | M4 · Nghiệm thu & chi phí dự án · UI 02C duyệt/PDF: đối chiếu với fix01 + 3 lỗi đã tái hiện (gồm L0-2b) | Claude | P0 | `m4\*` UI | Xong 24/10 — gộp ff9503f |
-| L0-6 | Engine trích #6 trên DEMO worktree: báo sẵn sàng lúc khởi động nhưng `TRICH6_KHONG_KET_NOI` ngay sau lệnh trích đầu tiên → chưa dựng được hợp đồng/đợt DEMO cho M4 (chẩn đoán tối đa 2 lượt; không xong thì dựng đợt bằng fixture test) | Claude | — | — | Chờ slot |
+| L0-6 | Engine trích #6 trên DEMO worktree: báo sẵn sàng lúc khởi động nhưng `TRICH6_KHONG_KET_NOI` ngay sau lệnh trích đầu tiên → chưa dựng được hợp đồng/đợt DEMO cho M4 (chẩn đoán tối đa 2 lượt; không xong thì dựng đợt bằng fixture test) | Claude | — | — | Đang code (24/10, Claude) |
 | M4-3 | M4 · 03A kế toán nghiệm thu: M0026 + test + xác minh màn | Codex | P0 | — | Chờ |
 | M4-4 | M4 · 03B căn cứ nghiệm thu ↔ hóa đơn: L0-2a + migration + test PG | Codex | L0-2a, M4-3 | `pg_migrations.py` | Chờ |
 | M4-5 | M4 · 03B route + panel trong màn kế toán nghiệm thu | Claude | M4-4 | `giao_dien\m4.py` | Chờ |

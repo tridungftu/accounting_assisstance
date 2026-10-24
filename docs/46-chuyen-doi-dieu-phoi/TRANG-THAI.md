@@ -7,13 +7,16 @@ Trạng thái lát: Đang code → Chờ kiểm → Chờ Anh (cổng A/B) → S
 | Lát | Việc | Worker | Nhánh · worktree | Giao lúc | Trạng thái |
 |---|---|---|---|---|---|
 | BG-1b | CRM · Báo giá gói 1 màn hình (BG-01…05) | Claude Sonnet | `lat/bg-1b` (86d5b5b) · DEMO http://127.0.0.1:8784 | 24/10 | **Chờ Anh cổng A** — phiếu `PHIEU-CONG-A-BAO-GIA-GOI-1.md`; lead đã tự thử (lịch 4 cột, dòng tổng, Σ 90% chặn In/Chuyển); ô/dòng 9→3, nút tính 1→0 |
-| M2c | M2-00 · nhận hóa đơn theo manifest qua đường nhận K2 sẵn có | Codex (code) · Claude (review) | `lat/m2c` (6022ef9) | 24/10 | Chờ kiểm — lead chạy test (sandbox Codex không có python): 168 đạt, 0 mã lỗi mới; review chéo vòng 1 đang chạy |
+| M2d | M2-00 · sinh manifest hồi cứu (HOI_CUU) cho dữ liệu đã tải, không ghi vào thư mục cũ (ca M2-00-09 trên dữ liệu giả) | Codex | `lat/m2d` | 24/10 | Đang code |
+| E1-1 | E1-MUA · đăng ký 6 loại danh mục tham số trong bản vá #6 (`CATALOG_COMMON`), từ chối loại lạ, XD giữ nguyên | Codex | `lat/e1-1` | 24/10 | Đang code |
+| L0-6 | Chẩn đoán engine trích #6 DEMO ngắt sau lệnh trích đầu (chặn dựng đợt M4 DEMO) | Claude Sonnet | `lat/l0-6` · DEMO 8786 | 24/10 | Đang code |
 | L0-3c | Cập nhật test lỗi thời (N5) | Codex | `lat/l0-3c` (nền ff9503f) | 24/10 | Đang code — lượt thử lại (lần 1 lỗi model quá tải) |
 
 ## Lát đã xong (24/10)
 
 | Lát | Kết quả | Gộp vào hop-nhat |
 |---|---|---|
+| M2c | M2-00 · nhận hóa đơn theo manifest qua đường K2 sẵn có; review Đạt, vòng 2 sửa 4 điểm (độ phủ, giữ chờ theo mục, thiếu bảng kê, số 0 đầu SHDon); 141/141 | b190569 |
 | M4-2 | M4 · giao diện Duyệt đợt & PDF: hop-nhat đã có logic fix01 (3 lỗi); thêm 15 dòng style + test hồi quy fix01 12/12 (chứng minh bắt lỗi trên bản chưa sửa). Chưa chụp được màn có dữ liệu: engine #6 DEMO ngắt sau lệnh trích đầu (→ L0-6) | ff9503f |
 | L0-2c | M4 · Nghiệm thu & chi phí dự án: gộp backend duyệt/PDF (13 xung đột, giữ HN mới hơn) + đăng ký M0026/M0027 (27 migration, chỉ append); ok 728→757, ERROR 27→18; Request M4 103/0 | c4deb00 |
 | BG-1a | CRM · Báo giá gói 1 máy chủ: ô thông minh, ghi đè tổng có cảnh báo + nhật ký, nhãn tên, mốc chuẩn; vòng 2: % xấp xỉ cho dòng nhập tiền, chặn Chuyển ở máy chủ, định dạng tiền, số kiểu Việt; 85 đạt, 0 lỗi mới | 5a8042a |
