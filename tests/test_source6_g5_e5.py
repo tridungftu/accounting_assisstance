@@ -21,6 +21,7 @@ from __future__ import annotations
 import copy
 import hashlib
 import importlib.util
+import itertools
 import json
 import os
 import shutil
@@ -191,12 +192,18 @@ class E5HinhThucTests(unittest.TestCase):
         self._loi("TRICH6_E5_EXPECTED_SAI", **_tham(expected={**_expected(), "them": 1}))
         self._loi("TRICH6_E5_LINEAGE_SAI", **_tham(expected=_expected(revision=True)))       # bool không phải int
         self._loi("TRICH6_E5_LINEAGE_SAI", **_tham(expected=_expected(revision=0)))
-        self._loi("TRICH6_E5_LINEAGE_SAI", **_tham(expected=_expected(ky_id=LN["ky_id"].upper())))
+        # L0-3b: LN["ky_id"] toàn chữ số nên .upper() không đổi gì (test cũ không bao giờ có chuỗi chữ hoa) → dùng UUID có chữ cái a-f;
+        # đối chứng dương: bản chữ thường của ĐÚNG UUID này hợp lệ → chỉ KIỂU CHỮ làm nên lỗi.
+        ky_chu = "abcdef12-1111-4111-8111-111111111111"
+        T6.yeu_cau_e5(signed_pdf_sha256=sha256(PDF_DEMO), **_tham(expected=_expected(ky_id=ky_chu)))
+        self._loi("TRICH6_E5_LINEAGE_SAI", **_tham(expected=_expected(ky_id=ky_chu.upper())))
         self._loi("TRICH6_E5_LINEAGE_SAI", **_tham(expected=_expected(g3_pdf_sha256="X" * 64)))
         thieu_ln = _expected()
         del thieu_ln["lineage"]["xuat_id"]
         self._loi("TRICH6_E5_LINEAGE_SAI", **_tham(expected=thieu_ln))
-        self._loi("TRICH6_E5_EXPECTED_RONG", **_tham(expected=_expected(ts=[])))
+        # L0-3b: tham_so mặc định suy từ expected → rỗng và bị `yeu_cau_common` chặn (TRICH6_THAM_SO_RONG) TRƯỚC khi tới kiểm expected; truyền mã tường minh
+        # để chỉ expected.tham_so rỗng là lý do lỗi.
+        self._loi("TRICH6_E5_EXPECTED_RONG", **_tham(expected=_expected(ts=[]), tham_so=["TT-02"]))
         self._loi("TRICH6_E5_KIEU_SAI", **_tham([{"ma": "TT-10", "kieu": "phan_tram", "gia_tri": "10"}]))
         self._loi("TRICH6_E5_GIA_TRI_SAI", **_tham([{"ma": "TT-04", "kieu": "so", "gia_tri": {"so": None, "don_vi": "%"}}]))  # NULL ≠ 0
         self._loi("TRICH6_E5_GIA_TRI_SAI", **_tham([{"ma": "TT-02", "kieu": "tien", "gia_tri": {"so": "100", "tien_te": "vnd"}}]))
@@ -359,10 +366,12 @@ class NguonGiaE5(_TC6.NguonGia):
         yc = self.chay_body[lu]
         if yc.get("mode") != T6.MODE_E5:
             return super()._raw(lu)
-        cm = {k: yc[k] for k in ("contract", "request_id", "source_sha256", "catalog_sha256", "loai_hop_dong", "catalog_id", "signed_pdf_sha256",
-                                 "expected", "expected_sha256", "catalog_binding", "catalog_binding_sha256")}
-        cm.update(mode=T6.MODE_E5, body_sha256=T6.body_sha256(yc), tham_so_yeu_cau=yc["tham_so"], tham_so_da_dung=yc["tham_so"],
-                  implementation={"sha256": "c" * 64})
+        # L0-3b: raw của nguồn thật là JSON tuần tự hóa → độc lập với yêu cầu máy chủ đã lưu. Phải SAO SÂU, nếu không hook `sua_raw` sửa tại chỗ
+        # (vd `kq["common"]["expected"][...] = ...`) làm hỏng luôn `chay_body` → body_sha256 của niêm phong lệch → client chờ niêm phong tới hết 1800 giây.
+        cm = copy.deepcopy({k: yc[k] for k in ("contract", "request_id", "source_sha256", "catalog_sha256", "loai_hop_dong", "catalog_id",
+                                               "signed_pdf_sha256", "expected", "expected_sha256", "catalog_binding", "catalog_binding_sha256")})
+        cm.update(mode=T6.MODE_E5, body_sha256=T6.body_sha256(yc), tham_so_yeu_cau=copy.deepcopy(yc["tham_so"]),
+                  tham_so_da_dung=copy.deepcopy(yc["tham_so"]), implementation={"sha256": "c" * 64})
         kq = {"hop_dong": "ban_ky_demo.pdf", "ten": "x", "che_do": "RULE_ONLY", "tao_luc": "2026-10-23T10:00:00", "bang": _TC6._bang(yc["tham_so"], rule=()),
               "phieu_kiem_tra": {}, "common": cm, "g5": self.g5(yc)}
         if self.sua_raw is not None:
@@ -384,7 +393,10 @@ class NguonGiaE5(_TC6.NguonGia):
 class E5ClientIoMockTests(unittest.TestCase):
     def client(self, nguon=None, goc=None):
         nguon = nguon or NguonGiaE5()
-        return nguon, T6.Trich6Client("http://127.0.0.1:18600", goc=goc, transport=nguon, ngu=lambda s: None)
+        # L0-3b: đồng hồ giả (mỗi lần đọc +1 giây) + hạn chờ 30 giây → mock không niêm phong được thì ChuaRo sau ≤ ~30 vòng, không bao giờ bận-chờ 1800 giây thật.
+        tick = itertools.count()
+        return nguon, T6.Trich6Client("http://127.0.0.1:18600", goc=goc, transport=nguon, ngu=lambda s: None, cho_toi_da=30.0,
+                                      dong_ho=lambda: float(next(tick)))
 
     def goi(self, c, raw=PDF_DEMO, ten_tep="ban_ky_demo.pdf", **kw):
         return c.doi_chieu_ban_ky(raw, ten_tep=ten_tep, **_tham(**kw))
