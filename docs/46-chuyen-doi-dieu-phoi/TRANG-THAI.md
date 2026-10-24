@@ -1,16 +1,25 @@
 # Trạng thái — lead Claude Code cập nhật khi lát đổi trạng thái
 
-Trạng thái lát: Đang code → Chờ kiểm → Chờ Anh (cổng A/B) → Sửa → Xong · Bị chặn. Kế hoạch và hàng đợi đầy đủ: `4-KE-HOACH-LEAD.md`.
+Trạng thái lát: Đang code → Chờ kiểm → Chờ Anh (cổng A/B) → Sửa → Xong · Bị chặn. Kế hoạch và hàng đợi đầy đủ: `4-KE-HOACH-LEAD.md`. Nền test: `NEN-TEST.md`.
 
 ## Lát đang chạy (tối đa 3 worker)
 
 | Lát | Việc | Worker | Nhánh · worktree | Giao lúc | Trạng thái |
 |---|---|---|---|---|---|
-| L0-1 | Nền test `chinh` vs `hop-nhat` | Claude Sonnet | `lat/l0-1` · `.claude/worktrees/lat-l0-1` | 24/10 | Đang code |
-| L0-2a | Gộp chuỗi M4 common identity fix01→04 | Codex + lead commit | `lat/l0-2a` (b7be3a0) | 24/10 | **Xong — đã gộp vào hop-nhat (73deacb)**; không lỗi mới; test gói chạy được sau P0 |
-| L0-2i | Tìm code/test chỉ có trong bản chụp Codex cũ, chưa vào git | Codex + lead commit | `lat/l0-2i` (a37c4cf) | 24/10 | **Xong — đã gộp (8b4670f)**: 27 file không có ở nhánh nào (8 đang bị import), 26 file có bản mới hơn ngoài git; xem `FILE-CHUA-VAO-GIT.md` |
-| L0-2e | Gộp `m2-00b-fix01` + `config.js` bị sót (M2-00) | Codex | `lat/l0-2e` · `.claude/worktrees/lat-l0-2e` | 24/10 | Đang code |
-| L0-2d | Gộp CRM G5 + CRM-M4-three | Claude Sonnet | `lat/l0-2d` · `.claude/worktrees/lat-l0-2d` (e69e9eb) | 24/10 | Chờ kiểm — review Codex vòng 1 đang chạy. 2 commit, 9 file, 0 migration mới; không lỗi mới (đa số module lỗi import nền). Phát hiện: crm-g4 trên hop-nhat đã ghi đè bản cũ (mất ~700 dòng so với chinh) — worker khôi phục theo dòng dõi. Màn CRM chưa mở được: worktree thiếu cấu hình CRM DEMO (xem L0-4) |
+| P0 | Khôi phục file chưa vào git để hop-nhat import được (CRM G6A/G5-B, M4 duyệt/Request/03A) | Claude Opus | `lat/p0` · `.claude/worktrees/lat-p0` | 24/10 | Đang code |
+| L0-4 | Lệnh mở DEMO cho worktree, có CRM PostgreSQL | Claude Sonnet | `lat/l0-4` · `.claude/worktrees/lat-l0-4` | 24/10 | Đang code |
+| L0-3a | Lỗi môi trường N3/N4 + bộ chạy test dùng Python có psycopg | Codex | `lat/l0-3a` · `.claude/worktrees/lat-l0-3a` | 24/10 | Đang code |
+
+## Lát đã xong (24/10)
+
+| Lát | Kết quả | Gộp vào hop-nhat |
+|---|---|---|
+| L0-1 | Nền test: chinh 711/25/31/272 · 0 treo; hop-nhat 501/112/20/140 · 1 treo (`test_source6_g5_e5`); 5 nhóm nguyên nhân | a1da3d4 |
+| L0-2a | Common identity fix01→04, khớp byte bản fix | 73deacb |
+| L0-2d | CRM m4-three + G5; khôi phục hồi quy H3 (crm-g4 ghi đè bản cũ, M0023 về đúng checksum `chinh`); review Codex vòng 1: 2 điểm Chặn lead giải bằng bằng chứng | b2fd07c |
+| L0-2e | M2-00 fix01 + `config.js` bị sót; không nguyên nhân lỗi mới | 3a2b083 |
+| L0-2f | Source6 ordered-fix01; không hết treo → L0-3b | d07117a |
+| L0-2i | 27 file chưa vào git (8 đang bị import), 26 file có bản mới hơn ngoài git | 8b4670f |
 
 Worktree đo nền `chinh`: `.claude/worktrees/nen-chinh-59b7d8e` (tách rời ở 59b7d8e, chỉ chạy test).
 
@@ -20,15 +29,17 @@ Worktree đo nền `chinh`: `.claude/worktrees/nen-chinh-59b7d8e` (tách rời �
 |---|---|
 | `src\kho_tri_thuc\giao_dien\server.py` | — |
 | `giao_dien\m4.py`, `giao_dien\assets\app.js`, `index.html`, `style.css` | — |
-| `ha_tang\pg_migrations.py` | L0-2d |
-| `giao_dien\crm_g.py`, `giao_dien\assets\crm_g.js` | L0-2d |
-| `m4\*` dùng chung | — |
+| `ha_tang\pg_migrations.py` | — (P0 không sửa; chỉ khôi phục module nó import) |
+| `giao_dien\crm_g.py`, `giao_dien\assets\crm_g.js` | P0 (thay `crm_g.js` bằng bản 27a0d3db) |
+| `m4\*` dùng chung | P0 (chỉ thêm file thiếu) |
+| `tests\run_suite.py`, `tools\chay_test_theo_module.py`, `.gitattributes` | L0-3a |
+| `CLAUDE.md` mục 5 | L0-4 |
 
 ## Màn hình / module chờ Anh
 
 | Màn | Trạng thái |
 |---|---|
-| CRM · Báo giá (#42, TL 45) | Chưa làm — bắt đầu BG-1 khi L0-2d xong |
+| CRM · Báo giá (#42, TL 45) | Chưa làm — BG-1a sau P0; cổng A cần L0-4 (lệnh mở DEMO có CRM) |
 
 ---
 
