@@ -33,10 +33,12 @@
     ["Review L3 C01–C09 trên chứng từ Word/Excel của đợt (tab Chứng từ L3): ma trận, phạm vi kiểm, sửa metadata/ghép tay theo revision, chạy lại, báo cáo Excel L3",
       "HIỆN CÓ (hữu hạn)", "M4-02B"],
     ["OCR / Local AI cho chứng từ PDF/ảnh; PL có kiểu GT/tham số/BO; lịch sử đợt trước đã duyệt", "CHƯA NỐI", "M4-02 (chưa có provider)"],
-    ["Duyệt hồ sơ đợt (Anh/sếp) và PDF ký đúng revision", "CHƯA NỐI", "M4-02"],
+    ["Duyệt hồ sơ đợt (Anh/sếp) và PDF ký đúng revision", "GIAO DIỆN CÓ — BACKEND CHƯA NỐI", "M4-02C"],
     ["OCR / Local AI trích tham số", "CHƯA NỐI", "M4-02 (chưa có Local AI/OCR trong gói này)"],
     ["Báo cáo, tác vụ, cài đặt Review", "CHƯA NỐI", "M4-02"],
-    ["Kế toán xác nhận nghiệm thu/công nợ (NT, cơ sở thuế, tạm ứng/giữ lại)", "CHƯA NỐI", "M4-03"],
+    ["Kế toán xác nhận nghiệm thu từ phong bì đã niêm phong (NT, cơ sở giá trị, tạm ứng/thu hồi/giữ lại, căn cứ VAT) — mục “Kế toán nghiệm thu”",
+      "GIAO DIỆN CÓ — CHỜ COMPOSE BACKEND", "M4-03A"],
+    ["Ghi công nợ/AP, thuế/tài khoản, chống ghi trùng", "CHƯA NỐI", "M4-03B"],
     ["Nháp Request thanh toán đợt sau PDF", "CHƯA NỐI", "M4-04"],
     ["Kiểm xuyên suốt, quyền, replay, khởi động lại", "CHƯA NỐI", "M4-05"],
     ["CAD bản vẽ, tài khoản nhà thầu ngoài", "HOÃN", "ngoài phạm vi đã chốt"]];
@@ -55,7 +57,36 @@
   // C2: thế hệ form/lựa chọn — tăng khi người dùng sửa ô nhập, đổi tab, mở form tham số khác, đổi tệp/mẫu/sheet BOQ. Continuation của lệnh cũ không
   // đóng/vẽ đè form mới (lệnh đã gửi vẫn có thể commit hợp lệ ở máy chủ). genBoq: vé lựa chọn tệp/sheet BOQ — chỉ xem trước MỚI NHẤT được vẽ.
   let genForm = 0, genBoq = 0;
-  const actor = () => (m4 && m4.nguoi && m4.nguoi.dang_nhap) || null;
+  // MASTER-REUSE-02: chọn master có sẵn (form Tạo) + gắn đối tác (tab Nguồn). Danh sách + expected_* chỉ thuộc vai/dự án/HĐ hiện hành; đổi dự án/
+  // chế độ/vai/HĐ → hủy lựa chọn + token cũ (genMaster/genDoiTac tăng); phản hồi về trễ của thế hệ cũ không vẽ.
+  let taoCheDo = "moi", taoDuAn = null, masterDs = null, masterChon = null, genMaster = 0, doiTacDs = null, doiTacChon = null, genDoiTac = 0;
+  const TT_MASTER = {SOAN_THAO: "Soạn thảo", CHO_KY: "Chờ ký", DA_KY: "Đã ký", HIEU_LUC: "Hiệu lực"};
+  const MAP_TT = {OK: "Mapping hiện hành rõ", KHONG_DOI_TAC: "Chưa có đối tác", MO_HO: "Nhiều mapping mở — HOLD", KHOA_DONG: "Mapping khóa/đóng — HOLD",
+    THIEU: "Chưa có mapping mở cùng pháp nhân — HOLD"};
+  const HOLD_MAP = {M4_MAPPING_MO_HO: "Nhiều mapping mở — chờ nguồn master làm rõ", M4_MAPPING_CHUA_HIEU_LUC: "Mapping chưa hiệu lực",
+    M4_MAPPING_KHOA_DONG: "Mapping khóa/đóng"};
+  const HOLD_TL = {MAPPING_KHONG_DOI_TAC: "Chưa có đối tác", MAPPING_MO_HO: "Đối tác có nhiều mapping mở — chờ nguồn master làm rõ",
+    MAPPING_KHOA_DONG: "Mapping đối tác đang khóa/đóng", MAPPING_THIEU: "Đối tác chưa có mapping mở cùng pháp nhân",
+    CAN_CU_CHUA_DONG_BO: "Căn cứ chưa khớp nguồn hiện hành", CAN_CU_CHUA_CO_NGUOI_XAC_NHAN: "Căn cứ ghi do nguồn đổi — chưa có người xác nhận trong phiên",
+    LICH_SU_NOP_CHUA_CHUNG_MINH: "Có bản đã nộp trước khi bật căn cứ — chưa chứng minh căn cứ lúc nộp (HOLD khi dùng tài chính)"};
+  const NGUON_CC = {TAO_HO_SO_M4: "Tạo hồ sơ M4", NHAN_MASTER_CO_SAN: "Nhận hợp đồng có sẵn", GAN_DOI_TAC: "Gắn đối tác", QUAN_SAT_NGUON_HOP_DONG: "Nguồn hợp đồng đổi",
+    QUAN_SAT_NGUON_MAPPING: "Nguồn mapping đổi", BASELINE_BIET_TAI_NHAN: "Mốc lúc bật căn cứ", BASELINE_BIET_TAI_NOP: "Mốc lúc nộp"};
+  // máy chủ chỉ trả "CSDL từ chối thao tác (mã)" → hướng dẫn bổ sung/correction theo authority thật, không hứa nút chưa có
+  const HUONG_MASTER = {
+    M4_MASTER_DA_DOI: "Hợp đồng nguồn/đối tác/mapping vừa đổi — đã tải lại; kiểm tra rồi chọn lại (nháp được giữ).",
+    M4_MAPPING_DA_DOI: "Mapping đối tác vừa đổi ở nguồn master — đã bỏ lựa chọn cũ; tìm và chọn lại đối tác.",
+    M4_MASTER_KHONG_THAY: "Không thấy hợp đồng xây dựng này trong dự án — tìm lại danh sách.",
+    M4_MAPPING_KHONG_THAY: "Không thấy mapping đối tác đúng pháp nhân — tìm lại danh sách đối tác.",
+    M4_MASTER_TRANG_THAI_KHONG_NHAN: "Trạng thái hợp đồng nguồn không nhận được — xử lý tại nguồn CRM/master.",
+    M4_MAPPING_KHONG_HIEN_HANH: "Mapping đã đóng/khóa hoặc chưa hiệu lực — chờ nguồn master mở/hiệu lực mapping.",
+    M4_MAPPING_MO_HO: "Đối tác có nhiều mapping mở cùng pháp nhân — chờ nguồn master làm rõ; M4 không tự chọn.",
+    M4_DOI_TAC_KHONG_HOP_LE: "Đối tác không hoạt động hoặc khác pháp nhân — chọn đối tác khác hoặc sửa tại nguồn master.",
+    M4_LY_DO_BAT_BUOC: "Nhập lý do gắn/sửa đối tác.",
+    M4_MASTER_CAN_SUA_TAI_NGUON: "Hợp đồng do CRM/master quản lý hoặc đã khóa — chọn/sửa đối tác tại nguồn có quyền; M4 không sửa thay.",
+    M4_MASTER_CAN_PHIEN_BAN_DIEU_CHINH: "Hồ sơ đã nộp — đổi đối tác cần căn cứ/quyết định phiên bản điều chỉnh từ nguồn có quyền. Lệnh điều chỉnh sau nộp CHƯA triển khai "
+      + "trong gói này; lịch sử và master giữ nguyên.",
+    M4_MASTER_CAN_CU_DOI: "Căn cứ master/đối tác đổi trong lúc nộp — đã tải lại hồ sơ; kiểm tra rồi nộp lại."};
+  const actor =() => (m4 && m4.nguoi && m4.nguoi.dang_nhap) || null;
   const taoKhoa = () => "m4-" + ((window.crypto && crypto.randomUUID && crypto.randomUUID()) || (Date.now().toString(36) + Math.random().toString(36).slice(2)));
   function fence(them) {  // ngữ cảnh GỐC của thao tác: epoch + actor + HĐ/đợt đang mở (+ điều kiện riêng)
     const e = ep, a = actor(), h = hdChon, d = dotChon;
@@ -143,7 +174,7 @@
     if (rec.chu === ve) rec.chu = null;
     if (xong && khoaMap.get(k) === rec) khoaMap.delete(k);  // có kết quả thật → bỏ khóa; lỗi/chưa rõ → giữ khóa cho gửi lại y nguyên
   }
-  async function gui(path, body, ok, f) {
+  async function gui(path, body, ok, f, opt = {}) {
     const k = JSON.stringify([path, body]), so = nhanBanGhi(k);
     if (!so) return null;
     const {rec, ve} = so, full = {...body, khoa: rec.khoa};
@@ -159,17 +190,19 @@
       return r;
     } catch (e) {
       if (!f()) return null;
-      xuLyLoi(e, {path, body, ok, f});
+      xuLyLoi(e, {path, body, ok, f, khi409: opt.khi409});
       return null;
     } finally { traBanGhi(k, rec, ve, xong); }
   }
   function xuLyLoi(e, lai) {
-    const msg = (e && e.message) || String(e);
+    const msg = ((e && e.message) || String(e)) + (e && HUONG_MASTER[e.code] ? " " + HUONG_MASTER[e.code] : "");
     K.toast(msg, true); trangThai(msg, true);
     if (e && e.status === 409 && e.code === "M4_REVISION_CU") {
       trangThai(msg + " Đã tải lại dữ liệu hiện hành; nháp trên form được giữ — kiểm tra rồi gửi lại (revision mới).", true);
       napHd({giu: true});  // C3: nháp được chụp NGAY TRƯỚC khi vẽ lại (giá trị mới nhất), không phải lúc bắt đầu tải
     }
+    if (e && e.status === 409 && e.code === "M4_MASTER_CAN_CU_DOI" && hdChon) napHd({giu: true});
+    if (lai && lai.khi409 && e && e.status === 409) lai.khi409(e);  // MASTER-REUSE-02: lệnh tự bỏ token cũ + tải lại danh sách của chính nó
     if (lai && e && (e.status === 0 || e.status >= 500)) veGuiLai(lai);  // kết quả chưa rõ: gửi lại ĐÚNG body + khóa gốc
   }
   function veGuiLai(lai) {
@@ -178,7 +211,7 @@
     if (!lai) { box.replaceChildren(); return; }
     box.replaceChildren(node("span", "Chưa rõ kết quả lần gửi trước. "), nut("Gửi lại y nguyên (cùng khóa)", async () => {
       if (!lai.f()) { veGuiLai(null); trangThai("Lệnh chưa rõ kết quả thuộc hồ sơ/đợt/vai cũ — không gửi lại.", true); return; }  // C4: cổng trước request
-      const r = await gui(lai.path, lai.body, lai.ok, lai.f);
+      const r = await gui(lai.path, lai.body, lai.ok, lai.f, lai);
       if (r && lai.f()) await napLai(false);
     }, "m4-chinh"));
   }
@@ -299,11 +332,12 @@
       const s = await (await goi("/api/m4")).json();
       if (e !== ep || g !== genTong) return;
       let xoa = false;
-      if (actor() !== null && s.nguoi && s.nguoi.dang_nhap !== actor()) { ep += 1; boChon(); xoa = true; }  // máy chủ báo vai khác: bỏ lựa chọn cũ
+      if (actor() !== null && s.nguoi && s.nguoi.dang_nhap !== actor()) { ep += 1; boChon(); boMaster(); tatKeToan(); xoa = true; }  // máy chủ báo vai khác: bỏ lựa chọn cũ
       if (hdChon && !(s.hop_dong || []).some(h => h.id === hdChon)) { boChon(); xoa = true; }  // HĐ không còn trong phạm vi hiện hành
       m4 = s;
       if (!xoa && !opt.giu && !fs()) { baoCoMoi(); return; }
       if (opt.giu && !xoa) veGiu(veTong); else veTong();
+      if (cheDo === "ke_toan") veKeToan();  // M4-03A: vùng KT theo vai hiện hành, không chờ HĐ
       napMau();
       if (hdChon) await napHd({...opt, fs: xoa ? formCon() : fs});
       else if (xoa) veHd();
@@ -347,12 +381,19 @@
   function tatReview() {
     const R = window.kttM4Review; if (R && typeof R.tat === "function") R.tat();
     const C = window.kttM4ChungTu; if (C && typeof C.huy === "function") C.huy();
+    tatDuyet();
   }
+  // M4-02C: tab Duyệt & PDF là module riêng (m4_duyet_pdf.js); mọi điểm tắt module (tatReview) cũng tắt nó ĐỒNG BỘ, kể cả khi rời #m4
+  const TAB_MODULE = new Set(["review", "chung_tu", "duyet"]);
+  function tatDuyet() { const D = window.kttM4DuyetPdf; if (D && typeof D.huy === "function") D.huy(); }
   function boChon() {
     tatReview();
     hdChon = null; hd = null; dotChon = null; dot = null; boqXem = null; boqTep = ""; hoSoMoi = []; suaMa = null; xemLoi = null; oNhap.clear();
     huyYDinhTai(); genForm += 1; genBoq += 1;  // C3/C4: ý định tải lên/gửi lại gắn với HĐ/đợt cũ không mang sang lựa chọn mới
+    boDoiTac();
   }
+  function boMaster() { masterDs = null; masterChon = null; genMaster += 1; }  // ứng viên + expected_master thuộc dự án/chế độ/vai cũ
+  function boDoiTac() { doiTacDs = null; doiTacChon = null; genDoiTac += 1; }  // đối tác + expected_mapping thuộc HĐ/revision cũ
   function huyYDinhTai() {  // C4-01: vô hiệu NGAY mọi ý định tải lên + gỡ nút gửi lại toàn cục (cả gửi lại lệnh) của ngữ cảnh cũ
     for (const y of taiChuaRo.values()) y.het = true;
     for (const y of mauDang.values()) y.het = true;
@@ -361,22 +402,23 @@
   }
   function moHd(id, tabMoi) {
     if (hdChon !== id) { ep += 1; boChon(); hdChon = id; }  // đổi HĐ: kết quả/nháp của HĐ cũ không còn gắn vào màn hình
-    if (tabMoi && (tab === "review" || tab === "chung_tu") && tabMoi !== tab) tatReview();
+    if (tabMoi && TAB_MODULE.has(tab) && tabMoi !== tab) tatReview();
     if (tabMoi) tab = tabMoi;
     veTong(); veHd(); napHd();
   }
   function moDot(hdId, dotId) {
     if (hdChon !== hdId) { ep += 1; boChon(); hdChon = hdId; }
     if (dotChon !== dotId) { tatReview(); dotChon = dotId; dot = null; hoSoMoi = []; mucChon = ""; huyYDinhTai(); }
-    if (tab === "review" || tab === "chung_tu") tatReview();
+    if (TAB_MODULE.has(tab)) tatReview();
     tab = "dot"; veTong(); veHd(); napHd();
   }
 
   // ------------------------------------------------------------------ đổi vai (người tham gia seam chung)
   function m4Xoa() {  // đồng bộ, trước await đầu tiên của lần đổi vai (gọi từ app.js cho MỌI selector)
-    ep += 1; m4 = null; mau = null; boChon(); khoaMap.clear();  // bản ghi cũ mồ côi: lần gửi cũ về trễ chỉ chạm bản ghi của nó (C2)
+    ep += 1; m4 = null; mau = null; boChon(); tatKeToan(); khoaMap.clear();  // bản ghi cũ mồ côi: lần gửi cũ về trễ chỉ chạm bản ghi của nó (C2)
+    boMaster(); taoDuAn = null; taoCheDo = "moi";
     genForm += 1; genBoq += 1;
-    for (const id of ["m4-vai", "m4-pham-vi", "m4-ds-hd", "m4-ds-dot", "m4-tao", "m4-chi-tiet", "m4-thong-bao", "m4-gui-lai"]) { const el = $(id); if (el) el.replaceChildren(); }
+    for (const id of ["m4-vai", "m4-pham-vi", "m4-ds-hd", "m4-ds-dot", "m4-tao", "m4-chi-tiet", "m4-thong-bao", "m4-gui-lai", "m4-kt"]) { const el = $(id); if (el) el.replaceChildren(); }
     const n = $("m4-nguoi"); if (n) n.textContent = "Đang tải…";
     trangThai("");
   }
@@ -399,10 +441,16 @@
     const moi = nut("↻ Làm mới", () => m4Nap()); moi.id = "m4-lam-moi";
     vai.append(lbl, sel, doi, moi);
     head.append(tieuDe, vai);
+    // M4-03A: điểm vào riêng "Kế toán nghiệm thu" — không cần chọn HĐ hay quyền portal (PHU_TRACH/XEM/REVIEW/DUYET)
+    const cd = node("div", undefined, "m4-tabs m4-che-do"); cd.id = "m4-che-do"; cd.setAttribute("role", "tablist");
+    const cdHs = nut("Hồ sơ hợp đồng & đợt", () => doiCheDo("ho_so")), cdKt = nut("Kế toán nghiệm thu", () => doiCheDo("ke_toan"));
+    cdHs.id = "m4-cd-ho-so"; cdKt.id = "m4-cd-ke-toan";
+    for (const b of [cdHs, cdKt]) b.setAttribute("role", "tab");
+    cd.append(cdHs, cdKt);
     const tb = node("div"); tb.id = "m4-thong-bao";
     const st = node("p", "", "m4-status"); st.id = "m4-status"; st.setAttribute("role", "status"); st.setAttribute("aria-live", "polite");
     const gl = node("div", undefined, "m4-hang"); gl.id = "m4-gui-lai";
-    const grid = node("div", undefined, "m4-grid"), trai = node("div"), phai = node("div");
+    const grid = node("div", undefined, "m4-grid"), trai = node("div"), phai = node("div"); grid.id = "m4-luoi";
     const c1 = node("section", undefined, "m4-card"), nguoi = node("p", "Đang tải…", "m4-nho"), pv = node("div"); nguoi.id = "m4-nguoi"; pv.id = "m4-pham-vi";
     c1.append(node("h2", "Vai & phạm vi dự án"), nguoi, pv);
     const c2 = node("section", undefined, "m4-card"), loc = node("input"), dsHd = node("ul", undefined, "m4-list"), tao = node("div");
@@ -414,8 +462,10 @@
     trai.append(c1, c2, c3);
     const ct = node("div"); ct.id = "m4-chi-tiet"; phai.append(ct);
     grid.append(trai, phai);
-    wrap.append(head, tb, st, gl, grid);
+    const kt = node("div"); kt.id = "m4-kt"; kt.hidden = true;
+    wrap.append(head, cd, tb, st, gl, grid, kt);
     goc.replaceChildren(wrap);
+    veCheDoNut();
   }
 
   function veKhongNap(err) {
@@ -482,7 +532,17 @@
     const duAn = [], thay = new Set();
     for (const p of m4.pham_vi || []) if (p.soan && !thay.has(p.du_an_id)) { thay.add(p.du_an_id); duAn.push([p.du_an_id, `${p.phap_nhan} · ${p.du_an_ma} · ${p.du_an}`]); }
     if (!duAn.length) { box.replaceChildren(); return; }
-    const da = chon("tao-du-an", duAn, duAn[0][0]), so = nhapText("tao-so", ""), ten = nhapText("tao-ten", "");
+    if (!thay.has(taoDuAn)) { taoDuAn = duAn[0][0]; boMaster(); }  // dự án cũ không còn quyền soạn → bỏ ứng viên/token cũ
+    const da = chon("tao-du-an", duAn, taoDuAn);
+    da.addEventListener("change", () => { taoDuAn = da.value; boMaster(); if (taoCheDo === "co") veGiu(veTao); });  // đổi dự án: hủy ứng viên + expected_master
+    const cd = node("div", undefined, "m4-tabs");
+    for (const [k, t] of [["moi", "Tạo hồ sơ mới"], ["co", "Dùng hợp đồng đã có"]]) {
+      const b = nut(t, () => { if (taoCheDo === k) return; genForm += 1; taoCheDo = k; boMaster(); veGiu(veTao); });
+      b.id = "m4-tao-" + k; if (k === taoCheDo) b.className = "m4-chon"; b.setAttribute("aria-pressed", String(k === taoCheDo));
+      cd.append(b);
+    }
+    if (taoCheDo === "co") { veNhanMaster(box, da, cd); return; }
+    const so = nhapText("tao-so", ""), ten = nhapText("tao-ten", "");
     so.maxLength = 100; ten.maxLength = 300;
     const b = nut("Tạo hồ sơ HĐ", async () => {
       const body = {du_an_id: da.value, so_hop_dong: so.value.trim(), ten: ten.value.trim()};
@@ -496,12 +556,78 @@
     }, "m4-chinh");
     const form = node("div", undefined, "m4-form");
     form.append(truong("Dự án", da), truong("Số hợp đồng", so), truong("Tên hợp đồng / gói thầu", ten), b);
-    box.replaceChildren(node("h3", "Tạo hồ sơ HĐ mới (một lần cho mỗi hợp đồng — đợt sau dùng lại)"), form);
+    box.replaceChildren(node("h3", "Tạo hồ sơ HĐ mới (một lần cho mỗi hợp đồng — đợt sau dùng lại)"), cd, form);
+  }
+  // MASTER-REUSE-02: nhận hợp đồng xây dựng đã có (master/CRM) làm hồ sơ M4 nháp — không ghi master/CRM; trạng thái master tách khỏi readiness M4
+  function veNhanMaster(box, da, cd) {
+    const q = nhapText("tao-q", ""); q.maxLength = 100; q.placeholder = "Số HĐ hoặc mã nội bộ";
+    const tim = nut("Tìm hợp đồng", () => taiMaster(q.value.trim()), "m4-chinh"); tim.id = "m4-tao-tim";
+    const form = node("div", undefined, "m4-form"), kq = node("div"); kq.id = "m4-tao-ung-vien";
+    form.append(truong("Dự án", da), truong("Tìm hợp đồng đã có", q), tim);
+    box.replaceChildren(node("h3", "Dùng hợp đồng đã có (master/CRM) làm hồ sơ M4"), cd, form,
+      node("p", "Chỉ hợp đồng xây dựng đúng pháp nhân/dự án, trạng thái Soạn thảo/Chờ ký/Đã ký/Hiệu lực. Nhận chỉ tạo hồ sơ M4 nháp; hợp đồng, đối tác và CRM giữ nguyên.", "m4-nho"), kq);
+    veUngVien();
+  }
+  async function taiMaster(qv) {
+    const e = ep, a = actor(), duAn = taoDuAn, g = ++genMaster;
+    const con = () => e === ep && a === actor() && g === genMaster && duAn === taoDuAn && taoCheDo === "co";
+    masterChon = null; masterDs = {dang: true, q: qv}; veUngVien();
+    try {
+      const r = await docJson(await goi(`/api/m4/master-hop-dong?du_an_id=${encodeURIComponent(duAn)}&q=${encodeURIComponent(qv)}&limit=25`));
+      if (!con()) return;  // vai/dự án/chế độ/lần tìm đã đổi: không vẽ danh sách cũ
+      masterDs = {q: qv, items: r.items || []}; veUngVien();
+    } catch (err) {
+      if (!con()) return;
+      masterDs = {q: qv, loi: err.message}; veUngVien(); xuLyLoi(err);
+    }
+  }
+  function veUngVien() {
+    const kq = $("m4-tao-ung-vien"); if (!kq) return;
+    kq.replaceChildren();
+    if (!masterDs) return;
+    if (masterDs.dang) { kq.append(node("p", "Đang tìm hợp đồng…", "m4-trong")); return; }
+    if (masterDs.loi) { kq.append(node("p", "Chưa đọc được danh sách hợp đồng: " + masterDs.loi, "m4-trong m4-loi-chu")); return; }
+    const ds = masterDs.items;
+    if (!ds.length) { kq.append(node("p", "Không có hợp đồng xây dựng phù hợp trong dự án.", "m4-trong")); return; }
+    const ul = node("ul", undefined, "m4-list"); ul.id = "m4-tao-ds-master";
+    for (const it of ds) {
+      const dangChon = !!masterChon && masterChon.hop_dong_id === it.hop_dong_id;
+      const li = node("li", undefined, dangChon ? "m4-chon" : ""), hang = node("div", undefined, "m4-hang");
+      hang.append(pill(`Master: ${TT_MASTER[it.trang_thai_master] || it.trang_thai_master} · ${it.module_chu === "M4" ? "M4 sở hữu" : "nguồn master/CRM"}`, "m4-xam"),
+        it.da_co_ho_so_m4 ? pill(`Hồ sơ M4: đã có (rev ${it.revision_ho_so})`, "m4-du") : pill("Hồ sơ M4: chưa có", "m4-thieu"));
+      if (it.da_co_ho_so_m4) {
+        if ((m4.hop_dong || []).some(h => h.id === it.hop_dong_id)) hang.append(nut("Mở hồ sơ", () => moHd(it.hop_dong_id, "nguon"), "m4-lien-ket"));
+      } else hang.append(nut(dangChon ? "Đang chọn" : "Chọn", () => { genForm += 1; masterChon = it; veUngVien(); }, "m4-lien-ket"));
+      li.append(node("strong", it.so_hop_dong), node("small", ` ${it.ma_noi_bo ? it.ma_noi_bo + " · " : ""}${it.doi_tac_ten ? "Đối tác: " + it.doi_tac_ten : "Chưa có đối tác"}`), hang);
+      ul.append(li);
+    }
+    kq.append(ul);
+    if (!masterChon) return;
+    const cu = $("m4f-tao-nhan-ten"), ten = nhapText("tao-nhan-ten", cu ? cu.value : ""); ten.maxLength = 300;
+    const b = nut("Nhận làm hồ sơ M4", async () => {
+      const it = masterChon, duAn = taoDuAn, g = genMaster;  // chụp đồng bộ: đúng ứng viên + expected_master người dùng đang thấy
+      if (!it) return;
+      const body = {du_an_id: duAn, hop_dong_id: it.hop_dong_id, ten: ten.value.trim(), expected_master: it.expected_master};
+      if (!body.ten) { trangThai("Nhập tên hồ sơ (tên hợp đồng / gói thầu).", true); return; }
+      const f = fence(() => g === genMaster && duAn === taoDuAn && taoCheDo === "co"), fc = formCon();
+      const r = await gui("hop-dong/nhan-master", body, "Đã nhận hợp đồng làm hồ sơ M4", f,
+        {khi409: e => { if (e.code === "M4_MASTER_DA_DOI") taiMaster(masterDs && masterDs.q || ""); }});  // token cũ: tìm lại, tên đang nhập được giữ
+      if (r && f()) {
+        if (!fc()) { trangThai("Đã nhận hồ sơ — form đã đổi trong lúc chờ nên chưa tự mở; chọn hồ sơ ở danh sách sau khi ↻ Làm mới."); return; }
+        await m4Nap();
+        if (f() && fc()) { boMaster(); moHd(r.hop_dong_id, "nguon"); }
+      }
+    }, "m4-chinh");
+    b.id = "m4-tao-nhan";
+    const form = node("div", undefined, "m4-form");
+    form.append(node("p", `Đã chọn ${masterChon.so_hop_dong} — trạng thái master giữ nguyên; hồ sơ M4 bắt đầu ở nháp.`, "m4-nho"), truong("Tên hồ sơ / gói thầu", ten), b);
+    kq.append(form);
   }
 
   // ------------------------------------------------------------------ chi tiết HĐ
   function veHd() {
     const box = $("m4-chi-tiet"); if (!box) return;
+    if (cheDo !== "ho_so") return;  // M4-03A: chế độ Kế toán nghiệm thu — không mount module HĐ vào vùng ẩn (vẽ lại khi quay về)
     oNhap.clear();
     if (!m4 || m4.cau_hinh === false) { box.replaceChildren(); return; }
     if (!hdChon) { box.replaceChildren(node("section", undefined, "m4-card")); box.firstChild.append(node("p", "Chọn một hồ sơ hợp đồng bên trái, hoặc tạo hồ sơ mới.", "m4-trong")); return; }
@@ -512,8 +638,8 @@
       soan() ? pill("Phòng dự án phụ trách — được soạn", "m4-du") : pill("Chỉ xem (không soạn/xác nhận)", "m4-xam"));
     const tabs = node("div", undefined, "m4-tabs");
     for (const [k, t] of [["nguon", "Nguồn HĐ & trích"], ["tham_so", "Tham số (37)"], ["phu_luc", "Phụ lục"], ["boq", "BOQ"], ["dot", "Đợt & checklist"],
-      ["review", "Review L1/L2"], ["chung_tu", "Chứng từ L3"], ["lo_trinh", "Lộ trình Review"]]) {
-      const b = nut(t, () => { genForm += 1; if ((tab === "review" || tab === "chung_tu") && k !== tab) tatReview(); tab = k; veHd(); });  // đổi tab: continuation tab cũ không vẽ đè (C2, R7)
+      ["review", "Review L1/L2"], ["chung_tu", "Chứng từ L3"], ["duyet", "Duyệt & PDF"], ["lo_trinh", "Lộ trình Review"]]) {
+      const b = nut(t, () => { genForm += 1; if (TAB_MODULE.has(tab) && k !== tab) tatReview(); tab = k; veHd(); });  // đổi tab: continuation tab cũ không vẽ đè (C2, R7)
       if (k === tab) b.className = "m4-chon";
       b.setAttribute("role", "tab"); b.setAttribute("aria-selected", String(k === tab));
       tabs.append(b);
@@ -527,12 +653,14 @@
     else if (tab === "dot") veTabDot(noi);
     else if (tab === "review") { /* FIX02 F5: mount Review SAU khi vùng đã gắn vào document (fence isConnected của review.js) */ }
     else if (tab === "chung_tu") { /* M4-02B: mount Chứng từ L3 SAU khi vùng đã gắn vào document */ }
+    else if (tab === "duyet") { /* M4-02C: mount Duyệt & PDF SAU khi vùng đã gắn vào document */ }
     else veLoTrinh(noi);
     card.append(noi);
     box.replaceChildren(card);
     if (tab === "dot") veDot();  // panel đợt chỉ vẽ sau khi khung đã gắn vào trang
     if (tab === "review") veReview(noi);  // vùng đã attached → R.ve có thể GET đúng ngữ cảnh hiện hành
     if (tab === "chung_tu") veChungTu(noi);
+    if (tab === "duyet") veDuyet(noi);
     veDsHd(); veDsDot();
   }
 
@@ -625,6 +753,80 @@
     box.append(tr.length ? bang(["Lần", "Tệp (H)", "Trạng thái", "Chế độ", "Lý do", "Bộ trích", "Người chạy", "Lúc"], tr.map(t => [t.lan, h12(t.raw_sha256),
       pill(TT_TRICH[t.trang_thai] || t.trang_thai, t.trang_thai === "XONG" ? "m4-du" : "m4-loi"), t.che_do, t.ly_do || "", t.engine, t.tao_boi, ngay(t.tao_luc)]))
       : node("p", "Chưa chạy trích.", "m4-trong"));
+    veDoiTac(box);
+  }
+
+  // MASTER-REUSE-02: đối tác + căn cứ master của hồ sơ (máy chủ trả trong chi tiết HĐ). Chỉ gắn khi máy chủ báo được; còn lại nêu đúng authority, không nút giả.
+  function veDoiTac(box) {
+    const mc = hd.master_can_cu, h = hd.ho_so;
+    box.append(node("h3", "Đối tác & căn cứ master"));
+    if (!mc) { box.append(node("p", "Máy chủ chưa trả căn cứ master/đối tác cho hồ sơ này (gói dùng chung chưa bật) — hồ sơ vẫn soạn như hiện có.", "m4-trong")); return; }
+    const ms = mc.master || {}, cc = mc.can_cu, gd = mc.gan_doi_tac || {}, wrap = node("div"); wrap.id = "m4-doi-tac";
+    wrap.append(bang(["Nguồn hợp đồng", "Trạng thái master", "Đối tác hiện hành", "Mã Junsky", "Mapping"], [[ms.module_chu === "M4" ? "M4 sở hữu" : "Nguồn master/CRM",
+      TT_MASTER[ms.trang_thai_master] || ms.trang_thai_master || "—", ms.doi_tac_ten || "Chưa có đối tác", ms.ma_junsky || "—",
+      pill(MAP_TT[ms.mapping_trang_thai] || ms.mapping_trang_thai || "—", ms.mapping_trang_thai === "OK" ? "m4-du" : "m4-thieu")]]));
+    wrap.append(node("p", cc ? `Căn cứ số ${cc.so} · ${NGUON_CC[cc.nguon] || cc.nguon} · ${cc.boi || "chưa có người xác nhận"} · ${ngay(cc.tao_luc)}`
+      + `${cc.ly_do ? " · " + cc.ly_do : ""} · H ${h12(cc.sha256)}` : "Chưa có căn cứ master.", "m4-nho"),
+      mc.dong_bo ? pill("Căn cứ khớp nguồn hiện hành", "m4-du") : pill("Căn cứ chưa khớp nguồn — ↻ Làm mới", "m4-thieu"));
+    const hold = mc.hold || [];
+    if (hold.length) wrap.append(node("ul", undefined, "m4-list"));
+    for (const x of hold) wrap.lastChild.append(node("li", HOLD_TL[x] || x, "m4-loi-chu"));
+    if (!ms.doi_tac_id) wrap.append(node("p", "Chưa có đối tác: hồ sơ vẫn là nháp, dữ liệu đã nhập được giữ; gắn đối tác trước khi nộp.", "m4-nho"));
+    box.append(wrap);
+    if (!gd.duoc) {
+      if (gd.ma === "M4_KHONG_CO_QUYEN_DU_AN") wrap.append(node("p", "Vai này chỉ xem — không gắn/sửa đối tác.", "m4-nho"));
+      else if (gd.ma) wrap.append(node("p", HUONG_MASTER[gd.ma] || gd.ma, "m4-nho m4-loi-chu"));
+      return;
+    }
+    const q = nhapText("dt-q", ""); q.maxLength = 100; q.placeholder = "Tên đối tác hoặc mã Junsky";
+    const tim = nut("Tìm đối tác", () => taiDoiTac(h.du_an_id, q.value.trim()), "m4-chinh"); tim.id = "m4-dt-tim";
+    const ds = node("div"); ds.id = "m4-dt-ds";
+    const lyDo = nhapText("dt-ly-do", ""); lyDo.maxLength = 1000;
+    const gan = nut(`Gắn đối tác đã chọn (revision ${mc.revision})`, async () => {
+      const it = doiTacChon, g = genDoiTac;  // chụp đồng bộ: đúng mapping + revision/expected_* người dùng đang thấy
+      if (!it) return;
+      const ly = lyDo.value.trim();
+      if (!ly) { trangThai("Nhập lý do gắn/sửa đối tác (bắt buộc).", true); return; }
+      const body = {hop_dong_id: h.hop_dong_id, doi_tac_id: it.doi_tac_id, mapping_id: it.mapping_id, revision: mc.revision,
+        expected_master: mc.expected_master, expected_mapping: it.expected_mapping, ly_do: ly};
+      const f = fence(() => g === genDoiTac), fc = formCon();
+      const r = await gui("hop-dong/gan-doi-tac", body, "Đã gắn đối tác", f, {khi409: e => {
+        if (e.code === "M4_MASTER_DA_DOI" || e.code === "M4_MAPPING_DA_DOI") { boDoiTac(); napHd({giu: true}); }  // token cũ: bỏ lựa chọn, giữ lý do
+      }});
+      if (r && f()) { boDoiTac(); await sauLenh(fc, "Đã gắn đối tác"); }
+    }, "m4-chinh", !doiTacChon);
+    gan.id = "m4-dt-gan";
+    const form = node("div", undefined, "m4-form");
+    form.append(truong("Tìm đối tác cùng pháp nhân", q), tim, ds, truong("Lý do gắn/sửa đối tác", lyDo), gan);
+    box.append(node("p", "Chọn đúng một mapping hiện hành; mapping mơ hồ/khóa/chưa hiệu lực chỉ hiển thị, không chọn được. M4 không đoán theo MST/tên.", "m4-nho"), form);
+    veDsDoiTac();
+  }
+  async function taiDoiTac(duAn, qv) {
+    const g = ++genDoiTac, f = fence(() => g === genDoiTac);
+    doiTacChon = null; doiTacDs = {dang: true, q: qv}; veDsDoiTac();
+    try {
+      const r = await docJson(await goi(`/api/m4/master-doi-tac?du_an_id=${encodeURIComponent(duAn)}&q=${encodeURIComponent(qv)}&limit=25`));
+      if (!f()) return;  // vai/HĐ/lần tìm đã đổi: không vẽ danh sách cũ
+      doiTacDs = {q: qv, items: r.items || []}; veDsDoiTac();
+    } catch (err) {
+      if (!f()) return;
+      doiTacDs = {q: qv, loi: err.message}; veDsDoiTac(); xuLyLoi(err);
+    }
+  }
+  function veDsDoiTac() {
+    const box = $("m4-dt-ds"); if (!box) return;
+    const gan = $("m4-dt-gan"); if (gan) gan.disabled = !doiTacChon;
+    box.replaceChildren();
+    if (!doiTacDs) return;
+    if (doiTacDs.dang) { box.append(node("p", "Đang tìm đối tác…", "m4-trong")); return; }
+    if (doiTacDs.loi) { box.append(node("p", "Chưa đọc được danh sách đối tác: " + doiTacDs.loi, "m4-trong m4-loi-chu")); return; }
+    if (!doiTacDs.items.length) { box.append(node("p", "Không có đối tác hoạt động có mapping cùng pháp nhân.", "m4-trong")); return; }
+    box.append(bang(["Đối tác", "Mã Junsky", "Mapping", ""], doiTacDs.items.map(it => {
+      const dangChon = !!doiTacChon && doiTacChon.mapping_id === it.mapping_id && doiTacChon.doi_tac_id === it.doi_tac_id;
+      return [it.ten, it.ma_junsky || "—", it.ma_hold ? pill(HOLD_MAP[it.ma_hold] || it.ma_hold, "m4-thieu") : pill("Hiện hành rõ", "m4-du"),
+        nut(dangChon ? "Đang chọn" : "Chọn", () => { genForm += 1; doiTacChon = it; veDsDoiTac(); }, "m4-lien-ket", !!it.ma_hold || !it.mapping_id)];
+    })));
+    if (doiTacChon) box.append(node("p", `Đã chọn: ${doiTacChon.ten} · mã ${doiTacChon.ma_junsky}`, "m4-nho"));
   }
 
   function veThamSo(box) {
@@ -867,7 +1069,7 @@
 
   function denBoSung(t) {  // từ mục còn thiếu → vùng bổ sung tương ứng
     genForm += 1;
-    if (tab === "review" || tab === "chung_tu") tatReview();
+    if (TAB_MODULE.has(tab)) tatReview();
     if (t.muc) { mucChon = t.muc; tab = "dot"; veHd(); const el = $("m4f-hs-file"); if (el) el.focus(); return; }
     if (t.ma === "DOT_CHUA_NGAY") { tab = "dot"; veHd(); const el = $("m4f-dot-sua-ngay"); if (el) el.focus(); return; }
     tab = t.nhom === "PHU_LUC" ? "phu_luc" : t.nhom === "BOQ" ? "boq" : ["HD_CHUA_CO_TEP", "HD_CHUA_TRICH", "HD_TRICH_KHAC_TEP", "HD_TRICH_CHUA_XONG"].includes(t.ma) ? "nguon" : "tham_so";
@@ -1002,6 +1204,90 @@
       phapNhan: hd.ho_so.phap_nhan || null});
   }
 
+  // M4-02C: tab Duyệt & PDF = module m4_duyet_pdf.js (/m4/m4_duyet_pdf.js, tải đúng một lần qua route M4 — route asset thuộc backend, chưa có trong
+  // baseline này: lỗi tải → nói thật "chưa nối"). Shell chỉ chuyển danh tính/PN/dự án/HĐ/đợt; module tự GET/POST theo hợp đồng M4-02C.
+  let dpTai = false;
+  // FIX01: view Duyệt hợp lệ HIỆN HÀNH = đang ở #m4 + tab Duyệt + HĐ đã nạp. Sẵn sàng/lỗi tải lười về sau khi rời #m4 không mount/GET/đổi trạng thái
+  // (vùng ẩn vẫn còn gắn trong document); quay lại #m4 → m4Nap → veHd mount bình thường (module đã nạp) hoặc tải lại (lỗi trước đã nhả dpTai).
+  const xemDuyet = () => location.hash === "#m4" && tab === "duyet" && !!hd && !!hdChon;
+  function veDuyet(box) {  // gọi SAU khi `box` đã gắn vào document (veHd)
+    const vung = node("div", undefined, "m4-dp");
+    box.append(vung);
+    if (!vung.isConnected || location.hash !== "#m4") return;  // FIX01: không mount module vào trang M4 đã rời (ẩn)
+    const D = window.kttM4DuyetPdf;
+    if (!D) {
+      vung.append(node("p", "Đang tải màn Duyệt & PDF…", "m4-trong"));
+      if (!dpTai) {
+        dpTai = true;
+        window.kttM4DuyetPdfSanSang = () => { if (xemDuyet()) veHd(); };
+        const s = document.createElement("script");
+        s.src = "/m4/m4_duyet_pdf.js";
+        s.onerror = () => {
+          dpTai = false;  // nhả để lần mở hợp lệ sau tải lại
+          if (!xemDuyet()) return;
+          if (vung.isConnected) vung.replaceChildren(node("p", "Chưa nối backend duyệt/PDF: máy chủ chưa phục vụ /m4/m4_duyet_pdf.js — không có lệnh duyệt/PDF nào chạy.", "m4-notice m4-notice-loi"));
+          trangThai("Không tải được màn Duyệt & PDF (/m4/m4_duyet_pdf.js) — backend chưa nối.", true);
+        };
+        document.head.append(s);
+      }
+      return;
+    }
+    D.ve(vung, {nguoi: actor(), phapNhanId: hd.ho_so.phap_nhan_id || null, duAnId: hd.ho_so.du_an_id || null, hdId: hdChon, dotId: dotChon,
+      soHd: hd.ho_so.so_hop_dong, dots: hd.dot || []});
+  }
+
+  // M4-03A: chế độ "Kế toán nghiệm thu" = module m4_ke_toan.js (/m4/m4_ke_toan.js, tải lười đúng một lần qua route M4). Vùng riêng #m4-kt, độc lập
+  // HĐ/đợt đang chọn và danh sách HĐ portal: inbox/quyền KT do GET /api/m4/ke-toan của phiên hiện hành quyết định. Shell chỉ chuyển danh tính hiện hành;
+  // đổi vai / đổi chế độ / rời #m4 tắt module ĐỒNG BỘ (huy) trước lần vẽ sau. Lỗi tải tài sản → nói thật "chưa nối", không lệnh nào chạy.
+  let cheDo = "ho_so", ktTai = false;
+  const xemKeToan = () => location.hash === "#m4" && cheDo === "ke_toan" && !!m4 && m4.cau_hinh !== false;
+  function tatKeToan() { const T = window.kttM4KeToan; if (T && typeof T.huy === "function") T.huy(); }
+  function veCheDoNut() {
+    for (const [id, k] of [["m4-cd-ho-so", "ho_so"], ["m4-cd-ke-toan", "ke_toan"]]) {
+      const b = $(id); if (!b) continue;
+      b.className = k === cheDo ? "m4-chon" : ""; b.setAttribute("aria-selected", String(k === cheDo));
+    }
+    const luoi = $("m4-luoi"), kt = $("m4-kt");
+    if (luoi) luoi.hidden = cheDo !== "ho_so";
+    if (kt) kt.hidden = cheDo !== "ke_toan";
+  }
+  function doiCheDo(moi) {
+    if (moi === cheDo) return;
+    genForm += 1;
+    if (moi === "ke_toan") tatReview(); else tatKeToan();  // rời chế độ nào thì tắt ĐỒNG BỘ module của chế độ đó
+    cheDo = moi; veCheDoNut();
+    if (cheDo === "ke_toan") veKeToan();
+    else { const kt = $("m4-kt"); if (kt) kt.replaceChildren(); veHd(); if (hdChon) napHd(); }
+  }
+  function veKeToan() {
+    const box = $("m4-kt"); if (!box || cheDo !== "ke_toan") return;
+    if (!m4) { box.replaceChildren(node("p", "Đang tải…", "m4-trong")); return; }
+    if (m4.cau_hinh === false) { box.replaceChildren(node("p", "Chưa kết nối kho DEMO PostgreSQL — Kế toán nghiệm thu chưa đọc được.", "m4-trong")); return; }
+    let vung = box.firstChild;
+    if (!vung || !vung._ktVung || !vung.isConnected) { vung = node("div", undefined, "m4-kt"); vung._ktVung = true; box.replaceChildren(vung); }
+    if (!vung.isConnected || !xemKeToan()) return;
+    const T = window.kttM4KeToan;
+    if (!T) {
+      vung.replaceChildren(node("p", "Đang tải màn Kế toán nghiệm thu…", "m4-trong"));
+      if (!ktTai) {
+        ktTai = true;
+        window.kttM4KeToanSanSang = () => { if (xemKeToan()) veKeToan(); };  // chỉ mount theo ngữ cảnh HIỆN HÀNH lúc callback
+        const s = document.createElement("script");
+        s.src = "/m4/m4_ke_toan.js";
+        s.onerror = () => {
+          ktTai = false;  // nhả để lần mở hợp lệ sau tải lại
+          if (!xemKeToan()) return;
+          const v = $("m4-kt");
+          if (v) v.replaceChildren(node("p", "Chưa nối màn Kế toán nghiệm thu: máy chủ chưa phục vụ /m4/m4_ke_toan.js — không có lệnh kế toán nào chạy.", "m4-notice m4-notice-loi"));
+          trangThai("Không tải được màn Kế toán nghiệm thu (/m4/m4_ke_toan.js).", true);
+        };
+        document.head.append(s);
+      }
+      return;
+    }
+    T.ve(vung, {nguoi: actor()});
+  }
+
   function veLoTrinh(box) {
     box.append(node("p", "Lộ trình đầy đủ của phần mềm Review hồ sơ xây dựng trong M4 — chỉ trạng thái thật; mục chưa nối không có nút.", "m4-nho"));
     box.append(bang(["Chức năng", "Trạng thái", "Gói"], LO_TRINH.map(([t, s, g]) => [t, pill(s, s === "HIỆN CÓ" ? "m4-du" : "m4-xam"), g])));
@@ -1009,6 +1295,7 @@
 
   // ------------------------------------------------------------------ khởi động
   dungKhung();
-  window.addEventListener("hashchange", () => { if (location.hash === "#m4") m4Nap(); });
+  // M4-02C/M4-03A: rời #m4 → tắt Duyệt & PDF và Kế toán nghiệm thu ĐỒNG BỘ
+  window.addEventListener("hashchange", () => { if (location.hash === "#m4") m4Nap(); else { tatDuyet(); tatKeToan(); } });
   if (location.hash === "#m4") m4Nap();
 })();
