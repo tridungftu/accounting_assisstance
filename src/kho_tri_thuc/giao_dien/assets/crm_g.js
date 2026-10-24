@@ -1384,3 +1384,681 @@
   // FIX04 U3: mọi đổi hash (rời hoặc quay lại #hopdong) đổi thế hệ hiển thị G4 TRƯỚC khi nạp lại — callback cũ không hồi hiệu lực
   window.addEventListener("hashchange", () => { genVao += 1; if (location.hash === "#hopdong") napLai(); });
 })();
+
+// ===================================================================== CRM-41-06A G6A — kế toán kiểm hợp đồng đã ký từ mẫu + kích hoạt HIỆU LỰC
+// Khối #crm-kiem dựng NGAY SAU #crm-gk (index.html không đổi; G1–G4 không đổi). Máy chủ quyết định quyền/phạm vi/đánh giá/kích hoạt; giao diện
+// chỉ hiển thị và gửi đúng trường cho phép — KHÔNG gửi actor/PN/chế độ G5/kết quả check/hồ sơ pháp lý. G5 vận hành luôn HOLD (UNREGISTERED_G5_PROOF):
+// hiển thị trung thực, không suy "khớp". Trả lại = chặn phụ thuộc, chờ quy trình ký lại (KHÔNG về nháp, không mở khóa bản ký/PDF G4).
+// Bất đồng bộ: fence = epoch + actor + bản ký đang mở + thế hệ form + thế hệ điều hướng + đang ở #hopdong (chụp MỘT lần lúc gửi). Ý định lệnh giữ
+// ĐÚNG body + khóa tới ACK typed; chưa rõ (mất kết nối/5xx/ACK lệch) → "Gửi lại y nguyên (cùng khóa)"; bấm lặp khi đang gửi → 0 POST; mỗi
+// (vai, bản ký) chỉ một ý định đang gửi/chưa rõ — ý định khác không chen. Đổi vai không xóa ý định chưa rõ, nhưng không bao giờ gửi dưới vai khác.
+(() => {
+  const K = window.kttChung;
+  if (!K) return;
+  const $ = id => document.getElementById(id);
+  const node = K.node;
+  const TOKEN = (document.querySelector('meta[name="ktt-token"]') || {}).content || "";
+  const gk = $("crm-gk");
+  if (!gk || typeof gk.after !== "function") return;
+  const goc = node("article", undefined, "card");
+  goc.id = "crm-kiem"; goc.setAttribute("aria-labelledby", "crm-kiem-title");
+  gk.after(goc);
+
+  const CHECKLIST = [["ban_ky_dung_ban_xuat", "Bản ký đúng bản xuất G3 (hoặc phần sửa đã khai)"], ["ben_ky_dung", "Bên ký / người đại diện đúng"],
+    ["dieu_khoan_dung", "Điều khoản đúng mẫu CFO đã duyệt"], ["gia_tri_lich_dung", "Giá trị + lịch thu đúng bản ký"], ["khach_dung", "Khách đúng (mã Junsky CÓ SẴN)"]];
+  const CAN_CU = [["DIEU_KHOAN_HD", "Điều khoản hiệu lực trong hợp đồng"], ["TRUONG_HOP_DONG", "Trường ngày hiệu lực của hợp đồng"]];
+  const TEN = {luu: "Lưu kiểm", check: "Chạy check", "xu-ly-lech": "Xử lý lệch theo bản ký", "bo-sung": "Yêu cầu bổ sung", "tra-lai": "Trả lại (chờ ký lại)",
+    "hieu-luc": "Kích hoạt hiệu lực"};
+  const HD_LS = {CRM_KY_KET: "Ký lần đầu (G4)", CRM_KIEM_LUU: "Lưu kiểm", CRM_KIEM_CHECK: "Chạy check", CRM_KIEM_XU_LY_LECH: "Xử lý lệch",
+    CRM_KIEM_BO_SUNG: "Yêu cầu bổ sung", CRM_KIEM_TRA_LAI: "Trả lại — chờ ký lại", CRM_KIEM_HIEU_LUC: "Kích hoạt hiệu lực", CRM_KIEM_XEM: "Xem", CRM_KIEM_TAI: "Tải tệp"};
+  const LY_QUYEN = {CRM_G_CUNG_NGUOI: "Người ghi bản ký không tự kiểm (tách nhiệm) — cần kế toán khác.",
+    CRM_KIEM_CHUA_CO_PHAM_VI: "Chưa cấu hình phạm vi kiểm hiện hành cho hợp đồng này — quản trị cấp phạm vi; không suy từ người tạo.",
+    CRM_G_KHONG_CO_QUYEN: "Vai hiện hành không có quyền kiểm hợp đồng (cần phân công CRM_HD_KIEM hiện hành)."};
+  const MA_CAN_CU = new Set(["CRM_KIEM_REVISION_CU", "CRM_KIEM_CHECK_CU", "CRM_KIEM_TRANG_THAI", "CRM_KIEM_DA_HIEU_LUC", "CRM_KIEM_DA_XU_LY",
+    "CRM_KIEM_LECH_KHONG_CON", "CRM_KIEM_CHUA_DU_DIEU_KIEN"]);
+  const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i, SHA = /^[0-9a-f]{64}$/;
+  const NOI_DUNG = /^kh-(cl-|junsky|ngay|can-cu|trich|ghi-chu)/;
+  const LY_CHUA_LUU = "Có thay đổi chưa lưu — bấm Lưu kiểm trước (check/kích hoạt dùng revision đã lưu).";
+
+  let ep = 0, genDs = 0, genCt = 0, genForm = 0, genVao = 0, genTim = 0, genG5 = 0;
+  let ds = null, chon = null, ct = null, formCua = null, sua = false;
+  let g5v = null, g5Hen = null;  // G5-B: CRM_G5_VIEW_V1 của bản ký đang mở (tách khỏi ct G6A) + hẹn làm mới khi việc đang xử lý
+  const ydG5 = new Map();  // ý định lệnh đối chiếu (body + khóa gốc giữ tới ACK CRM_G5_ACK_V1)
+  let timTu = "", timKq = null;  // P1-B: tra cứu mã Junsky CÓ SẴN cho khách dự thảo — không phải nội dung kiểm (không làm bẩn form)
+  const nhapGt = new Map(), yd = new Map();
+  let oTrangThai = null, oNoiDung = null, oVai = null, dsCanLuu = [];
+  const actor = () => (ds && ds.nguoi && typeof ds.nguoi.dang_nhap === "string" && ds.nguoi.dang_nhap) || null;
+  const dangHopDong = () => location.hash === "#hopdong";
+  const taoKhoa = () => "crmkiem-" + ((window.crypto && crypto.randomUUID && crypto.randomUUID()) || (Date.now().toString(36) + Math.random().toString(36).slice(2)));
+  const s0 = x => { const v = String(x ?? "").trim(); return v === "" ? null : v; };
+  class LoiKiem extends Error { constructor(status, code, message) { super(message); this.status = status; this.code = code; } }
+  async function goi(path, opts = {}) {
+    let res;
+    try { res = await fetch(path, {...opts, headers: {"X-KTT-Token": TOKEN, ...(opts.headers || {})}, cache: "no-store", credentials: "same-origin"}); }
+    catch (_) { throw new LoiKiem(0, "MAT_KET_NOI", "Mất kết nối — chưa xác định máy chủ đã ghi hay chưa. Khóa và nội dung được giữ; bấm Gửi lại y nguyên."); }
+    if (!res.ok) { const r = await res.json().catch(() => ({})); throw new LoiKiem(res.status, r.error || "HTTP_" + res.status, r.message || `Không hoàn tất (${res.status}).`); }
+    return res;
+  }
+  async function docJson(res) {
+    try { return await res.json(); }
+    catch (_) { throw new LoiKiem(0, "KET_QUA_CHUA_RO", "Phản hồi đọc không trọn — chưa rõ lệnh đã ghi hay chưa. Khóa được giữ; bấm Gửi lại y nguyên."); }
+  }
+  const chuaRo = e => !!e && (e.status === 0 || e.status >= 500) && e.code !== "CRM_G_CHUA_SAN_SANG";
+  const loiAnNinh = e => !!e && (e.status === 401 || e.status === 403 || ["CRM_PHIEN", "DANH_TINH", "DANH_TINH_MO_PHONG"].includes(e.code));
+  function trangThai(msg, loi = false) { if (oTrangThai) { oTrangThai.textContent = msg || ""; oTrangThai.className = "upload-status" + (loi ? " error" : ""); } }
+
+  // ------------------------------------------------------------------ ô nhập ghi xuyên (giá trị giữ qua vẽ lại; nội dung kiểm → bẩn tới khi Lưu)
+  const gt = id => nhapGt.has("kh-" + id) ? nhapGt.get("kh-" + id) : "";
+  const xoaNhap = () => { for (const k of [...nhapGt.keys()]) if (k.startsWith("kh-")) nhapGt.delete(k); };
+  function o(id, el, khiDoi) {
+    el.id = "kh-" + id;
+    if (!nhapGt.has(el.id)) nhapGt.set(el.id, "");
+    el.value = nhapGt.get(el.id);
+    const doi = () => {
+      nhapGt.set(el.id, el.value); genForm += 1;
+      if (NOI_DUNG.test(el.id)) { sua = true; dsCanLuu.forEach(b => { b.disabled = true; b.title = LY_CHUA_LUU; }); }
+      if (khiDoi) khiDoi(el);
+    };
+    el.addEventListener("input", doi); el.addEventListener("change", doi);
+    return el;
+  }
+  function nhap(id, type = "text") { const i = node("input"); i.type = type; i.autocomplete = "off"; return o(id, i); }
+  function chon_(id, opts, dau, khiDoi) {
+    const s = node("select");
+    if (dau !== undefined) { const op = node("option", dau); op.value = ""; s.append(op); }
+    for (const [v, t] of opts) { const op = node("option", t); op.value = v; s.append(op); }
+    return o(id, s, khiDoi);
+  }
+  function truong(label, el) { const w = node("div", undefined, "gk-truong"), l = node("label", label); l.htmlFor = el.id; w.append(l, el); return w; }
+  function nut(text, fn, cls, tat) { const b = node("button", text, cls || "button secondary"); b.type = "button"; b.disabled = !!tat; b.addEventListener("click", () => { if (!b.disabled) fn(b); }); return b; }
+  function nutCanLuu(text, fn, cls, ly) {  // dùng revision đã lưu: vô hiệu NGAY khi gõ nội dung kiểm (không chờ vẽ lại)
+    const b = nut(text, () => { if (sua) { trangThai(LY_CHUA_LUU, true); return; } fn(); }, cls, !!ly || sua);
+    if (ly) b.title = ly; else if (sua) b.title = LY_CHUA_LUU;
+    dsCanLuu.push(b); return b;
+  }
+  function bang(headers, rows) {
+    const wrap = node("div", undefined, "table-wrap"), t = node("table"), head = node("thead"), tr = node("tr"), body = node("tbody");
+    headers.forEach(x => tr.append(node("th", x))); head.append(tr); t.append(head);
+    for (const r of rows) { const row = node("tr"); for (const c of r) { const td = node("td"); if (c instanceof Node) td.append(c); else td.textContent = c ?? ""; row.append(td); } body.append(row); }
+    t.append(body); wrap.append(t); return wrap;
+  }
+  function g5Txt(g) {
+    if (!g) return "—";
+    const ma = (Array.isArray(g.chan) ? g.chan : []).map(x => x && x.ma).filter(Boolean).join(", ");
+    const nhan = g.nhan ? ` [${g.nhan}]` : "";
+    if (g.trang_thai === "HOLD") return `HOLD (${ma || "chưa có bằng chứng"})${nhan} — chưa có kết quả/chính sách G5 tin cậy được đăng ký; PENDING/NOT_SELECTED lúc ký KHÔNG phải bằng chứng → chưa kích hoạt được`;
+    if (g.trang_thai === "KHOP") return `KHỚP${nhan}`;
+    if (g.trang_thai === "LECH") return `LỆCH${nhan} — cần quyết định xử lý theo bản ký`;
+    if (g.trang_thai === "KHONG_CHON_MAU") return `Không thuộc mẫu chọn${nhan}`;
+    return `${g.trang_thai || "—"}${nhan}`;
+  }
+  function g4G5Txt(g) {
+    if (!g || !g.trang_thai) return "—";
+    return `${g.trang_thai} (khởi tạo lúc ký — không phải bằng chứng đối chiếu)`;
+  }
+  const tienTxt = (m, tt) => m === null || m === undefined ? "chưa tính được" : `${m} ${tt || ""} (đơn vị nhỏ nhất)`.trim();
+  const maTxt = arr => (Array.isArray(arr) ? arr : []).map(x => x && (x.ma + (x.muc ? ` (${x.muc})` : "") + (x.dong ? ` · dòng ${x.dong}` : ""))).filter(Boolean);
+
+  // ------------------------------------------------------------------ nạp (chỉ GET mới nhất của đúng epoch/vai/bản ký/điều hướng được ghi)
+  async function napDs() {
+    if (K.vaiDangChan("crm_kiem")) return false;
+    const e = ep, g = ++genDs, gv = genVao, gf = genForm, dung = () => e === ep && g === genDs && gv === genVao && dangHopDong();
+    try {
+      const s = await docJson(await goi("/api/crm/giao-ket/kiem"));
+      if (!dung()) return false;
+      if (!s || !Array.isArray(s.ds) || !s.nguoi || typeof s.nguoi.dang_nhap !== "string") throw new LoiKiem(0, "KET_QUA_CHUA_RO", "Danh sách kiểm không đúng cấu trúc.");
+      if (actor() !== null && s.nguoi.dang_nhap !== actor()) { ep += 1; boChon(); nhapGt.clear(); }
+      ds = s;
+      if (gf !== genForm) return false;  // người dùng đang gõ: giữ danh sách mới, không vẽ lại (caret); lần vẽ sau hiển thị
+      ve();
+      return true;
+    } catch (err) {
+      if (!dung()) return false;
+      if (loiAnNinh(err)) { ds = null; boChon(); ve(); }
+      trangThai(err.message, true);
+      return false;
+    }
+  }
+  async function napCt(id) {
+    if (K.vaiDangChan("crm_kiem")) return false;
+    const e = ep, a = actor(), g = ++genCt, gv = genVao, gf = genForm;
+    const dung = () => e === ep && a === actor() && g === genCt && gv === genVao && chon === id && dangHopDong();
+    try {
+      const d = await docJson(await goi(`/api/crm/giao-ket/kiem/${encodeURIComponent(id)}`));
+      if (!dung()) return false;
+      if (!d || !d.ky || d.ky.ky_id !== id) throw new LoiKiem(0, "KET_QUA_CHUA_RO", "Chi tiết không đúng bản ký đang mở.");
+      ct = d;
+      napG5(id);  // G5-B: trạng thái đối chiếu đọc RIÊNG (fence riêng), không chặn chi tiết G6A
+      if (gf !== genForm) return false;  // đang gõ: không ghi đè form; form giữ revision cũ → máy chủ chặn CAS nếu đã cũ
+      ghiForm(d); ve();
+      return true;
+    } catch (err) {
+      if (!dung()) return false;
+      ct = {loi: (err && err.message) || String(err), ky: {ky_id: id}};
+      ve(); trangThai(ct.loi, true);
+      return false;
+    }
+  }
+  async function napLai() { await napDs(); if (chon) await napCt(chon); }
+  function ghiForm(d) {
+    xoaNhap();
+    const rv = d.rev, set = (k, v) => nhapGt.set("kh-" + k, v ?? "");
+    for (const [k] of CHECKLIST) set("cl-" + k, rv && rv.checklist ? rv.checklist[k] : "");
+    set("junsky", rv && rv.de_xuat_ma_junsky_id); set("ngay", rv && rv.ngay_hieu_luc); set("can-cu", rv && rv.can_cu_ngay);
+    set("trich", rv && rv.trich_dan_ngay); set("ghi-chu", rv && rv.ghi_chu);
+    sua = false;
+    formCua = {ky: d.ky.ky_id, rev: d.ho_so && Number.isInteger(d.ho_so.revision) ? d.ho_so.revision : 0};
+  }
+  function boChon() {
+    chon = null; ct = null; formCua = null; sua = false; genCt += 1; genForm += 1; genTim += 1; timTu = ""; timKq = null; xoaNhap();
+    g5v = null; genG5 += 1; if (g5Hen) { clearTimeout(g5Hen); g5Hen = null; }
+  }
+  function xoa() { ep += 1; ds = null; boChon(); nhapGt.clear(); ve(); trangThai(""); Promise.resolve().then(() => napDs()); }
+  K.dangKyVai("crm_kiem", xoa, () => { napDs(); if (chon) napCt(chon); });
+
+  // ------------------------------------------------------------------ ý định lệnh (body + khóa gốc giữ tới ACK typed)
+  function yDang(a, ky) { for (const y of yd.values()) if (!y.het && (y.dangGui || y.chuaRo) && y.actor === a && y.ky === ky) return y; return null; }
+  function boYD(y) { y.het = true; y.chuaRo = false; if (yd.get(y.k) === y) yd.delete(y.k); }
+  function yDinh(hanh, body, kiem, ok) {  // ĐỒNG BỘ (không await): khóa tạo MỘT lần cho (vai, lệnh, body)
+    const a = actor();
+    if (!a || !ct || !ct.ky || body.ky_id !== chon || typeof ct.ky.hop_dong_id !== "string") { trangThai("Mở bản ký trước.", true); return null; }
+    const k = JSON.stringify([a, hanh, body]), cu = yDang(a, body.ky_id);
+    if (cu && cu.k !== k) {
+      trangThai(cu.dangGui ? `Lệnh "${TEN[cu.hanh]}" đang gửi — chờ kết quả, không gửi lệnh khác.`
+        : `Lệnh "${TEN[cu.hanh]}" trước chưa rõ kết quả — bấm Gửi lại y nguyên (cùng khóa) trước; không gửi lệnh khác.`, true);
+      return null;
+    }
+    let y = yd.get(k);
+    if (y && !y.het) return y;  // cùng ý định: đang gửi → 0 POST; chưa rõ → gửi lại ĐÚNG body + khóa gốc
+    y = {k, hanh, actor: a, ky: body.ky_id, hd: ct.ky.hop_dong_id, body, khoa: taoKhoa(), kiem, ok, dangGui: false, chuaRo: false, het: false};
+    yd.set(k, y);
+    return y;
+  }
+  async function guiYD(y) {
+    if (y.het || y.actor !== actor() || y.ky !== chon) return;  // ý định của vai/bản ký khác: không bao giờ gửi dưới ngữ cảnh hiện hành
+    if (y.dangGui) { trangThai("Lệnh đang gửi — chờ kết quả, không gửi lần thứ hai."); return; }
+    y.dangGui = true;
+    const e0 = ep, a0 = actor(), gf0 = genForm, gv0 = genVao;
+    const ht = () => e0 === ep && a0 === actor() && gf0 === genForm && gv0 === genVao && chon === y.ky && dangHopDong();
+    const vf = () => !y.het && ht();
+    trangThai(`Đang gửi: ${TEN[y.hanh]}…`);
+    const chuaRoYD = msg0 => {
+      y.chuaRo = true;
+      if (vf()) { const msg = `${msg0} — kết quả "${TEN[y.hanh]}" chưa rõ; bấm Gửi lại y nguyên (cùng khóa).`; K.toast(msg, true); ve(); trangThai(msg, true); }
+    };
+    let r;
+    try {
+      r = await docJson(await goi("/api/crm/giao-ket/kiem/" + y.hanh, {method: "POST", headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({...y.body, khoa: y.khoa})}));
+    } catch (e) {
+      y.dangGui = false;
+      if (chuaRo(e) && !y.het) { chuaRoYD((e && e.message) || "Chưa rõ kết quả."); return; }
+      const hl = vf();
+      boYD(y);  // kết quả xác định — chỉ nhả ĐÚNG bản ghi y
+      if (!hl) return;  // lỗi của ngữ cảnh cũ: không toast/vẽ/làm mới
+      const msg = (e && e.message) || String(e);
+      K.toast(msg, true); trangThai(msg, true);
+      if (MA_CAN_CU.has(e && e.code) || loiAnNinh(e)) { await lamMoi(ht); if (ht()) trangThai(`${msg} — đã tải lại căn cứ hiện hành.`, true); }
+      else ve();
+      return;
+    }
+    y.dangGui = false;
+    const ack = y.kiem(r, y);
+    if (!ack) { if (!y.het) chuaRoYD("Phản hồi không đúng biên nhận mong đợi"); return; }  // 2xx lệch/thiếu: CHƯA RÕ, không FINAL
+    const hl = vf();
+    boYD(y);  // FINAL (ACK typed đã kiểm định danh)
+    if (!hl) return;  // ACK muộn của ngữ cảnh cũ: im lặng; lần mở lại đọc trạng thái máy chủ
+    const msg = y.ok(ack) + (ack.lap_lai ? " (biên nhận cũ của cùng yêu cầu — không ghi thêm)" : "");
+    ve(); K.toast(msg); trangThai(msg);  // ý định đã FINAL: vẽ lại để gỡ nút gửi lại trước khi GET làm mới về
+    await lamMoi(ht);
+    if (ht()) trangThai(msg);
+  }
+  async function lamMoi(ht) {  // GET làm mới theo guard CHỤP lúc gửi (không chụp mới ở completion)
+    if (!ht()) return;
+    await napDs();
+    if (ht() && chon) await napCt(chon);
+  }
+  // ACK typed: chỉ FINAL khi đúng DTO crm_kiem_kq của ĐÚNG bản ký/hợp đồng/revision/trạng thái mong đợi; thiếu/lệch → null (CHƯA RÕ)
+  const soNguyen = v => Number.isInteger(v) && v >= 0;
+  function ackGoc(r, y, tt, rev) {
+    return !!r && typeof r === "object" && !Array.isArray(r) && r.ky_id === y.ky && r.hop_dong_id === y.hd && typeof r.ho_so_id === "string"
+      && UUID.test(r.ho_so_id) && r.trang_thai === tt && soNguyen(r.revision) && r.revision === rev && typeof r.lap_lai === "boolean";
+  }
+  const ACK = {
+    luu: (r, y) => ackGoc(r, y, "DANG_KIEM", y.body.expected_revision + 1) ? {lap_lai: r.lap_lai, revision: r.revision} : null,
+    check: (r, y) => {
+      const c = r && r.check;
+      const dung = ackGoc(r, y, "DANG_KIEM", y.body.expected_revision) && !!c && typeof c === "object" && typeof c.check_id === "string" && UUID.test(c.check_id)
+        && c.ho_so_revision === y.body.expected_revision && ["DU_DIEU_KIEN", "CHUA_DU_DIEU_KIEN"].includes(c.ket_luan) && typeof c.do_thi_sha256 === "string"
+        && SHA.test(c.do_thi_sha256) && c.g5_che_do === "VAN_HANH" && Array.isArray(c.chan) && Array.isArray(c.canh_bao)
+        && (c.ket_luan === "DU_DIEU_KIEN") === (c.chan.length === 0);
+      return dung ? {lap_lai: r.lap_lai, ket_luan: c.ket_luan, so_chan: c.chan.length} : null;
+    },
+    "xu-ly-lech": (r, y) => ackGoc(r, y, "DANG_KIEM", y.body.expected_revision) && typeof r.xu_ly_id === "string" && UUID.test(r.xu_ly_id) ? {lap_lai: r.lap_lai} : null,
+    "bo-sung": (r, y) => ackGoc(r, y, "CHO_BO_SUNG", y.body.expected_revision) ? {lap_lai: r.lap_lai} : null,
+    "tra-lai": (r, y) => ackGoc(r, y, "TRA_LAI_CHO_KY_LAI", y.body.expected_revision) && r.ket_qua === "CHAN_PHU_THUOC"
+      && r.phu_thuoc === "CRM_G6A_TRA_LAI_CHO_G4_KY_LAI" && r.g4_trang_thai === "DA_KY" ? {lap_lai: r.lap_lai} : null,
+    "hieu-luc": (r, y) => {
+      const h = r && r.hieu_luc;
+      const dung = ackGoc(r, y, "HIEU_LUC", y.body.expected_revision) && !!h && typeof h === "object" && typeof h.phien_ban_id === "string" && UUID.test(h.phien_ban_id)
+        && typeof h.chung_tu_id === "string" && UUID.test(h.chung_tu_id) && Number.isInteger(h.so_dong_lich) && h.so_dong_lich > 0
+        && typeof h.tong_minor === "string" && /^[1-9]\d*$/.test(h.tong_minor) && typeof h.tien_te === "string" && /^[A-Z]{3}$/.test(h.tien_te)
+        && h.g5_che_do === "VAN_HANH" && ["KHOP", "LECH", "KHONG_AP_DUNG"].includes(h.g7_trang_thai);
+      return dung ? {lap_lai: r.lap_lai, so_dong_lich: h.so_dong_lich, tong_minor: h.tong_minor, tien_te: h.tien_te, g7: h.g7_trang_thai} : null;
+    },
+  };
+  const OK = {
+    luu: a => `Đã lưu kiểm (revision ${a.revision}).`,
+    check: a => a.ket_luan === "DU_DIEU_KIEN" ? "Đã chạy check: đủ điều kiện kích hoạt." : `Đã chạy check: chưa đủ điều kiện (${a.so_chan} mục chặn).`,
+    "xu-ly-lech": () => "Đã ghi quyết định xử lý lệch theo bản ký — chạy check lại.",
+    "bo-sung": () => "Đã chuyển Chờ bổ sung.",
+    "tra-lai": () => "Đã trả lại — chờ quy trình ký lại. Bản ký/PDF G4 giữ nguyên, KHÔNG về nháp (ký lại thuộc gói kế tiếp).",
+    "hieu-luc": a => `Hợp đồng đã HIỆU LỰC — phiên bản v1 + ${a.so_dong_lich} đợt lịch thu (tổng ${tienTxt(a.tong_minor, a.tien_te)})`
+      + (a.g7 === "LECH" ? " · đã tạo việc CFO xem xét lệch G7" : ""),
+  };
+  function lenh(hanh, body) { const y = yDinh(hanh, body, ACK[hanh], OK[hanh]); if (y) guiYD(y); }
+
+  // ------------------------------------------------------------------ thân lệnh (chỉ trường cho phép; không actor/PN/chế độ G5/kết quả)
+  function ungVien() {
+    const uv = (ct && Array.isArray(ct.ma_junsky_ung_vien) ? ct.ma_junsky_ung_vien : []).filter(x => x && typeof x.id === "string");
+    if (timKq && timKq.ky === chon && timKq.a === actor() && ct && ct.khach_du_thao === true)
+      for (const x of timKq.ds) if (!uv.some(u => u.id === x.id)) uv.push(x);
+    const rv = ct && ct.rev;
+    if (rv && rv.de_xuat_ma_junsky_id && !uv.some(x => x.id === rv.de_xuat_ma_junsky_id))
+      uv.push({id: rv.de_xuat_ma_junsky_id, doi_tac_id: rv.de_xuat_doi_tac_id, tien_to: "", object_id: rv.ma_junsky || "", ten: "(đã lưu — không còn trong danh sách hiện hành)"});
+    return uv;
+  }
+  function bamLuu() {
+    if (!ct || !formCua || formCua.ky !== chon) { trangThai("Mở bản ký trước.", true); return; }
+    const cl = {};
+    for (const [k] of CHECKLIST) { const v = gt("cl-" + k); cl[k] = v === "XAC_NHAN" || v === "CO_VAN_DE" ? v : null; }
+    const mj = s0(gt("junsky")), uv = mj ? ungVien().find(x => x.id === mj) : null;
+    if (mj && !uv) { trangThai("Mã Junsky đã chọn không còn trong danh sách — chọn lại.", true); return; }
+    const ngay = s0(gt("ngay")), cc = s0(gt("can-cu")), td = s0(gt("trich"));
+    if (new Set([ngay === null, cc === null, td === null]).size !== 1) { trangThai("Ngày hiệu lực cần đủ ngày + căn cứ + trích dẫn (hoặc để trống cả ba).", true); return; }
+    lenh("luu", {ky_id: chon, expected_revision: formCua.rev, checklist: cl, doi_tac_id: uv ? uv.doi_tac_id : null, ma_junsky_id: uv ? uv.id : null,
+      ngay_hieu_luc: ngay, can_cu_ngay: cc, trich_dan_ngay: td, ghi_chu: s0(gt("ghi-chu"))});
+  }
+  const revHt = () => (ct && ct.ho_so && Number.isInteger(ct.ho_so.revision) ? ct.ho_so.revision : null);
+  function bamLyDo(hanh) {
+    const ld = s0(gt("ly-do")), rev = revHt();
+    if (rev === null) { trangThai("Chưa có hồ sơ kiểm — Lưu kiểm trước.", true); return; }
+    if (!ld) { trangThai("Nhập lý do.", true); return; }
+    lenh(hanh, {ky_id: chon, expected_revision: rev, ly_do: ld});
+  }
+  function bamXuLy(loai, mucTieu, ma) {
+    const ld = s0(gt("ly-do")), rev = revHt();
+    if (rev === null || !mucTieu) { trangThai("Chưa có hồ sơ kiểm/mục tiêu lệch.", true); return; }
+    if (!ld) { trangThai("Nhập lý do xử lý lệch theo bản ký.", true); return; }
+    lenh("xu-ly-lech", {ky_id: chon, expected_revision: rev, loai, muc_tieu_id: mucTieu, ma_lech: ma, ly_do: ld});
+  }
+  function bamCheck() { const rev = revHt(); if (rev === null) { trangThai("Chưa có hồ sơ kiểm — Lưu kiểm trước.", true); return; } lenh("check", {ky_id: chon, expected_revision: rev}); }
+  function bamHieuLuc() {
+    const rev = revHt(), c = ct && ct.check;
+    if (rev === null || !c || c.ho_so_revision !== rev || c.ket_luan !== "DU_DIEU_KIEN") { trangThai("Cần lần check mới nhất của revision hiện hành đủ điều kiện.", true); return; }
+    lenh("hieu-luc", {ky_id: chon, expected_revision: rev, check_id: c.check_id, do_thi_sha256: c.do_thi_sha256});
+  }
+
+  // ------------------------------------------------------------------ tra cứu mã Junsky có sẵn (khách dự thảo; chỉ đọc — lựa chọn lưu bằng Lưu kiểm)
+  const KY_TU_DIEU_KHIEN = /[\u0000-\u001f\u007f]/;
+  async function timJunsky() {
+    const tu = String(timTu || "").trim(), ky = chon;
+    if (!ct || !ct.ky || ct.ky.ky_id !== ky || ct.khach_du_thao !== true) { trangThai("Chỉ tra cứu cho bản ký khách dự thảo đang mở.", true); return; }
+    if (tu.length < 3 || tu.length > 60 || KY_TU_DIEU_KHIEN.test(tu)) { trangThai("Nhập 3–60 ký tự (mã hoặc tên Junsky) để tra cứu.", true); return; }
+    const e = ep, a = actor(), g = ++genTim, gv = genVao, gf = genForm;
+    const f = () => e === ep && a === actor() && g === genTim && gv === genVao && chon === ky && dangHopDong();
+    trangThai("Đang tra cứu mã Junsky…");
+    try {
+      const r = await docJson(await goi("/api/crm/giao-ket/kiem/tim-junsky", {method: "POST", headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({ky_id: ky, tu_khoa: tu})}));
+      if (!f()) return;  // phản hồi của bản ký/vai/lần tra cứu cũ: bỏ
+      if (!r || typeof r !== "object" || r.ky_id !== ky || !Array.isArray(r.ung_vien)) throw new LoiKiem(0, "KET_QUA_CHUA_RO", "Kết quả tra cứu không đúng bản ký đang mở.");
+      const dsTim = r.ung_vien.filter(x => x && typeof x.id === "string" && UUID.test(x.id) && typeof x.doi_tac_id === "string" && UUID.test(x.doi_tac_id))
+        .map(x => ({id: x.id, doi_tac_id: x.doi_tac_id, tien_to: String(x.tien_to || ""), object_id: String(x.object_id || ""), ten: String(x.ten || "")}));
+      timKq = {ky, a, ds: dsTim};
+      const msg = dsTim.length ? `Tìm thấy ${dsTim.length} mã Junsky có sẵn cùng pháp nhân — chọn trong danh sách rồi Lưu kiểm.`
+        : "Không có mã Junsky hiện hành khớp trong pháp nhân này — tạo/ánh xạ ở quy trình danh mục đối tác (G6A không tạo mã).";
+      if (gf === genForm) ve();  // đang gõ nội dung kiểm: giữ kết quả, không vẽ lại (caret/nháp); lần vẽ sau hiển thị
+      trangThai(msg);
+    } catch (err) {
+      if (!f()) return;
+      const msg = err && err.code === "CRM_KIEM_KHACH_DA_DINH" ? "Khách của bản ký/hợp đồng đã được định danh — không tra cứu/thay khách." : (err && err.message) || String(err);
+      if (err && (err.code === "CRM_KIEM_KHACH_DA_DINH" || loiAnNinh(err))) { timKq = null; await napCt(ky); if (!f()) return; }
+      trangThai(msg, true);
+    }
+  }
+
+  // ------------------------------------------------------------------ G5-B: Bản ký & đối chiếu (một engine Source6 ở máy chủ; trình duyệt chỉ gửi
+  // ky_id + expected_context_sha256 + khóa). VIEW/ACK kiểm ĐÚNG khóa/kiểu; lệch → CHƯA RÕ (giữ ý định), không suy "khớp". Kết quả hiện hành tách lịch sử.
+  const G5_VIEW = ["kieu", "ky_id", "context_sha256", "bat_buoc", "khoi_tao", "quyen", "readiness", "current_job", "current_result", "history", "g6"];
+  const G5_JOB = ["job_id", "loai", "trang_thai", "ly_do", "request_id", "the_he", "so_lan", "khoi_tao_loai", "cap_nhat_luc"];
+  const G5_KQ = ["result_id", "trang_thai", "hien_hanh", "nhan_dang_ky", "tac_nhan_loai", "so_phu", "so_ma", "so_lech", "so_thieu", "tham_so", "tao_luc"];
+  const G5_TS = ["ma", "crm_truong", "muc", "kieu", "gia_tri_ky_vong", "gia_tri_ban_ky", "trich_dan", "vi_tri_do_duoc", "trang_thai"];
+  const G5_LS = ["result_id", "trang_thai", "tac_nhan_loai", "hien_hanh", "so_lech", "so_thieu", "tao_luc"];
+  const G5_ACK = ["kieu", "ky_id", "context_sha256", "job_id", "request_id", "state", "current_result_id", "tao_moi", "replay"];
+  const G5_MO = ["CHO", "DANG_CHAY", "CHUA_RO", "CHO_CAU_HINH"], G5_KQ_TT = ["KHOP", "LECH", "CHUA_DOI_CHIEU_DUOC"];
+  const G5_TS_TT = ["LECH", "THIEU", "KHOP", "CHUA_PHU"], G5_TN = ["SYSTEM_JOB", "NGUOI_DUNG"];
+  const RID_G5 = /^crm-g5-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}-[1-9]\d*$/;
+  const TEN_G5 = {chay: "Chạy đối chiếu", "doi-soat": "Đối soát"};
+  const G5_NHAN = {BAT_BUOC: "bắt buộc", CHO_CAU_HINH: "chờ cấu hình", DANG_XU_LY: "đang xử lý", CHUA_RO: "chưa rõ", KHOP: "khớp", LECH: "lệch",
+    CHUA_DOI_CHIEU_DUOC: "chưa đối chiếu được", CHUA: "chưa đối chiếu"};
+  const G5_LY = {THIEU_DANG_KY: "Chưa có đăng ký engine/catalog cho loại hợp đồng/mẫu/danh mục của bản ký (chủ hệ thống đăng ký sau khi có bằng chứng producer).",
+    DANG_KY_DEMO: "Đăng ký hiện hành là DEMO kiểm thử — kết quả không phải bằng chứng vận hành.",
+    THIEU_NGUOI_CHAY: "Chưa cấu hình người chạy việc bắt buộc (phân công CRM_HD_KIEM hiện hành) — việc được giữ, chờ cấu hình.",
+    E5_CHUA_GHEP: "Engine Source6 chưa có biến thể đối chiếu bản ký — việc được giữ, chờ cấu hình.", TRICH6_CHUA_SAN_SANG: "Engine Source6 chưa sẵn sàng.",
+    E5_IMPLEMENTATION_KHAC: "Engine đang chạy khác implementation đã đăng ký — chưa công bố.", CRM_KIEM_CHUA_CO_PHAM_VI: "Người chạy chưa có phạm vi kiểm hiện hành.",
+    CRM_G_KHONG_CO_QUYEN: "Người chạy không còn quyền kiểm hiện hành.", CRM_G_CUNG_NGUOI: "Người chạy là người ghi bản ký (tách nhiệm).",
+    CRM_G5_DANG_KY_DOI: "Đăng ký engine/catalog đổi trước công bố — chạy lại theo đăng ký mới.", CRM_G5_NGUOI_CHAY_DOI: "Người chạy đổi/thu hồi trước công bố."};
+  const laObj = x => !!x && typeof x === "object" && !Array.isArray(x);
+  const dungKhoa = (x, ks) => laObj(x) && Object.keys(x).length === ks.length && ks.every(k => Object.prototype.hasOwnProperty.call(x, k));
+  const uuidHoacNull = x => x === null || (typeof x === "string" && UUID.test(x));
+  function g5Dung(v, id) {  // CRM_G5_VIEW_V1 đúng khóa/kiểu của ĐÚNG bản ký; sai → không dùng (không vẽ nút/kết quả từ dữ liệu lệch)
+    if (!dungKhoa(v, G5_VIEW) || v.kieu !== "CRM_G5_VIEW_V1" || v.ky_id !== id || typeof v.context_sha256 !== "string" || !SHA.test(v.context_sha256)
+      || typeof v.bat_buoc !== "boolean" || !dungKhoa(v.khoi_tao, ["trang_thai", "ly_do", "la_bang_chung"]) || v.khoi_tao.la_bang_chung !== false
+      || !dungKhoa(v.quyen, ["chay", "doi_soat"]) || typeof v.quyen.chay !== "boolean" || typeof v.quyen.doi_soat !== "boolean"
+      || !dungKhoa(v.readiness, ["san_sang", "ly_do"]) || typeof v.readiness.san_sang !== "boolean" || !Array.isArray(v.readiness.ly_do)
+      || v.readiness.ly_do.some(x => typeof x !== "string") || v.readiness.san_sang !== (v.readiness.ly_do.length === 0) || !laObj(v.g6)
+      || !Array.isArray(v.history)) return false;
+    const j = v.current_job, x = v.current_result;
+    if (j !== null && (!dungKhoa(j, G5_JOB) || !UUID.test(String(j.job_id)) || !["BAT_BUOC", "THU_CONG"].includes(j.loai) || !G5_MO.includes(j.trang_thai)
+      || typeof j.request_id !== "string" || !RID_G5.test(j.request_id) || !j.request_id.startsWith(`crm-g5-${j.job_id}-`) || !Number.isInteger(j.so_lan))) return false;
+    if (x !== null && (!dungKhoa(x, G5_KQ) || !UUID.test(String(x.result_id)) || !G5_KQ_TT.includes(x.trang_thai) || typeof x.hien_hanh !== "boolean"
+      || !G5_TN.includes(x.tac_nhan_loai) || !["so_phu", "so_ma", "so_lech", "so_thieu"].every(k => Number.isInteger(x[k]) && x[k] >= 0)
+      || !Array.isArray(x.tham_so) || x.tham_so.length !== x.so_ma
+      || x.tham_so.some(t => !dungKhoa(t, G5_TS) || typeof t.ma !== "string" || !Number.isInteger(t.muc) || t.muc < 0 || t.muc > 3 || !G5_TS_TT.includes(t.trang_thai))
+      || (x.trang_thai === "KHOP" && (x.so_lech !== 0 || x.so_thieu !== 0 || x.so_phu !== x.so_ma))
+      || (x.trang_thai === "LECH" && (x.so_lech < 1 || x.so_phu !== x.so_ma)))) return false;
+    return v.history.every(h => dungKhoa(h, G5_LS) && UUID.test(String(h.result_id)) && G5_KQ_TT.includes(h.trang_thai) && (x === null || h.result_id !== x.result_id));
+  }
+  function g5Ack(r, y) {  // CRM_G5_ACK_V1 của ĐÚNG bản ký + ngữ cảnh đã gửi; thiếu/lệch → null (CHƯA RÕ, giữ ý định)
+    if (!dungKhoa(r, G5_ACK) || r.kieu !== "CRM_G5_ACK_V1" || r.ky_id !== y.ky || r.context_sha256 !== y.body.expected_context_sha256
+      || typeof r.job_id !== "string" || !UUID.test(r.job_id) || typeof r.request_id !== "string" || !RID_G5.test(r.request_id)
+      || !r.request_id.startsWith(`crm-g5-${r.job_id}-`) || !G5_MO.includes(r.state) || !uuidHoacNull(r.current_result_id)
+      || typeof r.tao_moi !== "boolean" || typeof r.replay !== "boolean" || (y.hanh === "doi-soat" && r.tao_moi !== false)) return null;
+    return {state: r.state, tao_moi: r.tao_moi, replay: r.replay};
+  }
+  async function napG5(id) {
+    if (K.vaiDangChan("crm_kiem")) return false;
+    const e = ep, a = actor(), g = ++genG5, gv = genVao, gf = genForm;
+    const dung = () => e === ep && a === actor() && g === genG5 && gv === genVao && chon === id && dangHopDong();
+    if (g5Hen) { clearTimeout(g5Hen); g5Hen = null; }
+    try {
+      const v = await docJson(await goi(`/api/crm/giao-ket/doi-chieu/${encodeURIComponent(id)}`));
+      if (!dung()) return false;  // GET cũ (vai/bản ký/điều hướng/lần nạp khác): không ghi đè
+      if (!g5Dung(v, id)) throw new LoiKiem(0, "KET_QUA_CHUA_RO", "Trạng thái đối chiếu không đúng cấu trúc CRM_G5_VIEW_V1 — không hiển thị kết quả.");
+      g5v = v;
+      if (v.current_job && (v.current_job.trang_thai === "CHO" || v.current_job.trang_thai === "DANG_CHAY"))
+        g5Hen = setTimeout(() => { g5Hen = null; if (dung()) napG5(id); }, 5000);  // đang xử lý: làm mới định kỳ (trạng thái thật ở CSDL)
+      if (gf === genForm) ve();
+      return true;
+    } catch (err) {
+      if (!dung()) return false;
+      g5v = {loi: (err && err.message) || String(err), ky_id: id, an_ninh: loiAnNinh(err) || (err && err.status === 404)};
+      if (gf === genForm) ve();
+      return false;
+    }
+  }
+  function yDangG5(a, ky) { for (const y of ydG5.values()) if (!y.het && (y.dangGui || y.chuaRo) && y.actor === a && y.ky === ky) return y; return null; }
+  function boG5(y) { y.het = true; y.chuaRo = false; if (ydG5.get(y.k) === y) ydG5.delete(y.k); }
+  function lenhG5(hanh) {  // ĐỒNG BỘ: khóa tạo MỘT lần cho (vai, lệnh, bản ký, ngữ cảnh); quyền hiện hành của VIEW chặn trước POST
+    const a = actor(), v = g5v;
+    if (!a || !v || v.loi || v.ky_id !== chon) { trangThai("Tải trạng thái đối chiếu trước.", true); return; }
+    if (!(hanh === "chay" ? v.quyen.chay : v.quyen.doi_soat)) { trangThai("Vai hiện hành không có quyền thao tác đối chiếu này.", true); return; }
+    const body = {ky_id: chon, expected_context_sha256: v.context_sha256};
+    const k = JSON.stringify([a, hanh, body]), cu = yDangG5(a, chon);
+    if (cu && cu.k !== k) {
+      trangThai(cu.dangGui ? `"${TEN_G5[cu.hanh]}" đang gửi — chờ kết quả.` : `"${TEN_G5[cu.hanh]}" trước chưa rõ kết quả — bấm Gửi lại y nguyên (cùng khóa) trước.`, true);
+      return;
+    }
+    let y = ydG5.get(k);
+    if (!y || y.het) { y = {k, hanh, actor: a, ky: chon, body, khoa: taoKhoa(), dangGui: false, chuaRo: false, het: false}; ydG5.set(k, y); }
+    guiG5(y);
+  }
+  async function guiG5(y) {
+    if (y.het || y.actor !== actor() || y.ky !== chon || K.vaiDangChan("crm_kiem")) return;  // không bao giờ gửi dưới vai/bản ký khác
+    if (y.dangGui) { trangThai("Lệnh đối chiếu đang gửi — không gửi lần thứ hai."); return; }
+    y.dangGui = true;
+    const e0 = ep, a0 = actor(), gv0 = genVao;
+    const ht = () => e0 === ep && a0 === actor() && gv0 === genVao && chon === y.ky && dangHopDong();
+    const vf = () => !y.het && ht();
+    const chuaRoG5 = msg0 => {
+      y.chuaRo = true;
+      if (vf()) { const msg = `${msg0} — "${TEN_G5[y.hanh]}" chưa rõ kết quả; bấm Gửi lại y nguyên (cùng khóa).`; K.toast(msg, true); ve(); trangThai(msg, true); }
+    };
+    trangThai(`Đang gửi: ${TEN_G5[y.hanh]}…`);
+    let r;
+    try {
+      r = await docJson(await goi("/api/crm/giao-ket/doi-chieu/" + y.hanh, {method: "POST", headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({...y.body, khoa: y.khoa})}));
+    } catch (e) {
+      y.dangGui = false;
+      if (chuaRo(e) && !y.het) { chuaRoG5((e && e.message) || "Chưa rõ kết quả."); return; }
+      const hl = vf();
+      boG5(y);  // lỗi xác định (403/404/409/400/503-chưa-sẵn-sàng) — nhả ĐÚNG ý định này
+      if (!hl) return;
+      const msg = (e && e.message) || String(e);
+      K.toast(msg, true); trangThai(msg, true);
+      await napG5(y.ky);  // ngữ cảnh/quyền có thể đã đổi: đọc lại trạng thái hiện hành (fence riêng)
+      return;
+    }
+    y.dangGui = false;
+    const ack = g5Ack(r, y);
+    if (!ack) { if (!y.het) chuaRoG5("Phản hồi không đúng biên nhận CRM_G5_ACK_V1"); return; }
+    const hl = vf();
+    boG5(y);
+    if (!hl) return;  // ACK muộn của ngữ cảnh cũ: im lặng
+    const msg = `${TEN_G5[y.hanh]}: đã ghi việc (${ack.state === "CHO_CAU_HINH" ? G5_NHAN.CHO_CAU_HINH : ack.state === "CHUA_RO" ? G5_NHAN.CHUA_RO : G5_NHAN.DANG_XU_LY})`
+      + (ack.replay ? " (biên nhận cũ của cùng yêu cầu — không ghi thêm)" : "") + " — kết quả do máy chủ công bố sau khi engine đối chiếu xong.";
+    ve(); K.toast(msg); trangThai(msg);
+    await napG5(y.ky);
+  }
+  function g5Gt(v) {  // hiển thị giá trị typed: ∅ ≠ 0, tiền tệ tường minh, bảng giữ thứ tự dòng/ô
+    if (v === null || v === undefined) return "∅ (trống)";
+    if (typeof v === "string") return v;
+    if (laObj(v) && Object.prototype.hasOwnProperty.call(v, "so_tien")) return `${v.so_tien ?? "∅"} ${v.tien_te ?? "(không có tiền tệ)"}`;
+    if (laObj(v) && Array.isArray(v.dong)) return `bảng ${v.dong.length} dòng: ` + v.dong.map((d, i) => `#${i + 1} [${(Array.isArray(d) ? d : []).map(c => c === null ? "∅" : String(c)).join(" | ")}]`).join("; ");
+    return JSON.stringify(v);
+  }
+  const g5ViTri = v => v === null || v === undefined ? "" : typeof v === "string" ? v : JSON.stringify(v);
+  const G5_TS_NHAN = {LECH: "lệch", THIEU: "thiếu (chưa đọc được)", KHOP: "khớp", CHUA_PHU: "chưa phủ"};
+  const tnTxt = t => t === "SYSTEM_JOB" ? "việc hệ thống (bắt buộc)" : "thủ công";
+  function veG5() {
+    const w = node("section", undefined, "gk-doi-chieu"); w.setAttribute("aria-label", "Bản ký & đối chiếu");
+    w.append(node("h5", "Bản ký & đối chiếu"));
+    const v = g5v;
+    if (!v) { w.append(node("p", "Đang tải trạng thái đối chiếu…")); return [w]; }
+    if (v.loi) { w.append(node("p", "Không tải được trạng thái đối chiếu: " + v.loi, "upload-status error")); return [w]; }
+    const j = v.current_job, x = v.current_result, nhan = [];
+    if (v.bat_buoc) nhan.push(G5_NHAN.BAT_BUOC);
+    if (j) nhan.push(j.trang_thai === "CHO_CAU_HINH" ? G5_NHAN.CHO_CAU_HINH : j.trang_thai === "CHUA_RO" ? G5_NHAN.CHUA_RO : G5_NHAN.DANG_XU_LY);
+    nhan.push(x ? G5_NHAN[x.trang_thai] : G5_NHAN.CHUA);
+    const p = node("p", "Trạng thái: " + nhan.join(" · ")); p.dataset.g5Nhan = nhan.join("|"); w.append(p);
+    if (v.bat_buoc) w.append(node("p", "Bản ký khai CÓ sửa so với bản xuất: đối chiếu là bắt buộc (việc hệ thống tự xếp hàng lúc ký; không duyệt/kích hoạt thay kế toán).", "gk-ly-do"));
+    for (const ly of v.readiness.ly_do) w.append(node("p", G5_LY[ly] || ly, "gk-ly-do"));
+    if (j && j.ly_do && (j.trang_thai === "CHO_CAU_HINH" || j.trang_thai === "CHUA_RO"))
+      w.append(node("p", `Việc ${j.loai === "BAT_BUOC" ? "bắt buộc" : "thủ công"}: ${G5_LY[j.ly_do] || j.ly_do}`, "gk-ly-do"));
+    if (x) {
+      w.append(node("p", `Kết quả hiện hành: ${G5_NHAN[x.trang_thai]} · phủ ${x.so_phu}/${x.so_ma} mã · ${x.so_lech} lệch · ${x.so_thieu} thiếu · ${tnTxt(x.tac_nhan_loai)} · ${K.date(x.tao_luc)}`
+        + (x.hien_hanh ? "" : " — CŨ: đăng ký engine/catalog đã đổi") + (x.nhan_dang_ky === "DEMO_KIEM_THU" ? " — DEMO kiểm thử, không phải bằng chứng vận hành" : "")));
+      w.append(bang(["Tham số", "Bản sinh", "Bản ký", "Trích dẫn/locator", "Mức"], x.tham_so.map(t => [
+        `${t.ma} (${t.crm_truong}) · ${G5_TS_NHAN[t.trang_thai]}`, g5Gt(t.gia_tri_ky_vong), t.trang_thai === "LECH" ? g5Gt(t.gia_tri_ban_ky) : "—",
+        [t.trich_dan || "", g5ViTri(t.vi_tri_do_duoc)].filter(Boolean).join(" · ") || "—", String(t.muc)])));
+    }
+    const hd = node("div", undefined, "demo-actions");
+    hd.append(nut("Chạy đối chiếu", () => lenhG5("chay"), "button secondary", !v.quyen.chay), nut("Đối soát", () => lenhG5("doi-soat"), "button secondary", !v.quyen.doi_soat));
+    if (!v.quyen.chay) hd.append(node("span", "Vai hiện hành không chạy được đối chiếu cho bản ký này (cần phân công + phạm vi kiểm hiện hành; người ghi bản ký không tự kiểm).", "gk-ly-do"));
+    w.append(hd);
+    const y = yDangG5(actor(), chon);
+    if (y && y.chuaRo && !y.dangGui) {
+      const u = node("div", undefined, "demo-actions"); u.dataset.g5ChuaRo = "1";
+      u.append(node("span", `"${TEN_G5[y.hanh]}" trước chưa rõ kết quả. `), nut("Gửi lại y nguyên (cùng khóa)", () => guiG5(y), "button primary"));
+      w.append(u);
+    }
+    if (v.history.length) w.append(node("h6", "Lịch sử đối chiếu (không phải kết quả hiện hành)"), bang(["Lúc", "Kết quả", "Tác nhân", "Theo đăng ký hiện hành?", "Lệch/thiếu"],
+      v.history.map(h => [K.date(h.tao_luc), G5_NHAN[h.trang_thai], tnTxt(h.tac_nhan_loai), h.hien_hanh ? "có" : "không", `${h.so_lech}/${h.so_thieu}`])));
+    return [w];
+  }
+
+  // ------------------------------------------------------------------ tải tệp (fence trước request, sau headers/blob, ngay trước click)
+  async function taiTep(kyId, loai) {
+    const e = ep, a = actor(), g = genCt, gf = genForm, gv = genVao;
+    const f = () => e === ep && a === actor() && chon === kyId && g === genCt && gf === genForm && gv === genVao && dangHopDong();
+    if (!f()) return;
+    try {
+      const res = await goi(`/api/crm/giao-ket/kiem/${encodeURIComponent(kyId)}/tep/${loai}`);
+      if (!f()) return;
+      const blob = await res.blob();
+      if (!f()) return;
+      if (!blob.size) { trangThai("Tệp tải về rỗng — không lưu.", true); return; }
+      if (!f()) return;
+      const url = URL.createObjectURL(blob), el = node("a"); el.href = url; el.download = `${loai}-${kyId}.pdf`; document.body.append(el); el.click(); el.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 60000);
+      trangThai(`Đã tải PDF ${loai === "g3" ? "bản xuất G3" : "bản ký"} (${blob.size} byte).`);
+    } catch (err) { if (f()) { K.toast(err.message, true); trangThai(err.message, true); } }
+  }
+
+  // ------------------------------------------------------------------ vẽ
+  function dungKhung() {
+    const head = node("div", undefined, "section-heading"), td = node("div"), h2 = node("h2", "7 · Kế toán kiểm hợp đồng đã ký → Hiệu lực"); h2.id = "crm-kiem-title";
+    oVai = node("p", "Đang tải…");
+    td.append(h2, node("p", "G6A: kế toán kiểm bản ký (checklist, khách theo mã Junsky có sẵn, ngày hiệu lực có căn cứ, lịch/G7/G5) rồi kích hoạt HIỆU LỰC nguyên tử theo đúng lần check đã xem. Không sửa bản ký/PDF G4; trả lại = chờ ký lại, không về nháp."), oVai);
+    head.append(td, nut("↻ Làm mới", () => napLai(), "button secondary"));
+    oTrangThai = node("p", "", "upload-status"); oTrangThai.setAttribute("role", "status"); oTrangThai.setAttribute("aria-live", "polite");
+    oNoiDung = node("div");
+    goc.replaceChildren(head, oTrangThai, oNoiDung);
+  }
+  function ve() {
+    if (!oNoiDung) dungKhung();
+    dsCanLuu = [];
+    oVai.textContent = actor() ? `Vai hiện hành: ${actor()}` : "Đang tải…";
+    const out = [];
+    if (!ds) out.push(K.empty("Chưa tải danh sách kiểm", "Bấm ↻ Làm mới; cần vai Kế toán có phân công kiểm hợp đồng."));
+    else {
+      out.push(node("h3", "Hợp đồng đã ký trong phạm vi kiểm"));
+      out.push(ds.ds.length ? bang(["Hợp đồng", "Ngày ký", "Trạng thái", "Revision kiểm", ""], ds.ds.map(x => [x.ma_noi_bo, x.ngay_ky, x.hien_thi || x.trang_thai,
+        String(x.revision ?? 0), nut(chon === x.ky_id ? "Đang mở" : "Mở", () => { boChon(); chon = x.ky_id; ve(); napCt(x.ky_id); }, "link-button", chon === x.ky_id)]))
+        : K.empty("Chưa có hợp đồng đã ký trong phạm vi vai này", ""));
+      if (chon) out.push(...veCt());
+    }
+    oNoiDung.replaceChildren(...out);
+  }
+  function veChuaRo() {
+    const y = yDang(actor(), chon);
+    if (!y || !y.chuaRo || y.dangGui) return [];
+    const w = node("div", undefined, "demo-actions"); w.dataset.kiemChuaRo = "1";
+    w.append(node("span", `Lệnh "${TEN[y.hanh]}" trước chưa rõ kết quả. `), nut("Gửi lại y nguyên (cùng khóa)", () => guiYD(y), "button primary"));
+    return [w];
+  }
+  function veCt() {
+    if (!ct) return [node("p", "Đang tải bản ký…")];
+    if (ct.loi) return [node("p", "Không tải được bản ký: " + ct.loi, "upload-status error")];
+    const k = ct.ky, ho = ct.ho_so, tt = ho ? ho.trang_thai : "CHUA_KIEM", out = [];
+    const w = node("div", undefined, "gk-kiem-hd"); w.setAttribute("aria-label", "Kế toán kiểm hợp đồng đã ký");
+    w.append(node("h4", `Bản ký ${k.ma_noi_bo} · ${ho ? ho.hien_thi : "Đã ký — chờ kế toán kiểm"}`),
+      bang(["Mục", "Giá trị"], [
+        ["Mẫu", `${k.ma_mau || "—"} v${k.phien_ban_mau ?? "—"}`], ["Revision bản soạn đã ký", String(k.revision)],
+        ["Ngày ký", `${k.ngay_ky} (không phải ngày hiệu lực)`], ["Người ký phía khách (đã che)", k.nguoi_ky_khach || "—"],
+        ["Bản ký có sửa so với bản xuất?", k.co_sua ? `Có — ${k.mo_ta_sua || ""}` : "Không"],
+        ["SHA-256 PDF bản ký", `${k.ky_pdf_sha256} (${k.ky_pdf_len} byte, ${k.ky_so_trang} trang)`], ["SHA-256 PDF bản xuất G3", `${k.g3_pdf_sha256} (${k.g3_pdf_len} byte)`],
+        ["Tóm tắt báo giá đã ký", ct.tom_tat ? `${ct.tom_tat.so_dong} dòng · tổng ${tienTxt(ct.tom_tat.tong_minor, ct.tom_tat.tien_te)}` : "chưa tính được"],
+        ["G5 khởi tạo (G4)", g4G5Txt(k.g5_khoi_tao)]]));
+    const tai = node("div", undefined, "demo-actions");
+    tai.append(nut("PDF bản ký ↓", () => taiTep(k.ky_id, "ban-ky"), "link-button"), nut("PDF bản xuất G3 ↓", () => taiTep(k.ky_id, "g3"), "link-button"));
+    w.append(tai);
+    if (tt === "HIEU_LUC" && ho.hieu_luc) {
+      const h = ho.hieu_luc;
+      w.append(node("p", `Đã HIỆU LỰC: phiên bản ${h.phien_ban_id} · ${h.so_dong_lich} đợt lịch thu · ${h.so_tham_so} tham số · tổng ${tienTxt(h.tong_minor, h.tien_te)} · G7 ${h.g7_trang_thai}`
+        + (h.viec_cfo_id ? " · việc CFO xem xét lệch G7 đang chờ" : "")));
+    }
+    if (tt === "TRA_LAI_CHO_KY_LAI") w.append(node("p", "Đã trả lại — chờ quy trình ký lại (chưa mở lại G4). Bản ký/PDF G4 giữ nguyên; KHÔNG về nháp; không kích hoạt được.", "upload-status error"));
+    const q = ct.quyen || {}, moForm = q.kiem === true && (tt === "CHUA_KIEM" || tt === "DANG_KIEM" || tt === "CHO_BO_SUNG");
+    if (q.kiem !== true) w.append(node("p", LY_QUYEN[q.ly_do] || "Vai hiện hành không kiểm được bản ký này.", "gk-ly-do"));
+    // khách + Junsky
+    const kb = ct.khach_ban_ky || {};
+    w.append(node("h5", "Khách"), node("p", kb.doi_tac_id ? `Khách trên bản ký: đối tác ${kb.doi_tac_id}` : `Khách dự thảo trên bản ký (đã che): ${kb.du_thao_ten || "—"} · ${kb.du_thao_lien_he || "—"}`));
+    // ngày hiệu lực + checklist (form)
+    if (moForm) {
+      const uv = ungVien();
+      w.append(truong("Mã Junsky CÓ SẴN của khách (không tạo mã ở đây)", chon_("junsky", uv.map(x => [x.id, `${x.tien_to || ""} ${x.object_id || ""} · ${x.ten || ""}`.trim()]), "— chọn mã Junsky —")));
+      if (ct.khach_du_thao === true) {  // P1-B: khách dự thảo (bản ký + hợp đồng chưa có đối tác) — tra cứu mã CÓ SẴN cùng pháp nhân
+        const ti = node("input"); ti.type = "search"; ti.id = "kiem-tim-junsky"; ti.autocomplete = "off"; ti.maxLength = 60; ti.value = timTu;
+        ti.addEventListener("input", () => { timTu = ti.value; });  // không phải nội dung kiểm: không đổi genForm/không khóa nút
+        const tw = node("div", undefined, "demo-actions"), tl = node("label", "Tra cứu mã/tên Junsky có sẵn (3–60 ký tự)"); tl.htmlFor = ti.id;
+        tw.append(tl, ti, nut("Tìm mã Junsky có sẵn", () => timJunsky(), "button secondary"));
+        w.append(tw, node("p", "Khách trên bản ký là dự thảo: chọn đúng mã Junsky ĐÃ CÓ của pháp nhân rồi Lưu kiểm — cặp đối tác/mã được lưu vào revision kiểm (có nhật ký); "
+          + "không tạo mã, không sửa bản ký G4.", "gk-ly-do"));
+      }
+      if (!uv.length) w.append(node("p", ct.khach_du_thao === true ? "Chưa chọn mã — tra cứu ở trên; nếu không có mã hiện hành, tạo/ánh xạ ở quy trình danh mục đối tác."
+        : "Chưa có mã Junsky hiện hành cho khách này — tạo/ánh xạ ở quy trình danh mục đối tác; G6A không tạo mã, không đổi khách đã ký.", "gk-ly-do"));
+      w.append(node("h5", "Checklist kiểm (chưa chọn = chưa xác nhận, không mặc định đạt)"));
+      for (const [kk, nhan] of CHECKLIST) w.append(truong(nhan, chon_("cl-" + kk, [["XAC_NHAN", "Xác nhận"], ["CO_VAN_DE", "Có vấn đề"]], "— chưa xác nhận —")));
+      const trich = o("trich", node("textarea"));
+      w.append(node("h5", "Ngày hiệu lực (kế toán xác định, có căn cứ)"), truong("Ngày hiệu lực", nhap("ngay", "date")),
+        truong("Căn cứ", chon_("can-cu", CAN_CU, "— chọn căn cứ —")), truong("Trích dẫn căn cứ", trich), truong("Ghi chú", o("ghi-chu", node("textarea"))));
+      const hd = node("div", undefined, "demo-actions");
+      hd.append(nut("Lưu kiểm", () => bamLuu(), "button primary"));
+      w.append(hd);
+    } else if (ct.rev) {
+      const rv = ct.rev;
+      w.append(bang(["Kiểm đã lưu", "Giá trị"], [...CHECKLIST.map(([kk, nhan]) => [nhan, (rv.checklist && rv.checklist[kk]) || "chưa xác nhận"]),
+        ["Mã Junsky (đã che)", rv.ma_junsky || "—"], ["Ngày hiệu lực", rv.ngay_hieu_luc ? `${rv.ngay_hieu_luc} · ${rv.can_cu_ngay}` : "—"]]));
+    }
+    // tham số, lịch, G7, G5
+    const truongs = Array.isArray(ct.truong) ? ct.truong : [];
+    if (truongs.length) w.append(node("h5", "Tham số từ bản ký (PII đã che)"), bang(["Trường", "Giá trị", "Căn cứ"], truongs.map(t => [t.nhan || t.ten, t.gia_tri ?? "—", t.trang_thai_can_cu])));
+    const l = ct.lich || {};
+    w.append(node("h5", `Lịch thu theo bản ký · tổng ${tienTxt(l.tong_minor, l.tien_te)}`),
+      bang(["Đợt", "Lần", "Tỷ lệ", "Số tiền (đơn vị nhỏ nhất)", "Mốc", "Hạn"], (Array.isArray(l.dong) ? l.dong : []).map(d => [String(d.dot), d.lan, d.ty_le ?? "—",
+        d.so_tien_minor ?? "chưa tính được", d.moc || "—", d.han || "—"])));
+    if (maTxt(l.loi).length) w.append(node("p", "Lỗi lịch: " + maTxt(l.loi).join(", "), "upload-status error"));
+    const daXl = new Set((Array.isArray(ct.xu_ly_lech) ? ct.xu_ly_lech : []).map(x => `${x.loai}|${x.muc_tieu_id}|${x.ma_lech}`));
+    const veLech = (loai, mucTieu, lech) => {
+      const ul = node("ul");
+      for (const e of Array.isArray(lech) ? lech : []) {
+        const li = node("li", `${e.ma}${e.dong ? ` · dòng ${e.dong}` : ""}`);
+        if (daXl.has(`${loai}|${mucTieu}|${e.khoa}`)) li.append(" — đã xử lý theo bản ký");
+        else if (moForm && tt === "DANG_KIEM") li.append(" ", nut("Xử lý theo bản ký", () => bamXuLy(loai, mucTieu, e.khoa), "link-button"));
+        ul.append(li);
+      }
+      return ul;
+    };
+    const g7 = ct.g7 || {};
+    w.append(node("h5", `G7 bộ chuẩn theo ngày ký: ${g7.trang_thai || "—"}${g7.bo_chuan_phien_ban ? ` (phiên bản ${g7.bo_chuan_phien_ban})` : ""}`));
+    if (g7.trang_thai === "LECH") w.append(veLech("G7_LECH", g7.bo_chuan_pb_id, g7.lech));
+    const g5 = ct.g5 || null, g5p = node("p", "G5 đối chiếu: " + g5Txt(g5)); g5p.dataset.g5 = g5 ? String(g5.trang_thai) : "";
+    w.append(node("h5", "G5"), g5p);
+    if (g5 && g5.trang_thai === "LECH") w.append(veLech("G5_LECH", g5.ket_qua_id, g5.lech));
+    w.append(...veG5());
+    // check mới nhất + lệnh
+    const c = ct.check, rev = revHt();
+    if (c) {
+      const cu = c.ho_so_revision !== rev;
+      w.append(node("h5", `Check mới nhất (${K.date(c.tao_luc)})${cu ? " — CŨ: revision đã đổi, chạy check lại" : ""}`),
+        node("p", `${c.ket_luan === "DU_DIEU_KIEN" ? "Đủ điều kiện kích hoạt" : "Chưa đủ điều kiện"} · revision ${c.ho_so_revision} · đồ thị ${c.do_thi_sha256}`));
+      if (maTxt(c.chan).length) w.append(node("p", "Chặn: " + maTxt(c.chan).join(", "), "upload-status error"));
+      if (maTxt(c.canh_bao).length) w.append(node("p", "Cảnh báo: " + maTxt(c.canh_bao).join(", ")));
+    }
+    if (moForm) {
+      const dk = tt === "DANG_KIEM";
+      const lyHl = !dk ? "Chỉ kích hoạt hồ sơ đang kiểm." : !c || c.ho_so_revision !== rev ? "Chạy check trên revision hiện hành trước."
+        : c.ket_luan !== "DU_DIEU_KIEN" ? "Lần check mới nhất còn mục chặn." : "";
+      const hd = node("div", undefined, "demo-actions");
+      hd.append(nutCanLuu("Chạy check", () => bamCheck(), "button secondary", dk ? "" : "Lưu kiểm trước (hồ sơ phải đang kiểm)."),
+        nutCanLuu("Kích hoạt hiệu lực", () => bamHieuLuc(), "button primary", lyHl));
+      if (lyHl) hd.append(node("span", lyHl, "gk-ly-do"));
+      w.append(hd, truong("Lý do (bổ sung / trả lại / xử lý lệch)", o("ly-do", node("textarea"))));
+      const hd2 = node("div", undefined, "demo-actions");
+      hd2.append(nut("Yêu cầu bổ sung", () => bamLyDo("bo-sung"), "button secondary", !dk), nut("Trả lại (chờ ký lại)", () => bamLyDo("tra-lai"), "button secondary", !ho));
+      w.append(hd2, node("p", "Trả lại không mở khóa/sửa bản ký G4 và không đưa hợp đồng về nháp — chỉ chặn phụ thuộc tới khi có quy trình ký lại."));
+    }
+    w.append(...veChuaRo());
+    if (Array.isArray(ct.lich_su) && ct.lich_su.length) w.append(node("h5", "Lịch sử"), bang(["Lúc", "Người", "Hành động"], ct.lich_su.map(x => [K.date(x.luc), x.nguoi, HD_LS[x.hanh_dong] || x.hanh_dong])));
+    out.push(w);
+    return out;
+  }
+
+  dungKhung(); ve();
+  if (dangHopDong()) napDs();
+  // mọi đổi hash (rời hoặc quay lại #hopdong) đổi thế hệ hiển thị TRƯỚC khi nạp lại — callback/blob cũ không hồi hiệu lực
+  window.addEventListener("hashchange", () => { genVao += 1; if (dangHopDong()) napLai(); });
+})();
