@@ -34,7 +34,7 @@ class OThongMinh(unittest.TestCase):
         t = tinh(bao_gia())
         x = t["dong"][0]
         self.assertEqual((x["ty_le"], x["so_tien"], x["so_tien_minor"], x["nguon_nhap"]), ("30", "45000000", "45000000", "TY_LE"))
-        self.assertEqual(x["hien_thi_mo"], "= 450.000 USD · ≈ 11.475 tr VND")
+        self.assertEqual(x["hien_thi_mo"], "= 450.000,00 USD · ≈ 11.475 tr VND")
         self.assertEqual(t["tong_minor"], "150000000")
         self.assertEqual(t["chan_in"], [])
 
@@ -57,16 +57,17 @@ class OThongMinh(unittest.TestCase):
     def test_dau_cham_phay_kieu_viet(self):
         t = tinh(bao_gia("1.500.000,50", gia={"tien_te": "USD", "tong": "1500000.50", "co_so_thue": "NET"}))
         self.assertEqual(t["dong"][0]["so_tien"], "150000050")
-        self.assertEqual(t["dong"][0]["so_tien_hien_thi"], "1.500.000,5 USD")
+        self.assertEqual(t["dong"][0]["so_tien_hien_thi"], "1.500.000,50 USD")
         self.assertEqual(t["chan_in"], [])
         t = tinh(bao_gia("30,5%", "69,5%"))
         self.assertEqual(t["dong"][0]["ty_le"], "30.5")
         self.assertEqual(t["dong"][0]["ty_le_hien_thi"], "30,5%")
-        self.assertTrue(t["dong"][0]["hien_thi_mo"].startswith("= 457.500 USD"))
+        self.assertTrue(t["dong"][0]["hien_thi_mo"].startswith("= 457.500,00 USD"))
         self.assertTrue(t["tong_ty_le_khop"])
 
     def test_chuoi_sai_tra_ma_va_thong_bao_dung_dong(self):
-        for v in ("abc", "1.50", "1,500.00", "1..000", "30%%", "%30", "30%5", "-1", "NaN", "1e3", "1 000", "1" * 25):
+        for v in ("abc", "1.50", "1,500.00", "1..000", "30%%", "%30", "30%5", "-1", "NaN", "1e3", "1 000", "1" * 25,
+                  100, 0.5, True, None, [], {}, "100\n", "\t100", "100\x00", "100\x7f", "100\x85", " " * 101):
             with self.subTest(v=v):
                 t = tinh(bao_gia("30%", v))
                 self.assertEqual(t["dong"][0]["loi"], [])
@@ -108,7 +109,7 @@ class OThongMinh(unittest.TestCase):
     def test_usd_thieu_fx_giu_nguyen_ma_chan_in(self):
         t = tinh(bao_gia(fx=None))
         self.assertEqual([x["ma"] for x in t["chan_in"]], ["USD_THIEU_FX"])
-        self.assertEqual(t["dong"][0]["hien_thi_mo"], "= 450.000 USD")
+        self.assertEqual(t["dong"][0]["hien_thi_mo"], "= 450.000,00 USD")
         self.assertIsNone(t["vnd_tham_chieu"])
 
     def test_tu_tinh_ghi_de_moi_va_tong_cu_khong_chan_in(self):
@@ -121,7 +122,7 @@ class OThongMinh(unittest.TestCase):
                 self.assertEqual(t["tong_minor"], "140000000")
                 self.assertEqual([x["so_tien"] for x in t["dong"]], ["42000000", "98000000"])
                 cb = next(x for x in t["canh_bao"] if x["ma"] == "TONG_LECH_DON_GIA_X_DIEN_TICH")
-                self.assertEqual(cb["thong_bao"], "Khác tính toán: 1.400.000 USD; đơn giá × diện tích = 1.500.000 USD.")
+                self.assertEqual(cb["thong_bao"], "Khác tính toán: 1.400.000,00 USD; đơn giá × diện tích = 1.500.000,00 USD.")
                 self.assertEqual(t["chan_in"], [])
                 self.assertEqual(t["ly_do_chan_in"], "")
 
@@ -129,7 +130,7 @@ class OThongMinh(unittest.TestCase):
         t = tinh(bao_gia(tong_gia_tri_ghi_de="0", lich=[{"gia_tri_nhap": "100%"}]))
         self.assertEqual(t["tong_minor"], "0")
         self.assertEqual(t["chan_in"], [])
-        t = tinh(bao_gia(tong_gia_tri_ghi_de="1.001"))
+        t = tinh(bao_gia(tong_gia_tri_ghi_de="1,001"))
         self.assertIsNone(t["tong_minor"])
         self.assertIn("TONG_KHONG_DUNG_SCALE", [x["ma"] for x in t["chan_in"]])
         t = tinh(bao_gia("0,001"))
@@ -140,10 +141,82 @@ class OThongMinh(unittest.TestCase):
         self.assertIn("THIEU_TIEN_TE", [x["ma"] for x in t["chan_in"]])
         self.assertIn("CHUA_CO_TIEN_TE", t["dong"][0]["loi"])
 
-    def test_ty_le_khong_huu_han_giu_chan_in(self):
-        t = tinh(bao_gia("1", gia={"tien_te": "VND", "tong": "3", "co_so_thue": "NET"}, fx=None))
-        self.assertIn("TY_LE_SUY_RA_KHONG_HUU_HAN", t["dong"][0]["loi"])
+    def test_ty_le_khong_huu_han_chi_xap_xi_hien_thi(self):
+        for tt in ("USD", "VND"):
+            with self.subTest(tt=tt):
+                t = tinh(bao_gia("500.000", "500.000", "500.000",
+                                gia={"tien_te": tt, "tong": "1500000", "co_so_thue": "NET"}))
+                self.assertEqual(t["chan_in"], [])
+                self.assertEqual(t["ly_do_chan_chuyen"], "")
+                self.assertTrue(t["tong_tien_khop"])
+                self.assertTrue(t["tong_ty_le_khop"])
+                self.assertEqual(t["tong_ty_le"], "100")
+                self.assertEqual(t["tong_ty_le_hien_thi"], "≈ 100,00%")
+                for x in t["dong"]:
+                    self.assertEqual(x["loi"], [])
+                    self.assertIsNone(x["ty_le"])
+                    self.assertTrue(x["ty_le_xap_xi"])
+                    self.assertEqual(x["ty_le_hien_thi"], "≈ 33,33%")
+
+    def test_tien_100_tren_1500000_khong_bi_chan_khi_du_tong(self):
+        for nhap in (("100", "1.499.900"), ("100", "50%", "749.900")):
+            with self.subTest(nhap=nhap):
+                t = tinh(bao_gia(*nhap))
+                self.assertEqual(t["chan_in"], [])
+                self.assertEqual(t["dong"][0]["so_tien_minor"], "10000")
+                self.assertEqual(t["dong"][0]["ty_le_hien_thi"], "≈ 0,01%")
+                self.assertTrue(t["dong"][0]["ty_le_xap_xi"])
+                self.assertEqual(t["tong_dong_minor"], "150000000")
+
+    def test_tien_lech_chan_bang_cau_ly_do_tien(self):
+        for nhap in (("500.000", "500.000", "499.999,99"), ("100", "1.499.899,99"), ("100", "50%", "749.900,01")):
+            with self.subTest(nhap=nhap):
+                t = tinh(bao_gia(*nhap))
+                self.assertEqual([x["ma"] for x in t["chan_in"]], ["TONG_TIEN_LECH"])
+                self.assertEqual(t["ly_do_chan_in"], "Tổng tiền các đợt khác tổng giá trị.")
+                self.assertEqual(t["ly_do_chan_chuyen"], t["ly_do_chan_in"])
+                self.assertTrue(t["tong_ty_le_hien_thi"].startswith("≈ "))
+                self.assertNotIn("chưa tính được%", t["tong_ty_le_hien_thi"])
+                self.assertFalse(t["tong_tien_khop"])
+
+    def test_phan_tram_nhap_giu_luat_cu_khong_lam_tron_tien(self):
+        t = tinh(bao_gia("33,33%", "66,67%", gia={"tien_te": "VND", "tong": "3", "co_so_thue": "NET"}, fx=None))
+        self.assertIn("KHONG_BIEU_DIEN_DUNG_SCALE", t["dong"][0]["loi"])
+        self.assertIsNone(t["dong"][0]["so_tien_minor"])
+        self.assertFalse(t["dong"][0]["ty_le_xap_xi"])
+        self.assertEqual(t["dong"][0]["ty_le_hien_thi"], "33,33%")
         self.assertTrue(t["chan_in"])
+
+    def test_tien_hien_thi_cung_dinh_dang_renderer_va_dung_scale(self):
+        for tt, tong, nhap, hien_thi in (("USD", "1500000.50", "1.500.000,50", "1.500.000,50 USD"),
+                                       ("USD", "450000", "450.000", "450.000,00 USD"),
+                                       ("VND", "450000", "450.000", "450.000 VND")):
+            with self.subTest(tt=tt, tong=tong):
+                t = tinh(bao_gia(nhap, gia={"tien_te": tt, "tong": tong, "co_so_thue": "NET"}))
+                self.assertEqual(t["tong_hien_thi"], hien_thi)
+                self.assertEqual(t["tong_dong_hien_thi"], hien_thi)
+                self.assertEqual(t["dong"][0]["so_tien_hien_thi"], hien_thi)
+                self.assertEqual(GK.R.tien_hien_thi(int(t["tong_minor"]), tt), hien_thi)
+
+    def test_ghi_de_nhan_kieu_viet_va_loi_theo_truong(self):
+        for nhap, minor in (("1.400.000", "140000000"), ("1.400.000,50", "140000050")):
+            with self.subTest(nhap=nhap):
+                t = tinh(bao_gia(nhap, tong_gia_tri_ghi_de=nhap))
+                self.assertEqual(t["tong_minor"], minor)
+                self.assertEqual(t["chan_in"], [])
+        for nhap in ("abc", "1.40", "1,400.00", "100%", 100, False, [], {}, "100\n", "100\x00"):
+            with self.subTest(nhap=nhap):
+                t = tinh(bao_gia(tong_gia_tri_ghi_de=nhap))
+                self.assertIsNone(t["tong_minor"])  # Không rơi về tổng cũ/tích khi ghi đè sai.
+                e = next(x for x in t["chan_in"] if x["ma"] == "TONG_GIA_TRI_GHI_DE_SAI")
+                self.assertEqual(e["truong"], "tong_gia_tri_ghi_de")
+                self.assertTrue(e["thong_bao"])
+
+    def test_ghi_de_sai_scale_khong_lam_tron_va_tra_dung_truong(self):
+        t = tinh(bao_gia(tong_gia_tri_ghi_de="1.400.000,501"))
+        self.assertIsNone(t["tong_minor"])
+        e = next(x for x in t["chan_in"] if x["ma"] == "TONG_KHONG_DUNG_SCALE")
+        self.assertEqual(e["truong"], "tong_gia_tri_ghi_de")
 
     def test_moc_chuan_va_ngay_hien_thi(self):
         rows = [{"gia_tri_nhap": "20%", "moc_loai": "SU_KIEN", "moc_su_kien": ma}
@@ -179,6 +252,27 @@ class SeamKhongPostgres(unittest.TestCase):
         with self.assertRaises(DataError) as cm:
             self.s.xem_truoc("nguoi-thu", du_lieu=bao_gia(du_an_id=DU_AN))
         self.assertEqual(cm.exception.code, "CRM_G_KHONG_THAY")
+
+    def test_xem_truoc_loi_gia_tri_tra_theo_dong_va_truong(self):
+        self.m._mot.return_value = {"ok": True, "phap_nhan_id": "PN", "phap_nhan": "PN_THU", "phap_nhan_ten": "Pháp nhân thử",
+                                   "loai_hinh": "KCN", "loai_hinh_ten": "Thuê đất khu công nghiệp"}
+        kq = self.s.xem_truoc("nguoi-thu", du_lieu=bao_gia(100, "70%", tong_gia_tri_ghi_de="sai"))
+        self.assertEqual(kq["tinh"]["dong"][0]["loi_chi_tiet"][0]["truong"], "lich.0.gia_tri_nhap")
+        self.assertIn("TONG_GIA_TRI_GHI_DE_SAI", [x["ma"] for x in kq["tinh"]["chan_in"]])
+        self.c.execute.assert_not_called()
+
+    def test_http_chan_chuyen_409_cung_ly_do_may_chu(self):
+        body = {"bao_gia_id": BG, "expected_revision": 1, "mau_phien_ban_id": LOAI, "khoa": "chuyen-http-thu"}
+        h = SimpleNamespace(crm_sid=lambda: "sid", json_body=lambda: body, send_content=mock.Mock())
+        app = SimpleNamespace(mutation_lock=nullcontext(), crm_phien=lambda sid: (None, "nguoi-thu", None),
+                              _crm_db=lambda f, *a, **kw: f(*a, **kw))
+        self.s._tra = mock.Mock(return_value=None)
+        d = GK.chuan_hoa_bao_gia(bao_gia("30%", "60%"))
+        self.s._bao_gia = mock.Mock(return_value={"du_lieu": d})
+        with mock.patch.object(HTTP, "dich_vu_gk", return_value=self.s):
+            HTTP.dieu_huong(h, app, True, "/api/crm/bao-gia/chuyen", {})
+        self.assertEqual(h.send_content.call_args.args, (409, {"error": "CRM_GK_CHAN_CHUYEN", "message": "Tổng % = 90, thiếu 10"}))
+        self.c.execute.assert_not_called()
 
     def test_danh_sach_nhan_ten_va_ngay(self):
         self.m._nhieu.side_effect = [[], [], [], [{"ngay": "2026-10-24", "phap_nhan_ten": "Pháp nhân thử", "loai_hinh_ten": "Thuê đất",

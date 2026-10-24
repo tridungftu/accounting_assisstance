@@ -311,8 +311,13 @@ class CrmGiaoKetHttp(unittest.TestCase):
 
     # ------------------------------------------------------------------ g05 (c3): chuyển hai lần cùng khóa → một HĐ; quyền/PN trước tra cứu
     def test_g05_chuyen_mot_hop_dong_va_quyen(self):
+        # TL 45 BG-02 (Anh chốt 23/10, mới hơn handoff 41-03): Σ% ≠ 100 → máy chủ chặn cả In lẫn Chuyển.
+        r40 = self.ok(BH, "bao-gia/luu", {"bao_gia_id": None, "expected_revision": None, "khoa": self.K("cv40"),
+                                          "du_lieu": self.bao_gia(lich=[{"lan": "1", "loai": "PERCENT", "ty_le": "40"}])})
+        self.loi(BH, "bao-gia/chuyen", {"bao_gia_id": r40["bao_gia_id"], "expected_revision": 1, "mau_phien_ban_id": self.s["v1"],
+                                        "khoa": self.K("cv40-1")}, 409, "CRM_GK_CHAN_CHUYEN")
         r = self.ok(BH, "bao-gia/luu", {"bao_gia_id": None, "expected_revision": None, "khoa": self.K("cv"),
-                                        "du_lieu": self.bao_gia(lich=[{"lan": "1", "loai": "PERCENT", "ty_le": "40"}])})  # tổng 40% — In chặn, Chuyển KHÔNG
+                                        "du_lieu": self.bao_gia(lich=[{"lan": "1", "loai": "PERCENT", "ty_le": "100"}])})  # tổng 100% — Chuyển được
         bg = r["bao_gia_id"]
         lich_bg = self.get(BH, "bao-gia/" + bg)["du_lieu"]["lich"]
         self.loi(KT_NO_CRM, "bao-gia/chuyen", {"bao_gia_id": bg, "expected_revision": 1, "mau_phien_ban_id": self.s["v1"], "khoa": self.K("cv-x")}, 404,

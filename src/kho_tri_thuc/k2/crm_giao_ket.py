@@ -4,7 +4,7 @@ bộ chuẩn G7 đọc trong cùng giao dịch, kho bất biến write_immutable
 
 - Trình duyệt chỉ gửi dữ liệu nhập tay typed (chuỗi số chính xác, ngày, mã), ID đối tượng, revision mong đợi, khóa; KHÔNG actor/PN/trạng thái/facts/
   hash/đường dẫn. Mọi số tiền tính bằng số nguyên đơn vị nhỏ nhất/Fraction — không float, không làm tròn ngầm; không biểu diễn đúng scale →
-  "chưa tính được" + chặn In/Xuất (Lưu/Chuyển nháp KHÔNG bị chặn bởi cổng In).
+  "chưa tính được" + chặn In/Chuyển/Xuất; Lưu nháp vẫn được phép. Tỷ lệ suy ra từ tiền chỉ làm tròn khi hiển thị.
 - Không sinh nghĩa vụ/lịch thu/công nợ/M1/duyệt; không HIEU_LUC/DA_KY. Chuyển sang Soạn tạo đúng MỘT master.hop_dong (SQL).
 - In/Xuất là ba pha: (A) dưới khóa + giao dịch ngắn: quyền hiện hành → biên nhận → chụp revision/mẫu đã ghim/raw đã kiểm hash → cổng; (B) NGOÀI
   khóa/giao dịch: render DOCX (giữ bất biến TRƯỚC PDF) → Word COM sở hữu → kiểm PDF; (C) dưới khóa + giao dịch ngắn: quyền hiện hành + CAS revision
@@ -118,8 +118,10 @@ def _minor(s: str | None, tien_te: str | None):
         return None, "KHONG_DUNG_SCALE_TIEN_TE"
 
 
-def _gia_tri_nhap(v: str) -> tuple[str | None, str | None, str | None]:
-    """Chỉ ô thông minh dùng quy ước VN; trường typed cũ vẫn dùng dấu chấm thập phân."""
+def _gia_tri_nhap(v) -> tuple[str | None, str | None, str | None]:
+    """Ô thông minh/ghi đè dùng quy ước VN; trường typed cũ vẫn dùng dấu chấm thập phân."""
+    if not isinstance(v, str) or len(v) > 100 or re.search(r"[\x00-\x1f\x7f-\x9f]", v):
+        return None, None, "Giá trị phải là chuỗi tối đa 100 ký tự, không có ký tự điều khiển."
     s = v.strip()
     if not s:
         return None, None, None
@@ -142,7 +144,15 @@ def _so_vn(s: str | None) -> str:
 
 
 def _tien_vn(minor: int, tt: str) -> str:
-    return _so_vn(_frac_str(Fraction(minor, 10 ** R.SCALE[tt]))) + " " + tt
+    return R.tien_hien_thi(minor, tt)
+
+
+def _ty_le_vn(f: Fraction, *, xap_xi: bool = False) -> str:
+    if xap_xi:
+        # Chỉ phần hiển thị được làm tròn; tiền và tổng tỷ lệ vẫn tính bằng Fraction chính xác.
+        return "≈ " + R.so_hien_thi(Fraction(round(f * 100), 100), 2) + "%"
+    s = _frac_str(f)
+    return _so_vn(s) + "%" if s is not None else "chưa tính được"
 
 
 def _ngay_vn(iso: str | None) -> str | None:
@@ -160,7 +170,7 @@ def _dong_lich(rows) -> list[dict]:
         r = _obj(r, f"lịch dòng {i}", {"dong_id", "lan", "loai", "ty_le", "so_tien", "tien_te", "moc_loai", "moc_ngay", "moc_su_kien", "ghi_chu", "gia_tri_nhap"})
         nhap = None
         if "gia_tri_nhap" in r:
-            nhap = _str(r["gia_tri_nhap"], f"giá trị dòng {i}", 100) or ""
+            nhap = r["gia_tri_nhap"]
             loai_nhap, so, _ = _gia_tri_nhap(nhap)
             # Ô thông minh là nguồn duy nhất khi có mặt, kể cả rỗng/sai; bỏ giá trị typed cũ còn trên form.
             r = {**r, "loai": loai_nhap, "ty_le": so if loai_nhap == "PERCENT" else None,
@@ -172,7 +182,7 @@ def _dong_lich(rows) -> list[dict]:
              "tien_te": _chon(r.get("tien_te"), f"tiền tệ dòng {i}", TIEN_TE), "moc_loai": ml,
              "moc_ngay": _ngay(r["moc_ngay"], f"Mốc ngày dòng {i}") if r.get("moc_ngay") else None,
              "moc_su_kien": _str(r.get("moc_su_kien"), f"sự kiện dòng {i}", 80), "ghi_chu": _str(r.get("ghi_chu"), f"ghi chú dòng {i}", 1000)}
-        if nhap is not None:
+        if "gia_tri_nhap" in r:
             d["gia_tri_nhap"] = nhap
         if d["moc_su_kien"] is not None and not RE_MA.fullmatch(d["moc_su_kien"]):
             _loi("CRM_GK_LICH_SAI", f"Sự kiện dòng {i} chỉ gồm chữ/số/_ . - (1–80).")
@@ -216,7 +226,8 @@ def chuan_hoa_bao_gia(du_lieu) -> dict:
         "ghi_chu": _str(d.get("ghi_chu"), "ghi chú", 2000),
     }
     if "tong_gia_tri_ghi_de" in d:
-        out["tong_gia_tri_ghi_de"] = _so(d["tong_gia_tri_ghi_de"], "tổng giá trị ghi đè")
+        # Giữ nguyên đầu vào để phép tính trả lỗi tại trường, giống ô thông minh của lịch.
+        out["tong_gia_tri_ghi_de"] = d["tong_gia_tri_ghi_de"]
     if out["giai_doan_g7"] is not None and not RE_MA.fullmatch(out["giai_doan_g7"]):
         _loi("CRM_GK_YEU_CAU_SAI", "Giai đoạn bộ chuẩn chỉ gồm chữ/số/_ . - (1–80).")
     if fx not in (None, {}):
@@ -243,8 +254,19 @@ def tinh_bao_gia(d: dict, g7: dict | None) -> dict:
         thieu.append({"ma": "THIEU_TIEN_TE", "truong": "gia.tien_te"})
     # Ưu tiên ghi đè tường minh, rồi tổng typed cũ (tương thích); thiếu cả hai mới lấy đơn giá × diện tích.
     ghi_de = d.get("tong_gia_tri_ghi_de")
-    tong, e1 = _minor(ghi_de if ghi_de is not None else d["gia"]["tong"], tt)
-    if e1:
+    loi_ghi_de = None
+    if ghi_de is not None:
+        loai, so, loi_ghi_de = _gia_tri_nhap(ghi_de)
+        if loai == "PERCENT":
+            loi_ghi_de = "Tổng giá trị ghi đè phải là số tiền, không nhận %."
+        if not loi_ghi_de:
+            ghi_de = so
+    if loi_ghi_de:
+        tong, e1 = None, "TONG_GIA_TRI_GHI_DE_SAI"
+        loi.append({"ma": e1, "truong": "tong_gia_tri_ghi_de", "thong_bao": loi_ghi_de})
+    else:
+        tong, e1 = _minor(ghi_de if ghi_de is not None else d["gia"]["tong"], tt)
+    if e1 and not loi_ghi_de:
         loi.append({"ma": "TONG_KHONG_DUNG_SCALE", "truong": "tong_gia_tri_ghi_de" if ghi_de is not None else "gia.tong"})
     tich = None
     if tt and d["gia"]["don_gia"] and d["gia"]["dien_tich"]:
@@ -278,6 +300,7 @@ def tinh_bao_gia(d: dict, g7: dict | None) -> dict:
     dong, tong_tl, tong_tien, du = [], Fraction(0), 0, True
     for i, r in enumerate(d["lich"], start=1):
         x = {"dong_id": r["dong_id"], "dong": i, "so_tien_minor": None, "ty_le": None, "loi": [], "loi_chi_tiet": [],
+             "ty_le_xap_xi": False, "ty_le_hien_thi": None,
              "nguon_nhap": {"PERCENT": "TY_LE", "AMOUNT": "SO_TIEN"}.get(r["loai"]),
              "moc_hien_thi": _moc(r), "moc_ngay_hien_thi": _ngay_vn(r["moc_ngay"])}
         loi_nhap = _gia_tri_nhap(r["gia_tri_nhap"])[2] if "gia_tri_nhap" in r else None
@@ -319,9 +342,9 @@ def tinh_bao_gia(d: dict, g7: dict | None) -> dict:
                 if tong:
                     tl = Fraction(mi) * TRAM / Fraction(tong)
                     tong_tl += tl
-                    x["ty_le"] = _frac_str(tl)  # None = tỷ lệ suy ra không hữu hạn (không làm tròn)
-                    if x["ty_le"] is None:
-                        x["loi"].append("TY_LE_SUY_RA_KHONG_HUU_HAN")
+                    x["ty_le"] = _frac_str(tl)  # None vẫn giữ nghĩa không biểu diễn chính xác trong 12 chữ số lẻ.
+                    x["ty_le_xap_xi"] = x["ty_le"] is None
+                    x["ty_le_hien_thi"] = _ty_le_vn(tl, xap_xi=x["ty_le_xap_xi"])
                 else:
                     x["loi"].append("CHUA_CO_TONG")
         # FIX01 #8: mốc trống (chưa chọn loại, hoặc đã chọn NGAY/SU_KIEN mà giá trị NULL/rỗng) luôn chỉ là CẢNH BÁO — giữ NULL, không tự tạo ngày
@@ -332,8 +355,7 @@ def tinh_bao_gia(d: dict, g7: dict | None) -> dict:
                 msg = {"CHUA_CO_GIA_TRI": "Chưa nhập giá trị.", "CHUA_CO_TY_LE": "Chưa nhập tỷ lệ.",
                        "CHUA_CO_SO_TIEN": "Chưa nhập số tiền.", "CHUA_CO_TONG": "Chưa có tổng giá trị để tính.",
                        "CHUA_CO_TIEN_TE": "Chưa chọn tiền tệ báo giá để tính số tiền.",
-                       "KHAC_TIEN_TE": "Tiền tệ dòng lịch khác tiền tệ báo giá.",
-                       "TY_LE_SUY_RA_KHONG_HUU_HAN": "Tỷ lệ suy ra không biểu diễn chính xác trong 12 chữ số thập phân."}.get(
+                       "KHAC_TIEN_TE": "Tiền tệ dòng lịch khác tiền tệ báo giá."}.get(
                            ma, "Số tiền không biểu diễn đúng đơn vị nhỏ nhất của tiền tệ; cần sửa giá trị.")
                 x["loi_chi_tiet"].append({"ma": ma, "dong": i, "truong": f"lich.{i - 1}", "thong_bao": f"Dòng {i}: {msg}"})
         if x["loi"]:
@@ -342,6 +364,8 @@ def tinh_bao_gia(d: dict, g7: dict | None) -> dict:
     if d["lich"]:
         if not du:
             chan.append({"ma": "LICH_CHUA_TINH_DUOC", "thong_bao": "Có dòng lịch chưa có/không tính đúng scale — nhập giá trị/cơ sở hợp lệ."})
+        elif any(x["nguon_nhap"] == "SO_TIEN" for x in dong) and tong is not None and tong_tien != tong:
+            chan.append({"ma": "TONG_TIEN_LECH", "thong_bao": "Tổng tiền các đợt khác tổng giá trị."})
         elif tong_tl != TRAM:
             lech = TRAM - tong_tl
             chan.append({"ma": "TONG_TY_LE_KHAC_100", "thong_bao":
@@ -355,7 +379,8 @@ def tinh_bao_gia(d: dict, g7: dict | None) -> dict:
                "dong": [None if x["so_tien_minor"] is None else _frac_str(Fraction(int(x["so_tien_minor"]), 100) * fxv, 14) for x in dong]}
     for i, x in enumerate(dong):
         x["so_tien"] = x["so_tien_minor"]  # alias minor cho BG-1b; giữ khóa cũ cho bên dùng hiện hành
-        x["ty_le_hien_thi"] = None if x["ty_le"] is None else _so_vn(x["ty_le"]) + "%"
+        if x["ty_le"] is not None:
+            x["ty_le_hien_thi"] = _so_vn(x["ty_le"]) + "%"
         x["so_tien_hien_thi"] = None if x["so_tien_minor"] is None or not tt else _tien_vn(int(x["so_tien_minor"]), tt)
         phan_con_lai = x["so_tien_hien_thi"] if x["nguon_nhap"] == "TY_LE" else x["ty_le_hien_thi"]
         x["hien_thi_mo"] = "= " + phan_con_lai if phan_con_lai else ""
@@ -389,7 +414,7 @@ def tinh_bao_gia(d: dict, g7: dict | None) -> dict:
         _, e = _minor(d["phi_bao_tri"]["gia_tri"], d["phi_bao_tri"]["tien_te"])
         if d["phi_bao_tri"]["tien_te"] is None or e:
             chan.append({"ma": "PHI_BAO_TRI_KHONG_HOP_LE", "thong_bao": "Phí bảo trì cần tiền tệ và giá trị đúng scale (giữ riêng, không gộp lịch)."})
-    chan.extend({"ma": l["ma"], "thong_bao": "Không tính được đúng scale tiền tệ — nhập giá trị/cơ sở hợp lệ."} for l in loi)
+    chan.extend({**l, "thong_bao": l.get("thong_bao") or "Không tính được đúng scale tiền tệ — nhập giá trị/cơ sở hợp lệ."} for l in loi)
     nhan_thieu = {"THIEU_TIEN_TE": "Chưa chọn tiền tệ báo giá.", "THIEU_TONG_GIA_TRI": "Chưa có tổng giá trị báo giá.",
                   "THIEU_KHACH": "Chưa nhập khách hàng.", "THIEU_LICH": "Chưa nhập lịch thanh toán.", "THIEU_CO_SO_THUE": "Chưa chọn cơ sở thuế."}
     chan_in = chan + [{"ma": t["ma"], "thong_bao": nhan_thieu[t["ma"]]} for t in thieu
@@ -398,7 +423,7 @@ def tinh_bao_gia(d: dict, g7: dict | None) -> dict:
     return {"tien_te": tt, "scale": R.SCALE.get(tt), "tong_minor": None if tong is None else str(tong), "dong": dong,
             "tong_ty_le": _frac_str(tong_tl) if d["lich"] else None, "tong_dong_minor": str(tong_tien) if d["lich"] else None,
             "tong_ty_le_khop": bool(d["lich"]) and du and tong_tl == TRAM,
-            "tong_ty_le_hien_thi": _so_vn(_frac_str(tong_tl)) + "%" if d["lich"] else None,
+            "tong_ty_le_hien_thi": _ty_le_vn(tong_tl, xap_xi=any(x["ty_le_xap_xi"] for x in dong)) if d["lich"] else None,
             "tong_tinh_minor": None if tich is None else str(tich), "tong_hien_thi": _tien_vn(tong, tt) if tong is not None and tt else None,
             "tong_dong_hien_thi": _tien_vn(tong_tien, tt) if d["lich"] and tt else None,
             "tong_tien_khop": bool(d["lich"]) and du and tong is not None and tong_tien == tong,
@@ -673,7 +698,7 @@ class CrmGiaoKetK2:
             return self._kq(c.execute("SELECT master.crm_gk_bao_gia_huy(%s, %s, %s::uuid, %s, %s) AS r", (khoa, h, bg, expected_revision, ly)).fetchone())
 
     def chuyen(self, dang_nhap: str, *, bao_gia_id, expected_revision, mau_phien_ban_id, khoa) -> dict:
-        """Báo giá → Soạn: cần quyền hiện hành + mẫu hiệu lực tương thích. KHÔNG đòi điều kiện In (tổng %/FX): phần chưa hoàn thiện được giữ để soạn."""
+        """Báo giá → Soạn: cần quyền hiện hành, tổng lịch/FX hợp lệ theo TL 45 và mẫu hiệu lực tương thích."""
         m, dt = self.mau, self.mau.danh_tinh(dang_nhap)
         bg, mau, khoa = _uuid(bao_gia_id, "bao_gia_id"), _uuid(mau_phien_ban_id, "mau_phien_ban_id"), _khoa(khoa)
         h = _h("CRM_BAO_GIA_CHUYEN", {"bao_gia_id": bg, "expected_revision": expected_revision, "mau_phien_ban_id": mau})
@@ -682,6 +707,10 @@ class CrmGiaoKetK2:
             if cu is not None:
                 return cu
             b = self._bao_gia(c, bg)
+            # Tính lại từ dữ liệu đã lưu: revision cũ có thể chưa có ly_do_chan_chuyen.
+            ly_do = tinh_bao_gia(b["du_lieu"], b.get("g7"))["ly_do_chan_chuyen"]
+            if ly_do:
+                _loi("CRM_GK_CHAN_CHUYEN", ly_do)
             pin = c.execute("SELECT master.crm_gk_ghim_mau(%s::uuid, %s::uuid, %s::uuid) AS r", (b["phap_nhan_id"], b["loai_hinh_id"], mau)).fetchone()["r"]
             dm = {f["khoa"]: f for f in m._nhieu(c, """SELECT khoa, kieu, nguon FROM master.crm_danh_muc_truong WHERE loai_hinh_id = %s
                                                        AND danh_muc_ref = %s AND revision = %s""", (b["loai_hinh_id"], pin["danh_muc_ref"], pin["danh_muc_rev"]))}
