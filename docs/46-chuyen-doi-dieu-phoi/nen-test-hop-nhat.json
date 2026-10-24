@@ -1,0 +1,1067 @@
+{
+ "test_crm_41_02": {
+  "ok": 0,
+  "error": 1,
+  "fail": 0,
+  "skip": 0,
+  "treo": 0,
+  "giay": 0.8,
+  "tong": 1,
+  "ids_loi": [
+   "unittest.loader._FailedTest.test_crm_41_02"
+  ],
+  "loi_dau": "ModuleNotFoundError: No module named 'kho_tri_thuc.m4.sql_duyet'"
+ },
+ "test_crm_41_02_http": {
+  "ok": 0,
+  "error": 0,
+  "fail": 0,
+  "skip": 13,
+  "treo": 0,
+  "giay": 1.1,
+  "tong": 13,
+  "ids_loi": [],
+  "loi_dau": ""
+ },
+ "test_crm_g6a_m25_integration": {
+  "ok": 0,
+  "error": 1,
+  "fail": 0,
+  "skip": 0,
+  "treo": 0,
+  "giay": 0.7,
+  "tong": 1,
+  "ids_loi": [
+   "unittest.loader._FailedTest.test_crm_g6a_m25_integration"
+  ],
+  "loi_dau": "ModuleNotFoundError: No module named 'test_crm_kiem_hd'"
+ },
+ "test_crm_giao_ket": {
+  "ok": 0,
+  "error": 1,
+  "fail": 0,
+  "skip": 0,
+  "treo": 0,
+  "giay": 1.6,
+  "tong": 1,
+  "ids_loi": [
+   "unittest.loader._FailedTest.test_crm_giao_ket"
+  ],
+  "loi_dau": "ModuleNotFoundError: No module named 'kho_tri_thuc.m4.sql_duyet'"
+ },
+ "test_crm_giao_ket_http": {
+  "ok": 0,
+  "error": 1,
+  "fail": 0,
+  "skip": 0,
+  "treo": 0,
+  "giay": 1.7,
+  "tong": 1,
+  "ids_loi": [
+   "unittest.loader._FailedTest.test_crm_giao_ket_http"
+  ],
+  "loi_dau": "ModuleNotFoundError: No module named 'kho_tri_thuc.m4.sql_duyet'"
+ },
+ "test_crm_k2": {
+  "ok": 0,
+  "error": 1,
+  "fail": 0,
+  "skip": 0,
+  "treo": 0,
+  "giay": 0.5,
+  "tong": 1,
+  "ids_loi": [
+   "unittest.loader._FailedTest.test_crm_k2"
+  ],
+  "loi_dau": "ModuleNotFoundError: No module named 'kho_tri_thuc.m4.sql_duyet'"
+ },
+ "test_crm_khoi_dong": {
+  "ok": 0,
+  "error": 1,
+  "fail": 0,
+  "skip": 0,
+  "treo": 0,
+  "giay": 0.4,
+  "tong": 1,
+  "ids_loi": [
+   "unittest.loader._FailedTest.test_crm_khoi_dong"
+  ],
+  "loi_dau": "ModuleNotFoundError: No module named 'psycopg'"
+ },
+ "test_crm_ky_ket": {
+  "ok": 0,
+  "error": 1,
+  "fail": 0,
+  "skip": 0,
+  "treo": 0,
+  "giay": 1.4,
+  "tong": 1,
+  "ids_loi": [
+   "unittest.loader._FailedTest.test_crm_ky_ket"
+  ],
+  "loi_dau": "ModuleNotFoundError: No module named 'kho_tri_thuc.m4.sql_duyet'"
+ },
+ "test_crm_ky_ket_http": {
+  "ok": 0,
+  "error": 1,
+  "fail": 0,
+  "skip": 0,
+  "treo": 0,
+  "giay": 1.6,
+  "tong": 1,
+  "ids_loi": [
+   "unittest.loader._FailedTest.test_crm_ky_ket_http"
+  ],
+  "loi_dau": "ModuleNotFoundError: No module named 'kho_tri_thuc.m4.sql_duyet'"
+ },
+ "test_crm_neutral_compat": {
+  "ok": 0,
+  "error": 0,
+  "fail": 0,
+  "skip": 5,
+  "treo": 0,
+  "giay": 0.9,
+  "tong": 5,
+  "ids_loi": [],
+  "loi_dau": ""
+ },
+ "test_crm_phan_tich": {
+  "ok": 20,
+  "error": 1,
+  "fail": 0,
+  "skip": 0,
+  "treo": 0,
+  "giay": 2.9,
+  "tong": 21,
+  "ids_loi": [
+   "test_crm_phan_tich.NutMoDemoTests.test_doc_ket_noi_chi_localhost_db_demo"
+  ],
+  "loi_dau": "kho_tri_thuc.ha_tang.primitives.DataError: Python đang chạy chưa có driver PostgreSQL (psycopg) — cần runtime app đã cài (crm-demo/runtime.local.json)."
+ },
+ "test_doi_chieu_hoa_don": {
+  "ok": 27,
+  "error": 5,
+  "fail": 0,
+  "skip": 0,
+  "treo": 0,
+  "giay": 0.9,
+  "tong": 32,
+  "ids_loi": [
+   "test_doi_chieu_hoa_don.TichHopM2.test_field_mo_ho_khong_doan",
+   "test_doi_chieu_hoa_don.TichHopM2.test_g01_xml_den_dto_va_doi_chieu",
+   "test_doi_chieu_hoa_don.TichHopM2.test_g03_zip_hai_entry_cung_khoa_la_trung",
+   "test_doi_chieu_hoa_don.TichHopM2.test_g04_so_chuan_bo_0_dau_va_trung",
+   "test_doi_chieu_hoa_don.TichHopM2.test_thung_native_exact_khong_quy_doi"
+  ],
+  "loi_dau": "FileNotFoundError: [Errno 2] No such file or directory: 'D:\\\\Claude\\\\Phan mem ho tro ke toan\\\\Phần mềm kho tri thức\\\\.claude\\\\worktrees\\\\lat-l0-1\\\\tests\\\\fixtures\\\\m2_invoice_xml\\\\inputs\\\\G01-wrapped-positive.xml'"
+ },
+ "test_hoa_don_xml": {
+  "ok": 0,
+  "error": 1,
+  "fail": 0,
+  "skip": 0,
+  "treo": 0,
+  "giay": 0.9,
+  "tong": null,
+  "ids_loi": [
+   "TIEN_TRINH_CON_CHET(ma=1) khi chay nap module"
+  ],
+  "loi_dau": "FileNotFoundError: [Errno 2] No such file or directory: 'D:\\\\Claude\\\\Phan mem ho tro ke toan\\\\Phần mềm kho tri thức\\\\.claude\\\\worktrees\\\\lat-l0-1\\\\tests\\\\fixtures\\\\m2_invoice_xml\\\\inputs\\\\G01-wrapped-positive.xml'",
+  "test_treo": ""
+ },
+ "test_ket_noi": {
+  "ok": 12,
+  "error": 0,
+  "fail": 0,
+  "skip": 11,
+  "treo": 0,
+  "giay": 1.1,
+  "tong": 23,
+  "ids_loi": [],
+  "loi_dau": ""
+ },
+ "test_kho_10": {
+  "ok": 43,
+  "error": 0,
+  "fail": 15,
+  "skip": 0,
+  "treo": 0,
+  "giay": 1.5,
+  "tong": 49,
+  "ids_loi": [
+   "test_kho_10.A_Golden.test_digests_and_envelopes (case='K01')",
+   "test_kho_10.A_Golden.test_digests_and_envelopes (case='K02')",
+   "test_kho_10.A_Golden.test_digests_and_envelopes (case='K03')",
+   "test_kho_10.A_Golden.test_digests_and_envelopes (case='K04')",
+   "test_kho_10.A_Golden.test_digests_and_envelopes (case='K05')",
+   "test_kho_10.A_Golden.test_digests_and_envelopes (case='K06')",
+   "test_kho_10.A_Golden.test_digests_and_envelopes (case='K07')",
+   "test_kho_10.A_Golden.test_digests_and_envelopes (case='K08')",
+   "test_kho_10.A_Golden.test_digests_and_envelopes (case='K09')",
+   "test_kho_10.A_Golden.test_digests_and_envelopes (case='K10')",
+   "test_kho_10.B_Controls.test_c07_replay",
+   "test_kho_10.D_Repair02.test_r3_actual_number_contradicts_exact_text",
+   "test_kho_10.D_Repair02.test_r4_positive_history_controls",
+   "test_kho_10.D_Repair02.test_r6_exact_digest",
+   "test_kho_10.ZZ_InputsUnchanged.test_root_inputs_hash_before_after"
+  ],
+  "loi_dau": "AssertionError: '1fb2332a57fcd18ab3999df2fc7ed09bb375a5eefc0fb87aacbd51ae35126ea4' != '56037f2e8145d0ca57b947e7213e03a4586ba601dc741b5ef554858f89df1107'"
+ },
+ "test_l11_http": {
+  "ok": 0,
+  "error": 0,
+  "fail": 0,
+  "skip": 2,
+  "treo": 0,
+  "giay": 0.9,
+  "tong": 2,
+  "ids_loi": [],
+  "loi_dau": ""
+ },
+ "test_l11_k2": {
+  "ok": 2,
+  "error": 1,
+  "fail": 0,
+  "skip": 20,
+  "treo": 0,
+  "giay": 0.5,
+  "tong": 23,
+  "ids_loi": [
+   "test_l11_k2.ThuanL11.test_profile_va_fixture_dung_pin"
+  ],
+  "loi_dau": "kho_tri_thuc.ha_tang.primitives.DataError: Tệp fixture proofs/goods-equivalence-A-v2.json không khớp SHA/độ dài."
+ },
+ "test_l11_migrations": {
+  "ok": 0,
+  "error": 1,
+  "fail": 0,
+  "skip": 0,
+  "treo": 0,
+  "giay": 0.4,
+  "tong": 1,
+  "ids_loi": [
+   "unittest.loader._FailedTest.test_l11_migrations"
+  ],
+  "loi_dau": "ModuleNotFoundError: No module named 'kho_tri_thuc.m4.sql_duyet'"
+ },
+ "test_m0_m5_migrations": {
+  "ok": 0,
+  "error": 1,
+  "fail": 0,
+  "skip": 0,
+  "treo": 0,
+  "giay": 0.6,
+  "tong": 1,
+  "ids_loi": [
+   "unittest.loader._FailedTest.test_m0_m5_migrations"
+  ],
+  "loi_dau": "ModuleNotFoundError: No module named 'kho_tri_thuc.m4.sql_duyet'"
+ },
+ "test_m1": {
+  "ok": 42,
+  "error": 1,
+  "fail": 0,
+  "skip": 0,
+  "treo": 0,
+  "giay": 15.2,
+  "tong": 43,
+  "ids_loi": [
+   "test_m1.WorkspaceTests.test_restore_postgres_schema_dich_kiem_truoc_khi_chep"
+  ],
+  "loi_dau": "AttributeError: module 'kho_tri_thuc.ha_tang' has no attribute 'postgres'"
+ },
+ "test_m2_00b_quyen": {
+  "ok": 1,
+  "error": 21,
+  "fail": 0,
+  "skip": 0,
+  "treo": 0,
+  "giay": 1.2,
+  "tong": 22,
+  "ids_loi": [
+   "test_m2_00b_quyen.M2BThuHoiSauIO.test_b06_doi_revision_profile_lam_mat_hieu_luc_ket_qua",
+   "test_m2_00b_quyen.M2BThuHoiSauIO.test_b06_doi_vai_van_duoc_doc_nhung_ket_qua_cu_mat_hieu_luc",
+   "test_m2_00b_quyen.M2BThuHoiSauIO.test_b06_phien_doi_nguoi_hoac_het",
+   "test_m2_00b_quyen.M2BThuHoiSauIO.test_b06_profiles_giao_hai_lan_kiem",
+   "test_m2_00b_quyen.M2BThuHoiSauIO.test_b06_thu_hoi_giua_sse_dung_phat_va_dung_run",
+   "test_m2_00b_quyen.M2BThuHoiSauIO.test_b06_thu_hoi_sau_chay_dai_truoc_status_khong_goi_node",
+   "test_m2_00b_quyen.M2BThuHoiSauIO.test_b06_thu_hoi_trong_luc_start_khong_tra_ket_qua_va_dung",
+   "test_m2_00b_quyen.M2BThuHoiSauIO.test_b07_dut_ket_noi_khi_start_la_unknown_can_doi_soat",
+   "test_m2_00b_quyen.M2BThuHoiSauIO.test_b11_node_tu_choi_4xx_ma_on_dinh",
+   "test_m2_00b_quyen.M2BThuHoiSauIO.test_b12_nhat_ky_sau_io_loi_bao_unknown_roi_ghi_lai",
+   "test_m2_00b_quyen.M2BTuChoiTruocIO.test_b05_company_ngoai_pham_vi",
+   "test_m2_00b_quyen.M2BTuChoiTruocIO.test_b05_csdl_tu_choi_module_du_app_cho",
+   "test_m2_00b_quyen.M2BTuChoiTruocIO.test_b05_danh_tinh_phien_db_lech_hoac_khoa",
+   "test_m2_00b_quyen.M2BTuChoiTruocIO.test_b05_instance_khong_hoat_dong_va_digest_profile_sai",
+   "test_m2_00b_quyen.M2BTuChoiTruocIO.test_b05_ket_noi_khac_nhau_tu_choi",
+   "test_m2_00b_quyen.M2BTuChoiTruocIO.test_b05_mapping_vang_va_xung_dot",
+   "test_m2_00b_quyen.M2BTuChoiTruocIO.test_b05_pn_ngoai_quyen",
+   "test_m2_00b_quyen.M2BTuChoiTruocIO.test_b05_thieu_module",
+   "test_m2_00b_quyen.M2BTuChoiTruocIO.test_b05_thieu_mot_phia_quyen_nguon",
+   "test_m2_00b_quyen.M2BTuChoiTruocIO.test_b05_vai_khong_duoc_m2_read",
+   "test_m2_00b_quyen.M2BTuChoiTruocIO.test_b12_nhat_ky_loi_truoc_start_khong_start"
+  ],
+  "loi_dau": "ModuleNotFoundError: No module named 'psycopg'"
+ },
+ "test_m2_00b_tien_trinh": {
+  "ok": 16,
+  "error": 0,
+  "fail": 0,
+  "skip": 0,
+  "treo": 0,
+  "giay": 1.9,
+  "tong": 16,
+  "ids_loi": [],
+  "loi_dau": ""
+ },
+ "test_m2_00b_tinh": {
+  "ok": 3,
+  "error": 16,
+  "fail": 0,
+  "skip": 0,
+  "treo": 0,
+  "giay": 1.5,
+  "tong": 19,
+  "ids_loi": [
+   "test_m2_00b_tinh.M2BHangDoiQuaHan.test_b08_qua_han_dung_hang_doi_khong_chay_tiep",
+   "test_m2_00b_tinh.M2BTinh.test_b04_context_A_tu_phien_va_registry_digest_khop",
+   "test_m2_00b_tinh.M2BTinh.test_b04_phien_khac_cung_khoa_can_doi_soat_khong_start",
+   "test_m2_00b_tinh.M2BTinh.test_b04_profiles_theo_quyen_hien_hanh",
+   "test_m2_00b_tinh.M2BTinh.test_b05_positive_qua_helper_that_cung_app_connection",
+   "test_m2_00b_tinh.M2BTinh.test_b06_selection_digest_bind_phien_actor_vai_pn_profile",
+   "test_m2_00b_tinh.M2BTinh.test_b07_binding_bat_bien_khong_chua_sid_tho",
+   "test_m2_00b_tinh.M2BTinh.test_b07_binding_hong_tren_dia_fail_closed",
+   "test_m2_00b_tinh.M2BTinh.test_b07_cung_khoa_cung_run_khong_sinh_nonce_moi",
+   "test_m2_00b_tinh.M2BTinh.test_b07_khoa_da_dung_cho_lua_chon_khac_khong_start",
+   "test_m2_00b_tinh.M2BTinh.test_b08_hang_doi_tuan_tu_kiem_quyen_tung_job",
+   "test_m2_00b_tinh.M2BTinh.test_b09_events_dung_run_ket_thuc_done",
+   "test_m2_00b_tinh.M2BTinh.test_b10_open_folder_chi_run_rel_cua_run",
+   "test_m2_00b_tinh.M2BTinh.test_b11_dto_run_dong_khong_lo_bi_mat",
+   "test_m2_00b_tinh.M2BTinh.test_b12_nhat_ky_qua_crm_su_kien_trong_giao_dich",
+   "test_m2_00b_tinh.M2BTinh.test_b12_status_ket_thuc_ghi_nhat_ky_mot_lan"
+  ],
+  "loi_dau": "ModuleNotFoundError: No module named 'psycopg'"
+ },
+ "test_m2_http": {
+  "ok": 0,
+  "error": 0,
+  "fail": 0,
+  "skip": 3,
+  "treo": 0,
+  "giay": 0.4,
+  "tong": 3,
+  "ids_loi": [],
+  "loi_dau": ""
+ },
+ "test_m2_k2": {
+  "ok": 0,
+  "error": 1,
+  "fail": 0,
+  "skip": 0,
+  "treo": 0,
+  "giay": 0.3,
+  "tong": null,
+  "ids_loi": [
+   "TIEN_TRINH_CON_CHET(ma=1) khi chay nap module"
+  ],
+  "loi_dau": "AssertionError: line-facts.json khác pin",
+  "test_treo": ""
+ },
+ "test_m2_migrations": {
+  "ok": 0,
+  "error": 1,
+  "fail": 0,
+  "skip": 0,
+  "treo": 0,
+  "giay": 0.4,
+  "tong": 1,
+  "ids_loi": [
+   "unittest.loader._FailedTest.test_m2_migrations"
+  ],
+  "loi_dau": "ModuleNotFoundError: No module named 'kho_tri_thuc.m4.sql_duyet'"
+ },
+ "test_m4_01b_pg": {
+  "ok": 0,
+  "error": 0,
+  "fail": 0,
+  "skip": 10,
+  "treo": 0,
+  "giay": 0.5,
+  "tong": 10,
+  "ids_loi": [],
+  "loi_dau": ""
+ },
+ "test_m4_01b_tinh": {
+  "ok": 0,
+  "error": 1,
+  "fail": 0,
+  "skip": 0,
+  "treo": 0,
+  "giay": 0.5,
+  "tong": 1,
+  "ids_loi": [
+   "unittest.loader._FailedTest.test_m4_01b_tinh"
+  ],
+  "loi_dau": "ModuleNotFoundError: No module named 'kho_tri_thuc.m4.sql_duyet'"
+ },
+ "test_m4_01c": {
+  "ok": 15,
+  "error": 0,
+  "fail": 1,
+  "skip": 0,
+  "treo": 0,
+  "giay": 1.2,
+  "tong": 16,
+  "ids_loi": [
+   "test_m4_01c.M4Js.test_khong_nut_gia_nhanh_sau"
+  ],
+  "loi_dau": "AssertionError: '/api/m4/ke-toan' unexpectedly found in '\"use strict\";\\n// M4-01C — Cổng hồ sơ xây dựng (gói 1) trong shell hiện có: nguồn HĐ → trích/soát 37 mã → phòng dự án xác nhận → PL/BOQ → đợt/checklist → Nộp →\\n// reviewer đọc/tải. Chỉ gọi đúng route/DTO thật của giao_dien/m4.py + k2/xay_dung"
+ },
+ "test_m4_01c_http": {
+  "ok": 0,
+  "error": 0,
+  "fail": 0,
+  "skip": 8,
+  "treo": 0,
+  "giay": 0.8,
+  "tong": 8,
+  "ids_loi": [],
+  "loi_dau": ""
+ },
+ "test_m4_02b_http": {
+  "ok": 0,
+  "error": 1,
+  "fail": 0,
+  "skip": 0,
+  "treo": 0,
+  "giay": 0.8,
+  "tong": 1,
+  "ids_loi": [
+   "unittest.loader._FailedTest.test_m4_02b_http"
+  ],
+  "loi_dau": "ModuleNotFoundError: No module named 'tests'"
+ },
+ "test_m4_02b_k2": {
+  "ok": 0,
+  "error": 1,
+  "fail": 0,
+  "skip": 0,
+  "treo": 0,
+  "giay": 1.2,
+  "tong": 1,
+  "ids_loi": [
+   "unittest.loader._FailedTest.test_m4_02b_k2"
+  ],
+  "loi_dau": "ModuleNotFoundError: No module named 'tests'"
+ },
+ "test_m4_02b_pure": {
+  "ok": 0,
+  "error": 1,
+  "fail": 0,
+  "skip": 0,
+  "treo": 0,
+  "giay": 0.3,
+  "tong": 1,
+  "ids_loi": [
+   "unittest.loader._FailedTest.test_m4_02b_pure"
+  ],
+  "loi_dau": "ModuleNotFoundError: No module named 'kho_tri_thuc.m4.sql_duyet'"
+ },
+ "test_m4_02c_pg": {
+  "ok": 0,
+  "error": 1,
+  "fail": 0,
+  "skip": 0,
+  "treo": 0,
+  "giay": 0.3,
+  "tong": null,
+  "ids_loi": [
+   "TIEN_TRINH_CON_CHET(ma=1) khi chay nap module"
+  ],
+  "loi_dau": "AttributeError: module 'kho_tri_thuc.kiem_chung.fixtures_m4' has no attribute 'KET_LUAN_VND'",
+  "test_treo": ""
+ },
+ "test_m4_03a_full_basis_pg": {
+  "ok": 0,
+  "error": 1,
+  "fail": 0,
+  "skip": 0,
+  "treo": 0,
+  "giay": 0.2,
+  "tong": 1,
+  "ids_loi": [
+   "unittest.loader._FailedTest.test_m4_03a_full_basis_pg"
+  ],
+  "loi_dau": "ModuleNotFoundError: No module named 'tests'"
+ },
+ "test_m4_03a_full_basis_tinh": {
+  "ok": 0,
+  "error": 1,
+  "fail": 0,
+  "skip": 0,
+  "treo": 0,
+  "giay": 0.6,
+  "tong": 1,
+  "ids_loi": [
+   "unittest.loader._FailedTest.test_m4_03a_full_basis_tinh"
+  ],
+  "loi_dau": "ModuleNotFoundError: No module named 'kho_tri_thuc.m4.sql_duyet'"
+ },
+ "test_m4_03a_m26_integration": {
+  "ok": 0,
+  "error": 1,
+  "fail": 0,
+  "skip": 0,
+  "treo": 0,
+  "giay": 0.5,
+  "tong": 1,
+  "ids_loi": [
+   "unittest.loader._FailedTest.test_m4_03a_m26_integration"
+  ],
+  "loi_dau": "ModuleNotFoundError: No module named 'kho_tri_thuc.m4.sql_duyet'"
+ },
+ "test_m4_03a_tinh": {
+  "ok": 0,
+  "error": 1,
+  "fail": 0,
+  "skip": 0,
+  "treo": 0,
+  "giay": 0.7,
+  "tong": 1,
+  "ids_loi": [
+   "unittest.loader._FailedTest.test_m4_03a_tinh"
+  ],
+  "loi_dau": "ModuleNotFoundError: No module named 'kho_tri_thuc.m4.sql_duyet'"
+ },
+ "test_m4_03b_common_pg": {
+  "ok": 0,
+  "error": 1,
+  "fail": 0,
+  "skip": 0,
+  "treo": 0,
+  "giay": 0.4,
+  "tong": 1,
+  "ids_loi": [
+   "unittest.loader._FailedTest.test_m4_03b_common_pg"
+  ],
+  "loi_dau": "ModuleNotFoundError: No module named 'tests'"
+ },
+ "test_m4_03b_common_tinh": {
+  "ok": 0,
+  "error": 1,
+  "fail": 0,
+  "skip": 0,
+  "treo": 0,
+  "giay": 0.7,
+  "tong": 1,
+  "ids_loi": [
+   "unittest.loader._FailedTest.test_m4_03b_common_tinh"
+  ],
+  "loi_dau": "ModuleNotFoundError: No module named 'kho_tri_thuc.m4.sql_duyet'"
+ },
+ "test_m4_04b_request_wiring_http": {
+  "ok": 0,
+  "error": 1,
+  "fail": 0,
+  "skip": 0,
+  "treo": 0,
+  "giay": 0.8,
+  "tong": 1,
+  "ids_loi": [
+   "unittest.loader._FailedTest.test_m4_04b_request_wiring_http"
+  ],
+  "loi_dau": "ModuleNotFoundError: No module named 'kho_tri_thuc.m4.sql_duyet'"
+ },
+ "test_m4_master_dung_chung_http": {
+  "ok": 0,
+  "error": 1,
+  "fail": 0,
+  "skip": 0,
+  "treo": 0,
+  "giay": 0.5,
+  "tong": 1,
+  "ids_loi": [
+   "unittest.loader._FailedTest.test_m4_master_dung_chung_http"
+  ],
+  "loi_dau": "ModuleNotFoundError: No module named 'tests'"
+ },
+ "test_m4_master_dung_chung_pg": {
+  "ok": 0,
+  "error": 1,
+  "fail": 0,
+  "skip": 0,
+  "treo": 0,
+  "giay": 0.4,
+  "tong": 1,
+  "ids_loi": [
+   "unittest.loader._FailedTest.test_m4_master_dung_chung_pg"
+  ],
+  "loi_dau": "ModuleNotFoundError: No module named 'tests'"
+ },
+ "test_m4_master_dung_chung_tinh": {
+  "ok": 9,
+  "error": 3,
+  "fail": 2,
+  "skip": 0,
+  "treo": 0,
+  "giay": 0.7,
+  "tong": 14,
+  "ids_loi": [
+   "test_m4_master_dung_chung_tinh.DomainMock.test_gan_doi_tac_dto_truoc_csdl",
+   "test_m4_master_dung_chung_tinh.DomainMock.test_nhan_master_dto_truoc_csdl",
+   "test_m4_master_dung_chung_tinh.DomainMock.test_tim_gioi_han_q_limit",
+   "test_m4_master_dung_chung_tinh.TinhSql.test_khong_sua_doi_tuong_hien_huu",
+   "test_m4_master_dung_chung_tinh.TinhSql.test_moi_ham_co_search_path_co_dinh_va_definer_dung_cho"
+  ],
+  "loi_dau": "ModuleNotFoundError: No module named 'kho_tri_thuc.m4.sql_duyet'"
+ },
+ "test_m4_request_fix02": {
+  "ok": 0,
+  "error": 1,
+  "fail": 0,
+  "skip": 0,
+  "treo": 0,
+  "giay": 0.2,
+  "tong": 1,
+  "ids_loi": [
+   "unittest.loader._FailedTest.test_m4_request_fix02"
+  ],
+  "loi_dau": "ImportError: cannot import name 'request_api' from 'kho_tri_thuc.m4' (D:\\Claude\\Phan mem ho tro ke toan\\Phần mềm kho tri thức\\.claude\\worktrees\\lat-l0-1\\src\\kho_tri_thuc\\m4\\__init__.py)"
+ },
+ "test_m4_request_tinh": {
+  "ok": 0,
+  "error": 1,
+  "fail": 0,
+  "skip": 0,
+  "treo": 0,
+  "giay": 0.5,
+  "tong": 1,
+  "ids_loi": [
+   "unittest.loader._FailedTest.test_m4_request_tinh"
+  ],
+  "loi_dau": "ModuleNotFoundError: No module named 'kho_tri_thuc.m4.sql_duyet'"
+ },
+ "test_m4_review_compute": {
+  "ok": 0,
+  "error": 1,
+  "fail": 0,
+  "skip": 0,
+  "treo": 0,
+  "giay": 0.5,
+  "tong": 1,
+  "ids_loi": [
+   "unittest.loader._FailedTest.test_m4_review_compute"
+  ],
+  "loi_dau": "ModuleNotFoundError: No module named 'kho_tri_thuc.m4.sql_duyet'"
+ },
+ "test_m4_review_http": {
+  "ok": 0,
+  "error": 0,
+  "fail": 0,
+  "skip": 7,
+  "treo": 0,
+  "giay": 1.7,
+  "tong": 7,
+  "ids_loi": [],
+  "loi_dau": ""
+ },
+ "test_m4_review_k2": {
+  "ok": 0,
+  "error": 0,
+  "fail": 0,
+  "skip": 14,
+  "treo": 0,
+  "giay": 1.0,
+  "tong": 14,
+  "ids_loi": [],
+  "loi_dau": ""
+ },
+ "test_m5_http": {
+  "ok": 0,
+  "error": 0,
+  "fail": 0,
+  "skip": 2,
+  "treo": 0,
+  "giay": 0.6,
+  "tong": 2,
+  "ids_loi": [],
+  "loi_dau": ""
+ },
+ "test_m5_k2": {
+  "ok": 5,
+  "error": 5,
+  "fail": 0,
+  "skip": 26,
+  "treo": 0,
+  "giay": 1.8,
+  "tong": 36,
+  "ids_loi": [
+   "test_m5_k2.ThuanM5.test_capture_h_tach_va_on_dinh",
+   "test_m5_k2.ThuanM5.test_context_may_chu_va_facts_dung_dieu_kien",
+   "test_m5_k2.ThuanM5.test_dong_nguon_giu_token_va_null",
+   "test_m5_k2.ThuanM5.test_registry_va_mau_dung_pin",
+   "test_m5_k2.ThuanM5.test_reported_errors_chat_va_coverage_hieu_luc"
+  ],
+  "loi_dau": "kho_tri_thuc.ha_tang.primitives.DataError: Tệp fixture trusted-registry.json không khớp SHA đã pin."
+ },
+ "test_m9_k2": {
+  "ok": 0,
+  "error": 1,
+  "fail": 0,
+  "skip": 0,
+  "treo": 0,
+  "giay": 0.9,
+  "tong": 1,
+  "ids_loi": [
+   "unittest.loader._FailedTest.test_m9_k2"
+  ],
+  "loi_dau": "ModuleNotFoundError: No module named 'kho_tri_thuc.m4.sql_duyet'"
+ },
+ "test_m9_phan_tich": {
+  "ok": 10,
+  "error": 0,
+  "fail": 0,
+  "skip": 0,
+  "treo": 0,
+  "giay": 0.5,
+  "tong": 10,
+  "ids_loi": [],
+  "loi_dau": ""
+ },
+ "test_modules": {
+  "ok": 48,
+  "error": 0,
+  "fail": 0,
+  "skip": 0,
+  "treo": 0,
+  "giay": 14.3,
+  "tong": 48,
+  "ids_loi": [],
+  "loi_dau": ""
+ },
+ "test_nghiem_thu_bridge": {
+  "ok": 21,
+  "error": 0,
+  "fail": 0,
+  "skip": 0,
+  "treo": 0,
+  "giay": 6.3,
+  "tong": 21,
+  "ids_loi": [],
+  "loi_dau": ""
+ },
+ "test_pg_bo_chuyen_schema10": {
+  "ok": 0,
+  "error": 0,
+  "fail": 0,
+  "skip": 1,
+  "treo": 0,
+  "giay": 0.4,
+  "tong": 1,
+  "ids_loi": [],
+  "loi_dau": ""
+ },
+ "test_pg_schema": {
+  "ok": 0,
+  "error": 1,
+  "fail": 0,
+  "skip": 0,
+  "treo": 0,
+  "giay": 0.4,
+  "tong": 1,
+  "ids_loi": [
+   "unittest.loader._FailedTest.test_pg_schema"
+  ],
+  "loi_dau": "ModuleNotFoundError: No module named 'kho_tri_thuc.m4.sql_duyet'"
+ },
+ "test_source6_docx_tables": {
+  "ok": 0,
+  "error": 1,
+  "fail": 0,
+  "skip": 0,
+  "treo": 0,
+  "giay": 0.3,
+  "tong": 35,
+  "ids_loi": [
+   "setUpModule (test_source6_docx_tables)"
+  ],
+  "loi_dau": "RuntimeError: Thiếu KTT_SOURCE6_E3_OVERLAY (overlay đóng băng + hai artifact) — không skip, không tự tìm nguồn"
+ },
+ "test_source6_g5_e5": {
+  "ok": 6,
+  "error": 0,
+  "fail": 0,
+  "skip": 0,
+  "treo": 1,
+  "giay": 180.8,
+  "tong": 29,
+  "ids_loi": [],
+  "loi_dau": "",
+  "test_treo": "test_source6_g5_e5.E5ClientIoMockTests.test_raw_khac_yeu_cau_khong_nhan"
+ },
+ "test_source6_lazy_excel": {
+  "ok": 0,
+  "error": 3,
+  "fail": 0,
+  "skip": 0,
+  "treo": 0,
+  "giay": 0.9,
+  "tong": 18,
+  "ids_loi": [
+   "setUpClass (test_source6_lazy_excel.TestExcelThat)",
+   "setUpClass (test_source6_lazy_excel.TestRuleOnlyBlockedSubprocess)",
+   "setUpClass (test_source6_lazy_excel.TestStaticCandidate)"
+  ],
+  "loi_dau": "RuntimeError: SETUP NOT_VERIFIED (baseline/bố cục): thư mục chứa tests/tools phải là 'files' của bố cục đóng băng, đang là D:\\Claude\\Phan mem ho tro ke toan\\Phần mềm kho tri thức\\.claude\\worktrees\\lat-l0-1; thiếu baseline D:\\Claude\\Phan mem ho tro ke toan\\Phần mềm kho tri thức\\.claude\\worktrees\\inpu"
+ },
+ "test_trich6_host": {
+  "ok": 14,
+  "error": 3,
+  "fail": 0,
+  "skip": 3,
+  "treo": 0,
+  "giay": 5.4,
+  "tong": 20,
+  "ids_loi": [
+   "test_trich6_host.VongDoiThatTests.test_06a_docx_that_all37_tap_con_seal_replay_va_tu_choi",
+   "test_trich6_host.VongDoiThatTests.test_hai_instance_doc_lap_va_buoc_dung_central",
+   "test_trich6_host.VongDoiThatTests.test_vong_doi_auth_common_only_va_dung"
+  ],
+  "loi_dau": "kho_tri_thuc.nguon.trich6_host.LoiHost: Guard giữ tệp của tiến trình central chưa đạt — không mở engine DEMO."
+ },
+ "test_trich_chung_6": {
+  "ok": 30,
+  "error": 1,
+  "fail": 1,
+  "skip": 1,
+  "treo": 0,
+  "giay": 3.4,
+  "tong": 33,
+  "ids_loi": [
+   "test_trich_chung_6.WiringTests.test_06_m4_giai_doan_truoc_nr_khong_ghi",
+   "test_trich_chung_6.WiringTests.test_m4_khong_con_loi_chep"
+  ],
+  "loi_dau": "ModuleNotFoundError: No module named 'kho_tri_thuc.m4.sql_duyet'"
+ },
+ "test_v10": {
+  "ok": 25,
+  "error": 0,
+  "fail": 0,
+  "skip": 0,
+  "treo": 0,
+  "giay": 6.7,
+  "tong": 25,
+  "ids_loi": [],
+  "loi_dau": ""
+ },
+ "test_v11": {
+  "ok": 25,
+  "error": 0,
+  "fail": 0,
+  "skip": 0,
+  "treo": 0,
+  "giay": 6.2,
+  "tong": 25,
+  "ids_loi": [],
+  "loi_dau": ""
+ },
+ "test_v12": {
+  "ok": 9,
+  "error": 0,
+  "fail": 0,
+  "skip": 0,
+  "treo": 0,
+  "giay": 4.3,
+  "tong": 9,
+  "ids_loi": [],
+  "loi_dau": ""
+ },
+ "test_v13_backup_safety": {
+  "ok": 9,
+  "error": 5,
+  "fail": 0,
+  "skip": 0,
+  "treo": 0,
+  "giay": 2.6,
+  "tong": 18,
+  "ids_loi": [
+   "setUpClass (test_v13_backup_safety.BienNhanCliTests)",
+   "test_v13_backup_safety.ChepPgSangSqliteGuardTests.test_control_duong_dich_moi_qua_guard",
+   "test_v13_backup_safety.ChepPgSangSqliteGuardTests.test_dich_co_du_lieu_tu_choi_truoc_doc_pg_va_giu_nguyen [cash]",
+   "test_v13_backup_safety.ChepPgSangSqliteGuardTests.test_dich_co_du_lieu_tu_choi_truoc_doc_pg_va_giu_nguyen [knowledge]",
+   "test_v13_backup_safety.ChepPgSangSqliteGuardTests.test_dich_dang_trong_giao_dich_cua_nguoi_goi"
+  ],
+  "loi_dau": "ModuleNotFoundError: No module named 'kho_tri_thuc.m4.sql_duyet'"
+ },
+ "test_v13_backup_safety_pg": {
+  "ok": 0,
+  "error": 0,
+  "fail": 0,
+  "skip": 11,
+  "treo": 0,
+  "giay": 1.3,
+  "tong": 11,
+  "ids_loi": [],
+  "loi_dau": ""
+ },
+ "test_v13_doi_chieu": {
+  "ok": 1,
+  "error": 14,
+  "fail": 0,
+  "skip": 3,
+  "treo": 0,
+  "giay": 4.0,
+  "tong": 18,
+  "ids_loi": [
+   "test_v13_doi_chieu.DoiChieuK2Tests.test_core_hash_nguon_sai_duoc_bao",
+   "test_v13_doi_chieu.DoiChieuK2Tests.test_dich_dung_thi_khop_va_chay_lai_on_dinh",
+   "test_v13_doi_chieu.DoiChieuK2Tests.test_doi_tung_cot_typed_khi_json_giu_nguyen_deu_bi_phat_hien",
+   "test_v13_doi_chieu.DoiChieuK2Tests.test_sua_json_hoac_hash_dich_bi_phat_hien",
+   "test_v13_doi_chieu.DoiChieuK2Tests.test_thieu_thua_trung_bi_phat_hien",
+   "test_v13_doi_chieu.DoiChieuK2Tests.test_thoi_diem_va_kieu_char_chuan_hoa",
+   "test_v13_doi_chieu.LoiSachTests.test_chep_v12_loi_ket_noi_khong_lo",
+   "test_v13_doi_chieu.LoiSachTests.test_loi_dong_ket_noi_khong_bao_thanh_cong",
+   "test_v13_doi_chieu.LoiSachTests.test_loi_giua_chuyen_doi",
+   "test_v13_doi_chieu.LoiSachTests.test_loi_ket_noi_va_migrate",
+   "test_v13_doi_chieu.LoiSachTests.test_loi_mo_nguon",
+   "test_v13_doi_chieu.LoiSachTests.test_loi_psycopg_chi_con_sqlstate_va_ten_rang_buoc",
+   "test_v13_doi_chieu.LoiSachTests.test_loi_python_khong_in_thong_diep",
+   "test_v13_doi_chieu.LoiSachTests.test_sai_cu_phap_khong_thanh_cong_va_kiem_tra_van_chay"
+  ],
+  "loi_dau": "ModuleNotFoundError: No module named 'kho_tri_thuc.m4.sql_duyet'"
+ },
+ "test_v1_matching": {
+  "ok": 27,
+  "error": 0,
+  "fail": 0,
+  "skip": 0,
+  "treo": 0,
+  "giay": 6.8,
+  "tong": 27,
+  "ids_loi": [],
+  "loi_dau": ""
+ },
+ "test_v1b": {
+  "ok": 14,
+  "error": 0,
+  "fail": 0,
+  "skip": 0,
+  "treo": 0,
+  "giay": 7.3,
+  "tong": 14,
+  "ids_loi": [],
+  "loi_dau": ""
+ },
+ "test_v2": {
+  "ok": 5,
+  "error": 0,
+  "fail": 0,
+  "skip": 0,
+  "treo": 0,
+  "giay": 5.7,
+  "tong": 5,
+  "ids_loi": [],
+  "loi_dau": ""
+ },
+ "test_v3": {
+  "ok": 4,
+  "error": 0,
+  "fail": 0,
+  "skip": 0,
+  "treo": 0,
+  "giay": 3.4,
+  "tong": 4,
+  "ids_loi": [],
+  "loi_dau": ""
+ },
+ "test_v4": {
+  "ok": 2,
+  "error": 0,
+  "fail": 0,
+  "skip": 0,
+  "treo": 0,
+  "giay": 5.2,
+  "tong": 2,
+  "ids_loi": [],
+  "loi_dau": ""
+ },
+ "test_v5": {
+  "ok": 2,
+  "error": 0,
+  "fail": 0,
+  "skip": 0,
+  "treo": 0,
+  "giay": 3.9,
+  "tong": 2,
+  "ids_loi": [],
+  "loi_dau": ""
+ },
+ "test_v6": {
+  "ok": 1,
+  "error": 0,
+  "fail": 0,
+  "skip": 0,
+  "treo": 0,
+  "giay": 4.6,
+  "tong": 1,
+  "ids_loi": [],
+  "loi_dau": ""
+ },
+ "test_v7": {
+  "ok": 6,
+  "error": 0,
+  "fail": 0,
+  "skip": 0,
+  "treo": 0,
+  "giay": 4.9,
+  "tong": 6,
+  "ids_loi": [],
+  "loi_dau": ""
+ },
+ "test_v8": {
+  "ok": 3,
+  "error": 0,
+  "fail": 0,
+  "skip": 0,
+  "treo": 0,
+  "giay": 4.1,
+  "tong": 3,
+  "ids_loi": [],
+  "loi_dau": ""
+ },
+ "test_v9": {
+  "ok": 3,
+  "error": 0,
+  "fail": 0,
+  "skip": 0,
+  "treo": 0,
+  "giay": 4.4,
+  "tong": 3,
+  "ids_loi": [],
+  "loi_dau": ""
+ },
+ "test_v9b": {
+  "ok": 19,
+  "error": 0,
+  "fail": 0,
+  "skip": 0,
+  "treo": 0,
+  "giay": 8.8,
+  "tong": 19,
+  "ids_loi": [],
+  "loi_dau": ""
+ },
+ "test_web": {
+  "ok": 22,
+  "error": 0,
+  "fail": 1,
+  "skip": 0,
+  "treo": 0,
+  "giay": 6.9,
+  "tong": 23,
+  "ids_loi": [
+   "test_web.IntakeTests.test_scope_changes_receipt_not_raw_storage_size"
+  ],
+  "loi_dau": "AssertionError: 1 != 2"
+ }
+}

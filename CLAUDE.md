@@ -36,6 +36,6 @@
 
 ## 5. Lệnh
 
-- Test: `powershell -NoProfile -ExecutionPolicy Bypass -File test.ps1 -Engine sqlite` (đang treo — L0-1 sẽ thêm giới hạn thời gian từng test và ghi lệnh chạy nhanh vào đây).
+- Test (từng module trong tiến trình riêng, tối đa 180 giây/module, ghi ok/ERROR/FAIL/skip/TREO): `python -X utf8 tools\chay_test_theo_module.py . --ra "$env:TEMP\kq.json"`; một module: `python -X utf8 tools\chay_test_theo_module.py . --module test_m1`. Cả bộ mất khoảng 6 phút — chạy nền (`run_in_background`). So với nền ở `docs\46-chuyen-doi-dieu-phoi\NEN-TEST.md` và `nen-test-hop-nhat.json`. `test.ps1` (một tiến trình) vẫn dùng được cho PostgreSQL nhưng sẽ treo ở `test_source6_g5_e5`.
 - PostgreSQL test cần biến `KHO_PG_DSN_TEST` trỏ tới CSDL DEMO riêng; chưa cấu hình.
-- [L0-1 ĐIỀN] lệnh mở server DEMO trên cổng riêng cho một worktree.
+- Server DEMO cho một worktree (mỗi worktree một cổng riêng, ví dụ 8782; không dùng 8766/8767), PowerShell, trong thư mục worktree, chạy nền: `$env:PYTHONPATH = "$PWD\src"; python -X utf8 -m kho_tri_thuc.giao_dien.server --config cau_hinh.toml --root var\web-demo-8782 --port 8782 --no-browser`. Kiểm `http://127.0.0.1:8782/api/health`; dừng đúng tiến trình theo `pid` trong health. `--root` phải nằm trong worktree (`var\` bị .gitignore), không trỏ vào `var\plhn-*` hay `var\web-that`. Engine trích #6 báo chưa sẵn sàng (`GUARD_KHONG_NAP`) là bình thường ở worktree. Đã thử 24/10/2026 trên hop-nhat: health và trang chủ trả 200.
