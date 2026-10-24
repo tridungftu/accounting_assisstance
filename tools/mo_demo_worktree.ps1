@@ -9,10 +9,15 @@
     - Chep tu <repo chinh>\var\web\crm-demo\ vao <DataRoot>\crm-demo\ (neu chua co): runtime.local.json, ket-noi.local.json (chep NGUYEN
       TEP, khong doc/in noi dung), cum-pg.local.json (neu repo chinh co; neu khong thi tao tep KHONG bi mat tro dung cluster PostgreSQL da
       cai canh repo chinh - bat buoc vi mac dinh cua ma tinh vi tri cluster theo thu muc CHA cua worktree).
-    - CSDL PostgreSQL DEMO la CSDL DUNG CHUNG voi ban DEMO cua Anh (ten CSDL nam trong ket-noi.local.json, khong phu thuoc DataRoot).
-      Migration chi tien, khong ha. Vi vay truoc khi chuan bi CRM, script so chuoi migration cua worktree voi chuoi cua ma chinh:
-      khac -> DUNG (exit 2), khong dung vao CSDL. Muon CSDL rieng: Anh/root tao CSDL + login rieng (ten CSDL bat dau kho_crm_demo),
-      dat ket-noi.local.json rieng vao <DataRoot>\crm-demo\ truoc; tep khac tep cua repo chinh -> script coi la CSDL rieng, khong chan.
+    - MAC DINH (khong co -CsdlRieng) CSDL PostgreSQL DEMO la CSDL DUNG CHUNG voi ban DEMO cua Anh (ten CSDL nam trong ket-noi.local.json,
+      khong phu thuoc DataRoot). Migration chi tien, khong ha. Vi vay truoc khi chuan bi CRM, script so chuoi migration cua worktree voi
+      chuoi cua ma chinh: khac -> DUNG (exit 2), khong dung vao CSDL.
+    - -CsdlRieng <hau to> (KHUYEN DUNG cho worktree, vd -CsdlRieng p8783; -CsdlRieng auto = p<Port>): goi tools\tao_ket_noi_demo_rieng.py
+      de ghi <DataRoot>\crm-demo\ket-noi.local.json trong do CHI TEN CSDL doi thanh kho_crm_demo_lt_<hau to> (cung may chu/login/mat khau
+      voi CSDL DEMO cua Anh; khong in DSN). Buoc chuan bi CRM (chuan_bi_crm_demo.py) tu CREATE DATABASE neu chua co roi migrate + seed bang
+      login quan tri trong DSN -> CSDL cua Anh KHONG bi nang schema hay lan du lieu thu. Bo kiem chuoi migration (khong con dung chung).
+      Tep ket-noi.local.json tu chuan bi khac (khong phai ban sao cua repo chinh, khong phai do script nay tao) khong bi ghi de.
+      Tep khac tep cua repo chinh trong DataRoot van duoc coi la CSDL rieng (Anh/root tu chuan bi) khi KHONG dung -CsdlRieng.
     - Fixture: buoc chuan bi CRM doc tests\fixtures va kiem SHA da pin tren byte cua repo chinh; worktree tao bang git thieu 19 tep
       (.gitignore loai *.xml/*.zip) va bi doi LF/CRLF (core.autocrlf=true). Script dong bo tu repo chinh CHI tep thieu hoac khac nhau
       duy nhat o xuong dong (git van coi sach); tep khac noi dung that giu nguyen va duoc bao.
@@ -25,6 +30,7 @@ param(
     [Parameter(Mandatory = $true)][ValidateRange(1, 65535)][int]$Port,
     [string]$DataRoot,
     [string]$ConfigPath,
+    [ValidatePattern('^(auto|[a-z0-9_]{1,47})$')][string]$CsdlRieng,
     [switch]$KhongCrm
 )
 
@@ -39,6 +45,8 @@ if ($Port -in 8766, 8767, 8768) { Write-Host ('Cong ' + $Port + ' danh cho ban c
 if (-not $DataRoot) { $DataRoot = Join-Path $kttWt ('var\demo-' + $Port) }
 if (-not $ConfigPath) { $ConfigPath = Join-Path $kttWt 'cau_hinh.toml' }
 $kttRoot = [IO.Path]::GetFullPath($DataRoot).TrimEnd('\')
+if ($CsdlRieng -and $KhongCrm) { Write-Host '-CsdlRieng va -KhongCrm loai tru nhau.'; exit 1 }
+if ($CsdlRieng -eq 'auto') { $CsdlRieng = 'p' + $Port }
 $kttConfig = [IO.Path]::GetFullPath($ConfigPath)
 if (-not (Test-Path -LiteralPath $kttConfig -PathType Leaf)) { Write-Host ('Khong tim thay cau hinh: ' + $kttConfig); exit 1 }
 if (-not (Select-String -LiteralPath $kttConfig -Pattern '^\s*environment\s*=\s*"fixture"' -Quiet)) {
@@ -92,6 +100,14 @@ if (-not (Test-Path -LiteralPath $kttRtDst -PathType Leaf)) {
     else { Write-Host ('CANH BAO: khong co ' + $kttRtSrc + ' - Python se khong co psycopg, CRM DEMO khong chay.') }
 }
 
+# Python cho cac buoc phu (chi thu vien chuan hoac chuoi migration): python cua runtime.local.json neu co, khong thi python tren PATH
+function Get-KttPythonTienIch {
+    $kttP = $null
+    try { if (Test-Path -LiteralPath $kttRtDst -PathType Leaf) { $kttP = [string]((Get-Content -LiteralPath $kttRtDst -Raw -Encoding UTF8 | ConvertFrom-Json).python) } } catch { $kttP = $null }
+    if (-not $kttP -or -not (Test-Path -LiteralPath $kttP -PathType Leaf)) { $kttC = Get-Command python -ErrorAction SilentlyContinue; if ($kttC) { $kttP = $kttC.Source } else { $kttP = $null } }
+    return $kttP
+}
+
 $kttKnDst = Join-Path $kttCrmDir 'ket-noi.local.json'
 $kttKnSrc = Join-Path $kttSrcDir 'ket-noi.local.json'
 $kttDungChung = $false      # true = worktree nay se noi CHUNG CSDL voi ban DEMO cua Anh
@@ -99,6 +115,39 @@ if ($KhongCrm) {
     # tro tep ket noi sang duong dan khong ton tai (chi trong tien trinh nay + server con) -> CRM_CHUA_CAU_HINH, ung dung van mo
     $env:KTT_CRM_DEMO_KET_NOI = Join-Path $kttCrmDir 'khong-noi-csdl.json'
     Write-Host 'Che do -KhongCrm: khong noi CSDL PostgreSQL.'
+} elseif ($CsdlRieng) {
+    # CSDL RIENG: tep ket noi trong DataRoot = tep nguon doi DUY NHAT ten CSDL (kho_crm_demo_lt_<hau to>); khong in DSN
+    $kttPyRieng = Get-KttPythonTienIch
+    if (-not $kttPyRieng) { Write-Host 'Khong tim thay Python de tao tep ket noi CSDL rieng.'; exit 1 }
+    $kttRiengArgs = @('-I', '-B', '-X', 'utf8', (Join-Path $PSScriptRoot 'tao_ket_noi_demo_rieng.py'), '--hau-to', $CsdlRieng, '--data-root', $kttRoot)
+    if (Test-Path -LiteralPath $kttKnSrc -PathType Leaf) { $kttRiengArgs += @('--nguon', $kttKnSrc) }
+    $kttPrevEap = $ErrorActionPreference
+    try {
+        $ErrorActionPreference = 'Continue'
+        $kttRiengLine = & $kttPyRieng @kttRiengArgs 2>$null | Select-Object -Last 1
+        $kttRiengCode = $LASTEXITCODE
+    } finally { $ErrorActionPreference = $kttPrevEap }
+    $kttRieng = $null
+    try { $kttRieng = $kttRiengLine | ConvertFrom-Json } catch { }
+    if ($kttRiengCode -ne 0 -or -not $kttRieng -or -not $kttRieng.db) {
+        $kttLoi = if ($kttRieng -and $kttRieng.loi) { [string]$kttRieng.loi } else { 'khong chay duoc tools\tao_ket_noi_demo_rieng.py' }
+        Write-Host ('Khong tao duoc ket noi CSDL rieng: ' + $kttLoi); exit 1
+    }
+    Write-Host ('CSDL RIENG cho ban DEMO nay: ' + [string]$kttRieng.db + ' (' + [string]$kttRieng.trang_thai + '); CSDL cua Anh khong bi dung vao. Chua co thi buoc chuan bi CRM tu tao.')
+    # Bien moi truong KTT_CRM_DEMO_KET_NOI (neu dang dat trong may) se ghi de tep: ep ve DUNG tep vua ghi, chi trong tien trinh nay + server con
+    $env:KTT_CRM_DEMO_KET_NOI = $kttKnDst
+    # Server cu tren cong nay khoi dong TRUOC khi tep doi co the van noi CSDL cu (vd CSDL dung chung cua Anh): khong tai su dung
+    $kttH0 = $null
+    try { $kttH0 = Invoke-RestMethod -Uri ('http://127.0.0.1:' + $Port + '/api/health') -TimeoutSec 5 -ErrorAction Stop } catch { $kttH0 = $null }
+    if ($null -ne $kttH0) {
+        $kttGhi = (Get-Item -LiteralPath $kttKnDst).LastWriteTimeUtc
+        $kttBatDau = if ($null -ne $kttH0.started_at) { [DateTimeOffset]::FromUnixTimeSeconds([long]$kttH0.started_at).UtcDateTime } else { [DateTime]::MinValue }
+        if ($kttBatDau -lt $kttGhi) {
+            Write-Host ('DUNG: server dang chay tren cong ' + $Port + ' (pid ' + $kttH0.pid + ') khoi dong TRUOC khi tep ket noi CSDL rieng duoc ghi, co the van noi CSDL cu.')
+            Write-Host ('  Dung no:  Stop-Process -Id ' + $kttH0.pid + '   roi chay lai lenh nay.')
+            exit 2
+        }
+    }
 } else {
     if (Test-Path -LiteralPath $kttKnDst -PathType Leaf) {
         $kttDungChung = -not ((Test-Path -LiteralPath $kttKnSrc -PathType Leaf) -and ((Get-KttBam $kttKnDst) -ne (Get-KttBam $kttKnSrc)))
@@ -154,9 +203,7 @@ function Get-KttChuoi([string]$Python, [string]$Src) {
 }
 $kttLyDo = $null            # ly do dung #1: chuoi migration (chi khi dung chung CSDL)
 if ($kttDungChung) {
-    $kttPy = $null
-    try { if (Test-Path -LiteralPath $kttRtDst -PathType Leaf) { $kttPy = [string]((Get-Content -LiteralPath $kttRtDst -Raw -Encoding UTF8 | ConvertFrom-Json).python) } } catch { $kttPy = $null }
-    if (-not $kttPy -or -not (Test-Path -LiteralPath $kttPy -PathType Leaf)) { $kttCmd = Get-Command python -ErrorAction SilentlyContinue; if ($kttCmd) { $kttPy = $kttCmd.Source } }
+    $kttPy = Get-KttPythonTienIch
     if (-not $kttPy) { Write-Host 'Khong tim thay Python de kiem chuoi migration.'; exit 1 }
     $kttW = Get-KttChuoi $kttPy (Join-Path $kttWt 'src')
     $kttM = Get-KttChuoi $kttPy (Join-Path $kttMain 'src')
@@ -183,8 +230,8 @@ if ($kttLyDo) {
     Write-Host '  CSDL PostgreSQL DEMO dung chung voi ban DEMO cua Anh; migration chi tien, khong ha.'
     Write-Host '  Cach xu ly:'
     Write-Host ('   1. Mo khong CRM:   powershell -NoProfile -ExecutionPolicy Bypass -File "' + $PSCommandPath + '" -Port ' + $Port + ' -KhongCrm')
-    Write-Host '   2. Tach CSDL (Anh/Codex-root lam, worker khong tu tao): tao CSDL moi ten bat dau kho_crm_demo + login ung dung + admin rieng,'
-    Write-Host ('      dat ket-noi.local.json rieng vao ' + $kttCrmDir + ' roi chay lai (tep khac tep repo chinh = CSDL rieng, khong bi chan).')
+    Write-Host ('   2. CSDL RIENG (khuyen dung):  powershell -NoProfile -ExecutionPolicy Bypass -File "' + $PSCommandPath + '" -Port ' + $Port + ' -CsdlRieng p' + $Port)
+    Write-Host '      (tu tao CSDL kho_crm_demo_lt_p<cong> cung may chu/login voi CSDL DEMO; CSDL cua Anh khong doi).'
     Write-Host '   3. Neu chi thieu migration: dua worktree len cung nhanh tich hop voi repo chinh.'
     exit 2
 }
