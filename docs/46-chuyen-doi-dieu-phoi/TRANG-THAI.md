@@ -1,28 +1,30 @@
 # Trạng thái — lead Claude Code cập nhật khi lát đổi trạng thái
 
-Trạng thái lát: Đang code → Chờ kiểm → Chờ Anh (cổng A/B) → Sửa → Xong · Bị chặn. Kế hoạch và hàng đợi đầy đủ: `4-KE-HOACH-LEAD.md`. Nền test: `NEN-TEST.md`.
+Trạng thái lát: Đang code → Chờ kiểm → Chờ Anh (cổng A/B) → Sửa → Xong · Bị chặn. Kế hoạch và hàng đợi đầy đủ: `4-KE-HOACH-LEAD.md`. Nền test: `NEN-TEST.md` (đang đo lại nền v2 trên hop-nhat 7b114e2, có `--runtime`).
 
 ## Lát đang chạy (tối đa 3 worker)
 
 | Lát | Việc | Worker | Nhánh · worktree | Giao lúc | Trạng thái |
 |---|---|---|---|---|---|
-| P0 | Khôi phục file chưa vào git để hop-nhat import được (CRM G6A/G5-B, M4 duyệt/Request/03A) | Claude Opus | `lat/p0` · `.claude/worktrees/lat-p0` | 24/10 | Đang code |
-| L0-4 | Lệnh mở DEMO cho worktree, có CRM PostgreSQL | Claude Sonnet | `lat/l0-4` · `.claude/worktrees/lat-l0-4` | 24/10 | Đang code |
-| L0-3a | Lỗi môi trường N3/N4 + bộ chạy test dùng Python có psycopg | Codex + lead | `lat/l0-3a` (b20019d) | 24/10 | Chờ kiểm — lead đang chạy toàn bộ test có `--runtime`; 19 fixture DEMO đã vào git (ngoại lệ .gitignore hẹp) |
-| M2b | M2-00 · đọc/kiểm manifest + POLICY-TIENTE-01 v1 (ca M2-00-06, -10) | Codex | `lat/m2b` · `.claude/worktrees/lat-m2b` | 24/10 | Đang code |
+| BG-1a | CRM · Báo giá gói 1 phía máy chủ: ô Giá trị thông minh, ghi đè tổng có cảnh báo, nhãn tên, mốc chuẩn | Codex | `lat/bg-1a` · `.claude/worktrees/lat-bg-1a` | 24/10 | Đang code |
+| L0-4b | CSDL CRM DEMO riêng cho lập trình (Anh chốt 24/10) | Claude Sonnet | `lat/l0-4b` · `.claude/worktrees/lat-l0-4b` | 24/10 | Đang code |
+| M2b | M2-00 · đọc/kiểm manifest + POLICY-TIENTE-01 v1 | Codex (code) · Claude (review) | `lat/m2b` (fffad5a) | 24/10 | Chờ kiểm — review chéo vòng 1 đang chạy; Codex báo 63/63 test đạt |
 
 ## Lát đã xong (24/10)
 
 | Lát | Kết quả | Gộp vào hop-nhat |
 |---|---|---|
-| L0-1 | Nền test: chinh 711/25/31/272 · 0 treo; hop-nhat 501/112/20/140 · 1 treo (`test_source6_g5_e5`); 5 nhóm nguyên nhân | a1da3d4 |
+| P0 | Khôi phục 24 file chưa vào git (CRM G6A/G5-B, M4 duyệt/Request/03A); `pg_migrations` nạp được (25); module lỗi nạp 29 → 1; ok 501 → 1067; không test vốn đạt nào hỏng | 1c5c67a |
+| L0-3a | Runner: gốc repo vào sys.path + `--runtime` (Python có psycopg); `.gitattributes` cho file bị ghim byte; 19 fixture DEMO vào git; trên nhánh lát: ERROR 112 → 62, FAIL 20 → 6 | 7b114e2 |
+| L0-4 | `tools\mo_demo_worktree.ps1`: mở DEMO cho worktree, chặn khi CSDL CRM DEMO dùng chung có thể hỏng | 7cbc41b |
+| L0-1 | Nền test: chinh 711/25/31/272 · 0 treo; hop-nhat 501/112/20/140 · 1 treo; 5 nhóm nguyên nhân | a1da3d4 |
 | L0-2a | Common identity fix01→04, khớp byte bản fix | 73deacb |
-| L0-2d | CRM m4-three + G5; khôi phục hồi quy H3 (crm-g4 ghi đè bản cũ, M0023 về đúng checksum `chinh`); review Codex vòng 1: 2 điểm Chặn lead giải bằng bằng chứng | b2fd07c |
-| L0-2e | M2-00 fix01 + `config.js` bị sót; không nguyên nhân lỗi mới | 3a2b083 |
+| L0-2d | CRM m4-three + G5; khôi phục hồi quy H3 (M0023 về đúng checksum `chinh`) | b2fd07c |
+| L0-2e | M2-00 fix01 + `config.js` bị sót | 3a2b083 |
 | L0-2f | Source6 ordered-fix01; không hết treo → L0-3b | d07117a |
-| L0-2i | 27 file chưa vào git (8 đang bị import), 26 file có bản mới hơn ngoài git | 8b4670f |
+| L0-2i | 27 file chưa vào git, 26 file có bản mới hơn ngoài git | 8b4670f |
 
-Worktree đo nền `chinh`: `.claude/worktrees/nen-chinh-59b7d8e` (tách rời ở 59b7d8e, chỉ chạy test).
+Worktree đo nền: `.claude/worktrees/nen-chinh-59b7d8e` (chinh) · `.claude/worktrees/nen-hop-nhat-v2` (hop-nhat 7b114e2).
 
 ## Khóa file dùng chung (mỗi lúc một lát)
 
@@ -30,17 +32,21 @@ Worktree đo nền `chinh`: `.claude/worktrees/nen-chinh-59b7d8e` (tách rời �
 |---|---|
 | `src\kho_tri_thuc\giao_dien\server.py` | — |
 | `giao_dien\m4.py`, `giao_dien\assets\app.js`, `index.html`, `style.css` | — |
-| `ha_tang\pg_migrations.py` | — (P0 không sửa; chỉ khôi phục module nó import) |
-| `giao_dien\crm_g.py`, `giao_dien\assets\crm_g.js` | P0 (thay `crm_g.js` bằng bản 27a0d3db) |
-| `m4\*` dùng chung | P0 (chỉ thêm file thiếu) |
-| `tests\run_suite.py`, `tools\chay_test_theo_module.py`, `.gitattributes`, `.gitignore` | L0-3a (chờ gộp) |
-| `CLAUDE.md` mục 5 | L0-4 |
+| `ha_tang\pg_migrations.py` | — |
+| `giao_dien\crm_g.py`, `k2\crm_giao_ket.py` | BG-1a |
+| `giao_dien\assets\crm_g.js` | — (BG-1b nhận sau BG-1a) |
+| `m4\*` dùng chung | — |
+| `tools\mo_demo_worktree.ps1`, `CLAUDE.md` mục 5 | L0-4b |
 
 ## Màn hình / module chờ Anh
 
 | Màn | Trạng thái |
 |---|---|
-| CRM · Báo giá (#42, TL 45) | Chưa làm — BG-1a sau P0; cổng A cần L0-4 (lệnh mở DEMO có CRM) |
+| CRM · Báo giá (#42, TL 45) | Đang làm gói 1: BG-1a (máy chủ) → BG-1b (màn hình) → cổng A trên CSDL DEMO riêng (L0-4b) |
+
+## Việc phụ (lead làm, ghi để Anh biết)
+
+- 24/10, khi L0-4 chạy thử trên bản sao `chinh`, CSDL CRM DEMO dùng chung của Anh đã được nâng lên schema 23 (đúng bản `chinh`) và nạp thêm dữ liệu mẫu DEMO. Từ L0-4b trở đi lập trình dùng CSDL riêng.
 
 ---
 
