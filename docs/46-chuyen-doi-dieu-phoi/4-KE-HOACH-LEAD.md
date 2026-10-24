@@ -27,7 +27,7 @@
 | L0-2g | Gộp `m4-review-basis-c18-testfix` | Codex | — | — | Chờ slot |
 | L0-2c | Gộp `m4-02c-backend` + `m4-04c-request-m27` | Claude | `pg_migrations.py` | sau L0-2d | Xong 24/10 — gộp c4deb00 |
 | L0-2h | Rà `m4b2`, `m4b3` (chưa terminal): còn dùng được gì | Codex | — | — | Chờ slot |
-| L0-3 | Sửa nhóm ERROR còn lại theo nguyên nhân gốc L0-1 | theo nhóm | tùy nhóm | sau L0-1, L0-2* | Tách: L0-3a xong · L0-3c xong (nền v3) · L0-3b đang code (24/10, Claude) |
+| L0-3 | Sửa nhóm ERROR còn lại theo nguyên nhân gốc L0-1 | theo nhóm | tùy nhóm | sau L0-1, L0-2* | Xong 24/10 — L0-3a, L0-3b (146a28b), L0-3c (nền v3) |
 | H5 | Gộp `hop-nhat` → `chinh`, đẩy GitHub | lead | — | sau L0-1, L0-2*, Anh xem `NEN-TEST.md` | Chờ Anh |
 | BG-1 | Báo giá gói 1: BG-01…05 (lịch 4 cột, dòng tổng, tính tự động, tổng tự tính, bỏ mã kỹ thuật) | Claude | `crm_g.*` | sau L0-2d (Anh đã ra lệnh 24/10) | Chờ L0-2d |
 | BG-2, BG-3 | Báo giá gói 2 (BG-06…12), gói 3 (BG-13, 14) | Claude | `crm_g.*` | sau cổng A gói 1 | Chờ |
@@ -72,8 +72,8 @@ Căn cứ: lệnh của Anh 24/10 (mọi module đã chốt thiết kế; M9 d�
 | M2a | M2-00 · = L0-2e gộp `m2-00b-fix01` | Codex | — | — | Xong (= L0-2e) |
 | M2b | M2-00 · `manifest.py`, `chinh_sach_tien_te.py` (POLICY-TIENTE-01) + ca M2-00-06/10 | Codex | — | — | Xong 24/10 — gộp 4e1f6bb (review Đạt, vòng 2 sửa 2 điểm) |
 | M2c | M2-00 · `nhan.py` nhận theo manifest (identity, revision/xung đột, KHONG_XML_GOC → bảng kê) nối `k2\hoa_don.py` | Codex | M2b | (migration nếu cần → khóa) | Xong 24/10 — gộp b190569 |
-| M2d | M2-00 · `hoi_cuu.py` manifest hồi cứu 33 tháng, fixture giả | Codex | M2b | — | Chờ kiểm (review Claude vòng 1) |
-| M2e | M2-00 · nút "Tải từ cổng thuế" + route + cấu hình | Claude | M2a, M2c | `server.py`, `app.js`, `index.html` | Chờ |
+| M2d | M2-00 · `hoi_cuu.py` manifest hồi cứu 33 tháng, fixture giả | Codex | M2b | — | Xong 25/10 — gộp da3d666 |
+| M2e | M2-00 · nút "Tải từ cổng thuế" + route + cấu hình | Claude | M2a, M2c | `server.py`, `app.js`, `index.html` | Đang code (24/10, Claude) |
 | M2f | M2-00 · ca -03/-07/-09 trên cổng thật, áp bản vá vào #7 thật | Anh | M2e | — | Chờ Anh (cần lệnh riêng: gọi cổng thuế thật) |
 | E1-1 | E1-MUA · đăng ký 5 loại + DV trong `CATALOG_COMMON`, `danh_muc_theo_loai`, từ chối loại lạ; test XD nguyên trạng | Codex | L0-2f | — | Xong 24/10 — gộp d5fe3cc |
 | E1-2 | E1-MUA · quy tắc theo loại + `phien_ban_danh_muc` | Codex | E1-1 | — | Chờ |
@@ -81,14 +81,16 @@ Căn cứ: lệnh của Anh 24/10 (mọi module đã chốt thiết kế; M9 d�
 | E1-4 | E1-MUA · màn danh mục Sửa + nhật ký; mở loại ở trích chung #6 | Claude | E1-1 | `app.js` | Chờ |
 | E1-5 | E1-MUA · áp vào #6 thật, chấm 2 hợp đồng thật offline | Anh | E1-2 | — | Chờ Anh |
 | M4-2 | M4 · Nghiệm thu & chi phí dự án · UI 02C duyệt/PDF: đối chiếu với fix01 + 3 lỗi đã tái hiện (gồm L0-2b) | Claude | P0 | `m4\*` UI | Xong 24/10 — gộp ff9503f |
-| L0-6 | Engine trích #6 trên DEMO worktree: báo sẵn sàng lúc khởi động nhưng `TRICH6_KHONG_KET_NOI` ngay sau lệnh trích đầu tiên → chưa dựng được hợp đồng/đợt DEMO cho M4 (chẩn đoán tối đa 2 lượt; không xong thì dựng đợt bằng fixture test) | Claude | — | — | Đang code (24/10, Claude) |
+| L0-6 | Engine trích #6 trên DEMO worktree: báo sẵn sàng lúc khởi động nhưng `TRICH6_KHONG_KET_NOI` ngay sau lệnh trích đầu tiên → chưa dựng được hợp đồng/đợt DEMO cho M4 (chẩn đoán tối đa 2 lượt; không xong thì dựng đợt bằng fixture test) | Claude | — | — | Xong 24/10 — gộp 1d1c12f (vá tạm launcher; sửa sản phẩm ở L0-7) |
+| L0-7 | Sửa sản phẩm: `trich6_host` nạp sẵn openpyxl ở luồng chính tiến trình con (hết treo 60s lệnh trích đầu ở mọi bản, kể cả DEMO của Anh); `.gitattributes` review_goc; `chuan_bi_crm_demo` seed duyệt viên M4 | Claude | `trich6_host.py`, `.gitattributes`, `chuan_bi_crm_demo.py` | L0-6 | Đang code (24–25/10) |
 | M4-3 | M4 · 03A kế toán nghiệm thu: M0026 + test + xác minh màn | Codex | P0 | — | Chờ |
-| M4-4 | M4 · 03B căn cứ nghiệm thu ↔ hóa đơn: L0-2a + migration + test PG | Codex | L0-2a, M4-3 | `pg_migrations.py` | Chờ |
+| M4-4 | M4 · 03B căn cứ nghiệm thu ↔ hóa đơn: L0-2a + migration + test PG | Codex | L0-2a, M4-3 | `pg_migrations.py` | Đang code (25/10, gộp với M4-7: M0029 cho 03B) |
 | M4-5 | M4 · 03B route + panel trong màn kế toán nghiệm thu | Claude | M4-4 | `giao_dien\m4.py` | Chờ |
 | M4-6 | M4 · 04 Request nháp: khôi phục `request_api.py`, `sql_request_nhap.py`, M0027; giữ CHUA_CAU_HINH, **không gọi Request thật** | Codex | P0 | — | Chờ |
-| M4-7 | M4 · migration master-reuse + rà `m4b2`/`m4b3` (= L0-2h) | Codex | P0 | — | Chờ |
+| M4-7 | M4 · migration master-reuse + rà `m4b2`/`m4b3` (= L0-2h) | Codex | P0 | — | Đang code (25/10: M0028 master dùng chung; rà m4b2/m4b3 còn lại) |
 
 **Chưa chốt thiết kế — lead soạn checklist, hỏi Anh bằng bảng chọn khi tới lượt (không hỏi dồn):**
+- **M2-00 · trước khi mở nhận tự động (M2e/M2f):** đường nhận phải truyền gốc hồi cứu tin cậy từ cấu hình; chạy thử 1 tháng thật trước 33 tháng (tên file có dấu/khoảng trắng, MST dạng số mất số 0 đầu, thư mục phẳng lẫn hai chiều, bảng kê 20 cột — review M2d #9).
 - **M2-00 · khoảng thiếu đường nhận K2 (từ M2c):** `kho.m2_tieu_thu_quan_sat` tạo revision theo semantic digest — đổi hash bytes hoặc riêng `tthai_cong` chưa tạo revision như TL 43 §6; K2 chưa lưu mức bằng chứng `BANG_KE`, tiền tệ theo policy, quan hệ điều chỉnh/thay thế; bán ra chỉ là ứng viên nguồn. Cần lát SQL + migration (M2c-2) — hỏi Anh phạm vi khi tới M2e.
 - ~~Báo giá → Ký~~ — **Anh chốt 24/10: giữ chặn ở bước Ký** (QD-20261024-02), không mở lát sửa Ký.
 - M4 · ghi nhận công nợ nội bộ (kế toán xác nhận giá trị/thuế → công nợ): chưa có thiết kế gói; 03B chỉ là quan hệ căn cứ.
@@ -181,3 +183,4 @@ Mở ứng dụng Claude trên máy → tab Code → phiên **trên máy này** 
 - 24/10: M2b — 3 điểm 'Để sau' của review chuyển sang M2c: số thực dạng mũ trong thành phần khóa (Python/JS in khác), file lạ ngoài .xml/.pdf trong thư mục run, package-data cho `quy_tac/*.json` khi đóng gói.
 - 24/10: `codex exec` L0-3c lỗi "Selected model is at capacity" (gpt-6.1-sol) sau ~110 nghìn token, không sửa file nào. Theo quy tắc: không tự hạ model, không gọi lặp — thử lại 1 lần khi lượt Codex đang chạy xong; vẫn lỗi thì chuyển lát cho Claude.
 - 24/10: từ L0-3a, sandbox `codex exec` không thấy `python` trên PATH (Python 3.13 hệ thống bị 'Access is denied') → handoff Codex sau ghi rõ dùng Python đi kèm `%USERPROFILE%\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe`; lát cần tái hiện bằng chạy (treo, DEMO) giao Claude.
+- 25/10: lead cấp số migration (vai người tích hợp): **M0028** = `M4_MASTER_DUNG_CHUNG_SQL` (m4-master-reuse), **M0029** = SQL 03B ghi nhận chung (sau M0026 vì tham chiếu `m4.kt_xac_nhan`).

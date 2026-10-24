@@ -24,6 +24,7 @@ SCHEMA = "m2_00a.source7.manifest.v1"
 JSON_TOI_DA = 64 * 1024 * 1024
 XML_TOI_DA, ZIP_TOI_DA, ZIP_ENTRIES_TOI_DA = 16 * 1024 * 1024, 64 * 1024 * 1024, 1000
 SO_NGUYEN_TOI_DA = 2**53 - 1
+CHUOI_TOI_DA = 4096
 KHOA_IDENTITY = ("nbmst", "khmshdon", "khhdon", "shdon")
 KHOA_MANIFEST = (
     "schema nguon run_id phap_nhan ky chieu thu_muc_chieu bat_dau ket_thuc "
@@ -103,6 +104,7 @@ def _raw(v, tai):
 def _quet_bi_mat(v, do_sau=0):
     _can(do_sau <= 32, "$", "QUA_SAU")
     if isinstance(v, str):
+        _can(len(v) <= CHUOI_TOI_DA, "$", "GIA_TRI_QUA_DAI")
         if RE_GIA_TRI_CAM.search(v):
             _loi("CO_BI_MAT")
     elif isinstance(v, dict):
@@ -115,7 +117,15 @@ def _quet_bi_mat(v, do_sau=0):
             _quet_bi_mat(x, do_sau + 1)
 
 
-def _ten_tep(v, tai):
+def _ten_tep(v, tai, goc=None):
+    if goc is not None:
+        _can(isinstance(v, str), tai, "SAI_KIEU")
+        p = Path(v)
+        _can(p.is_absolute() and ".." not in p.parts and p != goc and p.is_relative_to(goc),
+             tai, "DUONG_DAN_SAI")
+        _ten_tep(p.name, tai)  # Giữ nguyên kiểm basename, kể cả tên Windows cấm.
+        _duong_dan(p, thu_muc=False)
+        return
     _chuoi(v, r"[A-Za-z0-9_][A-Za-z0-9_.~-]{0,159}", tai)
     _can(".." not in v and not v.endswith((".", " ")) and not re.fullmatch(
         r"CON|PRN|AUX|NUL|COM[0-9]|LPT[0-9]", v.split(".")[0], re.I
@@ -161,19 +171,19 @@ class KetQuaDocManifest(dict):
         return [h for h in self["hoa_don"] if not h["key_thieu"]]
 
 
-def _tep(v, tai, tep, *, lon=SO_NGUYEN_TOI_DA, nho=1):
-    _ten_tep(v["file"], tai + ".file")
+def _tep(v, tai, tep, *, lon=SO_NGUYEN_TOI_DA, nho=1, goc=None):
+    _ten_tep(v["file"], tai + ".file", goc)
     _chuoi(v["sha256"], RE_HASH, tai + ".sha256")
     _so(v["bytes"], tai + ".bytes", nho, lon)
     tep.append(_Tep(v["file"], v["sha256"], v["bytes"]))
 
 
-def _kiem_zip(z, tai, tep):
+def _kiem_zip(z, tai, tep, goc=None):
     _doi_tuong(z, "file sha256 bytes coverage entries loi".split(), tai)
     _chuoi(z["sha256"], RE_HASH, tai + ".sha256")
     _so(z["bytes"], tai + ".bytes")
     if z["file"] is not None:
-        _tep(z, tai, tep, lon=ZIP_TOI_DA, nho=0)
+        _tep(z, tai, tep, lon=ZIP_TOI_DA, nho=0, goc=goc)
     _can(z["coverage"] in ("COMPLETE", "PARTIAL"), tai + ".coverage")
     if z["loi"] is not None:
         _kiem_loi(z["loi"], tai + ".loi")
@@ -189,7 +199,7 @@ def _kiem_zip(z, tai, tep):
         _can(e["read_state"] in ("READ_OK", "READ_ERROR", "IGNORED_NON_XML", "DIRECTORY"), a)
         _can(type(e["trung_ten"]) is bool, a + ".trung_ten", "SAI_KIEU")
         if e["read_state"] == "READ_OK":
-            _tep(e, a, tep, lon=XML_TOI_DA)
+            _tep(e, a, tep, lon=XML_TOI_DA, goc=goc)
             _can(e["loi"] is None, a)
         else:
             _can(all(e[k] is None for k in ("file", "sha256", "bytes")), a)
@@ -214,7 +224,7 @@ def _chuoi_raw(v):
     return str(v)
 
 
-def _kiem_hd(h, i, tep):
+def _kiem_hd(h, i, tep, goc=None):
     a = f"$.hoa_don[{i - 1}]"
     _doi_tuong(h, KHOA_HD, a)
     _so(h["item_ordinal"], a + ".item_ordinal", i, i)
@@ -237,13 +247,13 @@ def _kiem_hd(h, i, tep):
     _can(h["xml_status"] in ("OK", "KHONG_XML_GOC", "LOI", "KHONG_YEU_CAU"), a + ".xml_status")
     _mang(h["xml_tep"], a + ".xml_tep")
     if h["zip"] is not None:
-        _kiem_zip(h["zip"], a + ".zip", tep)
+        _kiem_zip(h["zip"], a + ".zip", tep, goc)
     if h["xml_status"] == "OK":
         _can(bool(h["xml_tep"]), a + ".xml_tep")
         for j, t in enumerate(h["xml_tep"]):
             ta = f"{a}.xml_tep[{j}]"
             _doi_tuong(t, KHOA_TEP, ta)
-            _tep(t, ta, tep, lon=XML_TOI_DA)
+            _tep(t, ta, tep, lon=XML_TOI_DA, goc=goc)
             _can(t["file"].lower().endswith(".xml"), ta + ".file")
             if t["ordinal_zip"] is None:
                 _can(t["ten_entry_zip"] is None, ta)
@@ -280,21 +290,39 @@ def _kiem_hd(h, i, tep):
         _so(p["bytes"], a + ".payload.bytes")
         _can(p["loai"] in ("XML", "UNKNOWN") and h["xml_status"] == "LOI", a)
         if p["file"] is not None:
-            _tep(p, a + ".payload", tep, nho=0)
+            _tep(p, a + ".payload", tep, nho=0, goc=goc)
     _can(type(h["pdf_loi"]) is bool, a + ".pdf_loi", "SAI_KIEU")
     if h["file_pdf"] is None:
         _can(h["hash_pdf"] is None and h["vai_tro_pdf"] is None, a + ".file_pdf")
     else:
-        _ten_tep(h["file_pdf"], a + ".file_pdf")
+        _ten_tep(h["file_pdf"], a + ".file_pdf", goc)
         _can(h["file_pdf"].lower().endswith(".pdf"), a + ".file_pdf")
         _chuoi(h["hash_pdf"], RE_HASH, a + ".hash_pdf")
         _can(h["vai_tro_pdf"] == "XEM_LAI" and h["xml_status"] == "OK", a + ".vai_tro_pdf")
         tep.append(_Tep(h["file_pdf"], h["hash_pdf"], None))
 
 
-def _kiem_manifest(m) -> list[_Tep]:
+def _kiem_manifest(m, *, goc_hoi_cuu_tin_cay=None) -> list[_Tep]:
     _quet_bi_mat(m)
-    _doi_tuong(m, KHOA_MANIFEST + (["xap_xi"] if isinstance(m, dict) and m.get("nguon") == "HOI_CUU" else []), "$")
+    hoi_cuu = isinstance(m, dict) and m.get("nguon") == "HOI_CUU"
+    mo_rong = ["xap_xi"] if hoi_cuu else []
+    if hoi_cuu and "thu_muc_tep_goc" in m:
+        mo_rong.append("thu_muc_tep_goc")
+    _doi_tuong(m, KHOA_MANIFEST + mo_rong, "$")
+    goc = None
+    if "thu_muc_tep_goc" in mo_rong:
+        v = m["thu_muc_tep_goc"]
+        _can(isinstance(v, str), "$.thu_muc_tep_goc", "SAI_KIEU")
+        _can(".." not in Path(v).parts, "$.thu_muc_tep_goc", "DUONG_DAN_SAI")
+        goc = _duong_dan(Path(v), thu_muc=True)
+        if goc_hoi_cuu_tin_cay is not None:
+            ds_goc = ([goc_hoi_cuu_tin_cay] if isinstance(goc_hoi_cuu_tin_cay, (str, os.PathLike))
+                      else goc_hoi_cuu_tin_cay)
+            # Chỉ giải tên thật sau khi từng thành phần đã qua kiểm reparse.
+            cac_goc = [_duong_dan(Path(p), thu_muc=True).resolve(strict=True) for p in ds_goc]
+            goc_that = goc.resolve(strict=True)
+            _can(any(goc_that.is_relative_to(p) for p in cac_goc),
+                 "$.thu_muc_tep_goc", "HOI_CUU_GOC_KHONG_TIN_CAY")
     _can(m["schema"] == SCHEMA, "$.schema")
     _can(m["nguon"] in ("TAI_MOI", "HOI_CUU"), "$.nguon")
     if m["nguon"] == "HOI_CUU":
@@ -363,7 +391,7 @@ def _kiem_manifest(m) -> list[_Tep]:
     _mang(m["hoa_don"], "$.hoa_don")
     tep = []
     for i, h in enumerate(m["hoa_don"], 1):
-        _kiem_hd(h, i, tep)
+        _kiem_hd(h, i, tep, goc)
     _mang(m["loi_chung"], "$.loi_chung")
     for i, e in enumerate(m["loi_chung"]):
         _kiem_loi(e, f"$.loi_chung[{i}]")
@@ -378,8 +406,9 @@ def _kiem_manifest(m) -> list[_Tep]:
     _can(t["bang_ke_trang_thai"] in ("OK", "LOI", "KHONG_YEU_CAU"), "$.tong.bang_ke_trang_thai")
     if t["bang_ke_trang_thai"] == "OK":
         _doi_tuong(t["bang_ke"], "file sha256 bytes so_cot".split(), "$.tong.bang_ke")
-        _tep(t["bang_ke"], "$.tong.bang_ke", tep)
-        _so(t["bang_ke"]["so_cot"], "$.tong.bang_ke.so_cot", 20, 20)
+        _tep(t["bang_ke"], "$.tong.bang_ke", tep, goc=goc)
+        _so(t["bang_ke"]["so_cot"], "$.tong.bang_ke.so_cot", 15 if hoi_cuu else 20, 20)
+        _can(t["bang_ke"]["so_cot"] in (15, 20), "$.tong.bang_ke.so_cot")
     else:
         _can(t["bang_ke"] is None, "$.tong.bang_ke")
     ly_do = []
@@ -423,13 +452,16 @@ def _hang_json_khong_hop_le(_):
     _loi("JSON_SAI")
 
 
-def doc_manifest(duong_dan_run) -> KetQuaDocManifest:
+def doc_manifest(duong_dan_run, *, goc_hoi_cuu_tin_cay=None) -> KetQuaDocManifest:
     """Đọc/kiểm toàn bộ rồi trả dict raw kèm danh sách phân luồng cho M2c.
 
     Hash SHA-256 của bytes trên đĩa, không chuẩn hóa newline/XML trước khi băm.
     Lỗi hash mang tên file ở DataError.locator; thông báo không chứa dữ liệu thô.
     Hóa đơn thiếu khóa nằm ở hoa_don_thieu_khoa, không vào đề xuất; M2c chỉ
     xét tiếp hoa_don_du_khoa. Dict nguồn vẫn giữ đủ hóa đơn và số đếm gốc.
+    goc_hoi_cuu_tin_cay là một đường dẫn hoặc iterable các gốc cấu hình.
+    Bỏ trống giữ hành vi cũ; đường nhận tự động (M2e/M2f) PHẢI truyền gốc
+    từ cấu hình tin cậy, không lấy gốc do manifest tự khai báo làm authority.
     """
     goc = _duong_dan(Path(os.path.abspath(duong_dan_run)), thu_muc=True)
     p = _duong_dan(goc / "manifest.json", thu_muc=False)
@@ -443,7 +475,7 @@ def doc_manifest(duong_dan_run) -> KetQuaDocManifest:
         raise
     except (OSError, UnicodeError, ValueError, RecursionError):
         _loi("JSON_SAI", "manifest.json")
-    tep = _kiem_manifest(m)
+    tep = _kiem_manifest(m, goc_hoi_cuu_tin_cay=goc_hoi_cuu_tin_cay)
     da_kiem = {}
     for t in tep:
         truoc = da_kiem.get(os.path.normcase(t.file))
@@ -474,8 +506,10 @@ def phan_loai_file_tren_dia(duong_dan_run, manifest) -> list[str]:
     kiểm lại hình dạng nhưng không thay thế lần kiểm bytes ở doc_manifest.
     """
     tep = _kiem_manifest(dict(manifest) if isinstance(manifest, KetQuaDocManifest) else manifest)
-    da_khai_bao = {os.path.normcase(t.file) for t in tep}
-    goc = _duong_dan(Path(os.path.abspath(duong_dan_run)), thu_muc=True)
+    goc = _duong_dan(Path(manifest["thu_muc_tep_goc"]) if "thu_muc_tep_goc" in manifest
+                    else Path(os.path.abspath(duong_dan_run)), thu_muc=True)
+    da_khai_bao = {os.path.normcase((Path(t.file).relative_to(goc).as_posix()
+                                  if "thu_muc_tep_goc" in manifest else t.file)) for t in tep}
     chua_ro = []
 
     def loi_duyet(_):
