@@ -72,7 +72,7 @@ Căn cứ: lệnh của Anh 24/10 (mọi module đã chốt thiết kế; M9 d�
 | M2a | M2-00 · = L0-2e gộp `m2-00b-fix01` | Codex | — | — | Xong (= L0-2e) |
 | M2b | M2-00 · `manifest.py`, `chinh_sach_tien_te.py` (POLICY-TIENTE-01) + ca M2-00-06/10 | Codex | — | — | Xong 24/10 — gộp 4e1f6bb (review Đạt, vòng 2 sửa 2 điểm) |
 | M2c | M2-00 · `nhan.py` nhận theo manifest (identity, revision/xung đột, KHONG_XML_GOC → bảng kê) nối `k2\hoa_don.py` | Codex | M2b | (migration nếu cần → khóa) | Xong 24/10 — gộp b190569 |
-| M2d | M2-00 · `hoi_cuu.py` manifest hồi cứu 33 tháng, fixture giả | Codex | M2b | — | Sửa vòng 2 (Codex) |
+| M2d | M2-00 · `hoi_cuu.py` manifest hồi cứu 33 tháng, fixture giả | Codex | M2b | — | Xong 25/10 — gộp da3d666 |
 | M2e | M2-00 · nút "Tải từ cổng thuế" + route + cấu hình | Claude | M2a, M2c | `server.py`, `app.js`, `index.html` | Đang code (24/10, Claude) |
 | M2f | M2-00 · ca -03/-07/-09 trên cổng thật, áp bản vá vào #7 thật | Anh | M2e | — | Chờ Anh (cần lệnh riêng: gọi cổng thuế thật) |
 | E1-1 | E1-MUA · đăng ký 5 loại + DV trong `CATALOG_COMMON`, `danh_muc_theo_loai`, từ chối loại lạ; test XD nguyên trạng | Codex | L0-2f | — | Xong 24/10 — gộp d5fe3cc |
@@ -84,10 +84,10 @@ Căn cứ: lệnh của Anh 24/10 (mọi module đã chốt thiết kế; M9 d�
 | L0-6 | Engine trích #6 trên DEMO worktree: báo sẵn sàng lúc khởi động nhưng `TRICH6_KHONG_KET_NOI` ngay sau lệnh trích đầu tiên → chưa dựng được hợp đồng/đợt DEMO cho M4 (chẩn đoán tối đa 2 lượt; không xong thì dựng đợt bằng fixture test) | Claude | — | — | Xong 24/10 — gộp 1d1c12f (vá tạm launcher; sửa sản phẩm ở L0-7) |
 | L0-7 | Sửa sản phẩm: `trich6_host` nạp sẵn openpyxl ở luồng chính tiến trình con (hết treo 60s lệnh trích đầu ở mọi bản, kể cả DEMO của Anh); `.gitattributes` review_goc; `chuan_bi_crm_demo` seed duyệt viên M4 | Claude | `trich6_host.py`, `.gitattributes`, `chuan_bi_crm_demo.py` | L0-6 | Đang code (24–25/10) |
 | M4-3 | M4 · 03A kế toán nghiệm thu: M0026 + test + xác minh màn | Codex | P0 | — | Chờ |
-| M4-4 | M4 · 03B căn cứ nghiệm thu ↔ hóa đơn: L0-2a + migration + test PG | Codex | L0-2a, M4-3 | `pg_migrations.py` | Chờ |
+| M4-4 | M4 · 03B căn cứ nghiệm thu ↔ hóa đơn: L0-2a + migration + test PG | Codex | L0-2a, M4-3 | `pg_migrations.py` | Đang code (25/10, gộp với M4-7: M0029 cho 03B) |
 | M4-5 | M4 · 03B route + panel trong màn kế toán nghiệm thu | Claude | M4-4 | `giao_dien\m4.py` | Chờ |
 | M4-6 | M4 · 04 Request nháp: khôi phục `request_api.py`, `sql_request_nhap.py`, M0027; giữ CHUA_CAU_HINH, **không gọi Request thật** | Codex | P0 | — | Chờ |
-| M4-7 | M4 · migration master-reuse + rà `m4b2`/`m4b3` (= L0-2h) | Codex | P0 | — | Chờ |
+| M4-7 | M4 · migration master-reuse + rà `m4b2`/`m4b3` (= L0-2h) | Codex | P0 | — | Đang code (25/10: M0028 master dùng chung; rà m4b2/m4b3 còn lại) |
 
 **Chưa chốt thiết kế — lead soạn checklist, hỏi Anh bằng bảng chọn khi tới lượt (không hỏi dồn):**
 - **M2-00 · trước khi mở nhận tự động (M2e/M2f):** đường nhận phải truyền gốc hồi cứu tin cậy từ cấu hình; chạy thử 1 tháng thật trước 33 tháng (tên file có dấu/khoảng trắng, MST dạng số mất số 0 đầu, thư mục phẳng lẫn hai chiều, bảng kê 20 cột — review M2d #9).
@@ -183,3 +183,4 @@ Mở ứng dụng Claude trên máy → tab Code → phiên **trên máy này** 
 - 24/10: M2b — 3 điểm 'Để sau' của review chuyển sang M2c: số thực dạng mũ trong thành phần khóa (Python/JS in khác), file lạ ngoài .xml/.pdf trong thư mục run, package-data cho `quy_tac/*.json` khi đóng gói.
 - 24/10: `codex exec` L0-3c lỗi "Selected model is at capacity" (gpt-6.1-sol) sau ~110 nghìn token, không sửa file nào. Theo quy tắc: không tự hạ model, không gọi lặp — thử lại 1 lần khi lượt Codex đang chạy xong; vẫn lỗi thì chuyển lát cho Claude.
 - 24/10: từ L0-3a, sandbox `codex exec` không thấy `python` trên PATH (Python 3.13 hệ thống bị 'Access is denied') → handoff Codex sau ghi rõ dùng Python đi kèm `%USERPROFILE%\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe`; lát cần tái hiện bằng chạy (treo, DEMO) giao Claude.
+- 25/10: lead cấp số migration (vai người tích hợp): **M0028** = `M4_MASTER_DUNG_CHUNG_SQL` (m4-master-reuse), **M0029** = SQL 03B ghi nhận chung (sau M0026 vì tham chiếu `m4.kt_xac_nhan`).
