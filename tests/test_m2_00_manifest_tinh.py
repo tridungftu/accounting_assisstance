@@ -5,12 +5,16 @@ from __future__ import annotations
 import copy
 import hashlib
 import json
+import os
+import subprocess
 import tempfile
+import time
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 from kho_tri_thuc.ha_tang.primitives import DataError
-from kho_tri_thuc.m2.tai_hoa_don.manifest import doc_manifest, phan_loai_file_tren_dia
+from kho_tri_thuc.m2.tai_hoa_don.manifest import RE_GIA_TRI_CAM, doc_manifest, phan_loai_file_tren_dia
 
 
 def _hash(b):
@@ -273,6 +277,22 @@ class ManifestTinh(unittest.TestCase):
                 e = self.tu_choi(m, "CO_BI_MAT")
                 self.assertNotIn(v, str(e) + repr(e) + e.locator)
 
+    def test_chuoi_40000_ky_tu_tu_choi_truoc_regex_duoi_mot_giay(self):
+        self.m["phien_ban_bo_tai"] = "a" * 40000
+        self.ghi()
+        with patch("kho_tri_thuc.m2.tai_hoa_don.manifest.RE_GIA_TRI_CAM", wraps=RE_GIA_TRI_CAM) as regex:
+            bat_dau = time.perf_counter()
+            with self.assertRaises(DataError) as cm:
+                doc_manifest(self.goc)
+            thoi_gian = time.perf_counter() - bat_dau
+            self.assertEqual(cm.exception.code, "M2_00_MANIFEST_GIA_TRI_QUA_DAI")
+            self.assertTrue(all(len(c.args[0]) <= 4096 for c in regex.search.call_args_list))
+            self.assertLess(thoi_gian, 1.0)
+
+    def test_chuoi_dung_nguong_4096_van_duoc_quet_bi_mat(self):
+        self.m["phien_ban_bo_tai"] = "!" * (4096 - len("token=DEMO")) + "token=DEMO"
+        self.tu_choi(ma="CO_BI_MAT")
+
     def test_file_ngoai_manifest_chua_ro_nguon_m2_00_10(self):
         (self.goc / "DEMO-la.XML").write_bytes(b"DEMO")
         (self.goc / "DEMO-la.pdf").write_bytes(b"DEMO")
@@ -418,6 +438,30 @@ class ManifestTinh(unittest.TestCase):
         h["xml_tep"][0]["file"] = h["file_xml"]
         self.tu_choi(ma="DUONG_DAN_SAI")
 
+    def test_hoi_cuu_chi_nhan_goc_trong_danh_sach_tin_cay(self):
+        cu = self.hoi_cuu_ngoai_run()
+        khac = self.goc / "goc-khac"
+        khac.mkdir()
+        self.ghi()
+        for ds_goc in (cu, str(cu), [khac, cu], (khac, self.goc)):
+            with self.subTest(goc=ds_goc):
+                self.assertEqual(doc_manifest(self.goc, goc_hoi_cuu_tin_cay=ds_goc), self.m)
+
+    def test_hoi_cuu_goc_ngoai_danh_sach_bi_tu_choi_truoc_doc_tep(self):
+        self.hoi_cuu_ngoai_run()
+        # Cùng tiền tố tên không có nghĩa là nằm trong gốc cấu hình.
+        tin_cay = self.goc / "nguon"
+        tin_cay.mkdir()
+        self.ghi()
+        for ds_goc in (tin_cay, [tin_cay], []):
+            with self.subTest(goc=ds_goc), patch.object(Path, "open", autospec=True,
+                                                       side_effect=Path.open) as mo:
+                with self.assertRaises(DataError) as cm:
+                    doc_manifest(self.goc, goc_hoi_cuu_tin_cay=ds_goc)
+                self.assertEqual(cm.exception.code, "M2_00_MANIFEST_HOI_CUU_GOC_KHONG_TIN_CAY")
+                self.assertEqual(cm.exception.locator, "$.thu_muc_tep_goc")
+                self.assertEqual([c.args[0].name for c in mo.call_args_list], ["manifest.json"])
+
     def test_hoi_cuu_khong_cho_parent_traversal_va_goc_tuong_doi(self):
         cu = self.hoi_cuu_ngoai_run()
         for file in ("DEMO__0000000001.xml", str(cu / ".." / "DEMO__0000000001.xml")):
@@ -446,12 +490,29 @@ class ManifestTinh(unittest.TestCase):
         link = cu / "DEMO-link.xml"
         try:
             link.symlink_to(self.goc / "DEMO__0000000001.xml")
-        except (OSError, NotImplementedError):
-            self.skipTest("Máy không cho tạo symlink DEMO")
+        except (OSError, NotImplementedError) as e:
+            self.skipTest(f"Máy không cho tạo symlink DEMO: {e}")
         h = self.m["hoa_don"][0]
         h["file_xml"] = str(link)
         h["xml_tep"][0]["file"] = str(link)
         self.tu_choi(ma="TEP_KHONG_AN_TOAN")
+
+    @unittest.skipUnless(os.name == "nt", "Junction chỉ có trên Windows")
+    def test_hoi_cuu_ngoai_run_chan_junction_khong_can_quyen_admin(self):
+        cu = self.hoi_cuu_ngoai_run()
+        dich = self.goc / "dich-junction"
+        dich.mkdir()
+        ten = "DEMO.xml"
+        (dich / ten).write_bytes(Path(self.m["hoa_don"][0]["file_xml"]).read_bytes())
+        link = cu / "DEMO-junction"
+        kq = subprocess.run(["cmd", "/c", "mklink", "/J", str(link), str(dich)],
+                            capture_output=True, timeout=10)
+        self.assertEqual(kq.returncode, 0, repr(kq.stderr))
+        h = self.m["hoa_don"][0]
+        h["file_xml"] = h["xml_tep"][0]["file"] = str(link / ten)
+        self.tu_choi(ma="TEP_KHONG_AN_TOAN")
+        self.m["thu_muc_tep_goc"] = str(link)
+        self.tu_choi(ma="TEP_KHONG_AN_TOAN", file=link.name)
 
 
 if __name__ == "__main__":

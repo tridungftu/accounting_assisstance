@@ -26,11 +26,11 @@ from ...ha_tang.primitives import DataError
 from ...nguon.hoa_don_xml import doc_hoa_don_xml
 from .cau_hinh import kiem_khong_reparse
 from .manifest import (KHOA_HD, KHOA_IDENTITY, SCHEMA, XML_TOI_DA, ZIP_TOI_DA,
-                       ZIP_ENTRIES_TOI_DA, _kiem_manifest, doc_manifest)
+                       ZIP_ENTRIES_TOI_DA, _kiem_manifest, _ten_tep, doc_manifest)
 
 
-def _loi(ma):
-    raise DataError("M2_00_HOI_CUU_" + ma, "Không sinh hồi cứu: " + ma + ".") from None
+def _loi(ma, tai="$"):
+    raise DataError("M2_00_HOI_CUU_" + ma, "Không sinh hồi cứu: " + ma + ".", tai) from None
 
 
 def _json(v):
@@ -65,7 +65,7 @@ _COT = {
 }
 
 
-def _doc_bang_ke(raw):
+def _doc_bang_ke(raw, ten_tep):
     """15 cột cũ (kể STT), đọc sheet đầu; không suy identity từ vị trí cột."""
     try:
         wb = load_workbook(io.BytesIO(raw), read_only=True, data_only=False)
@@ -73,20 +73,20 @@ def _doc_bang_ke(raw):
             rows = wb.worksheets[0].iter_rows(values_only=True)
             head = next(rows)
             if len(head) != 15:
-                _loi("BANG_KE_KHONG_DUNG_15_COT")
+                _loi("BANG_KE_KHONG_DUNG_15_COT", ten_tep)
             keys = [_header(x) for x in head]
             cot = {}
             for k, aliases in _COT.items():
                 vi_tri = [i for i, v in enumerate(keys) if v in aliases]
                 if len(vi_tri) != 1:
-                    _loi("BANG_KE_HEADER_KHONG_RO")
+                    _loi("BANG_KE_HEADER_KHONG_RO", ten_tep)
                 cot[k] = vi_tri[0]
             out = []
             for row in rows:
                 if not any(x is not None and x != "" for x in row):
                     continue
                 if any(isinstance(x, str) and x.startswith("=") for x in row):
-                    _loi("BANG_KE_CO_CONG_THUC")
+                    _loi("BANG_KE_CO_CONG_THUC", ten_tep)
                 h = {k: row[i] for k, i in cot.items()}
                 out.append({k: (_chuoi(v) if k in KHOA_IDENTITY or isinstance(v, (date, datetime)) else v)
                             for k, v in h.items()})
@@ -96,7 +96,7 @@ def _doc_bang_ke(raw):
     except DataError:
         raise
     except (OSError, ValueError, KeyError, IndexError, StopIteration, TypeError, BadZipFile, ParseError):
-        _loi("BANG_KE_KHONG_DOC_DUOC")
+        _loi("BANG_KE_KHONG_DOC_DUOC", ten_tep)
 
 
 def _tep(p, raw):
@@ -132,16 +132,21 @@ def _danh_sach(goc):
         for ten in files:
             p = kiem_khong_reparse(Path(parent) / ten, la_thu_muc=False)
             if p.suffix.lower() in (".xml", ".xlsx", ".pdf"):
+                if not (p.suffix.lower() == ".xlsx" and p.name.startswith("~$")):
+                    try:
+                        _ten_tep(p.name, p.name)
+                    except DataError:
+                        _loi("TEN_TEP_KHONG_HOP_LE", p.name)
                 out.append(p)
     return sorted(out, key=lambda p: p.relative_to(goc).as_posix())
 
 
 def _goc(thu_muc_thang, chieu):
-    p = kiem_khong_reparse(Path(os.path.abspath(thu_muc_thang)), la_thu_muc=True)
+    p = kiem_khong_reparse(Path(os.path.abspath(thu_muc_thang)), la_thu_muc=True).resolve(strict=True)
     ten = {"purchase": "mua_vao", "sold": "ban_ra"}[chieu]
     # Hỗ trợ cả thư mục tháng phẳng lẫn thư mục tháng có hai chiều.
     if (p / ten).exists() or (p / ten).is_symlink():
-        return kiem_khong_reparse(p / ten, la_thu_muc=True)
+        return kiem_khong_reparse(p / ten, la_thu_muc=True).resolve(strict=True)
     if any((p / khac).exists() for khac in ("mua_vao", "ban_ra")):
         _loi("THIEU_THU_MUC_CHIEU")
     return p
@@ -186,7 +191,7 @@ def sinh_manifest_hoi_cuu(thu_muc_thang, *, ma_phap_nhan, chieu, ky, thu_muc_ra)
             _loi("TEP_DOI_KHI_DOC")
         snapshots[p] = raw
         inventory.append([p.relative_to(goc).as_posix(), _hash(raw), len(raw), after.st_mtime_ns])
-    rows = _doc_bang_ke(snapshots[excel[0]]) if excel else []
+    rows = _doc_bang_ke(snapshots[excel[0]], excel[0].name) if excel else []
     by_key = {}
     for row in rows:
         key = _chuan_key(row)
@@ -274,9 +279,15 @@ def dem_doi_chieu(thu_muc_thang, manifest):
     """Chỉ trả số đếm, không log/in nội dung hay định danh hóa đơn."""
     m = doc_manifest(manifest) if isinstance(manifest, (str, os.PathLike)) else manifest
     goc = _goc(thu_muc_thang, m["chieu"])
+    goc_manifest = m.get("thu_muc_tep_goc")
+    if goc_manifest is None or kiem_khong_reparse(
+        Path(goc_manifest), la_thu_muc=True
+    ).resolve(strict=True) != goc:
+        _loi("THU_MUC_MANIFEST_KHONG_KHOP")
     files = _danh_sach(goc)
     bang_ke = m["tong"]["bang_ke"]
     return {"file_xml_tren_dia": sum(p.suffix.lower() == ".xml" for p in files),
             "muc_trong_manifest": len(m["hoa_don"]),
-            "dong_bang_ke": len(_doc_bang_ke(Path(bang_ke["file"]).read_bytes())) if bang_ke else 0,
+            "dong_bang_ke": len(_doc_bang_ke(Path(bang_ke["file"]).read_bytes(),
+                                             Path(bang_ke["file"]).name)) if bang_ke else 0,
             "khong_xml_goc": sum(h["xml_status"] == "KHONG_XML_GOC" for h in m["hoa_don"])}

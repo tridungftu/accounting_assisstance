@@ -24,6 +24,7 @@ SCHEMA = "m2_00a.source7.manifest.v1"
 JSON_TOI_DA = 64 * 1024 * 1024
 XML_TOI_DA, ZIP_TOI_DA, ZIP_ENTRIES_TOI_DA = 16 * 1024 * 1024, 64 * 1024 * 1024, 1000
 SO_NGUYEN_TOI_DA = 2**53 - 1
+CHUOI_TOI_DA = 4096
 KHOA_IDENTITY = ("nbmst", "khmshdon", "khhdon", "shdon")
 KHOA_MANIFEST = (
     "schema nguon run_id phap_nhan ky chieu thu_muc_chieu bat_dau ket_thuc "
@@ -103,6 +104,7 @@ def _raw(v, tai):
 def _quet_bi_mat(v, do_sau=0):
     _can(do_sau <= 32, "$", "QUA_SAU")
     if isinstance(v, str):
+        _can(len(v) <= CHUOI_TOI_DA, "$", "GIA_TRI_QUA_DAI")
         if RE_GIA_TRI_CAM.search(v):
             _loi("CO_BI_MAT")
     elif isinstance(v, dict):
@@ -300,7 +302,7 @@ def _kiem_hd(h, i, tep, goc=None):
         tep.append(_Tep(h["file_pdf"], h["hash_pdf"], None))
 
 
-def _kiem_manifest(m) -> list[_Tep]:
+def _kiem_manifest(m, *, goc_hoi_cuu_tin_cay=None) -> list[_Tep]:
     _quet_bi_mat(m)
     hoi_cuu = isinstance(m, dict) and m.get("nguon") == "HOI_CUU"
     mo_rong = ["xap_xi"] if hoi_cuu else []
@@ -313,6 +315,14 @@ def _kiem_manifest(m) -> list[_Tep]:
         _can(isinstance(v, str), "$.thu_muc_tep_goc", "SAI_KIEU")
         _can(".." not in Path(v).parts, "$.thu_muc_tep_goc", "DUONG_DAN_SAI")
         goc = _duong_dan(Path(v), thu_muc=True)
+        if goc_hoi_cuu_tin_cay is not None:
+            ds_goc = ([goc_hoi_cuu_tin_cay] if isinstance(goc_hoi_cuu_tin_cay, (str, os.PathLike))
+                      else goc_hoi_cuu_tin_cay)
+            # Chỉ giải tên thật sau khi từng thành phần đã qua kiểm reparse.
+            cac_goc = [_duong_dan(Path(p), thu_muc=True).resolve(strict=True) for p in ds_goc]
+            goc_that = goc.resolve(strict=True)
+            _can(any(goc_that.is_relative_to(p) for p in cac_goc),
+                 "$.thu_muc_tep_goc", "HOI_CUU_GOC_KHONG_TIN_CAY")
     _can(m["schema"] == SCHEMA, "$.schema")
     _can(m["nguon"] in ("TAI_MOI", "HOI_CUU"), "$.nguon")
     if m["nguon"] == "HOI_CUU":
@@ -442,13 +452,16 @@ def _hang_json_khong_hop_le(_):
     _loi("JSON_SAI")
 
 
-def doc_manifest(duong_dan_run) -> KetQuaDocManifest:
+def doc_manifest(duong_dan_run, *, goc_hoi_cuu_tin_cay=None) -> KetQuaDocManifest:
     """Đọc/kiểm toàn bộ rồi trả dict raw kèm danh sách phân luồng cho M2c.
 
     Hash SHA-256 của bytes trên đĩa, không chuẩn hóa newline/XML trước khi băm.
     Lỗi hash mang tên file ở DataError.locator; thông báo không chứa dữ liệu thô.
     Hóa đơn thiếu khóa nằm ở hoa_don_thieu_khoa, không vào đề xuất; M2c chỉ
     xét tiếp hoa_don_du_khoa. Dict nguồn vẫn giữ đủ hóa đơn và số đếm gốc.
+    goc_hoi_cuu_tin_cay là một đường dẫn hoặc iterable các gốc cấu hình.
+    Bỏ trống giữ hành vi cũ; đường nhận tự động (M2e/M2f) PHẢI truyền gốc
+    từ cấu hình tin cậy, không lấy gốc do manifest tự khai báo làm authority.
     """
     goc = _duong_dan(Path(os.path.abspath(duong_dan_run)), thu_muc=True)
     p = _duong_dan(goc / "manifest.json", thu_muc=False)
@@ -462,7 +475,7 @@ def doc_manifest(duong_dan_run) -> KetQuaDocManifest:
         raise
     except (OSError, UnicodeError, ValueError, RecursionError):
         _loi("JSON_SAI", "manifest.json")
-    tep = _kiem_manifest(m)
+    tep = _kiem_manifest(m, goc_hoi_cuu_tin_cay=goc_hoi_cuu_tin_cay)
     da_kiem = {}
     for t in tep:
         truoc = da_kiem.get(os.path.normcase(t.file))

@@ -135,6 +135,34 @@ class HoiCuuTinh(unittest.TestCase):
         self.assertNotEqual(m1["context"]["source_instance"], m2["context"]["source_instance"])
         self.assertEqual(len(lap_ke_hoach_nhan(run2, ma_phap_nhan="DEMO")["muc"]), 3)
 
+    def test_lap_ke_hoach_truyen_goc_hoi_cuu_tin_cay(self):
+        run = self.sinh()
+        plan = lap_ke_hoach_nhan(run, ma_phap_nhan="DEMO", goc_hoi_cuu_tin_cay=self.nguon.parent)
+        self.assertEqual(len(plan["muc"]), 3)
+        for goc in (self.ra, [self.ra], []):
+            with self.subTest(goc=goc), self.assertRaises(DataError) as cm:
+                lap_ke_hoach_nhan(run, ma_phap_nhan="DEMO", goc_hoi_cuu_tin_cay=goc)
+            self.assertEqual(cm.exception.code, "M2_00_MANIFEST_HOI_CUU_GOC_KHONG_TIN_CAY")
+
+    @unittest.skipUnless(os.name == "nt", "So sánh đường dẫn không phân biệt hoa/thường trên Windows")
+    def test_run_id_khong_doi_khi_doi_hoa_thuong_duong_dan(self):
+        run = self.sinh()
+        for nguon in (str(self.nguon).swapcase(), str(self.nguon)[0].swapcase() + str(self.nguon)[1:]):
+            with self.subTest(nguon=nguon):
+                lap_lai = self.sinh(nguon)
+                self.assertEqual(lap_lai, run)
+                self.assertEqual((lap_lai / "manifest.json").read_bytes(), (run / "manifest.json").read_bytes())
+        self.assertEqual(len(list(self.ra.rglob("manifest.json"))), 1)
+
+    def test_dem_doi_chieu_tu_choi_manifest_cua_thu_muc_khac(self):
+        run = self.sinh()
+        khac = self.root / "thang-khac"
+        khac.mkdir()
+        for manifest in (run, doc_manifest(run)):
+            with self.subTest(manifest=type(manifest).__name__), self.assertRaises(DataError) as cm:
+                dem_doi_chieu(khac, manifest)
+            self.assertEqual(cm.exception.code, "M2_00_HOI_CUU_THU_MUC_MANIFEST_KHONG_KHOP")
+
     def test_mtime_min_max_khong_lay_gio_hien_tai(self):
         m = doc_manifest(self.sinh())
         self.assertEqual(m["bat_dau"], "2025-10-01T00:00:00.000Z")
@@ -210,6 +238,24 @@ class HoiCuuTinh(unittest.TestCase):
         with self.assertRaises(DataError) as cm:
             self.sinh()
         self.assertEqual(cm.exception.code, "M2_00_HOI_CUU_BANG_KE_HEADER_KHONG_RO")
+        self.assertEqual(cm.exception.locator, self.excel.name)
+
+    def test_bang_ke_sai_so_cot_bao_dung_ten_file(self):
+        bang_ke_demo(self.excel, rows=[], head=HEAD[:-1])
+        with self.assertRaises(DataError) as cm:
+            self.sinh()
+        self.assertEqual(cm.exception.code, "M2_00_HOI_CUU_BANG_KE_KHONG_DUNG_15_COT")
+        self.assertEqual(cm.exception.locator, self.excel.name)
+        self.assertFalse(self.ra.exists())
+
+    def test_ten_file_khong_hop_le_bao_dung_ten_file(self):
+        ten = "DEMO khong-hop-le.xml"
+        (self.nguon / ten).write_bytes(xml_demo())
+        with self.assertRaises(DataError) as cm:
+            self.sinh()
+        self.assertEqual(cm.exception.code, "M2_00_HOI_CUU_TEN_TEP_KHONG_HOP_LE")
+        self.assertEqual(cm.exception.locator, ten)
+        self.assertFalse(self.ra.exists())
 
     def test_thu_muc_thang_hai_chieu_va_ban_ra(self):
         thang = self.root / "hai-chieu" / "2026-09"
