@@ -581,6 +581,14 @@ async function main() {
     c2.resolve(phanHoi(200, XEM(ketQua("= 100% · ≈ 39.000 tr VND", {tien_te: "USD", vnd_tham_chieu: {tong: "39000000000", dong: ["39000000000"]}, vnd_tong_hien_thi: "≈ 39.000 tr VND"})))); await chay();
     assert.strictEqual(mo(0).textContent, "= 100% · ≈ 39.000 tr VND");
     assert.ok(tongDong().textContent.includes("≈ 39.000 tr VND"), "A13: VND quy đổi tổng không đổi theo tỷ giá");
+    // chưa có mẫu hợp đồng hiệu lực: vẫn hiện nút Chuyển (mờ kèm lý do) thay vì dòng chữ rời
+    for (const c of conLai(() => true)) { c.xong = true; c.resolve(phanHoi(404, {error: "NOT_FOUND"})); }
+    await chay();
+    nut(gk(), "+ Báo giá mới").click(); await chay(); nut(gk(), "Mở").click(); await chay();
+    const ctm = CT("LO-1"); ctm.mau_hieu_luc = [];
+    cho(get("/api/crm/bao-gia/bg-1"), "A13 không mẫu").resolve(phanHoi(200, ctm)); await chay();
+    const cm = nut(gk(), "Chuyển sang Soạn");
+    assert.ok(cm && cm.disabled && cm.title.includes("mẫu hợp đồng hiệu lực"), "A13: thiếu mẫu mà không hiện nút Chuyển mờ kèm lý do");
     await traXem();
     console.log("A13 đạt");
   }

@@ -23,3 +23,5 @@
 .gk-goi-y{display:block;margin-top:2px;color:#5f6b57;font-size:.9em}.gk-goi-y.gk-canh{color:#8a4b12}.gk-goi-y.gk-loi{color:#a8321f}.gk-goi-y:empty{display:none}
 .gk-luu-y{display:block;color:#8a4b12;font-size:.9em}.gk-luu-y:empty{display:none}
 .gk-tinh-loi{margin:4px 0;color:#8a4b12;font-size:.9em}.gk-tinh-loi:empty{display:none}.gk-ngu-canh{margin:0 0 6px;color:#77817e;font-size:.9em}.gk-ngu-canh:empty{display:none}
+.gk-lich table{table-layout:fixed;width:100%}.gk-lich th:first-child{width:44px}.gk-lich th:nth-child(2){width:31%}.gk-lich th:nth-child(3){width:28%}.gk-lich th:last-child{width:88px}.gk-hanh .link-button{padding:0 3px}.gk-lich td input[type=text]{min-width:0}.gk-lich td{vertical-align:top}
+.gk-tong-khoi{display:flex;flex-direction:column;gap:2px;min-width:0}.gk-tong-khoi input{width:100%}

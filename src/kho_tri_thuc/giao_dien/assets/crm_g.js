@@ -621,7 +621,7 @@
   let soSua = 0, dongBo = 0, nhapMoi = null, soNhapMoi = 0;
   // BG-1b (BG-03): kết quả tính TỰ ĐỘNG của máy chủ cho form báo giá (xem-truoc). `tinhBg` = {khoa, tinh, nhan,…} của lần trả về mới nhất khớp form;
   // `tinhCho` = đang chờ (ngừng gõ 400 ms hoặc yêu cầu đang bay) → ô mờ hiện "…"; `tinhSeq` loại phản hồi cũ; lỗi mạng giữ `tinhBg` cũ + `tinhLoi`.
-  let tinhBg = null, tinhCho = false, tinhLoi = "", tinhSeq = 0, tinhGen = 0, tinhHen = null, tinhBay = null, tinhLai = 0, tinhLaiHen = null;
+  let tinhBg = null, tinhCho = false, tinhLoi = "", tinhSeq = 0, tinhGen = 0, tinhHen = null, tinhBay = null, tinhLai = 0, tinhLaiHen = null, tinhDungLuu = true;
   let mocChuan = null, mocChuanCho = false, bangMocDem = null;  // danh mục mốc chuẩn từ máy chủ (GET /api/crm/bao-gia/moc-chuan)
   let dsMoBg = [], dsLoiMocBg = [], dsNutBg = [], oTongBg = null, oGoiYTong = null, oLuuYTong = null, oKiemBg = null, oTinhLoi = null, oNguCanh = null, oTongNhap = null;
   // CRM-41-04A G4: `kyCt` = điều kiện/căn cứ/bản ký của bản soạn đang mở (GET mới nhất theo `genKy`); `kyMo` = căn cứ dialog chụp lúc mở
@@ -979,11 +979,16 @@
   const docBaoGia = () => docBaoGiaKem().du;
 
   // ------------------------------------------------------------------ BG-03 · tính TỰ ĐỘNG theo máy chủ (không nút "Tính thử"; trình duyệt không tự tính)
-  function tinhHienTai() {  // kết quả máy chủ đang hiện: lần trả về gần nhất của form này, hoặc revision đã lưu khi form chưa sửa
+  // Kết quả máy chủ đang hiện: lần trả về gần nhất của form này; chưa có thì dùng revision đã lưu (hiện mờ "…" khi đã sửa) — trừ khi vừa đổi cấu trúc
+  // lịch (thêm/bớt/đổi chỗ dòng, nạp bộ chuẩn: dòng cũ không còn khớp) thì để trống tới khi máy chủ trả.
+  function tinhHienTai() {
     if (tinhBg) return tinhBg.tinh;
-    return !chuaLuu() && bgCt && bgChon && bgChon !== "MOI" ? bgCt.tinh : null;
+    return tinhDungLuu && bgCt && bgChon && bgChon !== "MOI" ? bgCt.tinh : null;
   }
-  function resetTinh() { clearTimeout(tinhHen); clearTimeout(tinhLaiHen); tinhHen = tinhLaiHen = null; tinhSeq += 1; tinhBg = null; tinhCho = false; tinhLoi = ""; tinhBay = null; tinhLai = 0; }
+  function resetTinh(doiCauTruc) {
+    clearTimeout(tinhHen); clearTimeout(tinhLaiHen); tinhHen = tinhLaiHen = null; tinhSeq += 1; tinhBg = null; tinhCho = false; tinhLoi = ""; tinhBay = null; tinhLai = 0;
+    tinhDungLuu = !doiCauTruc;
+  }
   function datCho() { tinhCho = true; tinhGen += 1; apDungTinh(); }  // tinhGen: mỗi lần người dùng sửa ô ảnh hưởng số tính; phản hồi của thế hệ cũ bị bỏ
   function henTinh(ms) {
     clearTimeout(tinhHen); tinhHen = null;
@@ -1017,7 +1022,8 @@
   function capNhatNutBg() {  // In/Chuyển: mờ khi còn thay đổi chưa lưu HOẶC máy chủ báo chặn; rê chuột thấy lý do
     for (const b of dsNutBg) {
       const chua = chuaLuu(), ly = lyChanBg(b.dataset.chanBg);
-      b.disabled = chua || !!ly; b.title = [chua ? LY_CHUA_LUU : "", ly].filter(Boolean).join("\n"); b.dataset.lyChan = ly;
+      const khac = b.dataset.lyKhac || "";  // lý do riêng của nút (vd chưa có mẫu hợp đồng hiệu lực) — luôn mờ
+      b.disabled = chua || !!ly || !!khac; b.title = [chua ? LY_CHUA_LUU : "", ly, khac].filter(Boolean).join("\n"); b.dataset.lyChan = ly;
     }
   }
   function nutLuuTruocBg(loai, text, fn, cls) {
@@ -1107,7 +1113,7 @@
   }
   // BG-01: lịch 4 cột — Lần (tự đánh số) · Giá trị (MỘT ô thông minh + phần mờ do máy chủ trả) · Mốc thời gian (MỘT ô) · Ghi chú. Mỗi dòng 3 ô nhập.
   function thayLichBg(fn) {  // đổi cấu trúc lịch (thêm/bớt/đổi chỗ dòng): dựng lại; kết quả tính cũ không còn khớp dòng → hỏi máy chủ lại
-    const r = docLichRaw(soDongBg); fn(r); ghiLichRaw(r); soDongBg = Math.max(1, r.length); genForm += 1; soSua += 1; resetTinh(); ve();
+    const r = docLichRaw(soDongBg); fn(r); ghiLichRaw(r); soDongBg = Math.max(1, r.length); genForm += 1; soSua += 1; resetTinh(true); ve();
   }
   function veLichBg(n) {
     const dl = node("datalist"); dl.id = "gk-bg-moc-ds";
@@ -1133,7 +1139,8 @@
       hanh.append(len, xuong, nut("Bỏ", () => thayLichBg(r => { r.splice(i, 1); }), "link-button", n <= 1));
       return [lan, cG, cM, gcI, hanh];
     });
-    return [dl, bang(["Lần", "Giá trị", "Mốc thời gian", "Ghi chú", ""], rows), nut("+ Dòng", () => thayLichBg(r => { r.push({}); }), "link-button")];
+    const tb = bang(["Lần", "Giá trị", "Mốc thời gian", "Ghi chú", ""], rows); tb.className += " gk-lich";
+    return [dl, tb, nut("+ Dòng", () => thayLichBg(r => { r.push({}); }), "link-button")];
   }
   function veLich(p, n, setN) {
     if (p === "bg-") return veLichBg(n);
@@ -1214,7 +1221,8 @@
     oNguCanh = node("p", "", "gk-ngu-canh");
     oTongNhap = nhap("bg-tong", "", "text", null, chuanSo); oTongNhap.placeholder = "Để trống: máy tự tính";
     oGoiYTong = node("small", "", "gk-goi-y"); oLuuYTong = node("small", "", "gk-luu-y");
-    const tTong = truong("Tổng giá trị", oTongNhap); tTong.append(oGoiYTong, oLuuYTong);
+    const cTong = node("div", undefined, "gk-tong-khoi"); cTong.append(oTongNhap, oGoiYTong, oLuuYTong);
+    const tTong = truong("Tổng giá trị", cTong); tTong.children[0].htmlFor = oTongNhap.id;
     const ngayIn = (id, md) => { const e = nhap(id, md, "text", null, chuanNgay); e.placeholder = "dd/mm/yyyy"; return e; };
     trai.append(node("h4", b ? `${b.so_bao_gia} · bản ${b.revision_hien_hanh} · ${TT_BG[b.trang_thai]}` : "Báo giá mới"), oNguCanh,
       truong("Pháp nhân · loại hình", chon("bg-loai", loai, loai.length ? loai[0][0] : "", undefined), true),
@@ -1285,7 +1293,10 @@
             if (await napDs(f2) && f2()) await napSoCt(f2);
           });
       }, "button primary"));
-      else hd.append(node("span", "Chưa có mẫu hợp đồng hiệu lực cho loại hình này — chưa chuyển được."));
+      else {  // vẫn hiện nút (mờ kèm lý do) để người dùng thấy bước tiếp theo và vì sao chưa làm được
+        const bt = nutLuuTruocBg("chuyen", "Chuyển sang Soạn", async () => {}, "button primary");
+        bt.dataset.lyKhac = "Chưa có mẫu hợp đồng hiệu lực cho loại hình này — chưa chuyển được."; capNhatNutBg(); hd.append(bt);
+      }
       hd.append(truong("Lý do hủy", nhap(`bg-huy-${b.id}`, "")), nut("Hủy nháp", async () => {
         const ly = s0(gt(`bg-huy-${b.id}`)); if (!ly) { trangThai("Hủy cần lý do.", true); return; }
         await gui("bao-gia/huy", {bao_gia_id: b.id, expected_revision: b.revision_hien_hanh, ly_do: ly}, "Đã hủy nháp (lịch sử giữ)", f,
@@ -1323,7 +1334,7 @@
           moc_su_kien: r.moc_su_kien, ghi_chu: r.ghi_chu});
       }
       ghiLichBg(rows, tt);
-      soDongBg = Math.max(1, rows.length); genForm += 1; soSua += 1; resetTinh(); ve(); trangThai(`Đã nạp bộ chuẩn v${d.version.phien_ban} — có thể sửa (sẽ so lệch khi lưu).`);
+      soDongBg = Math.max(1, rows.length); genForm += 1; soSua += 1; resetTinh(true); ve(); trangThai(`Đã nạp bộ chuẩn v${d.version.phien_ban} — có thể sửa (sẽ so lệch khi lưu).`);
     } catch (e) { if (f() && gf === genForm) trangThai(e.message, true); }
   }
 
