@@ -7,7 +7,7 @@ Trạng thái lát: Đang code → Chờ kiểm → Chờ Anh (cổng A/B) → S
 | Lát | Việc | Worker | Nhánh · worktree | Giao lúc | Trạng thái |
 |---|---|---|---|---|---|
 | BG-1b | CRM · Báo giá gói 1 màn hình (BG-01…05) | Claude Sonnet | `lat/bg-1b` (86d5b5b) · DEMO http://127.0.0.1:8784 | 24/10 | **Chờ Anh cổng A** — phiếu `PHIEU-CONG-A-BAO-GIA-GOI-1.md`; lead đã tự thử (lịch 4 cột, dòng tổng, Σ 90% chặn In/Chuyển); ô/dòng 9→3, nút tính 1→0 |
-| M2d | M2-00 · sinh manifest hồi cứu (HOI_CUU) cho dữ liệu đã tải, không ghi vào thư mục cũ (ca M2-00-09 trên dữ liệu giả) | Codex | `lat/m2d` | 24/10 | Chờ kiểm — lead chạy test: 163 đạt, 1 skip; review chéo vòng 1 đang chạy (trọng tâm: an toàn đường dẫn tuyệt đối tới thư mục cũ) |
+| M2d | M2-00 · sinh manifest hồi cứu (HOI_CUU) cho dữ liệu đã tải, không ghi vào thư mục cũ (ca M2-00-09 trên dữ liệu giả) | Codex | `lat/m2d` | 24/10 | Sửa vòng 2 — review Claude vòng 1: Đạt (~45 ca tấn công đường dẫn bị chặn, thư mục cũ không đổi); Codex sửa 4 Nên sửa (gốc hồi cứu tin cậy, test junction, run_id theo tên thật, đếm đúng thư mục) + giới hạn độ dài chuỗi + locator tên file |
 | M2e | M2-00 · nút "Tải từ cổng thuế" trong M2: route mỏng + giao diện, nối `dieu_phoi`/`khach`/`nhan`; tự thử với bộ tải giả | Claude Sonnet | `lat/m2e` · DEMO 8787 | 24/10 | Đang code |
 | L0-6 | Chẩn đoán engine trích #6 DEMO ngắt sau lệnh trích đầu (chặn dựng đợt M4 DEMO) | Claude Sonnet | `lat/l0-6` · DEMO 8786 | 24/10 | Đang code |
 

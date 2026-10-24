@@ -72,7 +72,7 @@ Căn cứ: lệnh của Anh 24/10 (mọi module đã chốt thiết kế; M9 d�
 | M2a | M2-00 · = L0-2e gộp `m2-00b-fix01` | Codex | — | — | Xong (= L0-2e) |
 | M2b | M2-00 · `manifest.py`, `chinh_sach_tien_te.py` (POLICY-TIENTE-01) + ca M2-00-06/10 | Codex | — | — | Xong 24/10 — gộp 4e1f6bb (review Đạt, vòng 2 sửa 2 điểm) |
 | M2c | M2-00 · `nhan.py` nhận theo manifest (identity, revision/xung đột, KHONG_XML_GOC → bảng kê) nối `k2\hoa_don.py` | Codex | M2b | (migration nếu cần → khóa) | Xong 24/10 — gộp b190569 |
-| M2d | M2-00 · `hoi_cuu.py` manifest hồi cứu 33 tháng, fixture giả | Codex | M2b | — | Chờ kiểm (review Claude vòng 1) |
+| M2d | M2-00 · `hoi_cuu.py` manifest hồi cứu 33 tháng, fixture giả | Codex | M2b | — | Sửa vòng 2 (Codex) |
 | M2e | M2-00 · nút "Tải từ cổng thuế" + route + cấu hình | Claude | M2a, M2c | `server.py`, `app.js`, `index.html` | Đang code (24/10, Claude) |
 | M2f | M2-00 · ca -03/-07/-09 trên cổng thật, áp bản vá vào #7 thật | Anh | M2e | — | Chờ Anh (cần lệnh riêng: gọi cổng thuế thật) |
 | E1-1 | E1-MUA · đăng ký 5 loại + DV trong `CATALOG_COMMON`, `danh_muc_theo_loai`, từ chối loại lạ; test XD nguyên trạng | Codex | L0-2f | — | Xong 24/10 — gộp d5fe3cc |
@@ -89,6 +89,7 @@ Căn cứ: lệnh của Anh 24/10 (mọi module đã chốt thiết kế; M9 d�
 | M4-7 | M4 · migration master-reuse + rà `m4b2`/`m4b3` (= L0-2h) | Codex | P0 | — | Chờ |
 
 **Chưa chốt thiết kế — lead soạn checklist, hỏi Anh bằng bảng chọn khi tới lượt (không hỏi dồn):**
+- **M2-00 · trước khi mở nhận tự động (M2e/M2f):** đường nhận phải truyền gốc hồi cứu tin cậy từ cấu hình; chạy thử 1 tháng thật trước 33 tháng (tên file có dấu/khoảng trắng, MST dạng số mất số 0 đầu, thư mục phẳng lẫn hai chiều, bảng kê 20 cột — review M2d #9).
 - **M2-00 · khoảng thiếu đường nhận K2 (từ M2c):** `kho.m2_tieu_thu_quan_sat` tạo revision theo semantic digest — đổi hash bytes hoặc riêng `tthai_cong` chưa tạo revision như TL 43 §6; K2 chưa lưu mức bằng chứng `BANG_KE`, tiền tệ theo policy, quan hệ điều chỉnh/thay thế; bán ra chỉ là ứng viên nguồn. Cần lát SQL + migration (M2c-2) — hỏi Anh phạm vi khi tới M2e.
 - ~~Báo giá → Ký~~ — **Anh chốt 24/10: giữ chặn ở bước Ký** (QD-20261024-02), không mở lát sửa Ký.
 - M4 · ghi nhận công nợ nội bộ (kế toán xác nhận giá trị/thuế → công nợ): chưa có thiết kế gói; 03B chỉ là quan hệ căn cứ.
