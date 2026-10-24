@@ -6,14 +6,15 @@ Trạng thái lát: Đang code → Chờ kiểm → Chờ Anh (cổng A/B) → S
 
 | Lát | Việc | Worker | Nhánh · worktree | Giao lúc | Trạng thái |
 |---|---|---|---|---|---|
-| BG-1a | CRM · Báo giá gói 1 phía máy chủ: ô Giá trị thông minh, ghi đè tổng có cảnh báo, nhãn tên, mốc chuẩn | Codex | `lat/bg-1a` · `.claude/worktrees/lat-bg-1a` | 24/10 | Đang code |
-| L0-4b | CSDL CRM DEMO riêng cho lập trình (Anh chốt 24/10) | Claude Sonnet | `lat/l0-4b` · `.claude/worktrees/lat-l0-4b` | 24/10 | Đang code |
-| M2b | M2-00 · đọc/kiểm manifest + POLICY-TIENTE-01 v1 | Codex (code) · Claude (review) | `lat/m2b` (fffad5a) | 24/10 | Sửa — review Claude vòng 1: Đạt, 2 điểm Nên sửa lệch TL 43 §6 (DVTTe=VND không cần MST; hóa đơn thiếu khóa thành ngoại lệ, không từ chối cả manifest) → Codex sửa vòng 2 |
+| BG-1b | CRM · Báo giá gói 1 màn hình (BG-01…05) → cổng A | Claude Sonnet | `lat/bg-1b` (từ `lat/bg-1a`) · `.claude/worktrees/lat-bg-1b` · DEMO cổng 8784, CSDL riêng `p8784` | 24/10 | Đang code |
+| BG-1a | CRM · Báo giá gói 1 máy chủ | Codex (code) · Claude (review) | `lat/bg-1a` (56c46c9) | 24/10 | Chờ kiểm — review chéo vòng 1 đang chạy; Codex báo 74 test đạt (+24), không lỗi mới, không đổi schema |
+| M2b | M2-00 · đọc/kiểm manifest + POLICY-TIENTE-01 v1 | Codex | `lat/m2b` | 24/10 | Sửa vòng 2 — 2 điểm lệch TL 43 §6 |
 
 ## Lát đã xong (24/10)
 
 | Lát | Kết quả | Gộp vào hop-nhat |
 |---|---|---|
+| L0-4b | CSDL CRM DEMO riêng cho lập trình (`-CsdlRieng`); CSDL DEMO của Anh không đổi (schema 23, băm trước = sau) | 550f573 |
 | P0 | Khôi phục 24 file chưa vào git (CRM G6A/G5-B, M4 duyệt/Request/03A); `pg_migrations` nạp được (25); module lỗi nạp 29 → 1; ok 501 → 1067; không test vốn đạt nào hỏng | 1c5c67a |
 | L0-3a | Runner: gốc repo vào sys.path + `--runtime` (Python có psycopg); `.gitattributes` cho file bị ghim byte; 19 fixture DEMO vào git; trên nhánh lát: ERROR 112 → 62, FAIL 20 → 6 | 7b114e2 |
 | L0-4 | `tools\mo_demo_worktree.ps1`: mở DEMO cho worktree, chặn khi CSDL CRM DEMO dùng chung có thể hỏng | 7cbc41b |
@@ -33,16 +34,16 @@ Worktree đo nền: `.claude/worktrees/nen-chinh-59b7d8e` (chinh) · `.claude/wo
 | `src\kho_tri_thuc\giao_dien\server.py` | — |
 | `giao_dien\m4.py`, `giao_dien\assets\app.js`, `index.html`, `style.css` | — |
 | `ha_tang\pg_migrations.py` | — |
-| `giao_dien\crm_g.py`, `k2\crm_giao_ket.py` | BG-1a |
-| `giao_dien\assets\crm_g.js` | — (BG-1b nhận sau BG-1a) |
+| `giao_dien\crm_g.py`, `k2\crm_giao_ket.py` | BG-1a (chờ review) |
+| `giao_dien\assets\crm_g.js`, `style.css` | BG-1b |
 | `m4\*` dùng chung | — |
-| `tools\mo_demo_worktree.ps1`, `CLAUDE.md` mục 5 | L0-4b |
+| `tools\mo_demo_worktree.ps1`, `CLAUDE.md` | lead |
 
 ## Màn hình / module chờ Anh
 
 | Màn | Trạng thái |
 |---|---|
-| CRM · Báo giá (#42, TL 45) | Đang làm gói 1: BG-1a (máy chủ) → BG-1b (màn hình) → cổng A trên CSDL DEMO riêng (L0-4b) |
+| CRM · Báo giá (#42, TL 45) | Đang làm gói 1: BG-1a xong code (đang review) · BG-1b màn hình đang code → cổng A trên CSDL DEMO riêng |
 
 ## Việc phụ (lead làm, ghi để Anh biết)
 
