@@ -7,8 +7,9 @@ Trạng thái lát: Đang code → Chờ kiểm → Chờ Anh (cổng A/B) → S
 | Lát | Việc | Worker | Nhánh · worktree | Giao lúc | Trạng thái |
 |---|---|---|---|---|---|
 | L0-1 | Nền test `chinh` vs `hop-nhat` | Claude Sonnet | `lat/l0-1` · `.claude/worktrees/lat-l0-1` | 24/10 | Đang code |
-| L0-2a | Gộp chuỗi M4 common identity fix01→04 | Codex + lead commit | `lat/l0-2a` · `.claude/worktrees/lat-l0-2a` (b7be3a0) | 24/10 | Chờ kiểm — 4 commit khớp byte bản fix; biên dịch/import đạt; test gói chưa chạy được: thiếu `m4/sql_duyet.py` (ở L0-2c) và `tests/test_m4_03a_pg.py` (chưa vào git, xem L0-2i) |
-| L0-2i | Tìm code/test chỉ có trong bản chụp Codex cũ, chưa vào git | Codex | `lat/l0-2i` · `.claude/worktrees/lat-l0-2i` | 24/10 | Đang code |
+| L0-2a | Gộp chuỗi M4 common identity fix01→04 | Codex + lead commit | `lat/l0-2a` (b7be3a0) | 24/10 | **Xong — đã gộp vào hop-nhat (73deacb)**; không lỗi mới; test gói chạy được sau P0 |
+| L0-2i | Tìm code/test chỉ có trong bản chụp Codex cũ, chưa vào git | Codex + lead commit | `lat/l0-2i` (a37c4cf) | 24/10 | **Xong — đã gộp (8b4670f)**: 27 file không có ở nhánh nào (8 đang bị import), 26 file có bản mới hơn ngoài git; xem `FILE-CHUA-VAO-GIT.md` |
+| L0-2e | Gộp `m2-00b-fix01` + `config.js` bị sót (M2-00) | Codex | `lat/l0-2e` · `.claude/worktrees/lat-l0-2e` | 24/10 | Đang code |
 | L0-2d | Gộp CRM G5 + CRM-M4-three | Claude Sonnet | `lat/l0-2d` · `.claude/worktrees/lat-l0-2d` (e69e9eb) | 24/10 | Chờ kiểm — review Codex vòng 1 đang chạy. 2 commit, 9 file, 0 migration mới; không lỗi mới (đa số module lỗi import nền). Phát hiện: crm-g4 trên hop-nhat đã ghi đè bản cũ (mất ~700 dòng so với chinh) — worker khôi phục theo dòng dõi. Màn CRM chưa mở được: worktree thiếu cấu hình CRM DEMO (xem L0-4) |
 
 Worktree đo nền `chinh`: `.claude/worktrees/nen-chinh-59b7d8e` (tách rời ở 59b7d8e, chỉ chạy test).
@@ -21,7 +22,7 @@ Worktree đo nền `chinh`: `.claude/worktrees/nen-chinh-59b7d8e` (tách rời �
 | `giao_dien\m4.py`, `giao_dien\assets\app.js`, `index.html`, `style.css` | — |
 | `ha_tang\pg_migrations.py` | L0-2d |
 | `giao_dien\crm_g.py`, `giao_dien\assets\crm_g.js` | L0-2d |
-| `m4\*` dùng chung | — (`k2\ghi_nhan_chung.py`, `k2\sql_ghi_nhan_chung.py`: L0-2a giữ tới khi gộp) |
+| `m4\*` dùng chung | — |
 
 ## Màn hình / module chờ Anh
 

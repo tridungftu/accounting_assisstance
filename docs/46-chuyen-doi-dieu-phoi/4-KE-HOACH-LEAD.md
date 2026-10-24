@@ -13,12 +13,12 @@
 | Mã | Việc | Worker gợi ý | Giữ file chung | Phụ thuộc | Trạng thái |
 |---|---|---|---|---|---|
 | L0-1 | Nền test `chinh` vs `hop-nhat`, tìm test treo, nhóm nguyên nhân ERROR | Claude | — | — | Đang code (24/10) |
-| L0-2a | Gộp chuỗi `m4-03b-common-identity` fix01→fix04 | Codex | — | — | Chờ kiểm (test chờ L0-2c + L0-2i) |
-| L0-2i | Tìm code/test chỉ có trong `var\codex-dieu-phoi` (chưa vào git) — phát hiện khi làm L0-2a | Codex | — | — | Đang code (24/10) |
+| L0-2a | Gộp chuỗi `m4-03b-common-identity` fix01→fix04 | Codex | — | — | Xong 24/10 — gộp hop-nhat 73deacb |
+| L0-2i | Tìm code/test chỉ có trong `var\codex-dieu-phoi` (chưa vào git) — phát hiện khi làm L0-2a | Codex | — | — | Xong 24/10 — gộp 8b4670f; A=27, B=26 |
 | L0-2d | Gộp `crm-g5-doi-chieu` + `crm-m4-three` | Claude | `crm_g.py`, `crm_g.js`, `pg_migrations.py` | — | Chờ kiểm (review Codex vòng 1) |
 | L0-4 | Lệnh mở DEMO cho worktree, có CRM PostgreSQL: DataRoot `var\demo-<lát>` trong worktree + chép `runtime.local.json`, `ket-noi.local.json` từ `var\web\crm-demo` (không mở nội dung), kiểm CSDL DEMO không đụng nhau giữa worktree; ghi lệnh vào CLAUDE.md mục 5 | Claude | — | sau L0-1 | Chờ |
 | L0-2b | Gộp `m4-02c-ui` → `ui-fix01` | Codex | — | — | Sẵn sàng |
-| L0-2e | Gộp `m2-00b-fix01` (có thể là nguyên nhân 114 ERROR M2-00B) | Codex | — | — | Sẵn sàng |
+| L0-2e | Gộp `m2-00b-fix01` (có thể là nguyên nhân 114 ERROR M2-00B) | Codex | — | — | Đang code (24/10) |
 | L0-2f | Gộp `source6-g5-e5-ordered-fix01` | Codex | — | — | Chờ slot |
 | L0-2g | Gộp `m4-review-basis-c18-testfix` | Codex | — | — | Chờ slot |
 | L0-2c | Gộp `m4-02c-backend` + `m4-04c-request-m27` | Claude | `pg_migrations.py` | sau L0-2d | Chờ |
@@ -65,7 +65,7 @@ Căn cứ: lệnh của Anh 24/10 (mọi module đã chốt thiết kế; M9 d�
 | C5 | CRM 42 · S2 tab Tổng quan / Nguồn & tham số / Lịch nghĩa vụ | Claude | C4 | `crm_g.*` | Chờ |
 | C6 | CRM 42 · S2 tab Thu tiền (+S8) / Phụ lục / Bản ký / Lịch sử | Claude | C5; ô Junsky chờ kiểm RLS | `crm_g.*` | Chờ |
 | C7 | CRM 42 · S9 báo cáo, file soát | Codex + Claude | C6; tỷ lệ kiểm mẫu chờ Q-SAMPLE | — | Chờ |
-| M2a | M2-00 · = L0-2e gộp `m2-00b-fix01` | Codex | — | — | Sẵn sàng |
+| M2a | M2-00 · = L0-2e gộp `m2-00b-fix01` | Codex | — | — | Đang code (= L0-2e) |
 | M2b | M2-00 · `manifest.py`, `chinh_sach_tien_te.py` (POLICY-TIENTE-01) + ca M2-00-06/10 | Codex | — | — | Sẵn sàng |
 | M2c | M2-00 · `nhan.py` nhận theo manifest (identity, revision/xung đột, KHONG_XML_GOC → bảng kê) nối `k2\hoa_don.py` | Codex | M2b | (migration nếu cần → khóa) | Chờ |
 | M2d | M2-00 · `hoi_cuu.py` manifest hồi cứu 33 tháng, fixture giả | Codex | M2b | — | Chờ |
@@ -163,3 +163,4 @@ Mở ứng dụng Claude trên máy → tab Code → phiên **trên máy này** 
 - Phát hiện: `tests/test_m4_03a_pg.py` không có ở nhánh nào, chỉ trong `var\codex-dieu-phoi\*frozen*`. Mở lát L0-2i để dò hết file bị sót.
 - L0-2d (24/10): worker đứng 600 giây (mở server ở chế độ thường) → lead nối lại, xong. Gộp theo dòng dõi (m4-three trước G5) vì crm-g4 trên hop-nhat là bản cũ hơn nền chinh. CRM DEMO cần `<DataRoot>\crm-demo\runtime.local.json` (Python + thư mục thư viện có psycopg) và `ket-noi.local.json` (kết nối PG DEMO, không mở) → lát L0-4. Lead đã tắt server 8781.
 - Quy tắc mới cho worker: mọi lệnh có thể quá 2 phút và mọi server phải chạy nền (`run_in_background`), nếu không agent bị ngắt sau 600 giây.
+- L0-2i xong: phần lớn file bị sót đến từ job `m4-financial-basis-a-20261023-01` (không có trong 36 gói của TAN-DUNG-CODE) — P0 phải xác định gói này là gì trước khi khôi phục.
