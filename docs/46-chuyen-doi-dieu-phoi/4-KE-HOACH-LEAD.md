@@ -57,7 +57,7 @@ Căn cứ: lệnh của Anh 24/10 (mọi module đã chốt thiết kế; M9 d�
 |---|---|---|---|---|---|
 | P0 | Nền · khôi phục file chưa vào git (theo L0-2i; L0-2d đã liệt kê 11 file G6A/G5-B + `m4\sql_duyet.py` + `crm_g.js` bản 27a0d3db — phải vào TRƯỚC BG-1) + gộp `m4-02c-backend`, `m4-04c-request-m27` (= L0-2c) + chuỗi migration import được: 24 duyệt · 25 G6A · 26 KT · 27 Request nháp · rồi master-reuse, 03B | Claude Opus | L0-2d, L0-2i | `crm_g.js`, `m4\*` (chỉ thêm file) | Xong 24/10 — gộp 1c5c67a; module lỗi nạp 29 → 1 |
 | BG-1a | CRM · Báo giá gói 1 phía máy chủ: parse ô thông minh (`%`, dấu chấm/phẩy VN), BG-04 ghi đè + nhật ký, nhãn tên thay mã, mốc chuẩn | Codex | P0 | `crm_g.py` | Xong 24/10 — gộp 5a8042a (review Đạt, vòng 2 sửa 4 điểm) |
-| BG-1b | CRM · Báo giá gói 1 màn hình: BG-01…05, đo số ô trước/sau → **cổng A** | Claude | BG-1a | `crm_g.js` | Đang code (24/10, từ lat/bg-1a) |
+| BG-1b | CRM · Báo giá gói 1 màn hình: BG-01…05, đo số ô trước/sau → **cổng A** | Claude | BG-1a | `crm_g.js` | Chờ Anh cổng A (24/10) |
 | BG-2a | CRM · Báo giá gói 2 máy chủ: profile loại hình v3 (BG-06/11), tìm khách (BG-08) | Codex | BG-1a | `crm_g.py` | Chờ |
 | BG-2b | CRM · Báo giá gói 2 màn hình: BG-06, 07, 08, 10, 11, 12 | Claude | cổng A gói 1, BG-2a | `crm_g.js` | Chờ |
 | BG-2c | CRM · Báo giá BG-09 lô/căn từ danh mục | Codex + Claude | **Anh chọn nguồn danh mục** (hỏi sau cổng A gói 1) | `pg_migrations.py` | Chờ Anh |
