@@ -23,7 +23,7 @@ from __future__ import annotations
 
 import json
 import re
-from urllib.parse import quote, unquote
+from urllib.parse import quote, unquote, urlsplit
 
 from ..ha_tang.primitives import DataError
 
@@ -67,8 +67,7 @@ MA_503 = frozenset({"CRM_G_CHUA_SAN_SANG", "PG_KHONG_KET_NOI", "CRM_CHUA_CAU_HIN
 # CRM-41-04A G4 ký lần đầu
 TRUONG_KY = {"soan_id", "expected_revision", "expected_xuat_id", "ten_tep", "ngay_ky", "co_sua", "mo_ta", "nguoi_ky_khach", "khoa"}
 MIME_KY = ("application/pdf", "application/octet-stream")
-MA_409_KY = frozenset({"CRM_GK_DA_KY", "CRM_KY_DA_KY", "CRM_KY_XUAT_CU", "CRM_KY_XUAT_CHUA_DAT", "CRM_KY_TRANG_THAI", "CRM_KY_G3_LECH",
-                       "CRM_KY_PDF_LA_BAN_XUAT"})
+MA_409_KY = frozenset({"CRM_GK_DA_KY", "CRM_KY_DA_KY", "CRM_KY_XUAT_CU", "CRM_KY_XUAT_CHUA_DAT", "CRM_KY_TRANG_THAI", "CRM_KY_G3_LECH"})
 MA_403_KY = frozenset({"CRM_KY_CHUA_CO_PHAM_VI"})
 MA_413_KY = frozenset({"CRM_KY_TEP_QUA_LON"})
 MA_503_KY = frozenset({"CRM_KY_PDF_CHUA_KIEM_DUOC"})
@@ -124,11 +123,19 @@ def dich_vu_ky(app):
     return ky
 
 
-def _ky_ket(h, app):
-    """G4 ký: header/khóa/kích thước kiểm trước; (1) dưới mutation lock — danh tính phiên + quyền/phạm vi hiện hành (không đọc bytes);
-    (2) NGOÀI khóa — parse PDF (PDFium); (3) dưới khóa — lệnh ký một giao dịch (quyền lại → biên nhận → căn cứ → ghi bất biến → DA_KY)."""
+def _khong_query(h, query) -> None:
+    """Route G4 không nhận tham số truy vấn: cả query đã parse lẫn chuỗi thô (parse_qs bỏ `?x`/`?x=` rỗng) → 400, không xử lý."""
+    if query or urlsplit(str(getattr(h, "path", "") or "")).query:
+        raise DataError("CRM_G_YEU_CAU_SAI", "Không nhận tham số truy vấn.")
+
+
+def _ky_ket(h, app, query=None):
+    """G4 ký: query/header/khóa/kích thước kiểm trước; (1) dưới mutation lock — danh tính phiên + quyền/phạm vi hiện hành (không đọc bytes);
+    (2) NGOÀI khóa — parse PDF (PDFium); (3) dưới khóa — lệnh ký một giao dịch (quyền lại → biên nhận → căn cứ → ghi bất biến → DA_KY).
+    Mọi thẩm quyền/thông tin ký chỉ qua X-CRM-G-Info + body; query ngoài hợp đồng bị từ chối (không âm thầm bỏ qua)."""
     from ..k2 import crm_ky_ket as KY
     from .intake import MAX_FILE_SIZE
+    _khong_query(h, query)
     encoded = h.headers.get("X-CRM-G-Info", "")
     if len(encoded) > 24000:  # mô tả sửa tối đa 2000 ký tự (UTF-8 percent-encoded)
         raise DataError("CRM_G_YEU_CAU_SAI", "Thông tin bản ký quá dài.")
@@ -297,15 +304,13 @@ def dieu_huong(h, app, post: bool, path: str, query: dict):
             # --- CRM-41-04A G4 (đọc: không nhận query; quyền hiện hành trước căn cứ/hash/kho)
             m = re.fullmatch(r"/api/crm/giao-ket/ky/(" + _UUID + ")", path)
             if m:
-                if query:
-                    raise DataError("CRM_G_YEU_CAU_SAI", "Không nhận tham số truy vấn.")
+                _khong_query(h, query)
                 with app.mutation_lock:
                     _, me, _ = app.crm_phien(h.crm_sid())
                     return h.send_content(200, app._crm_db(dich_vu_ky(app).doc, me, m.group(1)))
             m = re.fullmatch(r"/api/crm/giao-ket/ban-ky/(" + _UUID + ")/tep", path)
             if m:
-                if query:
-                    raise DataError("CRM_G_YEU_CAU_SAI", "Không nhận tham số truy vấn.")
+                _khong_query(h, query)
                 with app.mutation_lock:
                     _, me, _ = app.crm_phien(h.crm_sid())
                     ten, raw, mime = app._crm_db(dich_vu_ky(app).tep, me, m.group(1))  # quyền + nhật ký truy cập TRƯỚC tra kho
@@ -343,7 +348,7 @@ def dieu_huong(h, app, post: bool, path: str, query: dict):
                     return h.send_content(200, app._crm_db(lambda: svc.tai_mau(me, raw, loai_hinh_id=info.get("loai_hinh_id"), ma_mau=info.get("ma_mau"),
                                                                                ten_tep=info.get("ten_tep"), khoa=info.get("khoa"))))
             if path == "/api/crm/giao-ket/ky-ket":  # CRM-41-04A G4
-                return h.send_content(200, _ky_ket(h, app))
+                return h.send_content(200, _ky_ket(h, app, query))
             ten = path[len("/api/crm/"):]
             if ten in TRUONG_GK:  # CRM-41-03 lệnh ngắn
                 payload = _than(h.json_body(), TRUONG_GK[ten])
