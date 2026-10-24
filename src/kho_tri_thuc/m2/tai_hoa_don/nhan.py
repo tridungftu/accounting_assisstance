@@ -143,6 +143,8 @@ def lap_ke_hoach_nhan(thu_muc_run, *, ma_phap_nhan: str) -> dict:
         ngoai_le.append(_ngoai_le("TAI_LOI_CHUNG", loi=e))
     if m["tong"]["bang_ke_trang_thai"] == "LOI":
         ngoai_le.append(_ngoai_le("TAI_LOI_BANG_KE"))
+    if m["trang_thai"] != "COMPLETE":
+        ngoai_le.append(_ngoai_le("RUN_" + m["trang_thai"]))
     muc = []
     for h in m.hoa_don_du_khoa:
         ordinal = h["item_ordinal"]
@@ -163,6 +165,9 @@ def lap_ke_hoach_nhan(thu_muc_run, *, ma_phap_nhan: str) -> dict:
                 "tdlap": h["tdlap"], "dvtte_cong": h["dvtte_cong"],
                 "container_sha256": None if h["zip"] is None else h["zip"]["sha256"]}
         if h["xml_status"] == "KHONG_XML_GOC":
+            if m["tong"]["bang_ke_trang_thai"] != "OK" or m["tong"]["bang_ke"] is None:
+                ngoai_le.append(_ngoai_le("BANG_KE_THIEU", ordinal=ordinal))
+                continue
             muc.append({**base, "bang_chung": "BANG_KE", "can_cu": h["can_cu"],
                         "bang_ke": m["tong"]["bang_ke"], "tep_xml": [], "quan_he": [], "tien_te": None})
             continue
@@ -177,7 +182,9 @@ def lap_ke_hoach_nhan(thu_muc_run, *, ma_phap_nhan: str) -> dict:
                 continue
             xml_key = [_text(res, k) for k in ("NBan/MST", "KHMSHDon", "KHHDon", "SHDon")]
             # Manifest là authority của identity; XML khác → ngoại lệ, không chọn một bên.
-            if xml_key != parts:
+            if (xml_key[:3] != parts[:3] or xml_key[3] is None
+                    or not re.fullmatch(r"[0-9]+", xml_key[3])
+                    or (xml_key[3].lstrip("0") or "0") != identity[-1]):
                 ngoai_le.append(_ngoai_le("IDENTITY_XML_MANIFEST_KHAC", ordinal=ordinal, file=t["file"]))
                 continue
             xml, quan_he, mo_ho = _bo_sung_xml(raw)
@@ -199,7 +206,7 @@ def lap_ke_hoach_nhan(thu_muc_run, *, ma_phap_nhan: str) -> dict:
             "nguon": m["nguon"], "ky": m["ky"], "chieu": chieu,
             "bat_dau": m["bat_dau"], "ket_thuc": m["ket_thuc"], "xap_xi": m.get("xap_xi", False),
             "context": {k: m["context"][k] for k in ("source_instance", "scope_ref", "profile_ref", "profile_revision")},
-            "coverage": "PARTIAL_INPUT" if m["trang_thai"] == "PARTIAL" else "COMPLETE_INPUT",
+            "coverage": "COMPLETE_INPUT" if m["trang_thai"] == "COMPLETE" else "PARTIAL_INPUT",
             "muc": muc, "ngoai_le": ngoai_le,
             "chua_ro_nguon": [{"file": "TEP_DA_AN_TEN" if RE_CAM.search(f) or RE_GIA_TRI_CAM.search(f) else f,
                                "trang_thai": "CHUA_RO_NGUON", "vao_de_xuat": False}
@@ -243,10 +250,15 @@ def nhan_vao_k2(ke_hoach: dict, hoa_don_k2: HoaDonK2, *, actor: str,
         cw = canonical_json(provenance).encode("utf-8")
         token = canonical_json([moi["ma_phap_nhan"], moi["ky"], moi["chieu"], moi["run_id"],
                                 h["item_ordinal"], h["thu_tu_tep"]]).encode("utf-8")
-        r = hoa_don_k2.nhan_theo_manifest(
-            actor, identity=h["identity"], source_instance=source_instance, scope_ref=scope_ref,
-            coverage=moi["coverage"], reported_errors=sorted({e["ma"] for e in moi["ngoai_le"]}),
-            client_key="M2c:" + sha256(token), native=raw, artifact_name=t["file"], crosswalk=cw)
+        try:
+            r = hoa_don_k2.nhan_theo_manifest(
+                actor, identity=h["identity"], source_instance=source_instance, scope_ref=scope_ref,
+                coverage=moi["coverage"], reported_errors=sorted({e["ma"] for e in moi["ngoai_le"]}),
+                client_key="M2c:" + sha256(token), native=raw, artifact_name=t["file"], crosswalk=cw)
+        except DataError as e:
+            ket_qua.append({"item_ordinal": h["item_ordinal"], "file": t["file"],
+                            "trang_thai": "GIU_CHO_K2", "ly_do": e.code, "thong_bao": str(e)})
+            continue
         # Chỉ trả whitelist biên nhận; không phản chiếu dict/log bất kỳ từ dịch vụ.
         promote = r.get("promote") or {}
         items = [{k: v for k, v in it.items() if k in (
@@ -256,4 +268,5 @@ def nhan_vao_k2(ke_hoach: dict, hoa_don_k2: HoaDonK2, *, actor: str,
                         "trang_thai": "DA_GHI_QUAN_SAT" if items else "GIU_CHO_K2",
                         "lan_tiep_nhan_id": r["lan_tiep_nhan_id"], "lap_lai": r["lap_lai"], "items": items})
     return {"run_id": moi["run_id"], "ket_qua": ket_qua, "ngoai_le": moi["ngoai_le"],
+            "giu_cho_k2": [h for h in ket_qua if h["trang_thai"] == "GIU_CHO_K2"],
             "chua_ro_nguon": moi["chua_ro_nguon"], "khoang_thieu_k2": list(KHOANG_THIEU_K2)}

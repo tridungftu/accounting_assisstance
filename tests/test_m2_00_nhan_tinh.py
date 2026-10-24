@@ -7,6 +7,7 @@ Không cần psycopg, PostgreSQL, cổng thuế hay cấu hình/kho thật.
 
 from __future__ import annotations
 
+import copy
 import io
 import json
 import tempfile
@@ -231,6 +232,30 @@ class NhanTinh(unittest.TestCase):
         service.nhan_theo_manifest.assert_not_called()
         self.assertEqual(r['ket_qua'][0]['ly_do'], 'K2_CHUA_NHAN_BANG_KE')
 
+    def test_04_khong_xml_goc_thieu_bang_ke_khong_gan_bang_chung(self):
+        self.khong_xml('KHONG_XML_GOC')
+        for status in ('KHONG_YEU_CAU', 'LOI'):
+            with self.subTest(status=status):
+                self.m['tong'].update(bang_ke_trang_thai=status, bang_ke=None)
+                self.m.update(trang_thai='PARTIAL' if status == 'LOI' else 'COMPLETE',
+                              ly_do_partial=['BANG_KE_LOI'] if status == 'LOI' else [])
+                self.ghi(self.run, self.m)
+                p = self.plan()
+                self.assertEqual(p['muc'], [])
+                self.assertIn({'ma': 'BANG_KE_THIEU', 'item_ordinal': 1}, p['ngoai_le'])
+                service = Mock()
+                self.nhan(p, service)
+                service.nhan_theo_manifest.assert_not_called()
+
+    def test_04_bang_ke_hash_lech_van_dung_run(self):
+        self.khong_xml('KHONG_XML_GOC')
+        (self.run / self.m['tong']['bang_ke']['file']).write_bytes(b'DEMO_HASH_LECH')
+        service = Mock()
+        with self.assertRaises(DataError) as ctx:
+            self.nhan(self.plan(), service)
+        self.assertEqual(ctx.exception.code, 'M2_00_MANIFEST_HASH_LECH')
+        service.nhan_theo_manifest.assert_not_called()
+
     def test_05_loi_tai_vao_ngoai_le_khong_vao_k2(self):
         self.khong_xml('LOI')
         p = self.plan()
@@ -247,8 +272,30 @@ class NhanTinh(unittest.TestCase):
         self.m.update(loi_chung=[e], trang_thai='PARTIAL', ly_do_partial=['NHOM_LOI', 'LOI_CHUNG'])
         self.ghi(self.run, self.m)
         p = self.plan()
-        self.assertEqual({e['ma'] for e in p['ngoai_le']}, {'TAI_LOI_NHOM', 'TAI_LOI_CHUNG'})
+        self.assertEqual({e['ma'] for e in p['ngoai_le']}, {'TAI_LOI_NHOM', 'TAI_LOI_CHUNG', 'RUN_PARTIAL'})
         self.assertEqual(p['coverage'], 'PARTIAL_INPUT')
+
+    def test_run_chi_complete_moi_khai_du_dau_vao(self):
+        for status in ('COMPLETE', 'FAILED', 'PARTIAL'):
+            with self.subTest(status=status):
+                co_loi = status in ('FAILED', 'PARTIAL')
+                self.m.update(trang_thai=status, ly_do_partial=['LOI_CHUNG'] if co_loi else [],
+                              loi_chung=[{'code': 'DEMO_LIST_LOI', 'stage': 'LIST',
+                                          'http_status': 500}] if co_loi else [])
+                self.ghi(self.run, self.m)
+                p = self.plan()
+                self.assertEqual(len(p['muc']), 1)
+                self.assertEqual(p['coverage'], 'COMPLETE_INPUT' if status == 'COMPLETE' else 'PARTIAL_INPUT')
+                if status != 'COMPLETE':
+                    self.assertIn('RUN_' + status, [e['ma'] for e in p['ngoai_le']])
+                service = Mock()
+                service.nhan_theo_manifest.return_value = {
+                    'lan_tiep_nhan_id': 'DEMO_RECEIPT', 'lap_lai': False, 'promote': {'items': []}}
+                self.nhan(p, service)
+                kw = service.nhan_theo_manifest.call_args.kwargs
+                self.assertEqual(kw['coverage'], p['coverage'])
+                if status != 'COMPLETE':
+                    self.assertIn('RUN_' + status, kw['reported_errors'])
 
     def test_10_file_ngoai_manifest_chua_ro_nguon_khong_de_xuat(self):
         for ten in ('NGOAI_DEMO.xml', 'NGOAI_DEMO.pdf', 'NGOAI_DEMO.xlsx', 'NGOAI_DEMO.txt'):
@@ -291,6 +338,26 @@ class NhanTinh(unittest.TestCase):
         self.assertEqual(p['muc'], [])
         self.assertEqual(p['ngoai_le'][0]['ma'], 'IDENTITY_XML_MANIFEST_KHAC')
 
+    def test_so_hoa_don_bo_so_0_dau_khi_so_khop_nhung_giu_raw(self):
+        h = self.m['hoa_don'][0]
+        h['key_raw']['shdon'] = '1'
+        h['key_canonical'] = '0000000001|1|DEMO|1'
+        self.ghi(self.run, self.m)
+        p = self.plan()
+        self.assertEqual(p['ngoai_le'], [])
+        self.assertEqual(p['muc'][0]['key_raw']['shdon'], '1')
+        self.assertEqual(p['muc'][0]['identity'][-1], '1')
+        self.assertIn(b'<SHDon>000001</SHDon>', (self.run / h['file_xml']).read_bytes())
+        with self.k2_gia() as (service, conn):
+            r = self.nhan(p, service)
+            self.assertEqual(r['ket_qua'][0]['trang_thai'], 'DA_GHI_QUAN_SAT')
+            self.assertEqual(len(conn.identities), 1)
+        self.doi_xml(self.run, self.m, xml_demo(so='000002'))
+        self.ghi(self.run, self.m)
+        p = self.plan()
+        self.assertEqual(p['muc'], [])
+        self.assertEqual(p['ngoai_le'][0]['ma'], 'IDENTITY_XML_MANIFEST_KHAC')
+
     def test_phap_nhan_profile_va_chieu_thu_muc_phai_khop(self):
         with self.assertRaises(DataError):
             lap_ke_hoach_nhan(self.run, ma_phap_nhan='DEMO_KHAC')
@@ -301,10 +368,44 @@ class NhanTinh(unittest.TestCase):
 
     def test_registry_k2_dan_xuat_khac_identity_bi_chan_truoc_stage(self):
         with self.k2_gia(pn='DEMO_KHAC') as (service, conn):
-            with self.assertRaises(DataError) as ctx:
-                self.nhan(self.plan(), service)
-            self.assertEqual(ctx.exception.code, 'M2_MANIFEST_IDENTITY_KHAC')
+            r = self.nhan(self.plan(), service)
+            self.assertEqual(r['ket_qua'][0]['trang_thai'], 'GIU_CHO_K2')
+            self.assertEqual(r['ket_qua'][0]['ly_do'], 'M2_MANIFEST_IDENTITY_KHAC')
+            self.assertEqual(r['giu_cho_k2'], r['ket_qua'])
             self.assertEqual(conn.stages, {})
+
+    def test_loi_mot_muc_giu_cho_va_tiep_tuc_nhan_muc_sau(self):
+        h = copy.deepcopy(self.m['hoa_don'][0])
+        raw = xml_demo(so='000002')
+        h['key_raw']['shdon'] = '000002'
+        h.update(item_ordinal=2, key_canonical='0000000001|1|DEMO|000002',
+                 file_xml='DEMO_2.xml', hash_xml=sha256(raw), xml_bytes=len(raw))
+        h['xml_tep'][0].update(file=h['file_xml'], sha256=sha256(raw), bytes=len(raw))
+        (self.run / h['file_xml']).write_bytes(raw)
+        self.m['hoa_don'].append(h)
+        self.m['tong'].update(tong_hd=2, xml_ok=2, pdf_ok=2)
+        self.m['nhom'][0].update(so_ban_ghi=2, so_moi=2)
+        self.ghi(self.run, self.m)
+        for code in ('M2_MANIFEST_IDENTITY_KHAC', 'CAPTURE_KHAC_NOI_DUNG'):
+            with self.subTest(code=code), self.k2_gia() as (service, conn):
+                nhan_that = service.nhan_theo_manifest
+
+                def nhan_tung_muc(*args, **kw):
+                    if kw['identity'][-1] == '1':
+                        raise DataError(code, 'DEMO giữ chờ kiểm tra mục 1.')
+                    return nhan_that(*args, **kw)
+
+                with patch.object(service, 'nhan_theo_manifest', side_effect=nhan_tung_muc) as call:
+                    r = self.nhan(self.plan(), service)
+                self.assertEqual(call.call_count, 2)
+                self.assertEqual(r['ket_qua'][0], {
+                    'item_ordinal': 1, 'file': self.m['hoa_don'][0]['file_xml'],
+                    'trang_thai': 'GIU_CHO_K2', 'ly_do': code,
+                    'thong_bao': 'DEMO giữ chờ kiểm tra mục 1.'})
+                self.assertEqual(r['giu_cho_k2'], [r['ket_qua'][0]])
+                self.assertEqual(r['ket_qua'][1]['item_ordinal'], 2)
+                self.assertEqual(r['ket_qua'][1]['trang_thai'], 'DA_GHI_QUAN_SAT')
+                self.assertEqual(len(conn.observations), 1)
 
     def test_ban_ra_giu_ung_vien_nguon_khong_tao_nghiep_vu_m2(self):
         run, _ = self.tao_run('20261024-130000', chieu='sold')
