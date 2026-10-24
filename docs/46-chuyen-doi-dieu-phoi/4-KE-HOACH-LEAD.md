@@ -71,7 +71,7 @@ Căn cứ: lệnh của Anh 24/10 (mọi module đã chốt thiết kế; M9 d�
 | C7 | CRM 42 · S9 báo cáo, file soát | Codex + Claude | C6; tỷ lệ kiểm mẫu chờ Q-SAMPLE | — | Chờ |
 | M2a | M2-00 · = L0-2e gộp `m2-00b-fix01` | Codex | — | — | Xong (= L0-2e) |
 | M2b | M2-00 · `manifest.py`, `chinh_sach_tien_te.py` (POLICY-TIENTE-01) + ca M2-00-06/10 | Codex | — | — | Xong 24/10 — gộp 4e1f6bb (review Đạt, vòng 2 sửa 2 điểm) |
-| M2c | M2-00 · `nhan.py` nhận theo manifest (identity, revision/xung đột, KHONG_XML_GOC → bảng kê) nối `k2\hoa_don.py` | Codex | M2b | (migration nếu cần → khóa) | Đang code (24/10, Codex) |
+| M2c | M2-00 · `nhan.py` nhận theo manifest (identity, revision/xung đột, KHONG_XML_GOC → bảng kê) nối `k2\hoa_don.py` | Codex | M2b | (migration nếu cần → khóa) | Chờ kiểm (review Claude vòng 1) |
 | M2d | M2-00 · `hoi_cuu.py` manifest hồi cứu 33 tháng, fixture giả | Codex | M2b | — | Chờ |
 | M2e | M2-00 · nút "Tải từ cổng thuế" + route + cấu hình | Claude | M2a, M2c | `server.py`, `app.js`, `index.html` | Chờ |
 | M2f | M2-00 · ca -03/-07/-09 trên cổng thật, áp bản vá vào #7 thật | Anh | M2e | — | Chờ Anh (cần lệnh riêng: gọi cổng thuế thật) |
@@ -88,6 +88,7 @@ Căn cứ: lệnh của Anh 24/10 (mọi module đã chốt thiết kế; M9 d�
 | M4-7 | M4 · migration master-reuse + rà `m4b2`/`m4b3` (= L0-2h) | Codex | P0 | — | Chờ |
 
 **Chưa chốt thiết kế — lead soạn checklist, hỏi Anh bằng bảng chọn khi tới lượt (không hỏi dồn):**
+- **M2-00 · khoảng thiếu đường nhận K2 (từ M2c):** `kho.m2_tieu_thu_quan_sat` tạo revision theo semantic digest — đổi hash bytes hoặc riêng `tthai_cong` chưa tạo revision như TL 43 §6; K2 chưa lưu mức bằng chứng `BANG_KE`, tiền tệ theo policy, quan hệ điều chỉnh/thay thế; bán ra chỉ là ứng viên nguồn. Cần lát SQL + migration (M2c-2) — hỏi Anh phạm vi khi tới M2e.
 - **Báo giá → Ký (hỏi cùng phiếu cổng A gói 1):** bước kiểm lịch khi Ký (`k2/sql_crm_kiem_hd.py` `crm_kiem_lich_ky`) vẫn tính tổng = đơn giá × diện tích và đòi % hữu hạn → báo giá có tổng ghi đè, hoặc chia tiền không tròn %, qua được In/Chuyển nhưng bị chặn ở Ký. Phương án: (a) giữ chặn ở Ký (kế toán đối chiếu lại); (b) lát SQL + migration cho bước Ký đọc tổng ghi đè và kiểm Σ tiền. Ngoài phạm vi TL 45 (không đụng Ký).
 - M4 · ghi nhận công nợ nội bộ (kế toán xác nhận giá trị/thuế → công nợ): chưa có thiết kế gói; 03B chỉ là quan hệ căn cứ.
 - BG-09 nguồn danh mục lô/căn (bảng mới + dữ liệu DEMO, hay kế toán nhập).
