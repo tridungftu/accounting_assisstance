@@ -10,6 +10,9 @@ Luồng (mọi quyết định ở SQL `k2/sql_ghi_nhan_chung.py`, service chỉ
   trigger deferred dựng lại đồ thị lúc commit).
 - Không matching: trình duyệt CHỈ gửi ref nguồn tường minh {kind, occurrence_id, source_version_id, part_id}; tên/ngày/tiền/"khớp"/điểm gợi ý là
   KHÔNG_NHAN. Phần "một phần" chỉ là khai báo thô (ty_le_khai, chưa scale) — thiếu thì PHAN_KHAI_THIEU, không suy.
+- FIX01: thêm/bớt nguồn, đổi phần = revision mới của CÙNG gốc (doi_chieu_id ổn định). Closure = refs revision mới nhất ∪ refs yêu cầu: adapter khóa +
+  ghim producer cho mọi NT của union (adapter không đổi), SQL kiểm quyền ghi + khóa hóa đơn trên union, rồi alias tập → gốc → revision (CAS). Tập đã
+  thuộc gốc khác → 409 DC_TAP_THUOC_GOC_KHAC. Namespace biên nhận = module gốc lúc tạo (máy chủ ghi, trình duyệt không chọn).
 """
 
 from __future__ import annotations
@@ -37,6 +40,7 @@ KHONG_NHAN = frozenset({
     "actor", "nguoi_dung_id", "dang_nhap", "tao_boi", "tao_boi_id", "owner", "chu", "chu_bang", "vai", "vai_tro", "quyen", "role", "module",
     "phap_nhan_id", "du_an_id", "hop_dong_id", "doi_tac_id", "doi_tac_mst", "mst_ban", "dot_id", "seal_id", "version_id", "phong_bi_id",
     "context", "graph_sha256", "noi_dung_sha256", "semantic_sha256", "raw_sha256", "do_thi", "thieu", "khoa_goc_sha256",
+    "tap_sha256", "module_bien_nhan",
     "trang_thai", "loai", "nhap_id", "revision", "pass", "dat", "approved", "da_xac_nhan", "receipt_id", "lap_lai",
     "ghi_nhan", "financial_owner", "claim", "proposal", "source_use", "obligation", "ap", "request", "cong_no", "so_cai", "but_toan",
     "tai_khoan", "account", "thue_suat", "tien_thue", "ty_gia", "fx", "so_tien", "tien", "gia_tri", "amount", "minor", "net_minor", "total_minor",
@@ -54,7 +58,7 @@ MA_HTTP = {
     "DC_KHAC_PN": 422,
     "DC_PHAM_VI": 403, "M4_KT_PHAM_VI": 403, "DC_KHONG_THAY": 404, "M4_KT_KHONG_THAY": 404, "DC_DANH_TINH": 401,
     "DC_NGUON_CU": 409, "DC_DO_THI_DOI": 409, "DC_CAN_KIEM_LAI": 409, "DC_REVISION_CU": 409, "DC_DA_CO_GOC": 409, "DC_CHO_BO_SUNG": 409,
-    "DC_XAC_NHAN_KHAC_NHAP": 409, "DC_IDEMPOTENCY_KHAC": 409,
+    "DC_XAC_NHAN_KHAC_NHAP": 409, "DC_IDEMPOTENCY_KHAC": 409, "DC_TAP_THUOC_GOC_KHAC": 409,
     "M4_KET_QUA_CHUA_RO": 503,
     "DC_SAI_DTO": 500, "DC_CHI_MAY_CHU": 500, "DC_TOAN_VEN": 500, "DC_THANH_PHAN_SAI": 500, "DC_BAT_BIEN": 500, "DC_CHI_CHU": 500,
 }
@@ -143,7 +147,16 @@ def kiem_ref(r) -> dict:
 
 
 def _khoa_ref(r: dict) -> tuple:
-    return (r["kind"], r["occurrence_id"], r["part_id"] or "")
+    return (r["kind"], r["occurrence_id"], r.get("part_id") or "")
+
+
+def hop_refs(a: list, b: list) -> list:
+    """Closure FIX01 (gương kho._dc_hop): hợp theo (kind, occurrence, part), trùng khóa giữ mục của `a` (refs yêu cầu); sắp theo khóa.
+    Chỉ dùng để khóa/ghim/kiểm quyền — đồ thị và tập revision mới vẫn là `a`."""
+    m = {}
+    for r in list(a or []) + list(b or []):
+        m.setdefault(_khoa_ref(r), r)
+    return [m[k] for k in sorted(m)]
 
 
 def _kiem_tap(refs: list) -> None:
@@ -282,6 +295,7 @@ def xem_dto(r) -> dict:
     return {"schema": SCHEMA,
             "nguon": g["nguon"],
             "doi_chieu": {"graph_sha256": r["graph_sha256"], "khoa_goc_sha256": r.get("khoa_goc_sha256"),
+                          "goc_cua_tap": r.get("goc_cua_tap"),
                           "goc_lien_quan": [{**x, "trang_thai": trang_thai(x.get("loai"), x.get("graph_sha256"), r["graph_sha256"])} for x in lq]},
             "kt": {"thieu": r["thieu"], "duoc_ghi": r.get("duoc_ghi") is True},
             "ghi_nhan": dict(GHI_NHAN), "request": dict(REQUEST)}
@@ -300,6 +314,7 @@ def ack_dto(r, khoa: str) -> dict:
     return {"schema": SCHEMA, "khoa": khoa, "lap_lai": r["lap_lai"], "receipt_id": str(r.get("receipt_id")),
             "doi_chieu": {"doi_chieu_id": k["doi_chieu_id"], "phien_ban_id": k["phien_ban_id"], "revision": k["revision"],
                           "nhap_id": k.get("nhap_id"), "graph_sha256": k["graph_sha256"], "noi_dung_sha256": k.get("noi_dung_sha256"),
+                          "tap_sha256": k.get("tap_sha256"),
                           "trung_xac_nhan": k.get("trung_xac_nhan") is True,
                           "trang_thai": trang_thai(k.get("loai"), k["graph_sha256"], hien.get("graph_sha256"))},
             "kt": {"thieu": k.get("thieu") or []},
@@ -317,7 +332,8 @@ def lich_su_dto(r) -> dict:
             _dto_sai("phiên bản mang financial owner / ghi nhận khác")
         pbs.append({**p, "trang_thai": trang_thai(p.get("loai"), p.get("graph_sha256"), hien)})
     return {"schema": SCHEMA, "doi_chieu_id": r["doi_chieu_id"], "khoa_goc_sha256": r.get("khoa_goc_sha256"),
-            "nguon": g["nguon"], "doi_chieu": {"graph_sha256": hien, "phien_ban": pbs},
+            "module_bien_nhan": r.get("module_bien_nhan"),
+            "nguon": g["nguon"], "doi_chieu": {"graph_sha256": hien, "phien_ban": pbs, "bo_tap": list(r.get("bo_tap") or [])},
             "kt": {"thieu_hien_tai": thieu(g, None), "duoc_ghi": r.get("duoc_ghi") is True},
             "ghi_nhan": dict(GHI_NHAN), "request": dict(REQUEST)}
 
@@ -389,9 +405,10 @@ class GhiNhanChungK2:
         than = json.dumps(yc, ensure_ascii=False)
         with xd._chua_ro():
             with xd._tx_review(dt) as c:
-                if yc["doi_chieu_id"] is not None:  # quyền đọc mọi nguồn của mọi revision TRƯỚC (SQL kiểm lại + bắt cùng tập nguồn)
-                    self._refs_goc(c, yc["doi_chieu_id"], None)
-                self._ghim(c, dt, json.dumps(refs, ensure_ascii=False), True)
+                hop = refs
+                if yc["doi_chieu_id"] is not None:  # quyền đọc mọi nguồn của mọi revision TRƯỚC; closure = revision mới nhất ∪ yêu cầu (SQL kiểm lại dưới khóa)
+                    hop = hop_refs(refs, self._refs_goc(c, yc["doi_chieu_id"], None))
+                self._ghim(c, dt, json.dumps(hop, ensure_ascii=False), True)
                 r = xd._r1(c, "SELECT kho.dc_luu(%s, %s::jsonb) AS r", (khoa, than))
         return ack_dto((r or {}).get("r"), khoa)
 
@@ -403,7 +420,7 @@ class GhiNhanChungK2:
         than = json.dumps(yc, ensure_ascii=False)
         with xd._chua_ro():
             with xd._tx_review(dt) as c:
-                refs = self._refs_goc(c, yc["doi_chieu_id"], yc["phien_ban_id"])
+                refs = hop_refs(self._refs_goc(c, yc["doi_chieu_id"], yc["phien_ban_id"]), self._refs_goc(c, yc["doi_chieu_id"], None))
                 self._ghim(c, dt, json.dumps(refs, ensure_ascii=False), True)
                 r = xd._r1(c, "SELECT kho.dc_xac_nhan(%s, %s::jsonb) AS r", (khoa, than))
         return ack_dto((r or {}).get("r"), khoa)

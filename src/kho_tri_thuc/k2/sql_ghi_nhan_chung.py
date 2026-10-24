@@ -22,6 +22,18 @@ dịch chủ bảng, rồi `kho._dc_nt_ghi(cho)` ghi kết quả `m4._kt_hien_ha
 
 Khóa: (Python) HĐ sorted → m4.kt_khoa từng gốc NT → ghim producer; (SQL) gốc hóa đơn sorted (advisory HOA_DON_ROOT| + closure
 kho.l11_khoa_dong_nguon_noi_bo, thứ tự M16) → gốc đối chiếu → phiên bản mới nhất → biên nhận. Không khóa BANK, không gọi writer tiền/số lượng.
+
+FIX01 (docs/GIAO-CODE-M4-03B-FIX01.md) — gốc ổn định khi đổi tập nguồn/phần:
+- `doi_chieu_id` là identity xuyên revision. Thêm/bớt nguồn, đổi phần = revision mới (lý do + expected_revision + CAS đồ thị) của CÙNG gốc; không dựng
+  gốc thay thế. `khoa_goc_sha256` của gốc = digest tập lúc TẠO, bất biến; mỗi revision mang `tap_sha256` (digest kind+occurrence+part, không phiên bản).
+- Alias ghi thêm `kho.mua_doi_chieu_can_cu_tap` (PN, tap_sha256) → đúng MỘT gốc (metadata identity nội bộ, KHÔNG master/financial owner): tập đã từng
+  thuộc gốc nào giải về gốc ấy (khóa mới/ABA không tạo gốc trùng); sửa sang tập của gốc khác → 409 DC_TAP_THUOC_GOC_KHAC, không merge/retag/dời lịch sử.
+  Không UNIQUE theo nguồn đơn lẻ: một hóa đơn/NT tham gia nhiều đối chiếu với tập khác nhau.
+- Namespace biên nhận bất biến theo gốc: `module_bien_nhan` ghi lúc tạo (M4 nếu tập tạo có NT, M2 nếu chỉ hóa đơn) — chỉ namespace biên nhận chung,
+  không owner/quyền; đổi loại nguồn không đổi namespace (cùng khóa khác nội dung vẫn 409).
+- Closure trước khóa: refs revision mới nhất ∪ refs yêu cầu (quyền đọc mọi revision trước) → quyền ghi hiện hành trên union → khóa hóa đơn union sorted →
+  alias (advisory DC_TAP|) → gốc → revision mới nhất (phải đúng revision đã đọc trước khóa, lệch → DC_REVISION_CU rollback) → biên nhận → CAS.
+  Python ghim producer 03A cho mọi NT của union (adapter không đổi). Revision/receipt/identity nguồn cũ giữ nguyên (append-only).
 """
 
 from __future__ import annotations
@@ -47,17 +59,18 @@ THIEU = ("BEN_BAN_HD_THIEU", "BEN_BAN_KHAC", "CHO_MAPPING_M2", "HOA_DON_CHUA_CO_
 TOI_DA_THANH_PHAN = 50
 TOI_DA_TEP = 20
 BANG = ("mua_nguon_kinh_te", "mua_nguon_kinh_te_phien_ban", "mua_nguon_phan", "mua_doi_chieu_can_cu", "mua_doi_chieu_can_cu_phien_ban",
-        "mua_doi_chieu_can_cu_thanh_phan", "mua_doi_chieu_can_cu_nhat_ky")
+        "mua_doi_chieu_can_cu_thanh_phan", "mua_doi_chieu_can_cu_nhat_ky", "mua_doi_chieu_can_cu_tap")
+MODULE_BIEN_NHAN = ("M4", "M2")
 HAM_DOC = ("kho.dc_doc_hoa_don(uuid)",)
 HAM_NOI_BO = ("kho._dc_m2_doc(uuid)", "kho._dc_kt_toan_cuc(uuid)", "kho._dc_quyen(jsonb, boolean)", "kho._dc_doc_duoc(jsonb)",
               "kho._dc_nt_ghi(uuid)", "kho._dc_nt_hien_hanh(uuid)", "kho._dc_thu_tu_nt(jsonb)", "kho._dc_do_thi(jsonb)",
               "kho._dc_thieu(jsonb, jsonb)", "kho._dc_khoa_hoa_don(jsonb)", "kho._dc_khoa_goc(jsonb)", "kho._dc_cap_nguon(jsonb, text, uuid)",
               "kho._dc_bn_tra(uuid, text, text, text, jsonb, text)", "kho._dc_nguon_cua(uuid, uuid)", "kho._dc_xem(jsonb)",
-              "kho._dc_lich_su(uuid)", "kho._dc_tep(jsonb, jsonb)")
+              "kho._dc_lich_su(uuid)", "kho._dc_tep(jsonb, jsonb)", "kho._dc_hop(jsonb, jsonb)")
 HAM_LENH = ("kho.dc_luu(text, jsonb)", "kho.dc_xac_nhan(text, jsonb)")
 HAM_TRIGGER = ("kho._dc_chi_ghi_them()", "kho._dc_nguon_kiem()", "kho._dc_nguon_phien_ban_kiem()", "kho._dc_phan_kiem()",
                "kho._dc_goc_kiem()", "kho._dc_phien_ban_kiem()", "kho._dc_phien_ban_hoan_tat()", "kho._dc_thanh_phan_kiem()",
-               "kho.bien_nhan_dc_chi_chu()")
+               "kho.bien_nhan_dc_chi_chu()", "kho._dc_tap_kiem()")
 
 
 def _tuple(xs) -> str:
@@ -91,7 +104,8 @@ _REFS = "(SELECT jsonb_agg(t->'nguon' ORDER BY t->'nguon'->>'kind', t->'nguon'->
 def _kq(hanh: str, x: str, tt: str, trung: str) -> str:
     return (f"jsonb_build_object('hanh_dong', '{hanh}', 'doi_chieu_id', goc.id, 'phien_ban_id', {x}.id, 'revision', {x}.revision, "
             f"'loai', {x}.loai, 'nhap_id', {x}.nhap_id, 'trang_thai', '{tt}', 'thieu', {x}.thieu, 'graph_sha256', {x}.graph_sha256, "
-            f"'noi_dung_sha256', {x}.noi_dung_sha256, 'trung_xac_nhan', {trung}, 'ghi_nhan', {GHI_NHAN_SQL}, 'request', {REQUEST_SQL})")
+            f"'noi_dung_sha256', {x}.noi_dung_sha256, 'tap_sha256', {x}.tap_sha256, 'trung_xac_nhan', {trung}, "
+            f"'ghi_nhan', {GHI_NHAN_SQL}, 'request', {REQUEST_SQL})")
 
 
 def _tra(lap_lai: str, kq: str, rid: str) -> str:
@@ -115,7 +129,7 @@ _HIEN_HANH = """
             END LOOP;"""
 
 _TRUONG_PB = ("doi_chieu_id, phap_nhan_id, revision, truoc_id, loai, nhap_id, noi_dung, noi_dung_sha256, do_thi, graph_sha256, thieu, "
-              "hop_dong_id, doi_tac_id, ly_do, tao_boi, tao_boi_id")
+              "tap_sha256, hop_dong_id, doi_tac_id, ly_do, tao_boi, tao_boi_id")
 
 
 M4_03B_COMMON_SQL = (
@@ -142,6 +156,12 @@ M4_03B_COMMON_SQL = (
             END IF;
             IF dc AND NOT master.la_chu_bang(TG_RELID::regclass) THEN
                 RAISE EXCEPTION 'BIEN_NHAN_DC_CHI_CHU: biên nhận đối chiếu căn cứ chỉ do hàm chủ bảng tạo, không ghi trực tiếp' {_LOI};
+            END IF;
+            -- FIX01: biên nhận DC_* của một gốc chỉ trong namespace bất biến của gốc (module_bien_nhan) — đổi loại nguồn không né được 409
+            IF TG_OP = 'INSERT' AND NEW.operation IN ('{OP_LUU}', '{OP_XAC_NHAN}') AND (NEW.result_json->>'doi_chieu_id') IS NOT NULL
+               AND NEW.module IS DISTINCT FROM (SELECT g.module_bien_nhan FROM kho.mua_doi_chieu_can_cu g
+                                               WHERE g.id::text = NEW.result_json->>'doi_chieu_id') THEN
+                RAISE EXCEPTION 'BIEN_NHAN_DC_MODULE: biên nhận đối chiếu phải dùng namespace module gốc của đối chiếu' {_LOI};
             END IF;
             IF TG_OP = 'DELETE' THEN
                 RETURN OLD;
@@ -226,6 +246,7 @@ M4_03B_COMMON_SQL = (
         id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
         phap_nhan_id uuid NOT NULL REFERENCES master.phap_nhan(id),
         khoa_goc_sha256 text NOT NULL CHECK (khoa_goc_sha256 {_HEX}),
+        module_bien_nhan text NOT NULL CHECK (module_bien_nhan IN {_tuple(MODULE_BIEN_NHAN)}),
         tao_boi text NOT NULL,
         tao_boi_id uuid NOT NULL REFERENCES master.nguoi_dung(id),
         tao_luc timestamptz NOT NULL DEFAULT now(),
@@ -244,6 +265,7 @@ M4_03B_COMMON_SQL = (
         do_thi jsonb NOT NULL CHECK (jsonb_typeof(do_thi) = 'object'),
         graph_sha256 text NOT NULL CHECK (graph_sha256 {_HEX}),
         thieu jsonb NOT NULL CHECK (jsonb_typeof(thieu) = 'array'),
+        tap_sha256 text NOT NULL CHECK (tap_sha256 {_HEX}),
         hop_dong_id uuid,
         doi_tac_id uuid REFERENCES master.doi_tac(id),
         ly_do text NOT NULL CHECK (length(btrim(ly_do)) >= 1 AND length(ly_do) <= 2000),
@@ -293,6 +315,19 @@ M4_03B_COMMON_SQL = (
         chi_tiet jsonb NOT NULL CHECK (jsonb_typeof(chi_tiet) = 'object'),
         tao_luc timestamptz NOT NULL DEFAULT now(),
         FOREIGN KEY (phien_ban_id, doi_chieu_id, phap_nhan_id) REFERENCES kho.mua_doi_chieu_can_cu_phien_ban (id, doi_chieu_id, phap_nhan_id))""",
+    # FIX01: alias tập nguồn chuẩn → gốc ổn định (ghi thêm; một tập thuộc đúng một gốc trong PN; không ràng buộc theo nguồn đơn lẻ → nhiều-nhiều)
+    f"""CREATE TABLE kho.mua_doi_chieu_can_cu_tap (
+        id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+        phap_nhan_id uuid NOT NULL,
+        tap_sha256 text NOT NULL CHECK (tap_sha256 {_HEX}),
+        doi_chieu_id uuid NOT NULL,
+        phien_ban_id uuid NOT NULL,
+        tao_boi text NOT NULL,
+        tao_boi_id uuid NOT NULL REFERENCES master.nguoi_dung(id),
+        tao_luc timestamptz NOT NULL DEFAULT now(),
+        FOREIGN KEY (doi_chieu_id, phap_nhan_id) REFERENCES kho.mua_doi_chieu_can_cu (id, phap_nhan_id),
+        FOREIGN KEY (phien_ban_id, doi_chieu_id, phap_nhan_id) REFERENCES kho.mua_doi_chieu_can_cu_phien_ban (id, doi_chieu_id, phap_nhan_id),
+        UNIQUE (phap_nhan_id, tap_sha256))""",
     # ============================================================== trigger: chỉ chủ bảng, chỉ ghi thêm, định danh tổ hợp
     f"""CREATE OR REPLACE FUNCTION kho._dc_chi_ghi_them() RETURNS trigger
         LANGUAGE plpgsql SET search_path = master, kho, pg_temp AS $$
@@ -379,6 +414,9 @@ M4_03B_COMMON_SQL = (
             IF NEW.noi_dung_sha256 IS DISTINCT FROM {_SHA.format(x="NEW.noi_dung")} OR NEW.graph_sha256 IS DISTINCT FROM {_SHA.format(x="NEW.do_thi")} THEN
                 RAISE EXCEPTION 'DC_TOAN_VEN: SHA nội dung/đồ thị không khớp dữ liệu ghi' {_LOI};
             END IF;
+            IF NEW.tap_sha256 IS DISTINCT FROM kho._dc_khoa_goc({_REFS.format(x="NEW.noi_dung->'thanh_phan'")}) THEN
+                RAISE EXCEPTION 'DC_TOAN_VEN: tap_sha256 phải là digest chuẩn tập nguồn (kind, occurrence, part) của nội dung' {_LOI};
+            END IF;
             IF NEW.tao_boi IS DISTINCT FROM master.ktt_danh_tinh() THEN
                 RAISE EXCEPTION 'DC_DANH_TINH: người tạo phải là phiên hiện tại' {_LOI};
             END IF;
@@ -395,8 +433,8 @@ M4_03B_COMMON_SQL = (
             IF NEW.loai = 'XAC_NHAN' THEN
                 SELECT * INTO n FROM kho.mua_doi_chieu_can_cu_phien_ban x WHERE x.id = NEW.nhap_id;
                 IF n.id IS NULL OR n.loai <> 'NHAP' OR n.id IS DISTINCT FROM cuoi.id OR NEW.thieu <> '[]'::jsonb
-                   OR ROW(n.noi_dung, n.graph_sha256, n.do_thi, n.hop_dong_id, n.doi_tac_id, n.ly_do)
-                      IS DISTINCT FROM ROW(NEW.noi_dung, NEW.graph_sha256, NEW.do_thi, NEW.hop_dong_id, NEW.doi_tac_id, NEW.ly_do) THEN
+                   OR ROW(n.noi_dung, n.graph_sha256, n.do_thi, n.tap_sha256, n.hop_dong_id, n.doi_tac_id, n.ly_do)
+                      IS DISTINCT FROM ROW(NEW.noi_dung, NEW.graph_sha256, NEW.do_thi, NEW.tap_sha256, NEW.hop_dong_id, NEW.doi_tac_id, NEW.ly_do) THEN
                     RAISE EXCEPTION 'DC_XAC_NHAN_KHAC_NHAP: xác nhận phải sao y đúng bản nháp mới nhất đã lưu, đủ điều kiện' {_LOI};
                 END IF;
             END IF;
@@ -415,6 +453,23 @@ M4_03B_COMMON_SQL = (
             RETURN NEW;
         END $$""",
     "CREATE TRIGGER mua_doi_chieu_can_cu_thanh_phan_kiem BEFORE INSERT ON kho.mua_doi_chieu_can_cu_thanh_phan FOR EACH ROW EXECUTE FUNCTION kho._dc_thanh_phan_kiem()",
+    # FIX01 alias: chỉ trỏ đúng phiên bản (cùng gốc, cùng tap_sha256) tạo trong CHÍNH giao dịch này; người tạo = phiên hiện tại
+    f"""CREATE OR REPLACE FUNCTION kho._dc_tap_kiem() RETURNS trigger
+        LANGUAGE plpgsql SET search_path = master, kho, pg_temp AS $$
+        DECLARE v kho.mua_doi_chieu_can_cu_phien_ban%ROWTYPE; v_xmin text;
+        BEGIN
+            SELECT * INTO v FROM kho.mua_doi_chieu_can_cu_phien_ban x WHERE x.id = NEW.phien_ban_id;
+            SELECT x.xmin::text INTO v_xmin FROM kho.mua_doi_chieu_can_cu_phien_ban x WHERE x.id = NEW.phien_ban_id;
+            IF v.id IS NULL OR v.doi_chieu_id IS DISTINCT FROM NEW.doi_chieu_id OR v.tap_sha256 IS DISTINCT FROM NEW.tap_sha256
+               OR v_xmin IS DISTINCT FROM (pg_catalog.txid_current() % 4294967296)::text THEN
+                RAISE EXCEPTION 'DC_BAT_BIEN: alias tập nguồn chỉ ghi cùng giao dịch tạo revision mang đúng tập đó' {_LOI};
+            END IF;
+            IF NEW.tao_boi IS DISTINCT FROM master.ktt_danh_tinh() THEN
+                RAISE EXCEPTION 'DC_DANH_TINH: người tạo phải là phiên hiện tại' {_LOI};
+            END IF;
+            RETURN NEW;
+        END $$""",
+    "CREATE TRIGGER mua_doi_chieu_can_cu_tap_kiem BEFORE INSERT ON kho.mua_doi_chieu_can_cu_tap FOR EACH ROW EXECUTE FUNCTION kho._dc_tap_kiem()",
     # ============================================================== quyền (không raise / raise) — kiểm TRƯỚC lookup nội dung
     f"""CREATE OR REPLACE FUNCTION kho._dc_m2_doc(p_pn uuid) RETURNS boolean
         LANGUAGE sql STABLE SECURITY DEFINER SET search_path = master, kho, pg_temp AS $$
@@ -664,6 +719,16 @@ M4_03B_COMMON_SQL = (
                                                           ORDER BY e->>'kind', e->>'occurrence_id', coalesce(e->>'part_id', ''))
                                          FROM jsonb_array_elements(p_refs) e)::text, 'UTF8')), 'hex')
         $$""",
+    # FIX01 closure: hợp refs (kind|occurrence|part), trùng khóa giữ mục của p_a (refs yêu cầu) — chỉ dùng cho quyền/khóa, không cho đồ thị
+    """CREATE OR REPLACE FUNCTION kho._dc_hop(p_a jsonb, p_b jsonb) RETURNS jsonb
+        LANGUAGE sql IMMUTABLE SET search_path = pg_catalog, pg_temp AS $$
+        SELECT coalesce(jsonb_agg(z.e ORDER BY z.k), '[]'::jsonb)
+        FROM (SELECT DISTINCT ON (w.k) w.e, w.k
+              FROM (SELECT u.e, (u.e->>'kind') || '|' || (u.e->>'occurrence_id') || '|' || coalesce(u.e->>'part_id', '') AS k, u.n
+                    FROM (SELECT x AS e, 0 AS n FROM jsonb_array_elements(coalesce(p_a, '[]'::jsonb)) x
+                          UNION ALL SELECT y, 1 FROM jsonb_array_elements(coalesce(p_b, '[]'::jsonb)) y) u) w
+              ORDER BY w.k, w.n) z
+        $$""",
     # tìm-hoặc-tạo gốc/phiên bản/phần nguồn từ MỘT mục đồ thị hiện hành (không master mới, không đổi nguồn)
     """CREATE OR REPLACE FUNCTION kho._dc_cap_nguon(p_it jsonb, p_ai text, p_aid uuid) RETURNS jsonb
         LANGUAGE plpgsql SET search_path = master, kho, pg_temp AS $$
@@ -757,10 +822,16 @@ M4_03B_COMMON_SQL = (
     # ============================================================== đọc (đường chủ bảng, sau quyền + khóa đọc + ghim producer của Python)
     f"""CREATE OR REPLACE FUNCTION kho._dc_xem(p_refs jsonb) RETURNS jsonb
         LANGUAGE plpgsql STABLE SET search_path = master, kho, m4, pg_temp AS $$
-        DECLARE r jsonb; lq jsonb; ghi boolean;
+        DECLARE r jsonb; lq jsonb; ghi boolean; gt uuid;
         BEGIN
             PERFORM kho._dc_quyen(p_refs, false);
             r := kho._dc_do_thi(p_refs);
+            -- FIX01: gốc đang giữ tập chuẩn này (thứ tự refs không đổi identity); chỉ lộ khi đọc được mọi nguồn của gốc đó
+            SELECT a.doi_chieu_id INTO gt FROM kho.mua_doi_chieu_can_cu_tap a
+                WHERE a.tap_sha256 = kho._dc_khoa_goc(p_refs)
+                  AND a.phap_nhan_id = (SELECT min(i->>'phap_nhan_id')::uuid FROM jsonb_array_elements(r->'do_thi'->'nguon') i)
+                  AND kho._dc_doc_duoc((SELECT jsonb_agg(t2->'nguon') FROM kho.mua_doi_chieu_can_cu_phien_ban v2,
+                                               jsonb_array_elements(v2.noi_dung->'thanh_phan') t2 WHERE v2.doi_chieu_id = a.doi_chieu_id));
             ghi := NOT EXISTS (SELECT 1 FROM jsonb_array_elements(r->'do_thi'->'nguon') i
                                WHERE i->>'kind' = 'HOA_DON' AND NOT kho._dc_kt_toan_cuc((i->>'phap_nhan_id')::uuid));
             SELECT jsonb_agg(jsonb_build_object('doi_chieu_id', v.doi_chieu_id, 'phien_ban_id', v.id, 'revision', v.revision, 'loai', v.loai,
@@ -772,7 +843,8 @@ M4_03B_COMMON_SQL = (
                   AND kho._dc_doc_duoc((SELECT jsonb_agg(t2->'nguon') FROM kho.mua_doi_chieu_can_cu_phien_ban v2,
                                                jsonb_array_elements(v2.noi_dung->'thanh_phan') t2 WHERE v2.doi_chieu_id = v.doi_chieu_id));
             RETURN jsonb_build_object('do_thi', r->'do_thi', 'graph_sha256', r->>'graph_sha256', 'thieu', kho._dc_thieu(r->'do_thi', NULL),
-                                      'khoa_goc_sha256', kho._dc_khoa_goc(p_refs), 'goc_lien_quan', coalesce(lq, '[]'::jsonb), 'duoc_ghi', ghi);
+                                      'khoa_goc_sha256', kho._dc_khoa_goc(p_refs), 'goc_cua_tap', gt,
+                                      'goc_lien_quan', coalesce(lq, '[]'::jsonb), 'duoc_ghi', ghi);
         END $$""",
     f"""CREATE OR REPLACE FUNCTION kho._dc_lich_su(p_goc uuid) RETURNS jsonb
         LANGUAGE plpgsql STABLE SET search_path = master, kho, m4, pg_temp AS $$
@@ -785,10 +857,14 @@ M4_03B_COMMON_SQL = (
             ghi := NOT EXISTS (SELECT 1 FROM jsonb_array_elements(r->'do_thi'->'nguon') i
                                WHERE i->>'kind' = 'HOA_DON' AND NOT kho._dc_kt_toan_cuc((i->>'phap_nhan_id')::uuid));
             RETURN jsonb_build_object('doi_chieu_id', goc.id, 'phap_nhan_id', goc.phap_nhan_id, 'khoa_goc_sha256', goc.khoa_goc_sha256,
-                'do_thi', r->'do_thi', 'graph_sha256', r->>'graph_sha256', 'duoc_ghi', ghi,
+                'module_bien_nhan', goc.module_bien_nhan, 'do_thi', r->'do_thi', 'graph_sha256', r->>'graph_sha256', 'duoc_ghi', ghi,
+                'bo_tap', (SELECT coalesce(jsonb_agg(jsonb_build_object('tap_sha256', a.tap_sha256, 'phien_ban_id', a.phien_ban_id)
+                                                     ORDER BY a.tao_luc, a.id), '[]'::jsonb)
+                           FROM kho.mua_doi_chieu_can_cu_tap a WHERE a.doi_chieu_id = p_goc),
                 'phien_ban', (SELECT coalesce(jsonb_agg(jsonb_build_object('phien_ban_id', v.id, 'revision', v.revision, 'truoc_id', v.truoc_id,
                                   'loai', v.loai, 'nhap_id', v.nhap_id, 'noi_dung', v.noi_dung, 'noi_dung_sha256', v.noi_dung_sha256,
-                                  'do_thi', v.do_thi, 'graph_sha256', v.graph_sha256, 'thieu', v.thieu, 'hop_dong_id', v.hop_dong_id,
+                                  'do_thi', v.do_thi, 'graph_sha256', v.graph_sha256, 'thieu', v.thieu, 'tap_sha256', v.tap_sha256,
+                                  'hop_dong_id', v.hop_dong_id,
                                   'doi_tac_id', v.doi_tac_id, 'ly_do', v.ly_do, 'ghi_nhan', v.ghi_nhan, 'financial_owner', v.financial_owner,
                                   'tao_boi', v.tao_boi, 'tao_luc', v.tao_luc) ORDER BY v.revision), '[]'::jsonb)
                               FROM kho.mua_doi_chieu_can_cu_phien_ban v WHERE v.doi_chieu_id = p_goc));
@@ -800,6 +876,7 @@ M4_03B_COMMON_SQL = (
         DECLARE ai text; aid uuid; refs jsonb; r jsonb; it jsonb; ref jsonb; t jsonb; x jsonb; pn uuid; n_pn integer; module text; kg text;
                 goc kho.mua_doi_chieu_can_cu%ROWTYPE; cuoi kho.mua_doi_chieu_can_cu_phien_ban%ROWTYPE; moi kho.mua_doi_chieu_can_cu_phien_ban%ROWTYPE;
                 cu jsonb; rid uuid; th jsonb; tep jsonb; nd jsonb; tp jsonb; hd uuid; dtac uuid; kq jsonb; erev integer; ma_goc uuid;
+                hop jsonb; cu_refs jsonb; v_goc uuid; v_cuoi0 uuid;
         BEGIN""" + _TIN_CAY + f"""
             IF p_yc IS NULL OR jsonb_typeof(p_yc) <> 'object' OR jsonb_typeof(p_yc->'thanh_phan') IS DISTINCT FROM 'array'
                OR jsonb_array_length(p_yc->'thanh_phan') NOT BETWEEN 1 AND {TOI_DA_THANH_PHAN}
@@ -810,27 +887,38 @@ M4_03B_COMMON_SQL = (
                    FROM jsonb_array_elements(p_yc->'thanh_phan') z);
             refs := {_REFS.format(x="tp")};
             erev := (p_yc->>'expected_revision')::integer;
-            PERFORM kho._dc_quyen(refs, true);
-            PERFORM kho._dc_khoa_hoa_don(refs);
+            v_goc := (p_yc->>'doi_chieu_id')::uuid;
+            -- FIX01 closure TRƯỚC khóa: revision mới nhất đã đọc (v_cuoi0) + refs của nó ∪ refs yêu cầu (quyền đọc mọi revision trước khi trả)
+            IF v_goc IS NOT NULL THEN
+                SELECT x.id INTO v_cuoi0 FROM kho.mua_doi_chieu_can_cu_phien_ban x WHERE x.doi_chieu_id = v_goc ORDER BY x.revision DESC LIMIT 1;
+                cu_refs := kho._dc_nguon_cua(v_goc, v_cuoi0);
+                hop := kho._dc_hop(refs, cu_refs);
+            ELSE
+                hop := refs;
+            END IF;
+            PERFORM kho._dc_quyen(hop, true);
+            PERFORM kho._dc_khoa_hoa_don(hop);
             r := kho._dc_do_thi(refs);
             SELECT count(DISTINCT i->>'phap_nhan_id'), min(i->>'phap_nhan_id')::uuid INTO n_pn, pn FROM jsonb_array_elements(r->'do_thi'->'nguon') i;
             IF n_pn <> 1 THEN
                 RAISE EXCEPTION 'DC_KHAC_PN: mọi nguồn của một đối chiếu phải cùng pháp nhân' {_LOI};
             END IF;
-            module := CASE WHEN EXISTS (SELECT 1 FROM jsonb_array_elements(refs) e WHERE e->>'kind' = 'NT') THEN 'M4' ELSE 'M2' END;
             kg := kho._dc_khoa_goc(refs);
-            IF p_yc->>'doi_chieu_id' IS NULL THEN
-                PERFORM pg_advisory_xact_lock(hashtextextended('DC_GOC|' || pn || '|' || kg, 0));
-            ELSE
-                SELECT * INTO goc FROM kho.mua_doi_chieu_can_cu x WHERE x.id = (p_yc->>'doi_chieu_id')::uuid AND x.phap_nhan_id = pn FOR UPDATE;
+            -- alias tập (một khóa/giao dịch) → gốc → revision mới nhất → biên nhận
+            PERFORM pg_advisory_xact_lock(hashtextextended('DC_TAP|' || pn || '|' || kg, 0));
+            IF v_goc IS NOT NULL THEN
+                SELECT * INTO goc FROM kho.mua_doi_chieu_can_cu x WHERE x.id = v_goc AND x.phap_nhan_id = pn FOR UPDATE;
                 IF goc.id IS NULL THEN
                     RAISE EXCEPTION 'DC_KHONG_THAY: không thấy đối chiếu (hoặc khác pháp nhân của nguồn)' {_LOI};
                 END IF;
-                PERFORM kho._dc_quyen(kho._dc_nguon_cua(goc.id, NULL), true);
-                IF goc.khoa_goc_sha256 IS DISTINCT FROM kg THEN
-                    RAISE EXCEPTION 'DC_THAM_SO_SAI: revision mới giữ đúng tập nguồn (kind, occurrence, part) của gốc — tập khác là đối chiếu khác' {_LOI};
-                END IF;
                 SELECT * INTO cuoi FROM kho.mua_doi_chieu_can_cu_phien_ban x WHERE x.doi_chieu_id = goc.id ORDER BY x.revision DESC LIMIT 1 FOR UPDATE;
+                IF cuoi.id IS DISTINCT FROM v_cuoi0 THEN
+                    RAISE EXCEPTION 'DC_REVISION_CU: đối chiếu đổi revision trong lúc khóa (closure nguồn đã đọc không còn đúng) — tải lại' {_LOI};
+                END IF;
+                PERFORM kho._dc_quyen(hop, true);
+                module := goc.module_bien_nhan;
+            ELSE
+                module := CASE WHEN EXISTS (SELECT 1 FROM jsonb_array_elements(refs) e WHERE e->>'kind' = 'NT') THEN 'M4' ELSE 'M2' END;
             END IF;
             cu := kho._dc_bn_tra(pn, module, '{OP_LUU}', p_khoa, p_yc, ai);
             IF cu IS NOT NULL THEN
@@ -840,17 +928,20 @@ M4_03B_COMMON_SQL = (
             IF (p_yc->>'expected_graph') IS DISTINCT FROM (r->>'graph_sha256') THEN
                 RAISE EXCEPTION 'DC_DO_THI_DOI: đồ thị căn cứ hiện hành khác lúc xem — tải lại' {_LOI};
             END IF;
+            SELECT a.doi_chieu_id INTO ma_goc FROM kho.mua_doi_chieu_can_cu_tap a WHERE a.phap_nhan_id = pn AND a.tap_sha256 = kg;
             IF goc.id IS NULL THEN
                 IF erev <> 0 THEN
                     RAISE EXCEPTION 'DC_REVISION_CU: tạo đối chiếu mới cần expected_revision = 0' {_LOI};
                 END IF;
-                SELECT x.id INTO ma_goc FROM kho.mua_doi_chieu_can_cu x WHERE x.phap_nhan_id = pn AND x.khoa_goc_sha256 = kg;
                 IF ma_goc IS NOT NULL THEN
-                    RAISE EXCEPTION 'DC_DA_CO_GOC: tập nguồn này đã có đối chiếu % — sửa bằng revision mới của gốc đó', ma_goc {_LOI};
+                    RAISE EXCEPTION 'DC_DA_CO_GOC: tập nguồn này đã thuộc đối chiếu % — sửa bằng revision mới của gốc đó', ma_goc {_LOI};
                 END IF;
-                INSERT INTO kho.mua_doi_chieu_can_cu (phap_nhan_id, khoa_goc_sha256, tao_boi, tao_boi_id) VALUES (pn, kg, ai, aid) RETURNING * INTO goc;
+                INSERT INTO kho.mua_doi_chieu_can_cu (phap_nhan_id, khoa_goc_sha256, module_bien_nhan, tao_boi, tao_boi_id)
+                    VALUES (pn, kg, module, ai, aid) RETURNING * INTO goc;
             ELSIF erev IS DISTINCT FROM cuoi.revision THEN
                 RAISE EXCEPTION 'DC_REVISION_CU: đối chiếu đã có revision mới (hiện tại %) — tải lại', cuoi.revision {_LOI};
+            ELSIF ma_goc IS NOT NULL AND ma_goc IS DISTINCT FROM goc.id THEN
+                RAISE EXCEPTION 'DC_TAP_THUOC_GOC_KHAC: tập nguồn này đã thuộc đối chiếu % — không tự gộp/chuyển lịch sử', ma_goc {_LOI};
             END IF;
             tep := kho._dc_tep(r->'do_thi', coalesce(p_yc->'can_cu_tep', '[]'::jsonb));
             nd := jsonb_build_object('thanh_phan', tp, 'can_cu_tep', tep, 'ly_do', p_yc->>'ly_do');
@@ -860,7 +951,7 @@ M4_03B_COMMON_SQL = (
                 INTO hd, dtac FROM jsonb_array_elements(r->'do_thi'->'nguon') i WHERE i->>'kind' = 'NT';
             INSERT INTO kho.mua_doi_chieu_can_cu_phien_ban ({_TRUONG_PB})
                 VALUES (goc.id, pn, coalesce(cuoi.revision, 0) + 1, cuoi.id, 'NHAP', NULL, nd, {_SHA.format(x="nd")}, r->'do_thi',
-                        r->>'graph_sha256', th, hd, dtac, p_yc->>'ly_do', ai, aid)
+                        r->>'graph_sha256', th, kg, hd, dtac, p_yc->>'ly_do', ai, aid)
                 RETURNING * INTO moi;
             FOR t IN SELECT z FROM jsonb_array_elements(tp) z LOOP
                 SELECT i INTO it FROM jsonb_array_elements(r->'do_thi'->'nguon') i
@@ -873,9 +964,14 @@ M4_03B_COMMON_SQL = (
                             t->>'ty_le_khai', CASE WHEN t->>'phan' = 'TOAN_PHAN' THEN 'KHONG_AP_DUNG'
                                                    WHEN t->>'ty_le_khai' IS NULL THEN 'THIEU' ELSE 'KHAI_BAO_THO_CHUA_SCALE' END);
             END LOOP;
+            IF ma_goc IS NULL THEN
+                INSERT INTO kho.mua_doi_chieu_can_cu_tap (phap_nhan_id, tap_sha256, doi_chieu_id, phien_ban_id, tao_boi, tao_boi_id)
+                    VALUES (pn, kg, goc.id, moi.id, ai, aid);
+            END IF;
             INSERT INTO kho.mua_doi_chieu_can_cu_nhat_ky (phap_nhan_id, doi_chieu_id, phien_ban_id, hanh_dong, boi, boi_id, chi_tiet)
                 VALUES (pn, goc.id, moi.id, 'LUU', ai, aid, jsonb_build_object('revision', moi.revision, 'so_thieu', jsonb_array_length(th),
-                                                                               'so_thanh_phan', jsonb_array_length(tp)));
+                                                                               'so_thanh_phan', jsonb_array_length(tp), 'tap_sha256', kg,
+                                                                               'doi_tap', cuoi.id IS NOT NULL AND cuoi.tap_sha256 IS DISTINCT FROM kg));
             kq := {_kq("LUU", "moi", TT_NHAP, "false")};
             INSERT INTO kho.bien_nhan_thao_tac (phap_nhan_id, module, operation, client_key, request_sha256, result_json, actor)
                 VALUES (pn, module, '{OP_LUU}', p_khoa, {_SHA.format(x="p_yc")}, kq, ai) RETURNING id INTO rid;
@@ -887,7 +983,7 @@ M4_03B_COMMON_SQL = (
         LANGUAGE plpgsql SET search_path = master, kho, m4, pg_temp AS $$
         DECLARE ai text; aid uuid; refs jsonb; r jsonb; it jsonb; ref jsonb; module text; goc kho.mua_doi_chieu_can_cu%ROWTYPE;
                 n kho.mua_doi_chieu_can_cu_phien_ban%ROWTYPE; cuoi kho.mua_doi_chieu_can_cu_phien_ban%ROWTYPE;
-                moi kho.mua_doi_chieu_can_cu_phien_ban%ROWTYPE; cu jsonb; rid uuid; th jsonb; kq jsonb; erev integer;
+                moi kho.mua_doi_chieu_can_cu_phien_ban%ROWTYPE; cu jsonb; rid uuid; th jsonb; kq jsonb; erev integer; hop jsonb;
         BEGIN""" + _TIN_CAY + f"""
             IF p_yc IS NULL OR jsonb_typeof(p_yc) <> 'object' OR jsonb_typeof(p_yc->'expected_revision') IS DISTINCT FROM 'number' THEN
                 RAISE EXCEPTION 'DC_THAM_SO_SAI: yêu cầu xác nhận đối chiếu không đúng hình dạng' {_LOI};
@@ -898,12 +994,14 @@ M4_03B_COMMON_SQL = (
                 RAISE EXCEPTION 'DC_KHONG_THAY: không thấy đối chiếu (hoặc ngoài phạm vi hiện hành)' {_LOI};
             END IF;
             refs := kho._dc_nguon_cua(goc.id, (p_yc->>'phien_ban_id')::uuid);
-            PERFORM kho._dc_quyen(refs, true);
-            PERFORM kho._dc_khoa_hoa_don(refs);
+            -- FIX01 closure: nháp chỉ định ∪ revision mới nhất (nháp không còn mới nhất → DC_REVISION_CU dưới khóa)
+            hop := kho._dc_hop(refs, kho._dc_nguon_cua(goc.id, NULL));
+            PERFORM kho._dc_quyen(hop, true);
+            PERFORM kho._dc_khoa_hoa_don(hop);
             SELECT * INTO goc FROM kho.mua_doi_chieu_can_cu x WHERE x.id = goc.id FOR UPDATE;
             SELECT * INTO cuoi FROM kho.mua_doi_chieu_can_cu_phien_ban x WHERE x.doi_chieu_id = goc.id ORDER BY x.revision DESC LIMIT 1 FOR UPDATE;
             SELECT * INTO n FROM kho.mua_doi_chieu_can_cu_phien_ban x WHERE x.id = (p_yc->>'phien_ban_id')::uuid AND x.doi_chieu_id = goc.id;
-            module := CASE WHEN EXISTS (SELECT 1 FROM jsonb_array_elements(refs) e WHERE e->>'kind' = 'NT') THEN 'M4' ELSE 'M2' END;
+            module := goc.module_bien_nhan;
             r := kho._dc_do_thi(refs);
             cu := kho._dc_bn_tra(goc.phap_nhan_id, module, '{OP_XAC_NHAN}', p_khoa, p_yc, ai);
             IF cu IS NOT NULL THEN
@@ -935,7 +1033,7 @@ M4_03B_COMMON_SQL = (
                 END IF;
                 INSERT INTO kho.mua_doi_chieu_can_cu_phien_ban ({_TRUONG_PB})
                     VALUES (goc.id, goc.phap_nhan_id, n.revision + 1, n.id, 'XAC_NHAN', n.id, n.noi_dung, n.noi_dung_sha256, n.do_thi,
-                            n.graph_sha256, '[]'::jsonb, n.hop_dong_id, n.doi_tac_id, n.ly_do, ai, aid)
+                            n.graph_sha256, '[]'::jsonb, n.tap_sha256, n.hop_dong_id, n.doi_tac_id, n.ly_do, ai, aid)
                     RETURNING * INTO moi;
                 INSERT INTO kho.mua_doi_chieu_can_cu_thanh_phan (phien_ban_id, doi_chieu_id, phap_nhan_id, nguon_id, nguon_phien_ban_id, phan_id,
                                                                   phan, ty_le_khai, ty_le_trang_thai)
@@ -969,6 +1067,17 @@ M4_03B_COMMON_SQL = (
                   AND m.phan = t->>'phan' AND m.ty_le_khai IS NOT DISTINCT FROM (t->>'ty_le_khai'));
             IF bad > 0 THEN
                 RAISE EXCEPTION 'DC_THANH_PHAN_SAI: thành phần không trỏ đúng gốc/phần/phiên bản nguồn của nội dung' {_LOI};
+            END IF;
+            -- FIX01: tập của revision phải có alias trỏ CHÍNH gốc này; revision 1 = tập tạo + namespace biên nhận đúng nguồn gốc
+            IF NOT EXISTS (SELECT 1 FROM kho.mua_doi_chieu_can_cu_tap a WHERE a.phap_nhan_id = NEW.phap_nhan_id AND a.tap_sha256 = NEW.tap_sha256
+                           AND a.doi_chieu_id = NEW.doi_chieu_id) THEN
+                RAISE EXCEPTION 'DC_TAP_THUOC_GOC_KHAC: tập nguồn của revision không thuộc alias của chính đối chiếu' {_LOI};
+            END IF;
+            IF NEW.revision = 1 AND NOT EXISTS (
+                   SELECT 1 FROM kho.mua_doi_chieu_can_cu g WHERE g.id = NEW.doi_chieu_id AND g.khoa_goc_sha256 = NEW.tap_sha256
+                      AND g.module_bien_nhan = CASE WHEN EXISTS (SELECT 1 FROM jsonb_array_elements(refs) e WHERE e->>'kind' = 'NT')
+                                                    THEN 'M4' ELSE 'M2' END) THEN
+                RAISE EXCEPTION 'DC_TOAN_VEN: gốc phải mang digest + namespace biên nhận của tập tạo' {_LOI};
             END IF;
             PERFORM kho._dc_quyen(refs, true);
             r := kho._dc_do_thi(refs);
