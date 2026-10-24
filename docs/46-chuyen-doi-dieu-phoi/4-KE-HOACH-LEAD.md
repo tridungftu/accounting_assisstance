@@ -26,11 +26,69 @@
 | H5 | Gộp `hop-nhat` → `chinh`, đẩy GitHub | lead | — | sau L0-1, L0-2*, Anh xem `NEN-TEST.md` | Chờ Anh |
 | BG-1 | Báo giá gói 1: BG-01…05 (lịch 4 cột, dòng tổng, tính tự động, tổng tự tính, bỏ mã kỹ thuật) | Claude | `crm_g.*` | sau L0-2d (Anh đã ra lệnh 24/10) | Chờ L0-2d |
 | BG-2, BG-3 | Báo giá gói 2 (BG-06…12), gói 3 (BG-13, 14) | Claude | `crm_g.*` | sau cổng A gói 1 | Chờ |
-| MOD | Lập hàng đợi lát cho các module còn lại đã chốt thiết kế: CRM 42 (danh sách hợp đồng, 6 mục), M4 phần còn lại (công nợ 03B, Request thật để sau), #40 M2-00, #41 E1-MUA; module chưa chốt → checklist + hỏi Anh | lead | — | song song L0-* | Sẵn sàng |
-| (theo MOD) | Các lát backend/SQL/test của từng module → ưu tiên Codex; màn hình/luồng → Claude | Codex / Claude | theo lát | sau H5 hoặc trên hop-nhat | Chờ |
+| MOD | Lập hàng đợi lát cho các module còn lại đã chốt thiết kế: CRM 42 (danh sách hợp đồng, 6 mục), M4 phần còn lại (công nợ 03B, Request thật để sau), #40 M2-00, #41 E1-MUA; module chưa chốt → checklist + hỏi Anh | lead | — | song song L0-* | Xong 24/10 → mục 1b |
+| (theo MOD) | Các lát backend/SQL/test của từng module → ưu tiên Codex; màn hình/luồng → Claude | Codex / Claude | theo lát | trên hop-nhat (xem mục 1b) | Theo mục 1b |
 | D | Dọn thư mục (chuyển lưu trữ) | lead | — | sau H5 | Chờ |
 
 Ưu tiên khi có slot trống: nhận xét của Anh → lỗi review → lát theo thứ tự bảng.
+
+## 1b. Hàng đợi theo module (lát MOD, lead lập 24/10)
+
+Căn cứ: lệnh của Anh 24/10 (mọi module đã chốt thiết kế; M9 dừng) · kiểm kê chỉ đọc 24/10 (đối chiếu thiết kế với code trên `hop-nhat` và `luu/*`).
+
+**Phát hiện chặn (đã kiểm lại):** `hop-nhat` không import được `ha_tang\pg_migrations.py` — cuối file đăng ký M0024 từ `m4\sql_duyet.py` (chỉ có ở `luu/m4-02c-backend`) và M0025 từ `k2\sql_crm_kiem_hd.py` (**không có ở nhánh nào**). Cũng không có ở nhánh nào: `k2\crm_kiem_hd.py`, `k2\crm_doi_chieu.py`, `m4\request_api.py`, `m4\sql_request_nhap.py`, `tests\test_crm_kiem_hd*.py`, `tests\test_m4_03a_pg.py` — chỉ còn trong bản chụp `var\codex-dieu-phoi\`. Đây nhiều khả năng là nguồn chính của ERROR H4 (L0-1 xác nhận). → Lát **P0** đứng trước gần như mọi lát CRM/M4/Báo giá.
+
+**Lead đã quyết (không cần hỏi Anh):**
+- BG-02 (Σ% ≠ 100 → mờ cả In và Chuyển) và BG-04 (cho ghi đè tổng, có cảnh báo + nhật ký) làm đúng TL 45 — TL 45 (23–24/10) mới hơn handoff 41-03.
+- BG-01 mốc "Sau ký + n ngày": lưu mã sự kiện `SAU_KY` + số ngày, hiển thị tiếng Việt; không đổi schema.
+- M2-00: giữ hợp đồng RPC đã code (`/api/profiles|start|status|reconcile|events`) thay cho mô tả `/api/start` + SSE cũ — tận dụng code.
+- E1-MUA chạy song song M2-00 (lệnh 24/10 thay thứ tự tuần tự 21/10; hai bên không chung file).
+- CRM S1 bộ lọc nhớ theo người: lưu trên trình duyệt theo mã người dùng, không thêm bảng.
+- File máy chủ dùng chung thật là `src\kho_tri_thuc\giao_dien\server.py` (CLAUDE.md mục 4 ghi thiếu `giao_dien`); khóa thêm `giao_dien\m4.py`, `assets\app.js`, `index.html`, `style.css`.
+
+**Hàng đợi** (Worker: lead chọn theo loại việc; Codex sửa + test, lead commit):
+
+| Mã | Module · việc | Worker | Phụ thuộc | Khóa file chung | Trạng thái |
+|---|---|---|---|---|---|
+| P0 | Nền · khôi phục file chưa vào git (theo L0-2i) + gộp `m4-02c-backend`, `m4-04c-request-m27` (= L0-2c) + chuỗi migration import được: 24 duyệt · 25 G6A · 26 KT · 27 Request nháp · rồi master-reuse, 03B | Claude | L0-2d, L0-2i | `pg_migrations.py`, `giao_dien\m4.py`, `xay_dung.py` | Chờ |
+| BG-1a | CRM · Báo giá gói 1 phía máy chủ: parse ô thông minh (`%`, dấu chấm/phẩy VN), BG-04 ghi đè + nhật ký, nhãn tên thay mã, mốc chuẩn | Codex | P0 | `crm_g.py` | Chờ |
+| BG-1b | CRM · Báo giá gói 1 màn hình: BG-01…05, đo số ô trước/sau → **cổng A** | Claude | BG-1a | `crm_g.js` | Chờ |
+| BG-2a | CRM · Báo giá gói 2 máy chủ: profile loại hình v3 (BG-06/11), tìm khách (BG-08) | Codex | BG-1a | `crm_g.py` | Chờ |
+| BG-2b | CRM · Báo giá gói 2 màn hình: BG-06, 07, 08, 10, 11, 12 | Claude | cổng A gói 1, BG-2a | `crm_g.js` | Chờ |
+| BG-2c | CRM · Báo giá BG-09 lô/căn từ danh mục | Codex + Claude | **Anh chọn nguồn danh mục** (hỏi sau cổng A gói 1) | `pg_migrations.py` | Chờ Anh |
+| BG-3 | CRM · Báo giá gói 3: BG-13 thanh nút, BG-14 ngăn kiểm, số đo CHANGELOG → **cổng B** | Claude | BG-2b | `crm_g.js` | Chờ |
+| C1 | CRM 41 · G6A/G5 dịch vụ (`crm_kiem_hd`, `crm_doi_chieu`) chạy test thuần + PG DEMO | Codex | P0 | — | Chờ |
+| C2 | CRM 41 · hộp KT kiểm → Hiệu lực / Trả lại, xử lý lệch | Claude | C1 | `crm_g.*` | Chờ |
+| C3 | CRM 42 · read-model danh sách hợp đồng `GET /api/crm/hop-dong` (trạng thái, người phụ trách, thẻ W1–W5; ô Junsky tạm "chưa có sổ") | Codex | P0 | `server.py` | Chờ |
+| C4 | CRM 42 · menu "Hợp đồng bán hàng" 6 mục + S1 danh sách (thẻ, cột, lọc) | Claude | C3 | `index.html`, `app.js` | Chờ |
+| C5 | CRM 42 · S2 tab Tổng quan / Nguồn & tham số / Lịch nghĩa vụ | Claude | C4 | `crm_g.*` | Chờ |
+| C6 | CRM 42 · S2 tab Thu tiền (+S8) / Phụ lục / Bản ký / Lịch sử | Claude | C5; ô Junsky chờ kiểm RLS | `crm_g.*` | Chờ |
+| C7 | CRM 42 · S9 báo cáo, file soát | Codex + Claude | C6; tỷ lệ kiểm mẫu chờ Q-SAMPLE | — | Chờ |
+| M2a | M2-00 · = L0-2e gộp `m2-00b-fix01` | Codex | — | — | Sẵn sàng |
+| M2b | M2-00 · `manifest.py`, `chinh_sach_tien_te.py` (POLICY-TIENTE-01) + ca M2-00-06/10 | Codex | — | — | Sẵn sàng |
+| M2c | M2-00 · `nhan.py` nhận theo manifest (identity, revision/xung đột, KHONG_XML_GOC → bảng kê) nối `k2\hoa_don.py` | Codex | M2b | (migration nếu cần → khóa) | Chờ |
+| M2d | M2-00 · `hoi_cuu.py` manifest hồi cứu 33 tháng, fixture giả | Codex | M2b | — | Chờ |
+| M2e | M2-00 · nút "Tải từ cổng thuế" + route + cấu hình | Claude | M2a, M2c | `server.py`, `app.js`, `index.html` | Chờ |
+| M2f | M2-00 · ca -03/-07/-09 trên cổng thật, áp bản vá vào #7 thật | Anh | M2e | — | Chờ Anh (cần lệnh riêng: gọi cổng thuế thật) |
+| E1-1 | E1-MUA · đăng ký 5 loại + DV trong `CATALOG_COMMON`, `danh_muc_theo_loai`, từ chối loại lạ; test XD nguyên trạng | Codex | L0-2f | — | Chờ |
+| E1-2 | E1-MUA · quy tắc theo loại + `phien_ban_danh_muc` | Codex | E1-1 | — | Chờ |
+| E1-3 | E1-MUA · bảng TT-05/TT-20 trên `source6_docx_tables` | Codex | E1-1 | — | Chờ |
+| E1-4 | E1-MUA · màn danh mục Sửa + nhật ký; mở loại ở trích chung #6 | Claude | E1-1 | `app.js` | Chờ |
+| E1-5 | E1-MUA · áp vào #6 thật, chấm 2 hợp đồng thật offline | Anh | E1-2 | — | Chờ Anh |
+| M4-2 | M4 · Nghiệm thu & chi phí dự án · UI 02C duyệt/PDF: đối chiếu với fix01 + 3 lỗi đã tái hiện (gồm L0-2b) | Claude | P0 | `m4\*` UI | Chờ |
+| M4-3 | M4 · 03A kế toán nghiệm thu: M0026 + test + xác minh màn | Codex | P0 | — | Chờ |
+| M4-4 | M4 · 03B căn cứ nghiệm thu ↔ hóa đơn: L0-2a + migration + test PG | Codex | L0-2a, M4-3 | `pg_migrations.py` | Chờ |
+| M4-5 | M4 · 03B route + panel trong màn kế toán nghiệm thu | Claude | M4-4 | `giao_dien\m4.py` | Chờ |
+| M4-6 | M4 · 04 Request nháp: khôi phục `request_api.py`, `sql_request_nhap.py`, M0027; giữ CHUA_CAU_HINH, **không gọi Request thật** | Codex | P0 | — | Chờ |
+| M4-7 | M4 · migration master-reuse + rà `m4b2`/`m4b3` (= L0-2h) | Codex | P0 | — | Chờ |
+
+**Chưa chốt thiết kế — lead soạn checklist, hỏi Anh bằng bảng chọn khi tới lượt (không hỏi dồn):**
+- M4 · ghi nhận công nợ nội bộ (kế toán xác nhận giá trị/thuế → công nợ): chưa có thiết kế gói; 03B chỉ là quan hệ căn cứ.
+- BG-09 nguồn danh mục lô/căn (bảng mới + dữ liệu DEMO, hay kế toán nhập).
+- CRM: Q-B (luồng B do CFO hay KT), Q-SAMPLE, Q-RETURN, Q-INPUT, Q-PII, Q-UI; quyền xem công nợ Junsky của Bán hàng.
+- Báo giá: số ngày hết hạn mặc định (TL 42 §16) — không chặn code, dùng tạm 30 ngày có ghi chú.
+
+**Thứ tự slot:** (1) L0-2e, L0-2f, M2b cho Codex khi rảnh; (2) P0 ngay khi L0-2d + L0-2i xong; (3) BG-1a → BG-1b (cổng A sớm nhất); song song M2c/M2d, E1-1…3 (không chung file); (4) C1→C2, M4-2…M4-7; (5) phần còn lại theo phụ thuộc.
 
 ## 2. Handoff L0-1 · Nền test
 
