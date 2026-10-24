@@ -187,6 +187,89 @@ class HostDonViTests(unittest.TestCase):
         self.assertNotIn("KHO_TRICH6_URL", ps)                                   # không cấp URL/token qua môi trường
 
 
+# ------------------------------------------------------------------ L0-7: nạp sẵn thư viện nặng ở LUỒNG CHÍNH của tiến trình con (numpy treo ở luồng phụ)
+class NapSanThuVienTests(unittest.TestCase):
+    """Lỗi gốc: lệnh trích chạy ở luồng worker → `import openpyxl` → `import numpy` lần đầu ở luồng phụ khi luồng chính đang `serve_forever` → kẹt.
+    Sửa: `_con` gọi `nap_san_thu_vien()` ở luồng chính TRƯỚC khi mở luồng phục vụ. MOCK trong tiến trình (không spawn, nguồn #6 là gói giả)."""
+
+    def test_nap_san_khong_chan_khi_thieu_hoac_loi(self):
+        import importlib
+        log = []
+        thuc = importlib.import_module
+
+        def gia(ten, *a, **k):
+            if ten == "ktt_mo_dun_loi":
+                raise RuntimeError("hỏng khi nạp")
+            return thuc(ten, *a, **k)
+        with mock.patch.object(importlib, "import_module", gia):
+            kq = H.nap_san_thu_vien(("ktt_mo_dun_khong_ton_tai", "ktt_mo_dun_loi", "json"), ghi_log=log.append)
+        self.assertEqual(kq, {"ktt_mo_dun_khong_ton_tai": "khong_co", "ktt_mo_dun_loi": "loi", "json": "ok"})   # không ném lỗi, đi tiếp mô-đun sau
+        self.assertEqual(len(log), 2)
+        self.assertIn("ktt_mo_dun_khong_ton_tai", log[0])
+        self.assertIn("RuntimeError", log[1])
+        self.assertNotIn("hỏng khi nạp", " ".join(log))                              # chỉ ghi loại lỗi, không nội dung/đường dẫn
+
+    def test_danh_sach_mac_dinh_co_openpyxl_va_numpy(self):
+        self.assertIn("openpyxl", H.THU_VIEN_NAP_SAN)
+        self.assertLess(H.THU_VIEN_NAP_SAN.index("numpy"), H.THU_VIEN_NAP_SAN.index("openpyxl"))   # numpy trước, tường minh
+        kq = H.nap_san_thu_vien(("openpyxl",), ghi_log=lambda m: None)
+        self.assertEqual(kq, {"openpyxl": "ok"})
+        self.assertIn("openpyxl", sys.modules)
+
+    def test_con_nap_san_o_luong_chinh_truoc_serve_forever(self):
+        import io
+        sk = []                                  # (sự kiện, id luồng)
+        goc = Path(tempfile.mkdtemp(prefix="ktt_t6h_ns_"))
+        nguon = goc / "nguon_gia"
+        (nguon / "may_chu").mkdir(parents=True)
+        (nguon / "may_chu" / "__init__.py").write_text("", encoding="utf-8")
+        (nguon / "may_chu" / "dich_vu.py").write_text(
+            "from types import SimpleNamespace\n"
+            "QLV = SimpleNamespace(dang_chay=lambda: False)\n"
+            "def _implementation():\n    return {'sha256': '0' * 64}\n", encoding="utf-8")
+        (nguon / "may_chu" / "server.py").write_text("def tao_may_chu(cong):\n    return __import__('ktt_t6h_srv_gia').SRV\n", encoding="utf-8")
+
+        class _Srv:
+            RequestHandlerClass = object
+            server_address = ("127.0.0.1", 0)
+
+            def serve_forever(self, poll_interval=0.5):
+                sk.append(("serve_forever", threading.get_ident()))
+
+            def shutdown(self):
+                pass
+
+            def server_close(self):
+                pass
+        srv_mod = type(sys)("ktt_t6h_srv_gia")
+        srv_mod.SRV = _Srv()
+        cfg = {"kieu": H.KIEU_CAU_HINH, "token": TOKEN, "nguon": str(nguon), "du_lieu": str(goc / "data"), "instance_id": "i1"}
+        cc_ok = {"module": True, "sha256": H.GUARD_SHA256, "flag": True, "hooks": sorted(H.HOOK_BAT_BUOC), "bytecode_tat": True}
+        kenh = io.StringIO()
+        luu_path, luu_bytecode = list(sys.path), sys.dont_write_bytecode
+
+        def la_may_chu(k):
+            return k == "may_chu" or k.startswith("may_chu.")
+        luu_mod = {k: v for k, v in sys.modules.items() if la_may_chu(k)}
+        for k in luu_mod:
+            sys.modules.pop(k, None)
+        try:
+            with mock.patch.dict(os.environ), mock.patch.dict(sys.modules, {"ktt_t6h_srv_gia": srv_mod}),                     mock.patch.object(H, "chung_cu_guard", lambda: cc_ok),                     mock.patch.object(H, "lop_handler_so_huu", lambda Goc, dv, token: Goc),                     mock.patch.object(H, "nap_san_thu_vien", lambda *a, **k: sk.append(("nap_san", threading.get_ident()))):
+                rc = H._con(stdin=io.BytesIO((json.dumps(cfg) + "\n").encode()), kenh=kenh)
+        finally:
+            sys.path[:] = luu_path
+            sys.dont_write_bytecode = luu_bytecode
+            for k in [k for k in sys.modules if la_may_chu(k)]:
+                sys.modules.pop(k, None)
+            sys.modules.update(luu_mod)
+        self.assertEqual(rc, 0, kenh.getvalue())
+        self.assertEqual(json.loads(kenh.getvalue().splitlines()[0])["kieu"], H.KIEU_SAN_SANG)
+        ten = [e for e, _ in sk]
+        self.assertEqual(ten, ["nap_san", "serve_forever"])                           # nạp sẵn TRƯỚC khi phục vụ
+        self.assertEqual(sk[0][1], threading.get_ident())                             # nạp ở luồng gọi `_con` (luồng chính của tiến trình con)
+        self.assertNotEqual(sk[1][1], threading.get_ident())                          # còn phục vụ chạy ở luồng phụ
+
+
 # ------------------------------------------------------------------ 06A: dừng có xác nhận — MOCK tiến trình/Job (fault injection)
 class _ProcGia:
     def __init__(self, thoat_sau_eof=True, thoat_sau_kill=True):
