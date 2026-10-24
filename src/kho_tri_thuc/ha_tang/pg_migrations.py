@@ -11772,3 +11772,24 @@ M0023_CRM_KY = (
 
 PG_MIGRATIONS = (*PG_MIGRATIONS, M0023_CRM_KY)
 PG_SCHEMA_VERSION = len(PG_MIGRATIONS)
+
+# ---------------------------------------------------------------------------
+# 0024 — M4-02C duyệt hồ sơ đợt (APPEND sau toàn bộ 1–23; không sửa byte/định nghĩa/checksum 1–23).
+#        Định nghĩa trong m4/sql_duyet.py (chỉ hằng SQL): phiên bản hồ sơ đợt, kết luận, chấp thuận (vai dự án DUYET riêng), PDF hồ sơ đã duyệt,
+#        seal bất biến + một gốc KT chờ xác nhận/đợt + phong bì/seal. Không AP, không Request, không master mới.
+# ---------------------------------------------------------------------------
+from ..m4.sql_duyet import M0024_M4_DUYET  # noqa: E402 — module chỉ hằng SQL, không import ha_tang
+
+PG_MIGRATIONS = (*PG_MIGRATIONS, M0024_M4_DUYET)
+PG_SCHEMA_VERSION = len(PG_MIGRATIONS)
+
+# ---------------------------------------------------------------------------
+# 0025 — CRM-41-06A (G6A) kế toán kiểm hợp đồng đã ký → HIEU_LUC (APPEND sau toàn bộ 1–24; không sửa byte/định nghĩa/checksum 1–24).
+#        Định nghĩa trong k2/sql_crm_kiem_hd.py (chỉ hằng SQL, không import ha_tang): đăng ký ĐÚNG MỘT lần, cùng object CRM_G6A_SQL (alias,
+#        không sao chép/dựng lại). G5 VAN_HANH vẫn HOLD (UNREGISTERED_G5_PROOF) — registry không tạo producer/policy G5.
+# ---------------------------------------------------------------------------
+from ..k2.sql_crm_kiem_hd import CRM_G6A_SQL  # noqa: E402 — module chỉ hằng SQL, không import ha_tang
+
+M0025_CRM_G6A = CRM_G6A_SQL
+PG_MIGRATIONS = (*PG_MIGRATIONS, M0025_CRM_G6A)
+PG_SCHEMA_VERSION = len(PG_MIGRATIONS)
