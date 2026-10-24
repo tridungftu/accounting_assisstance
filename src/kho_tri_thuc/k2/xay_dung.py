@@ -30,6 +30,7 @@ from pathlib import Path
 
 from ..ha_tang.primitives import DataError, canonical_json, date_iso, sha256
 from ..ha_tang.store import write_immutable
+from ..m4 import duyet_dot as DD
 from ..m4 import nguon_review as NR
 from . import quyen
 
@@ -257,6 +258,9 @@ class XayDungK2:
                                   WHERE boq_id = %s::uuid ORDER BY dong LIMIT 2000""", (boq_goc["id"],)) if boq_goc else []
             dot = self._nhieu("""SELECT d.id, d.so_dot, d.ngay_nghiem_thu, d.trang_thai, d.revision, n.nop_luc, n.revision_ho_so
                                  FROM m4.dot d LEFT JOIN m4.nop n ON n.dot_id = d.id WHERE d.hop_dong_id = %s::uuid ORDER BY d.so_dot""", (hd,))
+            # MASTER-REUSE-02: căn cứ master/đối tác của hồ sơ; gói SQL chưa áp dụng → None (không tạo căn cứ giả)
+            co_mc = self._mot("SELECT to_regprocedure('m4.master_can_cu_doc(uuid)') IS NOT NULL AS co")["co"]
+            master_can_cu = self._mot("SELECT m4.master_can_cu_doc(%s::uuid) AS r", (hd,))["r"] if co_mc else None
         moi_nhat = trich[0] if trich else None
         xac_nhan = None
         if xn:
@@ -267,7 +271,7 @@ class XayDungK2:
         for d in dot:
             d["can_cu_doi_sau_nop"] = d["revision_ho_so"] is not None and d["revision_ho_so"] != h["revision"]
         return {"ho_so": h, "tep": tep, "trich_xuat": trich, "tham_so": tham_so, "xac_nhan": xac_nhan, "phu_luc": phu_luc, "boq": boq,
-                "boq_goc_dong": dong, "dot": dot, "danh_muc_sha256": NR.PIN[NR.CATALOG], "nhanh_sau": list(NHANH_SAU)}
+                "boq_goc_dong": dong, "dot": dot, "danh_muc_sha256": NR.PIN[NR.CATALOG], "nhanh_sau": list(NHANH_SAU), "master_can_cu": master_can_cu}
 
     def chi_tiet_dot(self, dang_nhap: str, dot_id) -> dict:
         dt = self.danh_tinh(dang_nhap)
@@ -319,6 +323,73 @@ class XayDungK2:
         if cu is not None:
             return cu
         return self._goi(dt, "SELECT m4.tao_hop_dong(%s, %s::uuid, %s, %s) AS r", (khoa, du_an, so, ten))
+
+    # ------------------------------------------------------------------ master dùng chung (GIAO-CODE-M4-MASTER-REUSE-02, SQL m4/sql_master_dung_chung.py)
+    # Chỉ kiểm hình dạng DTO; quyền SOAN/XEM hiện hành, PN/dự án/loại/trạng thái, CAS, khóa và biên nhận do hàm CSDL quyết định.
+    @staticmethod
+    def _tim(q, limit) -> tuple[str, int]:
+        q = "" if q is None else q
+        if not isinstance(q, str) or len(q) > 100 or any(ord(c) < 32 for c in q):
+            _sai("q")
+        if limit is None:
+            limit = 25
+        elif isinstance(limit, str):  # tham số truy vấn GET
+            if not re.fullmatch(r"[0-9]{1,2}", limit):
+                _sai("limit")
+            limit = int(limit)
+        return q, _so_nguyen(limit, "limit", 1, 50)
+
+    @staticmethod
+    def _sha(v, ten: str) -> str:
+        if not isinstance(v, str) or not re.fullmatch(r"[0-9a-f]{64}", v):
+            _sai(ten)
+        return v
+
+    def master_hop_dong(self, dang_nhap: str, *, du_an_id, q="", limit=25) -> dict:
+        dt = self.danh_tinh(dang_nhap)
+        du_an = _uuid(du_an_id, "du_an_id")
+        q, limit = self._tim(q, limit)
+        with self._tx(dt):
+            return self._mot("SELECT m4.master_hop_dong_ds(%s::uuid, %s, %s) AS r", (du_an, q, limit))["r"]
+
+    def master_doi_tac(self, dang_nhap: str, *, du_an_id, q="", limit=25) -> dict:
+        dt = self.danh_tinh(dang_nhap)
+        du_an = _uuid(du_an_id, "du_an_id")
+        q, limit = self._tim(q, limit)
+        with self._tx(dt):
+            return self._mot("SELECT m4.master_doi_tac_ds(%s::uuid, %s, %s) AS r", (du_an, q, limit))["r"]
+
+    def nhan_master_hop_dong(self, dang_nhap: str, *, du_an_id, hop_dong_id, ten, expected_master, khoa) -> dict:
+        dt = self.danh_tinh(dang_nhap)
+        du_an = _uuid(du_an_id, "du_an_id")
+        hd = _uuid(hop_dong_id, "hop_dong_id")
+        ten = _chuoi(ten, "tên hồ sơ hợp đồng/gói thầu", 300)
+        exp = self._sha(expected_master, "expected_master")
+        yc = {"du_an_id": du_an, "hop_dong_id": hd, "ten": ten, "expected_master": exp}
+        cu = self._tra_lai(dt, "NHAN_MASTER_HOP_DONG", khoa, yc)
+        if cu is not None:
+            return cu
+        return self._goi(dt, "SELECT m4.nhan_master_hop_dong(%s, %s::uuid, %s::uuid, %s, %s) AS r", (khoa, du_an, hd, ten, exp))
+
+    def gan_doi_tac_hop_dong(self, dang_nhap: str, *, hop_dong_id, doi_tac_id, mapping_id, revision, expected_master, expected_mapping, ly_do,
+                             khoa) -> dict:
+        dt = self.danh_tinh(dang_nhap)
+        hd = _uuid(hop_dong_id, "hop_dong_id")
+        doi_tac = _uuid(doi_tac_id, "doi_tac_id")
+        mapping = _uuid(mapping_id, "mapping_id")
+        rev = _so_nguyen(revision, "revision", 1)
+        exp = self._sha(expected_master, "expected_master")
+        exp_map = self._sha(expected_mapping, "expected_mapping")
+        ly_do = _chuoi(ly_do, "lý do gắn/sửa đối tác", 1000)
+        if not ly_do.strip():
+            raise DataError("M4_LY_DO_BAT_BUOC", "Cần lý do gắn/sửa đối tác.")
+        yc = {"hop_dong_id": hd, "doi_tac_id": doi_tac, "mapping_id": mapping, "revision": rev, "expected_master": exp,
+              "expected_mapping": exp_map, "ly_do": ly_do}
+        cu = self._tra_lai(dt, "GAN_DOI_TAC_HOP_DONG", khoa, yc)
+        if cu is not None:
+            return cu
+        return self._goi(dt, "SELECT m4.gan_doi_tac_hop_dong(%s, %s::uuid, %s::uuid, %s::uuid, %s, %s, %s, %s) AS r",
+                         (khoa, hd, doi_tac, mapping, rev, exp, exp_map, ly_do))
 
     def tai_tep(self, dang_nhap: str, raw: bytes, *, du_an_id, vai_tro, ten, media_type, khoa) -> dict:
         """Nhận tệp: máy chủ kiểm bytes thật (rỗng/kích thước/tên/đuôi↔media↔chữ ký/OOXML), tính SHA; replay tra trước; quyền hiện hành kiểm trước
@@ -710,9 +781,11 @@ class XayDungK2:
                                           FROM m4.review_manual_map m WHERE m.hop_dong_id = %s::uuid AND m4.review_doc_duoc(m.run_id)
                                           ORDER BY m.khoa_hstt, m.revision DESC""", (hd,))
         co["dot_hd"] = self._rn(c, "SELECT id, so_dot, trang_thai, ngay_nghiem_thu FROM m4.dot WHERE hop_dong_id = %s::uuid ORDER BY so_dot", (hd,))
-        co["truoc_da_duyet"] = {"trang_thai": "CHUA_CO_NGUON",
-                                "ly_do": "Gói M4-02A chưa có lịch sử đợt trước đã được reviewer duyệt (DA_NOP chỉ là đã nộp) — không suy từ số đợt/vắng dữ "
-                                         "liệu, không coi vắng là 0; nối khi có quyết định duyệt bất biến"}
+        # M4-02C: provider quyết định ĐÃ SEAL của đợt trước (m4/duyet_dot.lich_su_da_duyet); chưa schema M24/chưa đợt trước nào seal → giữ nguyên lý do cũ
+        co["truoc_da_duyet"] = DD.lich_su_da_duyet(self, c, d) or {
+            "trang_thai": "CHUA_CO_NGUON",
+            "ly_do": "Gói M4-02A chưa có lịch sử đợt trước đã được reviewer duyệt (DA_NOP chỉ là đã nộp) — không suy từ số đợt/vắng dữ "
+                     "liệu, không coi vắng là 0; nối khi có quyết định duyệt bất biến"}
         return co
 
     @staticmethod
@@ -1716,3 +1789,60 @@ class XayDungK2:
                              (khoa, yc_j, run, row_id, boq, dong_boq, ma_hm, rev, ly, x["tep_id"], json.dumps(x.get("locator") or {}, ensure_ascii=False),
                               (x.get("ten") or "")[:500] or None))["r"]
         return {**r["ket_qua"], "lap_lai": bool(r["lap_lai"])}
+
+    # ------------------------------------------------------------------ M4-02C duyệt hồ sơ đợt / PDF / seal / KT chờ (miền ở m4/duyet_dot.py)
+    def duyet_xem(self, dang_nhap: str, *, dot_id, version_id=None) -> dict:
+        return DD.DuyetDot(self).xem(dang_nhap, dot_id=dot_id, version_id=version_id)
+
+    def duyet_ket_luan(self, dang_nhap: str, **kw) -> dict:
+        return DD.DuyetDot(self).ket_luan(dang_nhap, **kw)
+
+    def duyet_chap_thuan(self, dang_nhap: str, **kw) -> dict:
+        return DD.DuyetDot(self).chap_thuan(dang_nhap, **kw)
+
+    def duyet_pdf(self, dang_nhap: str, raw: bytes, **kw) -> dict:
+        return DD.DuyetDot(self).pdf(dang_nhap, raw, **kw)
+
+    def duyet_pdf_tai(self, dang_nhap: str, version_id, pdf_id) -> tuple[str, str, bytes]:
+        return DD.DuyetDot(self).pdf_tai(dang_nhap, version_id, pdf_id)
+
+    def duyet_phien_ban(self, dang_nhap: str, **kw) -> dict:
+        return DD.DuyetDot(self).phien_ban(dang_nhap, **kw)
+
+    def duyet_phien_ban_nop(self, dang_nhap: str, **kw) -> dict:
+        return DD.DuyetDot(self).phien_ban_nop(dang_nhap, **kw)
+
+    # ------------------------------------------------------------------ M4-03A kế toán nghiệm thu (miền ở m4/ke_toan_nghiem_thu.py — backend03A, compose sau)
+    # Wrapper mỏng: lazy import ĐÚNG module backend khi gọi (không làm M4 import lỗi khi chưa compose). Chỉ vắng CHÍNH module đó / lớp
+    # KeToanNghiemThuK2 → M4_KT_CHUA_NOI (503). Lỗi import khác, DataError nghiệp vụ, lỗi CSDL đi nguyên — không stub thành công, không nuốt lỗi.
+    _KT_MODULE = __name__.rsplit(".", 2)[0] + ".m4.ke_toan_nghiem_thu"
+
+    def _kt(self):
+        # import_module (không `from ..m4 import x`): fromlist nuốt ModuleNotFoundError của chính submodule rồi IMPORT_FROM ném ImportError chung
+        # → không phân biệt được "chưa compose" với lỗi khác. import_module ném ModuleNotFoundError có .name = tên module thiếu.
+        import importlib
+        try:
+            KT = importlib.import_module(self._KT_MODULE)
+        except ModuleNotFoundError as exc:
+            if exc.name != self._KT_MODULE:
+                raise
+            raise DataError("M4_KT_CHUA_NOI", "Chưa nối backend kế toán nghiệm thu (M4-03A) — không có lệnh/dữ liệu KT nào chạy.") from None
+        lop = getattr(KT, "KeToanNghiemThuK2", None)
+        if lop is None:
+            raise DataError("M4_KT_CHUA_NOI", "Backend kế toán nghiệm thu (M4-03A) chưa cung cấp KeToanNghiemThuK2.")
+        return lop(self)
+
+    def kt_danh_sach(self, dang_nhap: str) -> dict:
+        return self._kt().danh_sach(dang_nhap)
+
+    def kt_xem(self, dang_nhap: str, *, kt_pending_id, phong_bi_id=None) -> dict:
+        return self._kt().xem(dang_nhap, kt_pending_id=kt_pending_id, phong_bi_id=phong_bi_id)
+
+    def kt_tep_pdf(self, dang_nhap: str, kt_pending_id, phong_bi_id) -> tuple[str, str, bytes]:
+        return self._kt().tep_pdf(dang_nhap, kt_pending_id=kt_pending_id, phong_bi_id=phong_bi_id)
+
+    def kt_luu(self, dang_nhap: str, **kw) -> dict:
+        return self._kt().luu(dang_nhap, **kw)
+
+    def kt_xac_nhan(self, dang_nhap: str, **kw) -> dict:
+        return self._kt().xac_nhan(dang_nhap, **kw)

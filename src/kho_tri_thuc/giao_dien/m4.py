@@ -20,6 +20,9 @@ KHONG_NHAN = frozenset({"actor", "nguoi", "dang_nhap_thuc_hien", "phap_nhan_id",
 TRUONG = {
     "danh-tinh": {"dang_nhap"},
     "hop-dong/tao": {"du_an_id", "so_hop_dong", "ten", "khoa"},
+    # MASTER-REUSE-02: nhận master có sẵn / gắn đối tác — chỉ ID/CAS token/lý do/khóa; PN/module/owner/trạng thái/actor do CSDL suy ra
+    "hop-dong/nhan-master": {"du_an_id", "hop_dong_id", "ten", "expected_master", "khoa"},
+    "hop-dong/gan-doi-tac": {"hop_dong_id", "doi_tac_id", "mapping_id", "revision", "expected_master", "expected_mapping", "ly_do", "khoa"},
     "hop-dong/gan-tep": {"hop_dong_id", "revision", "tep_id", "khoa"},
     "hop-dong/trich": {"hop_dong_id", "revision", "khoa"},
     "tham-so/sua": {"hop_dong_id", "revision", "ma", "trang_thai_tham_so", "gia_tri", "don_vi", "dieu_khoan", "trich_dan", "ly_do", "khoa"},
@@ -42,15 +45,47 @@ TRUONG = {
     "chung-tu/chay-lai": {"run_id", "revision", "expected_basis", "khoa"},
     "chung-tu/sua": {"run_id", "revision", "tai_lieu", "expected_basis", "ly_do", "khoa"},
     "chung-tu/ghep": {"run_id", "row_id", "boq_id", "boq_dong", "ma_hm", "revision", "expected_basis", "ly_do", "khoa"},
+    # M4-02C Duyệt & PDF (docs/M4-02C-UI-CONTRACT.md): chỉ ID/revision/expected basis/số chấp nhận (chuỗi thập phân|null)/lý do/khóa — không actor,
+    # cờ duyệt, hash, trạng thái hay số đề xuất từ trình duyệt
+    "duyet/ket-luan": {"dot_id", "version_id", "revision", "expected_basis", "gia_tri_nt", "so_xin_thanh_toan", "tam_ung", "thu_hoi", "giu_lai",
+                       "tien_te", "dong_nt", "xu_ly_phat_hien", "ly_do", "khoa"},
+    "duyet/chap-thuan": {"dot_id", "version_id", "revision", "expected_basis", "ket_luan_id", "ly_do", "khoa"},
+    "duyet/phien-ban": {"dot_id", "parent_version_id", "revision", "expected_basis", "ly_do", "khoa"},
+    "duyet/phien-ban/nop": {"dot_id", "version_id", "revision", "expected_basis", "khoa"},
 }
 REVIEW_GET = {"hop_dong_id", "dot_id", "tep_id", "che_do", "o_dich"}
 CHUNG_TU_GET = {"dot_id"}
+DUYET_GET = {"dot_id", "version_id"}
+MASTER_GET = {"du_an_id", "q", "limit"}  # MASTER-REUSE-02: bộ chọn master/đối tác (mỗi khóa một giá trị; q ≤100, limit 1–50 kiểm ở service + CSDL)
 TRUONG_TEP = {"du_an_id", "vai_tro", "ten", "media_type", "khoa"}
+TRUONG_DUYET_PDF = {"dot_id", "version_id", "revision", "expected_basis", "ten", "media_type", "khoa"}
+# M4-03A Kế toán nghiệm thu (docs/GIAO-CODE-M4-03A-GUI.md §2, API-CONTRACT + ADDENDUM-01): đúng allowlist backend handoff §4 — không amount/pass/actor/PN/
+# owner/approval/ledger ở lệnh xác nhận; danh tính lấy từ phiên hiện hành
+KT_GET = {"phong_bi_id"}
+TRUONG_KT = {
+    "ke-toan/luu": {"kt_pending_id", "phong_bi_id", "expected_phong_bi_sha256", "expected_revision", "gia_tri_nt_xac_nhan", "tien_te", "co_so_gia_tri",
+                    "tam_ung_xac_nhan", "thu_hoi_xac_nhan", "giu_lai_xac_nhan", "vat_trang_thai", "vat_can_cu_tep_id", "vat_trich_dan", "ly_do", "khoa"},
+    "ke-toan/xac-nhan": {"kt_pending_id", "phong_bi_id", "kt_revision_id", "expected_revision", "expected_phong_bi_sha256", "khoa"},
+}
+MA_422_KT = frozenset({"M4_YEU_CAU_SAI", "M4_THAM_SO_SAI", "M4_THIEU_THONG_TIN", "M4_KHOA_THAO_TAC", "INVALID_REQUEST"})  # chỉ route /api/m4/ke-toan*
+# M4-03A FIX01: mã miền KT của backend (docs/M4-03A-GUI-FIX01-BACKEND-REFERENCE.py:68–76) — CHỈ áp trên route /api/m4/ke-toan*, tra ĐÚNG mã (không suy
+# theo tiền tố). Mã chung giữ bảng toàn cục (M4_CLIENT_AUTHORITY/M4_CHI_MAY_CHU_NGUON 403, M4_IDEMPOTENCY_KHAC 409, 503 có sẵn); mã lạ giữ 400.
+MA_KT = {"M4_KT_PHAM_VI": 403, "M4_KT_KHONG_THAY": 404,
+         **dict.fromkeys(("M4_KT_NGUON_CU", "M4_KT_NGUON_DOI", "M4_KT_CAN_KIEM_LAI", "M4_KT_REVISION_CU", "M4_KT_DA_XAC_NHAN", "M4_KT_CHO_BO_SUNG",
+                          "M4_KT_XAC_NHAN_KHAC_NHAP", "M4_KT_NGUON_HONG"), 409),
+         **dict.fromkeys(("M4_KT_SO_SAI", "M4_KT_TRUONG_SAI", "M4_KT_VAT_SAI", "M4_KT_CO_SO_SAI", "M4_KT_TIEN_TE_KHAC", "M4_KT_CAN_CU_VAT_SAI"), 422),
+         "M4_KT_SAI_DTO": 500}
+KT_SAI_DTO_MSG = "Dữ liệu máy chủ kế toán nghiệm thu không đúng hợp đồng M4_03A_KT_V1 — chưa trả cho trình duyệt."  # 500: không lộ chi tiết nội bộ
 MA_403 = frozenset({"M4_KHONG_CO_QUYEN_DU_AN", "M4_CLIENT_AUTHORITY", "DANH_TINH_M4", "DANH_TINH", "DANH_TINH_MO_PHONG", "M4_CHI_CHU",
                     "M4_HOP_DONG_CHI_CHU", "M4_DANH_TINH", "M4_CHI_MAY_CHU_NGUON", "M4_QUYEN_CHI_QUAN_TRI", "LOCAL_HOST_ONLY", "CROSS_ORIGIN", "SESSION_TOKEN",
-                    "M4_REVIEW_PHAM_VI", "M4_CHUNG_TU_PHAM_VI"})
+                    "M4_REVIEW_PHAM_VI", "M4_CHUNG_TU_PHAM_VI", "M4_DUYET_PHAM_VI"})
 MA_404 = frozenset({"NOT_FOUND", "M4_KHONG_THAY_HOP_DONG", "M4_KHONG_THAY_DOT", "M4_KHONG_THAY_TEP", "M4_KHONG_THAY_PHU_LUC", "M4_REVIEW_KHONG_THAY",
-                    "M4_TEP_KHONG_CO_TRONG_KHO", "M4_CHUNG_TU_KHONG_THAY"})
+                    "M4_TEP_KHONG_CO_TRONG_KHO", "M4_CHUNG_TU_KHONG_THAY", "M4_DUYET_KHONG_THAY",
+                    "M4_MASTER_KHONG_THAY", "M4_MAPPING_KHONG_THAY"})
+# M4-02C: căn cứ/phiên bản/kết luận cũ, đã chấp thuận/seal, thiếu số liệu bắt buộc, ID không thuộc đồ thị, blob khác nội dung → tải lại/xem lại, giữ nháp
+MA_409_DUYET = frozenset({"M4_DUYET_CO_SO_DOI", "M4_DUYET_PHIEN_BAN_CU", "M4_DUYET_PHIEN_BAN_NHAP", "M4_DUYET_DA_CHAP_THUAN", "M4_DUYET_DA_SEAL",
+                          "M4_DUYET_KET_LUAN_CU", "M4_DUYET_THIEU_CAN_CU", "M4_DUYET_CHUA_CO_REVIEW", "M4_DUYET_DA_CO_NHAP", "M4_DUYET_DONG_KHONG_THUOC",
+                          "M4_DUYET_PHAT_HIEN_KHONG_THUOC", "M4_DUYET_CAN_PHIEN_BAN_MOI", "M4_DUYET_CHUA_KET_LUAN", "ARTIFACT_CHANGED"})
 MA_409_REVIEW = frozenset({"M4_REVIEW_CO_SO_DOI", "M4_REVIEW_CHA_SAI", "M4_REVIEW_DONG_KHONG_CO", "M4_REVIEW_BOQ_KHONG_HIEN_HANH", "M4_REVIEW_DICH_MO_HO",
                            "M4_REVIEW_DICH_KHONG_HIEU_LUC",
                            "M4_REVIEW_DA_CHOT", "M4_REVIEW_TEP_DOI", "M4_TEP_HONG_LUU_TRU",
@@ -59,12 +94,19 @@ MA_409_REVIEW = frozenset({"M4_REVIEW_CO_SO_DOI", "M4_REVIEW_CHA_SAI", "M4_REVIE
 MA_409 = frozenset({"M4_REVISION_CU", "M4_IDEMPOTENCY_KHAC", "M4_DANG_XU_LY", "M4_HOP_DONG_DA_CO", "M4_HOP_DONG_DA_CO_NOI_KHAC", "M4_DOT_DA_CO",
                     "M4_DOT_DA_NOP", "M4_DA_XAC_NHAN", "M4_PHU_LUC_DA_CO", "M4_KHONG_DOI", "M4_CHUA_DU_CAN_CU", "M4_KHAI_PHU_LUC_MAU_THUAN",
                     "M4_TRICH_KHAC_TEP", "M4_TRICH_HASH_KHAC", "M4_CHUA_TRICH", "M4_CHUA_TRICH_DUNG_NGUON", "M4_THAM_SO_CON_TRONG",
-                    "M4_THAM_SO_KHONG_DU_DANH_MUC", "M4_DANH_MUC_DOI", "M4_DOCX_CON_SUA_DOI", "M4_TEP_XUNG_DOT", "M4_QUYEN_BAT_BIEN"})
+                    "M4_THAM_SO_KHONG_DU_DANH_MUC", "M4_DANH_MUC_DOI", "M4_DOCX_CON_SUA_DOI", "M4_TEP_XUNG_DOT", "M4_QUYEN_BAT_BIEN",
+                    # MASTER-REUSE-02: CAS master/mapping cũ, nguồn khác quản lý, đã nộp (cần phiên bản điều chỉnh), căn cứ nguồn đổi lúc nộp
+                    "M4_MASTER_DA_DOI", "M4_MAPPING_DA_DOI", "M4_MASTER_CAN_SUA_TAI_NGUON", "M4_MASTER_CAN_PHIEN_BAN_DIEU_CHINH",
+                    "M4_MASTER_CAN_CU_DOI"})
+# MASTER-REUSE-02: dữ kiện nguồn không cho phép (mapping đóng/mơ hồ, trạng thái master, đối tác, thiếu lý do) → 422; mã chỉ phát sinh từ gói này
+MA_422_MASTER = frozenset({"M4_MAPPING_KHONG_HIEN_HANH", "M4_MAPPING_MO_HO", "M4_MASTER_TRANG_THAI_KHONG_NHAN", "M4_DOI_TAC_KHONG_HOP_LE",
+                           "M4_LY_DO_BAT_BUOC"})
 MA_413 = frozenset({"M4_TEP_QUA_LON", "FILE_TOO_LARGE"})
 MA_503 = frozenset({"M4_NGUON_REVIEW_CHUA_NAP", "M4_NGUON_REVIEW_SAI_PIN", "M4_NGUON_REVIEW_XUNG_DOT", "M4_NGUON_REVIEW_CHUA_GHIM",
                     "M4_TRICH6_CHUA_SAN_SANG", "M4_TRICH6_CHUA_RO", "TRICH6_URL_SAI", "TRICH6_CHUA_SAN_SANG",
                     "M4_CHUA_SAN_SANG_GHI_NGUON", "CRM_SCHEMA_KHONG_KHOP", "PG_KHONG_KET_NOI",
-                    "M4_KET_QUA_CHUA_RO"})  # M4-02B FIX01: commit chưa rõ — trình duyệt giữ khóa/body, gửi lại để đối soát
+                    "M4_KET_QUA_CHUA_RO",  # M4-02B FIX01: commit chưa rõ — trình duyệt giữ khóa/body, gửi lại để đối soát
+                    "M4_KT_CHUA_NOI"})  # M4-03A: backend kế toán nghiệm thu chưa compose (wrapper XayDungK2._kt)
 _UUID = r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"
 
 
@@ -164,6 +206,12 @@ def _lenh(app, svc, me, path: str, p: dict):
     g = p.get
     if path == "hop-dong/tao":
         return svc.tao_hop_dong(me, du_an_id=g("du_an_id"), so_hop_dong=g("so_hop_dong"), ten=g("ten"), khoa=g("khoa"))
+    if path == "hop-dong/nhan-master":
+        return svc.nhan_master_hop_dong(me, du_an_id=g("du_an_id"), hop_dong_id=g("hop_dong_id"), ten=g("ten"), expected_master=g("expected_master"),
+                                        khoa=g("khoa"))
+    if path == "hop-dong/gan-doi-tac":
+        return svc.gan_doi_tac_hop_dong(me, hop_dong_id=g("hop_dong_id"), doi_tac_id=g("doi_tac_id"), mapping_id=g("mapping_id"), revision=g("revision"),
+                                        expected_master=g("expected_master"), expected_mapping=g("expected_mapping"), ly_do=g("ly_do"), khoa=g("khoa"))
     if path == "hop-dong/gan-tep":
         return svc.gan_tep_hop_dong(me, hop_dong_id=g("hop_dong_id"), revision=g("revision"), tep_id=g("tep_id"), khoa=g("khoa"))
     if path == "hop-dong/trich":
@@ -212,13 +260,29 @@ def _lenh(app, svc, me, path: str, p: dict):
     if path == "chung-tu/ghep":
         return svc.chung_tu_ghep(me, run_id=g("run_id"), row_id=g("row_id"), boq_id=g("boq_id"), boq_dong=g("boq_dong"), ma_hm=g("ma_hm"),
                                  revision=g("revision"), expected_basis=g("expected_basis"), ly_do=g("ly_do"), khoa=g("khoa"))
+    if path == "duyet/ket-luan":
+        return svc.duyet_ket_luan(me, dot_id=g("dot_id"), version_id=g("version_id"), revision=g("revision"), expected_basis=g("expected_basis"),
+                                  gia_tri_nt=g("gia_tri_nt"), so_xin_thanh_toan=g("so_xin_thanh_toan"), tam_ung=g("tam_ung"), thu_hoi=g("thu_hoi"),
+                                  giu_lai=g("giu_lai"), tien_te=g("tien_te"), dong_nt=g("dong_nt"), xu_ly_phat_hien=g("xu_ly_phat_hien"),
+                                  ly_do=g("ly_do"), khoa=g("khoa"))
+    if path == "duyet/chap-thuan":
+        return svc.duyet_chap_thuan(me, dot_id=g("dot_id"), version_id=g("version_id"), revision=g("revision"), expected_basis=g("expected_basis"),
+                                    ket_luan_id=g("ket_luan_id"), ly_do=g("ly_do"), khoa=g("khoa"))
+    if path == "duyet/phien-ban":
+        return svc.duyet_phien_ban(me, dot_id=g("dot_id"), parent_version_id=g("parent_version_id"), revision=g("revision"),
+                                   expected_basis=g("expected_basis"), ly_do=g("ly_do"), khoa=g("khoa"))
+    if path == "duyet/phien-ban/nop":
+        return svc.duyet_phien_ban_nop(me, dot_id=g("dot_id"), version_id=g("version_id"), revision=g("revision"), expected_basis=g("expected_basis"),
+                                       khoa=g("khoa"))
     raise DataError("NOT_FOUND", "Không có thao tác M4 này.")
 
 
 REVIEW_LENH = frozenset({"review/chay", "review/chay-lai", "review/ghep"})
 CHUNG_TU_LENH = frozenset({"chung-tu/chay", "chung-tu/chay-lai", "chung-tu/sua", "chung-tu/ghep"})  # M4-02B: khóa phiên + CPU/worker → kết nối riêng
+# M4-02C: lệnh duyệt giữ khóa HĐ → đợt → phiên bản trong giao dịch chủ bảng (có thể chờ khóa của lệnh khác) → kết nối riêng, ngoài mutation lock
+DUYET_LENH = frozenset({"duyet/ket-luan", "duyet/chap-thuan", "duyet/phien-ban", "duyet/phien-ban/nop"})
 # CRM-41-01: lệnh trích tham số gọi engine #6 dùng chung (mạng + tính lâu) → cùng seam kết nối riêng, ngoài mutation lock toàn cục
-LENH_RIENG = REVIEW_LENH | CHUNG_TU_LENH | {"hop-dong/trich"}
+LENH_RIENG = REVIEW_LENH | CHUNG_TU_LENH | DUYET_LENH | {"hop-dong/trich"}
 
 
 def _ket_noi_review(app):
@@ -265,6 +329,31 @@ def _review_lenh(app, svc, me: str, ten: str, payload: dict):
         web.close()
 
 
+def _rieng(app, svc, fn):
+    """M4-02C — cùng seam kết nối riêng của `_review_lenh` cho lệnh không qua bảng TRUONG (POST PDF hồ sơ đã duyệt: bytes thô + X-M4-Info)."""
+    from ..k2.xay_dung import XayDungK2
+    web, chu = _ket_noi_review(app)
+    try:
+        return app._crm_db(fn, XayDungK2(web, svc.root, conn_tin_cay=chu, chi_mo_phong=svc.chi_mo_phong, hom_nay=svc.hom_nay))
+    finally:
+        chu.close()
+        web.close()
+
+
+def _info(h, cho_phep: set) -> dict:
+    """Header X-M4-Info (JSON đã URL-encode, ≤4000 ký tự): đúng tập trường cho phép, không authority từ trình duyệt."""
+    encoded = h.headers.get("X-M4-Info", "")
+    if len(encoded) > 4000:
+        raise DataError("M4_YEU_CAU_SAI", "Thông tin tệp quá dài.")
+    try:
+        info = json.loads(unquote(encoded) or "{}")
+    except ValueError:
+        raise DataError("M4_YEU_CAU_SAI", "Thông tin tệp phải là JSON.") from None
+    if not isinstance(info, dict):
+        raise DataError("M4_YEU_CAU_SAI", "Thông tin tệp phải là object.")
+    return _than(info, cho_phep)
+
+
 def _q(query: dict, cho_phep: set) -> dict:
     """Tham số GET Review: chỉ khóa cho phép, mỗi khóa một giá trị (không nhận actor/đường dẫn/facts qua query)."""
     la = sorted(k for k in query if k not in cho_phep)
@@ -289,6 +378,61 @@ def dieu_huong(h, app, post: bool, path: str, query: dict):
                 return h.send_content(200, (ASSETS / "review.js").read_bytes(), "text/javascript; charset=utf-8", {"Cache-Control": "no-store"})
             if path == "/m4/chung-tu.js":  # M4-02B: đúng MỘT tài sản Chứng từ L3 (bố cục chung_tu.js nguồn đã thích nghi)
                 return h.send_content(200, (ASSETS / "chung_tu.js").read_bytes(), "text/javascript; charset=utf-8", {"Cache-Control": "no-store"})
+            if path == "/m4/m4_duyet_pdf.js":  # M4-02C: đúng MỘT tài sản do UI head giao; vắng → 404 (không stub, không static tổng quát)
+                p = ASSETS / "m4_duyet_pdf.js"
+                if not p.is_file():
+                    raise DataError("NOT_FOUND", "Tài sản Duyệt & PDF chưa được giao.")
+                return h.send_content(200, p.read_bytes(), "text/javascript; charset=utf-8", {"Cache-Control": "no-store"})
+            if path == "/m4/m4_ke_toan.js":  # M4-03A: đúng MỘT tài sản Kế toán nghiệm thu; vắng → 404 (không stub, không static tổng quát)
+                p = ASSETS / "m4_ke_toan.js"
+                if not p.is_file():
+                    raise DataError("NOT_FOUND", "Tài sản Kế toán nghiệm thu chưa được giao.")
+                return h.send_content(200, p.read_bytes(), "text/javascript; charset=utf-8", {"Cache-Control": "no-store"})
+            if path == "/m4/m4_request_nhap.js":  # M4-04B: đúng MỘT tài sản widget Request nháp; vắng → 404 (không stub, không static tổng quát)
+                p = ASSETS / "m4_request_nhap.js"
+                if not p.is_file():
+                    raise DataError("NOT_FOUND", "Tài sản Request nháp chưa được giao.")
+                return h.send_content(200, p.read_bytes(), "text/javascript; charset=utf-8", {"Cache-Control": "no-store"})
+            if path == "/api/m4/ke-toan":  # M4-03A: inbox KT của chính phiên hiện hành (không suy từ danh sách HĐ/portal)
+                _q(query, set())
+                with app.mutation_lock:
+                    _, me, _ = app.crm_phien(h.crm_sid())
+                    svc = dich_vu(app)
+                    return h.send_content(200, app._crm_db(svc.kt_danh_sach, me), headers={"Cache-Control": "no-store"})
+            m = re.fullmatch(r"/api/m4/ke-toan/(" + _UUID + r")(?:/phong-bi/(" + _UUID + r")/pdf)?", path)
+            if m:
+                q = _q(query, KT_GET if m.group(2) is None else set())  # tải PDF: không tham số nào; xem: chỉ phong_bi_id (một giá trị)
+                with app.mutation_lock:
+                    _, me, _ = app.crm_phien(h.crm_sid())
+                    svc = dich_vu(app)
+                    if m.group(2) is None:
+                        return h.send_content(200, app._crm_db(lambda: svc.kt_xem(me, kt_pending_id=m.group(1), phong_bi_id=q.get("phong_bi_id"))),
+                                              headers={"Cache-Control": "no-store"})
+                    ten, media, raw = app._crm_db(svc.kt_tep_pdf, me, m.group(1), m.group(2))  # quyền KT hiện hành + hash/độ dài kiểm ở backend
+                return h.send_content(200, raw, media, {"Content-Disposition": "attachment; filename*=UTF-8''" + quote(ten, safe=""), "Cache-Control": "no-store"})
+            if path == "/api/m4/duyet":
+                q = _q(query, DUYET_GET)
+                with app.mutation_lock:
+                    _, me, _ = app.crm_phien(h.crm_sid())
+                    svc = dich_vu(app)
+                    return h.send_content(200, app._crm_db(lambda: svc.duyet_xem(me, dot_id=q.get("dot_id"), version_id=q.get("version_id"))),
+                                          headers={"Cache-Control": "no-store"})
+            m = re.fullmatch(r"/api/m4/duyet/(" + _UUID + r")/pdf/(" + _UUID + ")", path)
+            if m:
+                _q(query, set())
+                with app.mutation_lock:
+                    _, me, _ = app.crm_phien(h.crm_sid())
+                    svc = dich_vu(app)
+                    ten, media, raw = app._crm_db(svc.duyet_pdf_tai, me, m.group(1), m.group(2))  # quyền hiện hành TRƯỚC và SAU khi đọc kho
+                return h.send_content(200, raw, media, {"Content-Disposition": "attachment; filename*=UTF-8''" + quote(ten, safe=""), "Cache-Control": "no-store"})
+            if path in ("/api/m4/master-hop-dong", "/api/m4/master-doi-tac"):  # MASTER-REUSE-02: bộ chọn có giới hạn, SOAN hiện hành trong CSDL
+                q = _q(query, MASTER_GET)
+                with app.mutation_lock:
+                    _, me, _ = app.crm_phien(h.crm_sid())
+                    svc = dich_vu(app)
+                    fn = svc.master_hop_dong if path.endswith("hop-dong") else svc.master_doi_tac
+                    return h.send_content(200, app._crm_db(lambda: fn(me, du_an_id=q.get("du_an_id"), q=q.get("q") or "", limit=q.get("limit"))),
+                                          headers={"Cache-Control": "no-store"})
             if path == "/api/m4/chung-tu":
                 q = _q(query, CHUNG_TU_GET)
                 with app.mutation_lock:
@@ -373,6 +517,25 @@ def dieu_huong(h, app, post: bool, path: str, query: dict):
                     svc = dich_vu(app)
                     return h.send_content(200, app._crm_db(lambda: svc.tai_tep(me, raw, du_an_id=info.get("du_an_id"), vai_tro=info.get("vai_tro"),
                                                                                ten=info.get("ten"), media_type=info.get("media_type"), khoa=info.get("khoa"))))
+            if path == "/api/m4/duyet/pdf":  # M4-02C: PDF hồ sơ thanh toán ĐÃ DUYỆT — bytes thô, không qua /api/m4/tep (không vòng vai tài liệu)
+                info = _info(h, TRUONG_DUYET_PDF)
+                raw = h.body()
+                with app.mutation_lock:
+                    _, me, _ = app.crm_phien(h.crm_sid())
+                    svc = dich_vu(app)
+                return h.send_content(200, _rieng(app, svc, lambda s: s.duyet_pdf(
+                    me, raw, dot_id=info.get("dot_id"), version_id=info.get("version_id"), revision=info.get("revision"),
+                    expected_basis=info.get("expected_basis"), ten=info.get("ten"), media_type=info.get("media_type"), khoa=info.get("khoa"))),
+                    headers={"Cache-Control": "no-store"})
+            if path in ("/api/m4/ke-toan/luu", "/api/m4/ke-toan/xac-nhan"):  # M4-03A: allowlist chặt; kết nối riêng như M4-02C, ngoài mutation lock
+                ten = path[len("/api/m4/"):]
+                payload = _than(h.json_body(), TRUONG_KT[ten])
+                with app.mutation_lock:
+                    _, me, _ = app.crm_phien(h.crm_sid())
+                    svc = dich_vu(app)
+                if ten == "ke-toan/luu":
+                    return h.send_content(200, _rieng(app, svc, lambda s: s.kt_luu(me, **payload)), headers={"Cache-Control": "no-store"})
+                return h.send_content(200, _rieng(app, svc, lambda s: s.kt_xac_nhan(me, **payload)), headers={"Cache-Control": "no-store"})
             if path.startswith("/api/m4/"):
                 ten = path[len("/api/m4/"):]
                 if ten not in TRUONG:
@@ -396,10 +559,15 @@ def dieu_huong(h, app, post: bool, path: str, query: dict):
                     return h.send_content(200, app._crm_db(_lenh, app, svc, me, ten, payload))
         return h.send_content(404, {"error": "NOT_FOUND", "message": "Không tìm thấy chức năng này."})
     except DataError as exc:
-        status = (403 if exc.code in MA_403 else 404 if exc.code in MA_404 else 409 if (exc.code in MA_409 or exc.code in MA_409_REVIEW) else 413 if exc.code in MA_413
-                  else 503 if exc.code in MA_503 else 400)
+        if path.startswith("/api/m4/ke-toan") and exc.code in MA_KT:  # FIX01: chỉ route KT, đúng mã
+            st = MA_KT[exc.code]
+            return h.send_content(st, {"error": exc.code, "message": KT_SAI_DTO_MSG if st == 500 else str(exc)})
+        status = (403 if exc.code in MA_403 else 404 if exc.code in MA_404
+                  else 409 if (exc.code in MA_409 or exc.code in MA_409_REVIEW or exc.code in MA_409_DUYET) else 413 if exc.code in MA_413
+                  else 503 if exc.code in MA_503 else 422 if (path.startswith("/api/m4/ke-toan") and exc.code in MA_422_KT)
+                  else 422 if exc.code in MA_422_MASTER else 400)
         return h.send_content(status, {"error": exc.code, "message": str(exc)})
-    except (ValueError, TypeError, KeyError, RecursionError):
-        return h.send_content(400, {"error": "INVALID_REQUEST", "message": "Thông tin gửi lên không hợp lệ; chưa xử lý."})
+    except (ValueError, TypeError, KeyError, RecursionError):  # M4-03A: hợp đồng KT invalid → 422; route khác giữ 400
+        return h.send_content(422 if path.startswith("/api/m4/ke-toan") else 400, {"error": "INVALID_REQUEST", "message": "Thông tin gửi lên không hợp lệ; chưa xử lý."})
     except OSError:
         return h.send_content(500, {"error": "LOCAL_STORAGE_ERROR", "message": "Không đọc/ghi được kho trên máy. Tệp đã lưu vẫn được giữ."})
