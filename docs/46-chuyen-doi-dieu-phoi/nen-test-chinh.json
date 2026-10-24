@@ -1,0 +1,743 @@
+{
+ "test_crm_41_02": {
+  "ok": 26,
+  "error": 0,
+  "fail": 3,
+  "skip": 0,
+  "treo": 0,
+  "giay": 2.3,
+  "tong": 29,
+  "ids_loi": [
+   "test_crm_41_02.HttpShellTinh.test_c4_setup_dung_mot_dong",
+   "test_crm_41_02.PrefixMigration.test_17_checksum_va_digest_thu_tu",
+   "test_crm_41_02.PrefixMigration.test_791902_byte_dau_giu_nguyen_va_chi_append"
+  ],
+  "loi_dau": "AssertionError: '8592cb1e4e79d980a4888948176ac82be5c24e94b7bcde95b1afa069a7c14f34' != 'f77bdfe66772a2494d36f40cb1f2119d27af351ae8f101b1a3dc42bd9274a9d2'"
+ },
+ "test_crm_41_02_http": {
+  "ok": 0,
+  "error": 0,
+  "fail": 0,
+  "skip": 13,
+  "treo": 0,
+  "giay": 1.5,
+  "tong": 13,
+  "ids_loi": [],
+  "loi_dau": ""
+ },
+ "test_crm_giao_ket": {
+  "ok": 50,
+  "error": 0,
+  "fail": 1,
+  "skip": 2,
+  "treo": 0,
+  "giay": 5.8,
+  "tong": 53,
+  "ids_loi": [
+   "test_crm_giao_ket.PrefixMigration.test_870225_byte_dau_giu_nguyen_chi_append_m0021"
+  ],
+  "loi_dau": "AssertionError: 'd3f8cbcbff2341ccae2793c58e3e6be06d37c79a2f3a8423ff77016b52d884d8' != '7082f25843f12ced5c71ccbe8b23991ce458d9836d2e9448f29a598d0eeac5f2'"
+ },
+ "test_crm_giao_ket_http": {
+  "ok": 0,
+  "error": 0,
+  "fail": 0,
+  "skip": 11,
+  "treo": 0,
+  "giay": 3.1,
+  "tong": 11,
+  "ids_loi": [],
+  "loi_dau": ""
+ },
+ "test_crm_k2": {
+  "ok": 0,
+  "error": 0,
+  "fail": 0,
+  "skip": 23,
+  "treo": 0,
+  "giay": 1.7,
+  "tong": 23,
+  "ids_loi": [],
+  "loi_dau": ""
+ },
+ "test_crm_khoi_dong": {
+  "ok": 0,
+  "error": 1,
+  "fail": 0,
+  "skip": 0,
+  "treo": 0,
+  "giay": 1.3,
+  "tong": 1,
+  "ids_loi": [
+   "unittest.loader._FailedTest.test_crm_khoi_dong"
+  ],
+  "loi_dau": "ModuleNotFoundError: No module named 'psycopg'"
+ },
+ "test_crm_ky_ket": {
+  "ok": 31,
+  "error": 0,
+  "fail": 2,
+  "skip": 6,
+  "treo": 0,
+  "giay": 4.4,
+  "tong": 39,
+  "ids_loi": [
+   "test_crm_ky_ket.PrefixVaPhamVi.test_928356_byte_dau_nguyen_chi_append_m0023",
+   "test_crm_ky_ket.PrefixVaPhamVi.test_crm_giao_ket_nguyen_byte"
+  ],
+  "loi_dau": "AssertionError: 'e0274e1e3fe9911bde78644543330c72686308a6e060905ecb0736c99c41e86e' != '225cc40f14670e8428bf8afcc58318c04c15707bdddffa31242067f20199cce2'"
+ },
+ "test_crm_ky_ket_http": {
+  "ok": 0,
+  "error": 0,
+  "fail": 0,
+  "skip": 9,
+  "treo": 0,
+  "giay": 3.1,
+  "tong": 9,
+  "ids_loi": [],
+  "loi_dau": ""
+ },
+ "test_crm_neutral_compat": {
+  "ok": 0,
+  "error": 0,
+  "fail": 0,
+  "skip": 5,
+  "treo": 0,
+  "giay": 1.1,
+  "tong": 5,
+  "ids_loi": [],
+  "loi_dau": ""
+ },
+ "test_crm_phan_tich": {
+  "ok": 20,
+  "error": 1,
+  "fail": 0,
+  "skip": 0,
+  "treo": 0,
+  "giay": 3.5,
+  "tong": 21,
+  "ids_loi": [
+   "test_crm_phan_tich.NutMoDemoTests.test_doc_ket_noi_chi_localhost_db_demo"
+  ],
+  "loi_dau": "kho_tri_thuc.ha_tang.primitives.DataError: Python đang chạy chưa có driver PostgreSQL (psycopg) — cần runtime app đã cài (crm-demo/runtime.local.json)."
+ },
+ "test_doi_chieu_hoa_don": {
+  "ok": 27,
+  "error": 5,
+  "fail": 0,
+  "skip": 0,
+  "treo": 0,
+  "giay": 1.0,
+  "tong": 32,
+  "ids_loi": [
+   "test_doi_chieu_hoa_don.TichHopM2.test_field_mo_ho_khong_doan",
+   "test_doi_chieu_hoa_don.TichHopM2.test_g01_xml_den_dto_va_doi_chieu",
+   "test_doi_chieu_hoa_don.TichHopM2.test_g03_zip_hai_entry_cung_khoa_la_trung",
+   "test_doi_chieu_hoa_don.TichHopM2.test_g04_so_chuan_bo_0_dau_va_trung",
+   "test_doi_chieu_hoa_don.TichHopM2.test_thung_native_exact_khong_quy_doi"
+  ],
+  "loi_dau": "FileNotFoundError: [Errno 2] No such file or directory: 'D:\\\\Claude\\\\Phan mem ho tro ke toan\\\\Phần mềm kho tri thức\\\\.claude\\\\worktrees\\\\nen-chinh-59b7d8e\\\\tests\\\\fixtures\\\\m2_invoice_xml\\\\inputs\\\\G01-wrapped-positive.xml'"
+ },
+ "test_hoa_don_xml": {
+  "ok": 0,
+  "error": 1,
+  "fail": 0,
+  "skip": 0,
+  "treo": 0,
+  "giay": 1.0,
+  "tong": null,
+  "ids_loi": [
+   "TIEN_TRINH_CON_CHET(ma=1) khi chay nap module"
+  ],
+  "loi_dau": "FileNotFoundError: [Errno 2] No such file or directory: 'D:\\\\Claude\\\\Phan mem ho tro ke toan\\\\Phần mềm kho tri thức\\\\.claude\\\\worktrees\\\\nen-chinh-59b7d8e\\\\tests\\\\fixtures\\\\m2_invoice_xml\\\\inputs\\\\G01-wrapped-positive.xml'",
+  "test_treo": ""
+ },
+ "test_ket_noi": {
+  "ok": 12,
+  "error": 0,
+  "fail": 0,
+  "skip": 11,
+  "treo": 0,
+  "giay": 1.3,
+  "tong": 23,
+  "ids_loi": [],
+  "loi_dau": ""
+ },
+ "test_kho_10": {
+  "ok": 43,
+  "error": 0,
+  "fail": 15,
+  "skip": 0,
+  "treo": 0,
+  "giay": 1.6,
+  "tong": 49,
+  "ids_loi": [
+   "test_kho_10.A_Golden.test_digests_and_envelopes (case='K01')",
+   "test_kho_10.A_Golden.test_digests_and_envelopes (case='K02')",
+   "test_kho_10.A_Golden.test_digests_and_envelopes (case='K03')",
+   "test_kho_10.A_Golden.test_digests_and_envelopes (case='K04')",
+   "test_kho_10.A_Golden.test_digests_and_envelopes (case='K05')",
+   "test_kho_10.A_Golden.test_digests_and_envelopes (case='K06')",
+   "test_kho_10.A_Golden.test_digests_and_envelopes (case='K07')",
+   "test_kho_10.A_Golden.test_digests_and_envelopes (case='K08')",
+   "test_kho_10.A_Golden.test_digests_and_envelopes (case='K09')",
+   "test_kho_10.A_Golden.test_digests_and_envelopes (case='K10')",
+   "test_kho_10.B_Controls.test_c07_replay",
+   "test_kho_10.D_Repair02.test_r3_actual_number_contradicts_exact_text",
+   "test_kho_10.D_Repair02.test_r4_positive_history_controls",
+   "test_kho_10.D_Repair02.test_r6_exact_digest",
+   "test_kho_10.ZZ_InputsUnchanged.test_root_inputs_hash_before_after"
+  ],
+  "loi_dau": "AssertionError: '1fb2332a57fcd18ab3999df2fc7ed09bb375a5eefc0fb87aacbd51ae35126ea4' != '56037f2e8145d0ca57b947e7213e03a4586ba601dc741b5ef554858f89df1107'"
+ },
+ "test_l11_http": {
+  "ok": 0,
+  "error": 0,
+  "fail": 0,
+  "skip": 2,
+  "treo": 0,
+  "giay": 1.4,
+  "tong": 2,
+  "ids_loi": [],
+  "loi_dau": ""
+ },
+ "test_l11_k2": {
+  "ok": 2,
+  "error": 1,
+  "fail": 0,
+  "skip": 20,
+  "treo": 0,
+  "giay": 1.2,
+  "tong": 23,
+  "ids_loi": [
+   "test_l11_k2.ThuanL11.test_profile_va_fixture_dung_pin"
+  ],
+  "loi_dau": "kho_tri_thuc.ha_tang.primitives.DataError: Tệp fixture proofs/goods-equivalence-A-v2.json không khớp SHA/độ dài."
+ },
+ "test_l11_migrations": {
+  "ok": 11,
+  "error": 0,
+  "fail": 1,
+  "skip": 2,
+  "treo": 0,
+  "giay": 1.4,
+  "tong": 14,
+  "ids_loi": [
+   "test_l11_migrations.TinhM0016.test_append_only_1_15_dung_oracle"
+  ],
+  "loi_dau": "AssertionError: '2e021c5fce8f8ff57b3e11e7c75dc393bfaa3b5272b75fe5bef9a90f7385f135' != '6ab9e6603fc7d3d067f4fd557630a11e84b91cfb4eb30e7c5e077e0a11c1f66f'"
+ },
+ "test_m0_m5_migrations": {
+  "ok": 0,
+  "error": 1,
+  "fail": 0,
+  "skip": 10,
+  "treo": 0,
+  "giay": 1.1,
+  "tong": 17,
+  "ids_loi": [
+   "setUpClass (test_m0_m5_migrations.TinhLineage)"
+  ],
+  "loi_dau": "AssertionError: lineage-pins.json khác root pin"
+ },
+ "test_m1": {
+  "ok": 43,
+  "error": 0,
+  "fail": 0,
+  "skip": 0,
+  "treo": 0,
+  "giay": 28.8,
+  "tong": 43,
+  "ids_loi": [],
+  "loi_dau": ""
+ },
+ "test_m2_http": {
+  "ok": 0,
+  "error": 0,
+  "fail": 0,
+  "skip": 3,
+  "treo": 0,
+  "giay": 1.1,
+  "tong": 3,
+  "ids_loi": [],
+  "loi_dau": ""
+ },
+ "test_m2_k2": {
+  "ok": 0,
+  "error": 1,
+  "fail": 0,
+  "skip": 0,
+  "treo": 0,
+  "giay": 0.8,
+  "tong": null,
+  "ids_loi": [
+   "TIEN_TRINH_CON_CHET(ma=1) khi chay nap module"
+  ],
+  "loi_dau": "AssertionError: line-facts.json khác pin",
+  "test_treo": ""
+ },
+ "test_m2_migrations": {
+  "ok": 3,
+  "error": 0,
+  "fail": 1,
+  "skip": 3,
+  "treo": 0,
+  "giay": 1.1,
+  "tong": 7,
+  "ids_loi": [
+   "test_m2_migrations.TinhM0015.test_append_only_15"
+  ],
+  "loi_dau": "AssertionError: '6cfc7b7bf9048f76200b5d60dc5ad9e384c8c80f460682f878089d16154026bf' != '418194019d14cb859f10ed2d545ace0e8c5e1c96b09f534a0a549d2d4f6e5f15'"
+ },
+ "test_m4_01b_pg": {
+  "ok": 0,
+  "error": 0,
+  "fail": 0,
+  "skip": 10,
+  "treo": 0,
+  "giay": 1.6,
+  "tong": 10,
+  "ids_loi": [],
+  "loi_dau": ""
+ },
+ "test_m4_01b_tinh": {
+  "ok": 40,
+  "error": 0,
+  "fail": 1,
+  "skip": 9,
+  "treo": 0,
+  "giay": 3.5,
+  "tong": 50,
+  "ids_loi": [
+   "test_m4_01b_tinh.LineageMigration.test_prefix_byte_khop_root"
+  ],
+  "loi_dau": "AssertionError: 'acd02f618eb3b4b75ed43cf32213bc5e8bfa2846cc4d2fc2c74cb391cfe7bdd2' != '208a03354a989e2d1b469271ed3e324638e1dc0d1e0ae1db376c195d0d57de0a'"
+ },
+ "test_m4_01c": {
+  "ok": 16,
+  "error": 0,
+  "fail": 0,
+  "skip": 0,
+  "treo": 0,
+  "giay": 3.2,
+  "tong": 16,
+  "ids_loi": [],
+  "loi_dau": ""
+ },
+ "test_m4_01c_http": {
+  "ok": 0,
+  "error": 0,
+  "fail": 0,
+  "skip": 8,
+  "treo": 0,
+  "giay": 1.3,
+  "tong": 8,
+  "ids_loi": [],
+  "loi_dau": ""
+ },
+ "test_m4_02b_http": {
+  "ok": 0,
+  "error": 1,
+  "fail": 0,
+  "skip": 0,
+  "treo": 0,
+  "giay": 1.2,
+  "tong": 1,
+  "ids_loi": [
+   "unittest.loader._FailedTest.test_m4_02b_http"
+  ],
+  "loi_dau": "ModuleNotFoundError: No module named 'tests'"
+ },
+ "test_m4_02b_k2": {
+  "ok": 0,
+  "error": 1,
+  "fail": 0,
+  "skip": 0,
+  "treo": 0,
+  "giay": 1.4,
+  "tong": 1,
+  "ids_loi": [
+   "unittest.loader._FailedTest.test_m4_02b_k2"
+  ],
+  "loi_dau": "ModuleNotFoundError: No module named 'tests'"
+ },
+ "test_m4_02b_pure": {
+  "ok": 16,
+  "error": 0,
+  "fail": 2,
+  "skip": 18,
+  "treo": 0,
+  "giay": 3.0,
+  "tong": 36,
+  "ids_loi": [
+   "test_m4_02b_pure.M22Tinh.test_prefix_927604_byte_va_append_m22",
+   "test_m4_02b_pure.M22Tinh.test_sql_review_nguyen_byte"
+  ],
+  "loi_dau": "AssertionError: 'e84e11dc4d81e30ecfa6f7103403e6eea20ceea3e5e118372f95039bc40c7e1a' != '0e87d8e1a39aef582d79ffd7cef30b7dcdf523d151009729e6cb1d5b64452dce'"
+ },
+ "test_m4_review_compute": {
+  "ok": 45,
+  "error": 0,
+  "fail": 3,
+  "skip": 3,
+  "treo": 0,
+  "giay": 3.2,
+  "tong": 51,
+  "ids_loi": [
+   "test_m4_review_compute.MigrationM19.test_1_18_identity_m19_m20_cuoi",
+   "test_m4_review_compute.MigrationM19.test_fix04_prefix_1_19_da_ap_dung_bat_bien_m20_noi_cuoi",
+   "test_m4_review_compute.MigrationM19.test_prefix_868867_byte_giu_nguyen_chi_noi_m19"
+  ],
+  "loi_dau": "AssertionError: 23 != 20"
+ },
+ "test_m4_review_http": {
+  "ok": 0,
+  "error": 0,
+  "fail": 0,
+  "skip": 7,
+  "treo": 0,
+  "giay": 2.4,
+  "tong": 7,
+  "ids_loi": [],
+  "loi_dau": ""
+ },
+ "test_m4_review_k2": {
+  "ok": 0,
+  "error": 0,
+  "fail": 0,
+  "skip": 14,
+  "treo": 0,
+  "giay": 2.2,
+  "tong": 14,
+  "ids_loi": [],
+  "loi_dau": ""
+ },
+ "test_m5_http": {
+  "ok": 0,
+  "error": 0,
+  "fail": 0,
+  "skip": 2,
+  "treo": 0,
+  "giay": 1.0,
+  "tong": 2,
+  "ids_loi": [],
+  "loi_dau": ""
+ },
+ "test_m5_k2": {
+  "ok": 5,
+  "error": 5,
+  "fail": 0,
+  "skip": 26,
+  "treo": 0,
+  "giay": 2.2,
+  "tong": 36,
+  "ids_loi": [
+   "test_m5_k2.ThuanM5.test_capture_h_tach_va_on_dinh",
+   "test_m5_k2.ThuanM5.test_context_may_chu_va_facts_dung_dieu_kien",
+   "test_m5_k2.ThuanM5.test_dong_nguon_giu_token_va_null",
+   "test_m5_k2.ThuanM5.test_registry_va_mau_dung_pin",
+   "test_m5_k2.ThuanM5.test_reported_errors_chat_va_coverage_hieu_luc"
+  ],
+  "loi_dau": "kho_tri_thuc.ha_tang.primitives.DataError: Tệp fixture trusted-registry.json không khớp SHA đã pin."
+ },
+ "test_m9_k2": {
+  "ok": 0,
+  "error": 0,
+  "fail": 0,
+  "skip": 18,
+  "treo": 0,
+  "giay": 1.2,
+  "tong": 18,
+  "ids_loi": [],
+  "loi_dau": ""
+ },
+ "test_m9_phan_tich": {
+  "ok": 10,
+  "error": 0,
+  "fail": 0,
+  "skip": 0,
+  "treo": 0,
+  "giay": 0.7,
+  "tong": 10,
+  "ids_loi": [],
+  "loi_dau": ""
+ },
+ "test_modules": {
+  "ok": 48,
+  "error": 0,
+  "fail": 0,
+  "skip": 0,
+  "treo": 0,
+  "giay": 20.8,
+  "tong": 48,
+  "ids_loi": [],
+  "loi_dau": ""
+ },
+ "test_nghiem_thu_bridge": {
+  "ok": 21,
+  "error": 0,
+  "fail": 0,
+  "skip": 0,
+  "treo": 0,
+  "giay": 9.7,
+  "tong": 21,
+  "ids_loi": [],
+  "loi_dau": ""
+ },
+ "test_pg_bo_chuyen_schema10": {
+  "ok": 0,
+  "error": 0,
+  "fail": 0,
+  "skip": 1,
+  "treo": 0,
+  "giay": 0.4,
+  "tong": 1,
+  "ids_loi": [],
+  "loi_dau": ""
+ },
+ "test_pg_schema": {
+  "ok": 0,
+  "error": 0,
+  "fail": 0,
+  "skip": 18,
+  "treo": 0,
+  "giay": 0.8,
+  "tong": 18,
+  "ids_loi": [],
+  "loi_dau": ""
+ },
+ "test_trich6_host": {
+  "ok": 14,
+  "error": 3,
+  "fail": 0,
+  "skip": 3,
+  "treo": 0,
+  "giay": 4.1,
+  "tong": 20,
+  "ids_loi": [
+   "test_trich6_host.VongDoiThatTests.test_06a_docx_that_all37_tap_con_seal_replay_va_tu_choi",
+   "test_trich6_host.VongDoiThatTests.test_hai_instance_doc_lap_va_buoc_dung_central",
+   "test_trich6_host.VongDoiThatTests.test_vong_doi_auth_common_only_va_dung"
+  ],
+  "loi_dau": "kho_tri_thuc.nguon.trich6_host.LoiHost: Guard giữ tệp của tiến trình central chưa đạt — không mở engine DEMO."
+ },
+ "test_trich_chung_6": {
+  "ok": 31,
+  "error": 0,
+  "fail": 1,
+  "skip": 1,
+  "treo": 0,
+  "giay": 2.9,
+  "tong": 33,
+  "ids_loi": [
+   "test_trich_chung_6.WiringTests.test_m4_khong_con_loi_chep"
+  ],
+  "loi_dau": "AssertionError: 'LENH_RIENG = REVIEW_LENH | {\"hop-dong/trich\"}' not found in '\"\"\"M4-01 — HTTP mỏng cho Cổng hồ sơ xây dựng trên LocalApp hiện có (cùng token X-KTT-Token, phiên cookie HttpOnly do máy chủ cấp, mutation lock,\\ncùng kết nối login ứng dụng + cổng lineage của CRM). Không webserver/iframe "
+ },
+ "test_v10": {
+  "ok": 25,
+  "error": 0,
+  "fail": 0,
+  "skip": 0,
+  "treo": 0,
+  "giay": 5.7,
+  "tong": 25,
+  "ids_loi": [],
+  "loi_dau": ""
+ },
+ "test_v11": {
+  "ok": 25,
+  "error": 0,
+  "fail": 0,
+  "skip": 0,
+  "treo": 0,
+  "giay": 6.0,
+  "tong": 25,
+  "ids_loi": [],
+  "loi_dau": ""
+ },
+ "test_v12": {
+  "ok": 9,
+  "error": 0,
+  "fail": 0,
+  "skip": 0,
+  "treo": 0,
+  "giay": 4.4,
+  "tong": 9,
+  "ids_loi": [],
+  "loi_dau": ""
+ },
+ "test_v13_backup_safety": {
+  "ok": 15,
+  "error": 4,
+  "fail": 0,
+  "skip": 0,
+  "treo": 0,
+  "giay": 2.9,
+  "tong": 18,
+  "ids_loi": [
+   "test_v13_backup_safety.ChepPgSangSqliteGuardTests.test_control_duong_dich_moi_qua_guard",
+   "test_v13_backup_safety.ChepPgSangSqliteGuardTests.test_dich_co_du_lieu_tu_choi_truoc_doc_pg_va_giu_nguyen [cash]",
+   "test_v13_backup_safety.ChepPgSangSqliteGuardTests.test_dich_co_du_lieu_tu_choi_truoc_doc_pg_va_giu_nguyen [knowledge]",
+   "test_v13_backup_safety.ChepPgSangSqliteGuardTests.test_dich_dang_trong_giao_dich_cua_nguoi_goi"
+  ],
+  "loi_dau": "ModuleNotFoundError: No module named 'psycopg'"
+ },
+ "test_v13_backup_safety_pg": {
+  "ok": 0,
+  "error": 0,
+  "fail": 0,
+  "skip": 11,
+  "treo": 0,
+  "giay": 1.1,
+  "tong": 11,
+  "ids_loi": [],
+  "loi_dau": ""
+ },
+ "test_v13_doi_chieu": {
+  "ok": 15,
+  "error": 0,
+  "fail": 0,
+  "skip": 3,
+  "treo": 0,
+  "giay": 3.2,
+  "tong": 18,
+  "ids_loi": [],
+  "loi_dau": ""
+ },
+ "test_v1_matching": {
+  "ok": 27,
+  "error": 0,
+  "fail": 0,
+  "skip": 0,
+  "treo": 0,
+  "giay": 5.2,
+  "tong": 27,
+  "ids_loi": [],
+  "loi_dau": ""
+ },
+ "test_v1b": {
+  "ok": 14,
+  "error": 0,
+  "fail": 0,
+  "skip": 0,
+  "treo": 0,
+  "giay": 4.0,
+  "tong": 14,
+  "ids_loi": [],
+  "loi_dau": ""
+ },
+ "test_v2": {
+  "ok": 5,
+  "error": 0,
+  "fail": 0,
+  "skip": 0,
+  "treo": 0,
+  "giay": 3.7,
+  "tong": 5,
+  "ids_loi": [],
+  "loi_dau": ""
+ },
+ "test_v3": {
+  "ok": 4,
+  "error": 0,
+  "fail": 0,
+  "skip": 0,
+  "treo": 0,
+  "giay": 2.4,
+  "tong": 4,
+  "ids_loi": [],
+  "loi_dau": ""
+ },
+ "test_v4": {
+  "ok": 2,
+  "error": 0,
+  "fail": 0,
+  "skip": 0,
+  "treo": 0,
+  "giay": 3.6,
+  "tong": 2,
+  "ids_loi": [],
+  "loi_dau": ""
+ },
+ "test_v5": {
+  "ok": 2,
+  "error": 0,
+  "fail": 0,
+  "skip": 0,
+  "treo": 0,
+  "giay": 3.5,
+  "tong": 2,
+  "ids_loi": [],
+  "loi_dau": ""
+ },
+ "test_v6": {
+  "ok": 1,
+  "error": 0,
+  "fail": 0,
+  "skip": 0,
+  "treo": 0,
+  "giay": 2.9,
+  "tong": 1,
+  "ids_loi": [],
+  "loi_dau": ""
+ },
+ "test_v7": {
+  "ok": 6,
+  "error": 0,
+  "fail": 0,
+  "skip": 0,
+  "treo": 0,
+  "giay": 3.3,
+  "tong": 6,
+  "ids_loi": [],
+  "loi_dau": ""
+ },
+ "test_v8": {
+  "ok": 3,
+  "error": 0,
+  "fail": 0,
+  "skip": 0,
+  "treo": 0,
+  "giay": 4.5,
+  "tong": 3,
+  "ids_loi": [],
+  "loi_dau": ""
+ },
+ "test_v9": {
+  "ok": 3,
+  "error": 0,
+  "fail": 0,
+  "skip": 0,
+  "treo": 0,
+  "giay": 3.4,
+  "tong": 3,
+  "ids_loi": [],
+  "loi_dau": ""
+ },
+ "test_v9b": {
+  "ok": 19,
+  "error": 0,
+  "fail": 0,
+  "skip": 0,
+  "treo": 0,
+  "giay": 6.1,
+  "tong": 19,
+  "ids_loi": [],
+  "loi_dau": ""
+ },
+ "test_web": {
+  "ok": 22,
+  "error": 0,
+  "fail": 1,
+  "skip": 0,
+  "treo": 0,
+  "giay": 6.4,
+  "tong": 23,
+  "ids_loi": [
+   "test_web.IntakeTests.test_scope_changes_receipt_not_raw_storage_size"
+  ],
+  "loi_dau": "AssertionError: 1 != 2"
+ }
+}
