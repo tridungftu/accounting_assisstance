@@ -1,23 +1,33 @@
-"""M4-03B-01 — kiểm PostgreSQL THẬT identity nguồn dùng chung + đối chiếu căn cứ NT ↔ hóa đơn do KT xác nhận. WRITTEN_NOT_RUN.
+"""M4-03B-01 (+FIX01) — kiểm PostgreSQL THẬT identity nguồn dùng chung + đối chiếu căn cứ NT ↔ hóa đơn do KT xác nhận. WRITTEN_NOT_RUN.
 
 Ba cổng (thiếu cổng nào → SkipTest NOT_VERIFIED, KHÔNG phải PASS):
 1. Cổng 03A (tests/test_m4_03a_pg.py: KHO_M4_03A_* + kiem_clone/registry/quyền) — mượn thuộc tính lớp gốc như test_m4_03a_full_basis_pg
    (không import lớp TestCase → test gốc không chạy lại); DSN chủ bảng phải là ĐÚNG chủ m4.kt_xac_nhan theo session_user.
 2. Cổng 03B: env KHO_M4_03B_DA_AP_DUNG=1 (Root đã append `M4_03B_COMMON_SQL` vào registry ở ordinal của Root rồi migrate clone) + kiểm CHỈ ĐỌC:
-   mọi bảng/hàm mới tồn tại và thân kho.dc_luu / kho.dc_xac_nhan / kho._dc_do_thi trên clone BẰNG BYTE hằng trong file nguồn. Sai → LoiThietLap.
+   mọi bảng/hàm mới tồn tại và thân kho.dc_luu / kho.dc_xac_nhan / kho._dc_do_thi / ... trên clone BẰNG BYTE hằng trong file nguồn. Sai → LoiThietLap.
 3. Cổng hóa đơn (chỉ ca cross-source): KHO_M4_03B_HOA_DON_ID = hóa đơn M2 CÓ SẴN trên clone, cùng PN với hồ sơ DEMO, KT1 có module M2 trên PN đó.
    Dương thật cần thêm mst_ban = MST master của đối tác HĐ DEMO (máy chủ resolve, không seed). Lệch MST → ca dương SKIP NOT_VERIFIED kèm
-   phụ thuộc chính xác, ca âm BEN_BAN_KHAC vẫn chạy. Tùy chọn: KHO_M4_03B_CFO / KHO_M4_03B_XEM (login M2_READ không phải KT) cho ca từ chối ghi.
+   phụ thuộc chính xác, ca âm BEN_BAN_KHAC vẫn chạy. Tùy chọn: KHO_M4_03B_CFO / KHO_M4_03B_XEM (login M2_READ không phải KT) cho ca từ chối ghi;
+   KHO_M4_03B_DONG_ID = dòng logic CÓ SẴN của chính hóa đơn đó cho ca đổi phần toàn bộ ↔ dòng.
 
 Producer THẬT: hồ sơ NT seal + 03A lưu/xác nhận qua service 03A; không INSERT giả nguồn/duyệt/hóa đơn, không monkeypatch SQL/service.
-C01 NT-only (không cần M2): xem → lưu NHAP đúng delta → phát lại / khác nội dung / gốc trùng → xác nhận bị chặn (thiếu) delta 0.
-C02 03A xác nhận làm đồ thị đổi: revision cũ dẫn xuất CAN_KIEM_LAI, xác nhận cũ bị chặn; lưu revision mới (đúng cùng tập nguồn).
-C03 cross-source (cổng 3): xem đủ căn cứ → lưu → xác nhận → KT_XAC_NHAN_CAN_CU; xác nhận lại khóa mới = trung_xac_nhan; thứ tự body ngược
-    (hóa đơn trước) = cùng gốc; nhiều-nhiều: cùng hóa đơn với NT khác là gốc khác; 0 hàng tài chính/AP.
-C04 stale/CAS: source_version_id cũ → DC_NGUON_CU; expected_graph cũ → DC_DO_THI_DOI; expected_revision cũ → DC_REVISION_CU; đổi tập nguồn → bị chặn.
+FIX01: đổi tập nguồn/phần = revision mới (lý do + expected_revision + CAS) của CÙNG gốc; alias tập → gốc; namespace biên nhận = module gốc lúc tạo.
+C01 NT-only (không cần M2): xem → lưu NHAP đúng delta (gốc + alias tập) → phát lại / khác nội dung / gốc trùng → xác nhận bị chặn (thiếu) delta 0.
+C02 03A xác nhận làm đồ thị đổi: revision cũ dẫn xuất CAN_KIEM_LAI, xác nhận cũ bị chặn; lưu revision mới cùng tập (alias 0).
+C03 cross-source (cổng 3): gốc NT-only của C01 → CÙNG gốc thêm hóa đơn (body hóa đơn trước) → xác nhận → KT_XAC_NHAN_CAN_CU; trung_xac_nhan;
+    lịch sử/thành phần/biên nhận cũ nguyên; nhiều-nhiều: cùng hóa đơn với NT khác là gốc khác; 0 hàng tài chính/AP.
+C04 đổi tập cùng gốc + CAS (setup seal TRƯỚC snapshot): stale nguồn/đồ thị/revision → 0 delta; thêm NT (thứ tự ngược) → revision cùng gốc;
+    xem thứ tự ngược cùng identity; bớt NT (ABA về tập cũ, alias 0); phát lại khóa cũ sau đổi thành viên = cùng ID; khóa cũ khác body 409;
+    khóa mới body cũ/ABA không trùng.
 C05 từ chối: KT_KHAC (ngoài dự án) xem/lưu/lịch sử/xác nhận; CFO/XEM ghi hóa đơn (cổng 3); delta 0.
-C06 bỏ qua DB: app DML/EXECUTE lệnh/helper; app giả biên nhận M4/DC_*; owner gọi lệnh không ghim / GUC giả → DC_CAN_KIEM_LAI; delta 0.
-C07 đồng thời: hai lệnh tạo cùng tập nguồn khác khóa → đúng một gốc, còn lại DC_DA_CO_GOC.
+C06 bỏ qua DB: app DML/EXECUTE lệnh/helper/alias; app giả biên nhận M4/DC_*; owner gọi lệnh không ghim / GUC giả → DC_CAN_KIEM_LAI;
+    owner ghi alias ngoài lệnh → DC_BAT_BIEN; delta 0.
+C07 đồng thời (hai kết nối): hai lệnh tạo cùng tập khác khóa → đúng một gốc, còn lại DC_DA_CO_GOC; sửa gốc khác sang tập đó → 409.
+C08 hóa đơn trước (cổng 3): gốc invoice-only (namespace M2) → thêm NT thuộc tập gốc khác 409 → thêm NT mới cùng gốc (vẫn M2) → bớt hóa đơn →
+    ABA; phát lại/409/khóa mới; tùy chọn toàn bộ ↔ dòng logic.
+C09 đồng thời đổi tập (hai kết nối): cùng expected_revision → đúng một revision commit, bên kia DC_REVISION_CU; thứ tự thắng ngược bằng CAS đã commit.
+C10 xác nhận vs revision (cổng 3 dương): đua hai kết nối + cả hai thứ tự thắng bằng CAS đã commit; đúng +1 revision mỗi vòng.
+Nghi vấn GUC exact-tuple KHÔNG được sửa/kiểm ở đây (cần bằng chứng native riêng).
 """
 
 from __future__ import annotations
@@ -37,13 +47,14 @@ from kho_tri_thuc.m4 import ghi_nhan_nghiem_thu as AD
 _G = vars(P.M4KeToanPG)
 ENV_DA_AP_DUNG = "KHO_M4_03B_DA_AP_DUNG"
 ENV_HOA_DON = "KHO_M4_03B_HOA_DON_ID"
+ENV_DONG = "KHO_M4_03B_DONG_ID"
 ENV_CFO, ENV_XEM = "KHO_M4_03B_CFO", "KHO_M4_03B_XEM"
 CO_ENV_03B = P.CO_ENV and os.environ.get(ENV_DA_AP_DUNG) == "1"
 LY_DO_SKIP_03B = ("NOT_VERIFIED: chưa có clone 03A + M4_03B_COMMON_SQL do Root đăng ký/migrate (KHO_M4_03A_* + KHO_M4_03B_DA_AP_DUNG=1) — "
                   "test M4-03B PG không chạy, KHÔNG tính đạt")
 NOI = "\n".join(SG.M4_03B_COMMON_SQL)
 BANG_DC = tuple(f"kho.{t}" for t in SG.BANG)
-# delta mong của MỘT lần lưu tạo gốc mới với n nguồn mới (identity nguồn chưa có)
+# bảng được phép đổi bởi lệnh đối chiếu (mọi bảng khác — tài chính/M24/AP/Request/M2 — phải 0 delta)
 GHI_DC = (*BANG_DC, "kho.bien_nhan_thao_tac")
 
 
@@ -55,7 +66,7 @@ def _than_ham(ten: str) -> str:
 
 @unittest.skipUnless(CO_ENV_03B, LY_DO_SKIP_03B)
 class M4DoiChieuCanCuPG(unittest.TestCase):
-    """Chạy theo thứ tự c01 → c07 trên MỘT clone; trạng thái qua cls.s."""
+    """Chạy theo thứ tự c01 → c10 trên MỘT clone; trạng thái qua cls.s."""
 
     @classmethod
     def setUpClass(cls):
@@ -68,7 +79,8 @@ class M4DoiChieuCanCuPG(unittest.TestCase):
         for h in (*SG.HAM_LENH, *SG.HAM_NOI_BO, *SG.HAM_DOC, *SG.HAM_TRIGGER):
             if _q1(cls.admin, "SELECT to_regprocedure(%s) IS NOT NULL", (h,)) is not True:
                 raise P.LoiThietLap(f"SETUP_FAILURE: clone thiếu hàm {h}")
-        for h in ("kho.dc_luu", "kho.dc_xac_nhan", "kho._dc_do_thi", "kho._dc_quyen", "kho._dc_phien_ban_hoan_tat"):
+        for h in ("kho.dc_luu", "kho.dc_xac_nhan", "kho._dc_do_thi", "kho._dc_quyen", "kho._dc_phien_ban_hoan_tat", "kho._dc_hop",
+                  "kho._dc_tap_kiem", "kho.bien_nhan_dc_chi_chu"):
             if _q1(cls.admin, "SELECT p.prosrc FROM pg_proc p WHERE p.oid = to_regproc(%s)", (h,)) != _than_ham(h):
                 raise P.LoiThietLap(f"SETUP_FAILURE: thân {h} trên clone khác hằng nguồn — không phải đúng bản đóng băng")
         cls.dc = AD.dich_vu(cls.svc)
@@ -90,9 +102,17 @@ class M4DoiChieuCanCuPG(unittest.TestCase):
         self.assertTrue(set(thuc) <= set(GHI_DC), thuc)
 
     def luu_moi(self, truoc, n_nguon_moi: int, n_tp: int):
+        """Tạo gốc mới: gốc + revision 1 + alias tập tạo + nhật ký + biên nhận; identity nguồn chỉ cho nguồn chưa có."""
         self.doi_dc(truoc, kho__mua_nguon_kinh_te=n_nguon_moi, kho__mua_nguon_kinh_te_phien_ban=n_nguon_moi, kho__mua_nguon_phan=n_nguon_moi,
                     kho__mua_doi_chieu_can_cu=1, kho__mua_doi_chieu_can_cu_phien_ban=1, kho__mua_doi_chieu_can_cu_thanh_phan=n_tp,
-                    kho__mua_doi_chieu_can_cu_nhat_ky=1, kho__bien_nhan_thao_tac=1)
+                    kho__mua_doi_chieu_can_cu_nhat_ky=1, kho__mua_doi_chieu_can_cu_tap=1, kho__bien_nhan_thao_tac=1)
+
+    def luu_rev(self, truoc, n_tp: int, *, tap: int, nguon: int = 0, nguon_pb: int | None = None, phan: int | None = None):
+        """Revision mới của gốc CÓ SẴN: KHÔNG gốc mới; alias chỉ khi tập chưa từng thuộc gốc (tap=1)."""
+        self.doi_dc(truoc, kho__mua_nguon_kinh_te=nguon, kho__mua_nguon_kinh_te_phien_ban=nguon if nguon_pb is None else nguon_pb,
+                    kho__mua_nguon_phan=nguon if phan is None else phan, kho__mua_doi_chieu_can_cu_phien_ban=1,
+                    kho__mua_doi_chieu_can_cu_thanh_phan=n_tp, kho__mua_doi_chieu_can_cu_nhat_ky=1, kho__mua_doi_chieu_can_cu_tap=tap,
+                    kho__bien_nhan_thao_tac=1)
 
     def nt_xac_nhan_03a(self, h) -> dict:
         """03A thật: lưu NA đủ + xác nhận (nguồn NT có kt_xac_nhan_id)."""
@@ -120,6 +140,46 @@ class M4DoiChieuCanCuPG(unittest.TestCase):
     def xem_dc(self, refs, login=None):
         return self.dc.xem_doi_chieu(login or self.KT1, {"nguon": refs})
 
+    def xn_cua(self, a, khoa) -> dict:
+        d = a["doi_chieu"]
+        return {"doi_chieu_id": d["doi_chieu_id"], "phien_ban_id": d["phien_ban_id"], "expected_revision": d["revision"],
+                "expected_graph": d["graph_sha256"], "khoa": khoa}
+
+    def cuoi(self, goc) -> dict:
+        return self.dc.lich_su(self.KT1, goc)["doi_chieu"]["phien_ban"][-1]
+
+    def tap_hien(self, goc) -> list:
+        return [t["nguon"] for t in self.cuoi(goc)["noi_dung"]["thanh_phan"]]
+
+    def anh_goc(self, goc) -> dict:
+        """Ảnh CSDL của một gốc: gốc + mọi revision/thành phần/alias/biên nhận (để chứng minh lịch sử cũ nguyên vẹn)."""
+        return self.q("""SELECT jsonb_build_object(
+                'goc', (SELECT to_jsonb(g) FROM kho.mua_doi_chieu_can_cu g WHERE g.id = %s::uuid),
+                'pb', (SELECT coalesce(jsonb_agg(to_jsonb(v) ORDER BY v.revision), '[]') FROM kho.mua_doi_chieu_can_cu_phien_ban v WHERE v.doi_chieu_id = %s::uuid),
+                'tp', (SELECT coalesce(jsonb_agg(to_jsonb(m) ORDER BY m.id), '[]') FROM kho.mua_doi_chieu_can_cu_thanh_phan m WHERE m.doi_chieu_id = %s::uuid),
+                'tap', (SELECT coalesce(jsonb_agg(to_jsonb(a) ORDER BY a.id), '[]') FROM kho.mua_doi_chieu_can_cu_tap a WHERE a.doi_chieu_id = %s::uuid),
+                'bn', (SELECT coalesce(jsonb_agg(to_jsonb(b) ORDER BY b.id), '[]') FROM kho.bien_nhan_thao_tac b
+                       WHERE b.result_json->>'doi_chieu_id' = %s::text))""", (goc,) * 5)
+
+    def giu_lich_su(self, cu: dict, moi: dict):
+        self.assertEqual(moi["goc"], cu["goc"], "gốc (khoa_goc_sha256 tạo, module_bien_nhan) bất biến")
+        for k in ("pb", "tp", "tap", "bn"):
+            for x in cu[k]:
+                self.assertIn(x, moi[k], f"{k}: hàng lịch sử cũ phải còn nguyên byte")
+        self.assertEqual([p["revision"] for p in moi["pb"]], list(range(1, len(moi["pb"]) + 1)))
+
+    def module_goc(self, goc) -> tuple:
+        return (self.q("SELECT module_bien_nhan FROM kho.mua_doi_chieu_can_cu WHERE id = %s", (goc,)),
+                self.q("SELECT coalesce(array_agg(DISTINCT module ORDER BY module), '{}') FROM kho.bien_nhan_thao_tac WHERE result_json->>'doi_chieu_id' = %s",
+                       (str(goc),)))
+
+    def co_nguon(self, occ) -> int:
+        return self.q("SELECT count(*) FROM kho.mua_nguon_kinh_te WHERE occurrence_id = %s", (occ,))
+
+    def dich_vu_rieng(self, n=2) -> list:
+        """Mỗi dịch vụ một cặp kết nối riêng (app + chủ bảng) — đồng thời thật, không chia kết nối."""
+        return [AD.dich_vu(self._svc_moi()) for _ in range(n)]
+
     def can_hoa_don(self):
         if not self.hd_id:
             self.skipTest(f"NOT_VERIFIED: thiếu {ENV_HOA_DON} (hóa đơn M2 có sẵn cùng PN DEMO, KT1 có M2) — phụ thuộc clone của Root")
@@ -131,6 +191,7 @@ class M4DoiChieuCanCuPG(unittest.TestCase):
         r = self.ref_nt(x03)
         x = self.xem_dc([r])
         self.assertEqual(x["kt"]["thieu"], ["NT_CHUA_KT_XAC_NHAN", "THIEU_HOA_DON"])
+        self.assertIsNone(x["doi_chieu"]["goc_cua_tap"])
         nt = x["nguon"][0]
         self.assertEqual((nt["hien_hanh"], nt["toan_ven"], nt["current"], nt["hop_dong_id"]),
                          (True, True, x03["context"]["phong_bi_id"], x03["context"]["hop_dong_id"]))
@@ -141,9 +202,13 @@ class M4DoiChieuCanCuPG(unittest.TestCase):
         self.assertEqual((a["lap_lai"], a["doi_chieu"]["revision"], a["doi_chieu"]["trang_thai"]), (False, 1, SG.TT_NHAP))
         self.assertEqual(a["kt"]["thieu"], ["NT_CHUA_KT_XAC_NHAN", "THIEU_HOA_DON"])
         self.assertEqual(a["ghi_nhan"], GN.GHI_NHAN)
+        self.assertEqual(a["doi_chieu"]["tap_sha256"], x["doi_chieu"]["khoa_goc_sha256"])
         self.luu_moi(truoc, 1, 1)
+        goc = a["doi_chieu"]["doi_chieu_id"]
         bn = self.q("SELECT to_jsonb(b) FROM kho.bien_nhan_thao_tac b WHERE b.id = %s", (a["receipt_id"],))
         self.assertEqual((bn["module"], bn["operation"], bn["actor"]), ("M4", SG.OP_LUU, self.KT1))
+        self.assertEqual(self.module_goc(goc), ("M4", ["M4"]))
+        self.assertEqual(self.q("SELECT khoa_goc_sha256 FROM kho.mua_doi_chieu_can_cu WHERE id = %s", (goc,)), a["doi_chieu"]["tap_sha256"])
         pb = self.q("SELECT to_jsonb(v) FROM kho.mua_doi_chieu_can_cu_phien_ban v WHERE v.id = %s", (a["doi_chieu"]["phien_ban_id"],))
         self.assertEqual((str(pb["hop_dong_id"]), pb["financial_owner"], pb["ghi_nhan"]),
                          (x03["context"]["hop_dong_id"], None, SG.GHI_NHAN_TT))
@@ -152,13 +217,12 @@ class M4DoiChieuCanCuPG(unittest.TestCase):
         a2 = self.dc.luu_doi_chieu(self.KT1, b)
         self.assertEqual((a2["lap_lai"], a2["receipt_id"], a2["doi_chieu"]["phien_ban_id"]), (True, a["receipt_id"], a["doi_chieu"]["phien_ban_id"]))
         self.doi_dc(truoc)
-        # cùng khóa khác nội dung → 409; khóa mới cùng tập → DC_DA_CO_GOC
+        # cùng khóa khác nội dung → 409; khóa mới cùng tập → DC_DA_CO_GOC (alias giải về gốc đã có)
         self.assertEqual(self.loi(self.dc.luu_doi_chieu, self.KT1, {**b, "ly_do": "khác"}), "DC_IDEMPOTENCY_KHAC")
         self.assertEqual(self.loi(self.dc.luu_doi_chieu, self.KT1, {**b, "khoa": self.K("c01-trung")}), "DC_DA_CO_GOC")
+        self.assertEqual(self.xem_dc([r])["doi_chieu"]["goc_cua_tap"], goc)
         # xác nhận khi còn thiếu → chặn, 0 delta
-        xn = {"doi_chieu_id": a["doi_chieu"]["doi_chieu_id"], "phien_ban_id": a["doi_chieu"]["phien_ban_id"], "expected_revision": 1,
-              "expected_graph": a["doi_chieu"]["graph_sha256"], "khoa": self.K("c01-xn")}
-        self.assertEqual(self.loi(self.dc.xac_nhan_doi_chieu, self.KT1, xn), "DC_CHO_BO_SUNG")
+        self.assertEqual(self.loi(self.dc.xac_nhan_doi_chieu, self.KT1, self.xn_cua(a, self.K("c01-xn"))), "DC_CHO_BO_SUNG")
         self.doi_dc(truoc)
         self.s.update(h1=h, a1=a, r1=r)
 
@@ -171,20 +235,18 @@ class M4DoiChieuCanCuPG(unittest.TestCase):
         self.assertEqual(ls["doi_chieu"]["phien_ban"][-1]["trang_thai"], SG.TT_CAN_KIEM_LAI)
         self.assertEqual(ls["kt"]["thieu_hien_tai"], ["THIEU_HOA_DON"])
         truoc = self.dem_tat_ca()
-        xn = {"doi_chieu_id": a["doi_chieu"]["doi_chieu_id"], "phien_ban_id": a["doi_chieu"]["phien_ban_id"], "expected_revision": 1,
-              "expected_graph": a["doi_chieu"]["graph_sha256"], "khoa": self.K("c02-xn-cu")}
-        self.assertEqual(self.loi(self.dc.xac_nhan_doi_chieu, self.KT1, xn), "DC_CAN_KIEM_LAI")
+        self.assertEqual(self.loi(self.dc.xac_nhan_doi_chieu, self.KT1, self.xn_cua(a, self.K("c02-xn-cu"))), "DC_CAN_KIEM_LAI")
         self.doi_dc(truoc)
-        # revision mới của CÙNG gốc với ref ghim phiên bản hiện hành → NHAP rev 2 (nguồn NT có phiên bản identity mới)
+        # revision mới của CÙNG gốc, cùng tập (alias 0) với ref ghim phiên bản hiện hành → NHAP rev 2 (nguồn NT có phiên bản identity mới)
         x = self.xem_dc([self.s["r1"]])
         b = self.than([self.s["r1"]], x, self.K("c02-luu2"), goc=a["doi_chieu"]["doi_chieu_id"], rev=1)
         a2 = self.dc.luu_doi_chieu(self.KT1, b)
         self.assertEqual((a2["doi_chieu"]["revision"], a2["kt"]["thieu"]), (2, ["THIEU_HOA_DON"]))
-        self.doi_dc(truoc, kho__mua_nguon_kinh_te_phien_ban=1, kho__mua_doi_chieu_can_cu_phien_ban=1, kho__mua_doi_chieu_can_cu_thanh_phan=1,
-                    kho__mua_doi_chieu_can_cu_nhat_ky=1, kho__bien_nhan_thao_tac=1)
+        self.assertEqual(a2["doi_chieu"]["tap_sha256"], a["doi_chieu"]["tap_sha256"])
+        self.luu_rev(truoc, 1, tap=0, nguon_pb=1)
         self.s.update(a1b=a2)
 
-    # ------------------------------------------------------------------ C03 cross-source dương (cổng hóa đơn)
+    # ------------------------------------------------------------------ C03 cross-source dương (cổng hóa đơn): NT-only → CÙNG gốc thêm hóa đơn → xác nhận
     def test_c03_cross_source_kt_xac_nhan(self):
         self.can("h1", "a1b")
         self.can_hoa_don()
@@ -193,89 +255,135 @@ class M4DoiChieuCanCuPG(unittest.TestCase):
         except Exception as exc:  # noqa: BLE001
             self.skipTest(f"NOT_VERIFIED: KT1 không đọc được hóa đơn {ENV_HOA_DON} ({self.ma(exc)}) — cần module M2 cho KT1 trên PN hóa đơn")
         rn = self.s["r1"]
+        goc = self.s["a1b"]["doi_chieu"]["doi_chieu_id"]
         x = self.xem_dc([rn, rh])
         nt = next(i for i in x["nguon"] if i["kind"] == "NT")
         if it["phap_nhan_id"] != nt["phap_nhan_id"]:
             self.skipTest("NOT_VERIFIED: hóa đơn khác PN của hồ sơ DEMO — phụ thuộc clone của Root")
-        if x["kt"]["thieu"] == ["BEN_BAN_KHAC"]:
-            # âm thật: không khớp tên/ngày/tiền — MST master HĐ ≠ mst_ban → lưu được NHAP nhưng không xác nhận
-            truoc = self.dem_tat_ca()
-            a = self.dc.luu_doi_chieu(self.KT1, self.than([rn, rh], x, self.K("c03-khac")))
-            self.assertEqual(a["kt"]["thieu"], ["BEN_BAN_KHAC"])
-            xn = {"doi_chieu_id": a["doi_chieu"]["doi_chieu_id"], "phien_ban_id": a["doi_chieu"]["phien_ban_id"], "expected_revision": 1,
-                  "expected_graph": a["doi_chieu"]["graph_sha256"], "khoa": self.K("c03-khac-xn")}
-            self.assertEqual(self.loi(self.dc.xac_nhan_doi_chieu, self.KT1, xn), "DC_CHO_BO_SUNG")
-            self.skipTest("NOT_VERIFIED (dương): mst_ban hóa đơn ≠ MST đối tác HĐ DEMO — cần hóa đơn M2 có sẵn của đúng bên bán (phụ thuộc Root)")
-        self.assertEqual(x["kt"]["thieu"], [], "căn cứ đủ: NT hiện hành + KT 03A đã xác nhận + cùng PN + MST master = mst_ban")
-        self.assertEqual(it["money_basis_state"], "UNPROVEN_NO_MINOR")
+        self.assertIsNone(x["doi_chieu"]["goc_cua_tap"])
+        cu = self.cuoi(goc)
+        anh = self.anh_goc(goc)
+        n_hd = 0 if self.co_nguon(rh["occurrence_id"]) else 1
         truoc = self.dem_tat_ca()
-        b = self.than([rh, rn], x, self.K("c03-luu"))  # thứ tự body: hóa đơn trước — máy chủ sắp lại
+        b = self.than([rh, rn], x, self.K("c03-them-hd"), goc=goc, rev=cu["revision"],
+                      ly_do="Bổ sung hóa đơn mua vào đối chiếu nghiệm thu")  # thứ tự body: hóa đơn trước — máy chủ sắp lại
         a = self.dc.luu_doi_chieu(self.KT1, b)
-        self.assertEqual((a["doi_chieu"]["revision"], a["kt"]["thieu"], a["doi_chieu"]["trang_thai"]), (1, [], SG.TT_NHAP))
-        self.assertTrue(a["receipt_id"])
-        sau = self.dem_tat_ca()  # identity NT đã có (C01/C02); identity hóa đơn có thể mới — chỉ kiểm gốc/thành phần + phạm vi bảng
-        self.assertEqual(sau["kho.mua_doi_chieu_can_cu"] - truoc["kho.mua_doi_chieu_can_cu"], 1)
-        self.assertEqual(sau["kho.mua_doi_chieu_can_cu_thanh_phan"] - truoc["kho.mua_doi_chieu_can_cu_thanh_phan"], 2)
-        self.assertTrue({t for t in sau if sau[t] != truoc.get(t)} <= set(GHI_DC))
-        self.assertEqual(self.q("SELECT module FROM kho.bien_nhan_thao_tac WHERE id = %s", (a["receipt_id"],)), "M4")
-        # xác nhận: sao y nháp, KT_XAC_NHAN_CAN_CU, 0 tài chính
+        self.assertEqual((a["doi_chieu"]["doi_chieu_id"], a["doi_chieu"]["revision"]), (goc, cu["revision"] + 1), "cùng gốc, revision nối tiếp")
+        self.assertEqual(a["doi_chieu"]["tap_sha256"], x["doi_chieu"]["khoa_goc_sha256"])
+        self.assertNotEqual(a["doi_chieu"]["tap_sha256"], cu["tap_sha256"])
+        self.luu_rev(truoc, 2, tap=1, nguon=n_hd)
+        self.giu_lich_su(anh, self.anh_goc(goc))
+        self.assertEqual(self.module_goc(goc), ("M4", ["M4"]), "namespace biên nhận theo gốc, không đổi khi thêm hóa đơn")
+        if a["kt"]["thieu"] == ["BEN_BAN_KHAC"]:
+            # âm thật: không khớp tên/ngày/tiền — MST master HĐ ≠ mst_ban → NHAP lưu được nhưng không xác nhận (vẫn chờ)
+            truoc = self.dem_tat_ca()
+            self.assertEqual(self.loi(self.dc.xac_nhan_doi_chieu, self.KT1, self.xn_cua(a, self.K("c03-khac-xn"))), "DC_CHO_BO_SUNG")
+            self.doi_dc(truoc)
+            self.skipTest("NOT_VERIFIED (dương): mst_ban hóa đơn ≠ MST đối tác HĐ DEMO — cần hóa đơn M2 có sẵn của đúng bên bán (phụ thuộc Root)")
+        self.assertEqual(a["kt"]["thieu"], [], "căn cứ đủ: NT hiện hành + KT 03A đã xác nhận + cùng PN + MST master = mst_ban")
+        self.assertEqual(it["money_basis_state"], "UNPROVEN_NO_MINOR")
+        # xác nhận: sao y nháp, KT_XAC_NHAN_CAN_CU, 0 tài chính, alias 0
         truoc = self.dem_tat_ca()
-        xn = {"doi_chieu_id": a["doi_chieu"]["doi_chieu_id"], "phien_ban_id": a["doi_chieu"]["phien_ban_id"], "expected_revision": 1,
-              "expected_graph": a["doi_chieu"]["graph_sha256"], "khoa": self.K("c03-xn")}
-        c = self.dc.xac_nhan_doi_chieu(self.KT1, xn)
+        c = self.dc.xac_nhan_doi_chieu(self.KT1, self.xn_cua(a, self.K("c03-xn")))
         self.assertEqual((c["doi_chieu"]["trang_thai"], c["doi_chieu"]["revision"], c["doi_chieu"]["nhap_id"], c["ghi_nhan"]),
-                         (SG.TT_XAC_NHAN, 2, a["doi_chieu"]["phien_ban_id"], GN.GHI_NHAN))
+                         (SG.TT_XAC_NHAN, a["doi_chieu"]["revision"] + 1, a["doi_chieu"]["phien_ban_id"], GN.GHI_NHAN))
+        self.assertEqual(c["doi_chieu"]["tap_sha256"], a["doi_chieu"]["tap_sha256"])
         self.doi_dc(truoc, kho__mua_doi_chieu_can_cu_phien_ban=1, kho__mua_doi_chieu_can_cu_thanh_phan=2, kho__mua_doi_chieu_can_cu_nhat_ky=1,
                     kho__bien_nhan_thao_tac=1)
-        # đồng thời/khóa mới sau xác nhận → cùng xác nhận (trung_xac_nhan), không revision mới
+        self.assertEqual(self.q("SELECT module FROM kho.bien_nhan_thao_tac WHERE id = %s", (c["receipt_id"],)), "M4")
+        # khóa mới sau xác nhận → cùng xác nhận (trung_xac_nhan), không revision mới
         truoc = self.dem_tat_ca()
-        c2 = self.dc.xac_nhan_doi_chieu(self.KT1, {**xn, "khoa": self.K("c03-xn2")})
+        c2 = self.dc.xac_nhan_doi_chieu(self.KT1, self.xn_cua(a, self.K("c03-xn2")))
         self.assertEqual((c2["doi_chieu"]["phien_ban_id"], c2["doi_chieu"]["trung_xac_nhan"]), (c["doi_chieu"]["phien_ban_id"], True))
         self.doi_dc(truoc, kho__bien_nhan_thao_tac=1)
-        ls = self.dc.lich_su(self.KT1, a["doi_chieu"]["doi_chieu_id"])
-        self.assertEqual([p["trang_thai"] for p in ls["doi_chieu"]["phien_ban"]], [SG.TT_NHAP, SG.TT_XAC_NHAN])
-        # nhiều-nhiều: cùng hóa đơn với NT khác (hồ sơ mới cùng HĐ DEMO) là đối chiếu khác; không cần hóa đơn đã nối NT từ trước
+        ls = self.dc.lich_su(self.KT1, goc)
+        pbs = ls["doi_chieu"]["phien_ban"]
+        self.assertEqual([p["phien_ban_id"] for p in pbs[:2]], [self.s["a1"]["doi_chieu"]["phien_ban_id"], self.s["a1b"]["doi_chieu"]["phien_ban_id"]])
+        self.assertEqual([len(p["noi_dung"]["thanh_phan"]) for p in pbs], [1] * (len(pbs) - 2) + [2, 2])
+        self.assertEqual(pbs[-1]["trang_thai"], SG.TT_XAC_NHAN)
+        self.assertEqual({t["tap_sha256"] for t in ls["doi_chieu"]["bo_tap"]}, {cu["tap_sha256"], a["doi_chieu"]["tap_sha256"]})
+        self.assertEqual(ls["module_bien_nhan"], "M4")
+        # nhiều-nhiều: cùng hóa đơn với NT khác (hồ sơ mới cùng HĐ DEMO) là đối chiếu khác (không UNIQUE theo nguồn đơn lẻ)
         h2 = self.ho_so_seal("DC3")
         r2 = self.ref_nt(self.xem(h2["cho"]))
         x2 = self.xem_dc([r2, rh])
         a3 = self.dc.luu_doi_chieu(self.KT1, self.than([r2, rh], x2, self.K("c03-nn")))
-        self.assertNotEqual(a3["doi_chieu"]["doi_chieu_id"], a["doi_chieu"]["doi_chieu_id"])
+        self.assertNotEqual(a3["doi_chieu"]["doi_chieu_id"], goc)
         self.assertIn("NT_CHUA_KT_XAC_NHAN", a3["kt"]["thieu"])
-        self.s.update(rh=rh, a3x=c)
+        self.s.update(rh=rh, a3x=c, r2=r2, goc_b=a3["doi_chieu"]["doi_chieu_id"])
 
-    # ------------------------------------------------------------------ C04 stale / CAS
-    def test_c04_stale_cas(self):
+    # ------------------------------------------------------------------ C04 đổi tập cùng gốc + stale / CAS
+    def test_c04_doi_tap_cung_goc_va_cas(self):
         self.can("h1", "a1b", "r1")
-        a = self.s["a1b"]
-        x = self.xem_dc([self.s["r1"]])
-        goc = a["doi_chieu"]["doi_chieu_id"]
-        truoc = self.dem_tat_ca()
-        cu = {**self.s["r1"], "source_version_id": str(uuid.uuid4())}
-        self.assertEqual(self.loi(self.dc.luu_doi_chieu, self.KT1, self.than([cu], x, self.K("c04-nguon"), goc=goc, rev=2)), "DC_NGUON_CU")
-        self.assertEqual(self.loi(self.dc.luu_doi_chieu, self.KT1, {**self.than([self.s["r1"]], x, self.K("c04-graph"), goc=goc, rev=2),
-                                                                     "expected_graph": "0" * 64}), "DC_DO_THI_DOI")
-        self.assertEqual(self.loi(self.dc.luu_doi_chieu, self.KT1, self.than([self.s["r1"]], x, self.K("c04-rev"), goc=goc, rev=1)), "DC_REVISION_CU")
+        r1 = self.s["r1"]
+        goc = self.s["a1b"]["doi_chieu"]["doi_chieu_id"]
+        # setup nguồn (producer thật) TRƯỚC ảnh đếm — oracle 0 delta chỉ đo lệnh đối chiếu
         h3 = self.ho_so_seal("DC4")
         r3 = self.ref_nt(self.xem(h3["cho"]))
-        x3 = self.xem_dc([self.s["r1"], r3])
-        self.assertEqual(self.loi(self.dc.luu_doi_chieu, self.KT1, self.than([self.s["r1"], r3], x3, self.K("c04-tap"), goc=goc, rev=2)),
-                         "DC_THAM_SO_SAI")
+        cu = self.cuoi(goc)
+        rev = cu["revision"]
+        base = self.tap_hien(goc)
+        them = base + [r3]
+        x_base, x_them = self.xem_dc(base), self.xem_dc(them)
+        self.assertIsNone(x_them["doi_chieu"]["goc_cua_tap"])
+        self.assertEqual(x_base["doi_chieu"]["goc_cua_tap"], goc)
+        truoc = self.dem_tat_ca()
+        # stale: phiên bản nguồn cũ / đồ thị cũ / revision cũ (cùng tập và đổi tập) → 0 delta
+        cu_nguon = [{**r, "source_version_id": str(uuid.uuid4())} if r["occurrence_id"] == r1["occurrence_id"] else r for r in base]
+        self.assertEqual(self.loi(self.dc.luu_doi_chieu, self.KT1, self.than(cu_nguon, x_base, self.K("c04-nguon"), goc=goc, rev=rev)), "DC_NGUON_CU")
+        self.assertEqual(self.loi(self.dc.luu_doi_chieu, self.KT1, {**self.than(base, x_base, self.K("c04-graph"), goc=goc, rev=rev),
+                                                                     "expected_graph": "0" * 64}), "DC_DO_THI_DOI")
+        self.assertEqual(self.loi(self.dc.luu_doi_chieu, self.KT1, self.than(base, x_base, self.K("c04-rev"), goc=goc, rev=rev - 1)), "DC_REVISION_CU")
+        self.assertEqual(self.loi(self.dc.luu_doi_chieu, self.KT1, self.than(them, x_them, self.K("c04-tap-cu"), goc=goc, rev=rev - 1)),
+                         "DC_REVISION_CU")
         self.doi_dc(truoc)
+        # dương: thêm NT (body thứ tự ngược) → revision CÙNG gốc, tập mới, alias +1; thiếu thật vẫn chờ (NT mới chưa KT xác nhận)
+        anh = self.anh_goc(goc)
+        b_them = self.than(list(reversed(them)), x_them, self.K("c04-them"), goc=goc, rev=rev, ly_do="Thêm nghiệm thu đợt bổ sung")
+        a = self.dc.luu_doi_chieu(self.KT1, b_them)
+        self.assertEqual((a["lap_lai"], a["doi_chieu"]["doi_chieu_id"], a["doi_chieu"]["revision"]), (False, goc, rev + 1))
+        self.assertEqual(a["doi_chieu"]["tap_sha256"], x_them["doi_chieu"]["khoa_goc_sha256"])
+        self.assertIn("NT_CHUA_KT_XAC_NHAN", a["kt"]["thieu"])
+        self.luu_rev(truoc, len(them), tap=1, nguon=1)
+        self.giu_lich_su(anh, self.anh_goc(goc))
+        self.assertEqual(self.module_goc(goc)[0], "M4")
         self.s.update(h3=h3, r3=r3)
+        # thứ tự ref ngược khi xem → cùng identity (đồ thị, digest tập, gốc của tập)
+        xr = self.xem_dc(list(reversed(them)))
+        self.assertEqual((xr["doi_chieu"]["graph_sha256"], xr["doi_chieu"]["khoa_goc_sha256"], xr["doi_chieu"]["goc_cua_tap"]),
+                         (x_them["doi_chieu"]["graph_sha256"], a["doi_chieu"]["tap_sha256"], goc))
+        # bớt NT: ABA về tập cũ → cùng gốc, alias 0
+        truoc = self.dem_tat_ca()
+        a2 = self.dc.luu_doi_chieu(self.KT1, self.than(base, x_base, self.K("c04-bot"), goc=goc, rev=rev + 1, ly_do="Bỏ nghiệm thu bổ sung"))
+        self.assertEqual((a2["doi_chieu"]["doi_chieu_id"], a2["doi_chieu"]["revision"], a2["doi_chieu"]["tap_sha256"]), (goc, rev + 2, cu["tap_sha256"]))
+        self.luu_rev(truoc, len(base), tap=0)
+        # phát lại khóa cũ sau đổi thành viên → đúng ID cũ; khóa cũ khác body → 409; khóa mới body cũ → CAS; tạo gốc mới tập đã thuộc gốc → chặn
+        truoc = self.dem_tat_ca()
+        a3 = self.dc.luu_doi_chieu(self.KT1, b_them)
+        self.assertEqual((a3["lap_lai"], a3["receipt_id"], a3["doi_chieu"]["phien_ban_id"], a3["doi_chieu"]["doi_chieu_id"]),
+                         (True, a["receipt_id"], a["doi_chieu"]["phien_ban_id"], goc))
+        self.assertEqual(self.loi(self.dc.luu_doi_chieu, self.KT1, {**b_them, "ly_do": "khác"}), "DC_IDEMPOTENCY_KHAC")
+        self.assertEqual(self.loi(self.dc.luu_doi_chieu, self.KT1, {**b_them, "khoa": self.K("c04-them-moi")}), "DC_REVISION_CU")
+        self.assertEqual(self.loi(self.dc.luu_doi_chieu, self.KT1, self.than(them, x_them, self.K("c04-goc-moi"))), "DC_DA_CO_GOC")
+        self.assertEqual(self.loi(self.dc.luu_doi_chieu, self.KT1, self.than(base, x_base, self.K("c04-goc-cu"))), "DC_DA_CO_GOC")
+        self.doi_dc(truoc)
+        ls = self.dc.lich_su(self.KT1, goc)
+        self.assertEqual(ls["doi_chieu_id"], goc)
+        self.assertEqual(ls["khoa_goc_sha256"], anh["goc"]["khoa_goc_sha256"], "digest tạo bất biến")
+        self.assertTrue({cu["tap_sha256"], a["doi_chieu"]["tap_sha256"]} <= {t["tap_sha256"] for t in ls["doi_chieu"]["bo_tap"]})
 
     # ------------------------------------------------------------------ C05 từ chối quyền
     def test_c05_tu_choi(self):
         self.can("a1b", "r1")
         a = self.s["a1b"]
+        goc = a["doi_chieu"]["doi_chieu_id"]
         truoc = self.dem_tat_ca()
         self.assertIn(self.loi(self.xem_dc, [self.s["r1"]], self.KT_KHAC), ("M4_KT_PHAM_VI", "M4_KT_KHONG_THAY"))
         x = self.xem_dc([self.s["r1"]])
-        self.assertIn(self.loi(self.dc.luu_doi_chieu, self.KT_KHAC, self.than([self.s["r1"]], x, self.K("c05-khac"), goc=a["doi_chieu"]["doi_chieu_id"],
-                                                                                rev=2)), ("M4_KT_PHAM_VI", "M4_KT_KHONG_THAY"))
-        self.assertIn(self.loi(self.dc.lich_su, self.KT_KHAC, a["doi_chieu"]["doi_chieu_id"]), ("DC_KHONG_THAY",))
-        xn = {"doi_chieu_id": a["doi_chieu"]["doi_chieu_id"], "phien_ban_id": a["doi_chieu"]["phien_ban_id"], "expected_revision": 2,
-              "expected_graph": a["doi_chieu"]["graph_sha256"], "khoa": self.K("c05-xn")}
-        self.assertEqual(self.loi(self.dc.xac_nhan_doi_chieu, self.KT_KHAC, xn), "DC_KHONG_THAY")
+        self.assertIn(self.loi(self.dc.luu_doi_chieu, self.KT_KHAC, self.than([self.s["r1"]], x, self.K("c05-khac"), goc=goc, rev=2)),
+                      ("M4_KT_PHAM_VI", "M4_KT_KHONG_THAY"))
+        self.assertIn(self.loi(self.dc.lich_su, self.KT_KHAC, goc), ("DC_KHONG_THAY",))
+        self.assertEqual(self.loi(self.dc.xac_nhan_doi_chieu, self.KT_KHAC, self.xn_cua(a, self.K("c05-xn"))), "DC_KHONG_THAY")
         self.doi_dc(truoc)
         if not self.hd_id:
             return
@@ -310,15 +418,22 @@ class M4DoiChieuCanCuPG(unittest.TestCase):
     def test_c06_bo_qua_db(self):
         self.can("a1b", "r1", "h1")
         a = self.s["a1b"]
+        goc, pb = a["doi_chieu"]["doi_chieu_id"], a["doi_chieu"]["phien_ban_id"]
         truoc = self.dem_tat_ca()
-        pn = self.q("SELECT phap_nhan_id FROM kho.mua_doi_chieu_can_cu WHERE id = %s", (a["doi_chieu"]["doi_chieu_id"],))
-        for sql, p in (("INSERT INTO kho.mua_doi_chieu_can_cu (phap_nhan_id, khoa_goc_sha256, tao_boi, tao_boi_id) VALUES (%s, %s, 'x', %s)",
-                        (pn, "1" * 64, str(uuid.uuid4()))),
+        pn = self.q("SELECT phap_nhan_id FROM kho.mua_doi_chieu_can_cu WHERE id = %s", (goc,))
+        aid = self.q("SELECT tao_boi_id FROM kho.mua_doi_chieu_can_cu WHERE id = %s", (goc,))
+        for sql, p in (("INSERT INTO kho.mua_doi_chieu_can_cu (phap_nhan_id, khoa_goc_sha256, module_bien_nhan, tao_boi, tao_boi_id) "
+                        "VALUES (%s, %s, 'M4', 'x', %s)", (pn, "1" * 64, str(uuid.uuid4()))),
+                       ("INSERT INTO kho.mua_doi_chieu_can_cu_tap (phap_nhan_id, tap_sha256, doi_chieu_id, phien_ban_id, tao_boi, tao_boi_id) "
+                        "VALUES (%s, %s, %s, %s, 'x', %s)", (pn, "4" * 64, goc, pb, aid)),
                        ("UPDATE kho.mua_doi_chieu_can_cu_phien_ban SET ly_do = 'x'", ()),
+                       ("UPDATE kho.mua_doi_chieu_can_cu SET module_bien_nhan = 'M2'", ()),
+                       ("DELETE FROM kho.mua_doi_chieu_can_cu_tap", ()),
                        ("DELETE FROM kho.mua_nguon_kinh_te", ()),
                        ("SELECT kho.dc_luu('x', '{}'::jsonb)", ()),
                        ("SELECT kho._dc_nt_ghi(%s::uuid)", (self.s["h1"]["cho"],)),
                        ("SELECT kho._dc_do_thi('[]'::jsonb)", ()),
+                       ("SELECT kho._dc_hop('[]'::jsonb, '[]'::jsonb)", ()),
                        ("INSERT INTO kho.bien_nhan_thao_tac (phap_nhan_id, module, operation, client_key, request_sha256, result_json, actor) "
                         "VALUES (%s, 'M4', 'DC_CAN_CU_LUU', 'gia', %s, '{}'::jsonb, %s)", (pn, "2" * 64, self.KT1)),
                        ("INSERT INTO kho.bien_nhan_thao_tac (phap_nhan_id, module, operation, client_key, request_sha256, result_json, actor) "
@@ -327,7 +442,7 @@ class M4DoiChieuCanCuPG(unittest.TestCase):
         self.doi_dc(truoc)
         # owner: lệnh không ghim producer / GUC giả → không hiện hành
         x = self.xem_dc([self.s["r1"]])
-        b = self.than([self.s["r1"]], x, self.K("c06-khong-ghim"), goc=a["doi_chieu"]["doi_chieu_id"], rev=2)
+        b = self.than([self.s["r1"]], x, self.K("c06-khong-ghim"), goc=goc, rev=self.cuoi(goc)["revision"])
         y = GN.yeu_cau_luu(b)
         y.pop("khoa")
         yc = json.dumps(y, ensure_ascii=False)
@@ -335,21 +450,195 @@ class M4DoiChieuCanCuPG(unittest.TestCase):
         gia = json.dumps({"pid": "0", "txid": "0", "actor": "x", "cho": {self.s["h1"]["cho"]: {"hien_hanh": True, "toan_ven": True}}})
         self.assertEqual(self.chu_loi(("SELECT set_config(%s, %s, true) AS r", (SG.GUC_NT, gia)),
                                       ("SELECT kho.dc_luu(%s, %s::jsonb) AS r", (b["khoa"] + "g", yc))), "DC_CAN_KIEM_LAI")
-        # thành phần gắn thêm vào phiên bản cũ / sửa lịch sử bởi owner → chặn
-        self.assertEqual(self.chu_loi(("UPDATE kho.mua_doi_chieu_can_cu_phien_ban SET ly_do = 'x' WHERE id = %s RETURNING id AS r",
-                                       (a["doi_chieu"]["phien_ban_id"],))), "DC_BAT_BIEN")
+        # owner sửa lịch sử / gắn alias ngoài lệnh (trỏ revision cũ) / đổi namespace gốc → chặn
+        self.assertEqual(self.chu_loi(("UPDATE kho.mua_doi_chieu_can_cu_phien_ban SET ly_do = 'x' WHERE id = %s RETURNING id AS r", (pb,))),
+                         "DC_BAT_BIEN")
+        self.assertEqual(self.chu_loi(("UPDATE kho.mua_doi_chieu_can_cu SET module_bien_nhan = 'M2' WHERE id = %s RETURNING id AS r", (goc,))),
+                         "DC_BAT_BIEN")
+        self.assertEqual(self.chu_loi(("INSERT INTO kho.mua_doi_chieu_can_cu_tap (phap_nhan_id, tap_sha256, doi_chieu_id, phien_ban_id, tao_boi, "
+                                       "tao_boi_id) VALUES (%s, %s, %s, %s, %s, %s) RETURNING id AS r", (pn, "4" * 64, goc, pb, self.KT1, aid))),
+                         "DC_BAT_BIEN")
         self.doi_dc(truoc)
 
-    # ------------------------------------------------------------------ C07 đồng thời
+    # ------------------------------------------------------------------ C07 đồng thời tạo gốc + xung đột alias
     def test_c07_dong_thoi_mot_goc(self):
-        self.can("r3")
+        self.can("r3", "a1b")
         r3 = self.s["r3"]
         x = self.xem_dc([r3])
+        self.assertIsNone(x["doi_chieu"]["goc_cua_tap"])
+        dcs = self.dich_vu_rieng(3)
         truoc = self.dem_tat_ca()
-        kq, loi = self.song_song([lambda i=i: self.dc.luu_doi_chieu(self.KT1, self.than([r3], x, self.K(f"c07-{i}"))) for i in range(3)])
+        kq, loi = self.song_song([lambda d=d, i=i: d.luu_doi_chieu(self.KT1, self.than([r3], x, self.K(f"c07-{i}"))) for i, d in enumerate(dcs)])
         self.assertEqual(len(kq), 1, (kq, loi))
         self.assertEqual(sorted(loi), ["DC_DA_CO_GOC", "DC_DA_CO_GOC"])
-        self.luu_moi(truoc, 1, 1)
+        self.luu_moi(truoc, 0, 1)  # identity r3 đã có từ C04
+        goc_d = kq[0]["doi_chieu"]["doi_chieu_id"]
+        self.assertEqual(self.xem_dc([r3])["doi_chieu"]["goc_cua_tap"], goc_d)
+        # sửa gốc khác sang tập đã thuộc gốc này → 409, không gộp/dời lịch sử, 0 delta
+        goc = self.s["a1b"]["doi_chieu"]["doi_chieu_id"]
+        anh = self.anh_goc(goc)
+        truoc = self.dem_tat_ca()
+        self.assertEqual(self.loi(self.dc.luu_doi_chieu, self.KT1, self.than([r3], x, self.K("c07-xung"), goc=goc, rev=self.cuoi(goc)["revision"])),
+                         "DC_TAP_THUOC_GOC_KHAC")
+        self.doi_dc(truoc)
+        self.assertEqual(self.anh_goc(goc), anh)
+        self.s.update(goc_d=goc_d)
+
+    # ------------------------------------------------------------------ C08 hóa đơn trước → CÙNG gốc thêm NT (cổng hóa đơn)
+    def test_c08_hoa_don_truoc_cung_goc(self):
+        self.can("rh", "r2", "goc_b")
+        rh, r2 = self.s["rh"], self.s["r2"]
+        xh = self.xem_dc([rh])
+        self.assertIsNone(xh["doi_chieu"]["goc_cua_tap"])
+        truoc = self.dem_tat_ca()
+        a = self.dc.luu_doi_chieu(self.KT1, self.than([rh], xh, self.K("c08-tao")))
+        goc = a["doi_chieu"]["doi_chieu_id"]
+        self.assertIn("THIEU_NT", a["kt"]["thieu"])
+        self.luu_moi(truoc, 0, 1)  # identity hóa đơn đã có từ C03
+        self.assertEqual(self.module_goc(goc), ("M2", ["M2"]), "gốc tạo chỉ hóa đơn → namespace M2")
+        # thêm NT mà tập kết quả đã thuộc gốc khác (C03 nhiều-nhiều) → 409, 0 delta
+        x2 = self.xem_dc([rh, r2])
+        self.assertEqual(x2["doi_chieu"]["goc_cua_tap"], self.s["goc_b"])
+        truoc = self.dem_tat_ca()
+        self.assertEqual(self.loi(self.dc.luu_doi_chieu, self.KT1, self.than([rh, r2], x2, self.K("c08-xung"), goc=goc, rev=1)), "DC_TAP_THUOC_GOC_KHAC")
+        self.doi_dc(truoc)
+        # thêm NT mới → revision CÙNG gốc, namespace vẫn M2; thiếu thật (NT chưa KT xác nhận) vẫn chờ
+        h5 = self.ho_so_seal("DC8")
+        r5 = self.ref_nt(self.xem(h5["cho"]))
+        x5 = self.xem_dc([r5, rh])
+        anh = self.anh_goc(goc)
+        truoc = self.dem_tat_ca()
+        b_them = self.than([r5, rh], x5, self.K("c08-them"), goc=goc, rev=1, ly_do="Bổ sung nghiệm thu cho hóa đơn")
+        a2 = self.dc.luu_doi_chieu(self.KT1, b_them)
+        self.assertEqual((a2["lap_lai"], a2["doi_chieu"]["doi_chieu_id"], a2["doi_chieu"]["revision"]), (False, goc, 2))
+        self.assertIn("NT_CHUA_KT_XAC_NHAN", a2["kt"]["thieu"])
+        self.luu_rev(truoc, 2, tap=1, nguon=1)
+        self.giu_lich_su(anh, self.anh_goc(goc))
+        self.assertEqual(self.module_goc(goc), ("M2", ["M2"]), "thêm NT không đổi namespace biên nhận")
+        truoc = self.dem_tat_ca()
+        self.assertEqual(self.loi(self.dc.xac_nhan_doi_chieu, self.KT1, self.xn_cua(a2, self.K("c08-xn"))), "DC_CHO_BO_SUNG")
+        self.doi_dc(truoc)
+        # bớt hóa đơn (chỉ còn NT) → tập mới cùng gốc; ABA về {hóa đơn} → alias 0
+        a3 = self.dc.luu_doi_chieu(self.KT1, self.than([r5], self.xem_dc([r5]), self.K("c08-bo-hd"), goc=goc, rev=2))
+        self.luu_rev(truoc, 1, tap=1)
+        self.assertEqual((a3["doi_chieu"]["doi_chieu_id"], a3["doi_chieu"]["revision"]), (goc, 3))
+        truoc = self.dem_tat_ca()
+        a4 = self.dc.luu_doi_chieu(self.KT1, self.than([rh], self.xem_dc([rh]), self.K("c08-aba"), goc=goc, rev=3))
+        self.assertEqual((a4["doi_chieu"]["revision"], a4["doi_chieu"]["tap_sha256"]), (4, a["doi_chieu"]["tap_sha256"]))
+        self.luu_rev(truoc, 1, tap=0)
+        # phát lại sau đổi thành viên; khóa cũ khác body; khóa mới body cũ; gốc mới cho tập đã thuộc gốc
+        truoc = self.dem_tat_ca()
+        a2b = self.dc.luu_doi_chieu(self.KT1, b_them)
+        self.assertEqual((a2b["lap_lai"], a2b["receipt_id"], a2b["doi_chieu"]["phien_ban_id"]), (True, a2["receipt_id"], a2["doi_chieu"]["phien_ban_id"]))
+        self.assertEqual(self.loi(self.dc.luu_doi_chieu, self.KT1, {**b_them, "ly_do": "khác"}), "DC_IDEMPOTENCY_KHAC")
+        self.assertEqual(self.loi(self.dc.luu_doi_chieu, self.KT1, {**b_them, "khoa": self.K("c08-them-moi")}), "DC_REVISION_CU")
+        self.assertEqual(self.loi(self.dc.luu_doi_chieu, self.KT1, self.than([rh], self.xem_dc([rh]), self.K("c08-goc-moi"))), "DC_DA_CO_GOC")
+        self.assertEqual(self.loi(self.dc.luu_doi_chieu, self.KT1, self.than([r5, rh], x5, self.K("c08-goc-moi2"))), "DC_DA_CO_GOC")
+        self.doi_dc(truoc)
+        self.assertEqual(self.module_goc(goc), ("M2", ["M2"]))
+        self.s.update(goc_c=goc, r5=r5)
+        # đổi phần: toàn bộ hóa đơn ↔ dòng logic có thật (tùy chọn)
+        dong = os.environ.get(ENV_DONG)
+        if not dong:
+            self.skipTest(f"NOT_VERIFIED (đổi phần): thiếu {ENV_DONG} — dòng logic có sẵn của {ENV_HOA_DON} (phụ thuộc clone của Root)")
+        rl, itl = self.ref_hd(part=dong)
+        xl = self.xem_dc([rl])
+        n_phan = 0 if self.q("SELECT count(*) FROM kho.mua_nguon_phan WHERE dong_danh_tinh_id = %s", (dong,)) else 1
+        truoc = self.dem_tat_ca()
+        a5 = self.dc.luu_doi_chieu(self.KT1, self.than([rl], xl, self.K("c08-dong"), goc=goc, rev=4, ly_do="Chỉ đối chiếu một dòng hóa đơn"))
+        self.assertEqual((a5["doi_chieu"]["doi_chieu_id"], a5["doi_chieu"]["revision"]), (goc, 5))
+        if not itl["cau_noi"]:
+            self.assertIn("CHO_MAPPING_M2", a5["kt"]["thieu"], "dòng chưa có mapping M2 → vẫn chờ, không suy")
+        self.luu_rev(truoc, 1, tap=1, phan=n_phan)
+        truoc = self.dem_tat_ca()
+        a6 = self.dc.luu_doi_chieu(self.KT1, self.than([rh], self.xem_dc([rh]), self.K("c08-toan"), goc=goc, rev=5))
+        self.assertEqual((a6["doi_chieu"]["revision"], a6["doi_chieu"]["tap_sha256"]), (6, a["doi_chieu"]["tap_sha256"]))
+        self.luu_rev(truoc, 1, tap=0)
+
+    # ------------------------------------------------------------------ C09 hai kết nối cạnh tranh đổi tập của cùng gốc
+    def test_c09_dong_thoi_doi_tap(self):
+        self.can("a1b", "r1", "r3")
+        r1, r3 = self.s["r1"], self.s["r3"]
+        goc = self.s["a1b"]["doi_chieu"]["doi_chieu_id"]
+        h6 = self.ho_so_seal("DC9")
+        r6 = self.ref_nt(self.xem(h6["cho"]))
+        cu = self.cuoi(goc)
+        rev = cu["revision"]
+        taps = ([r1, r6], [r1, r3, r6])
+        xs = [self.xem_dc(t) for t in taps]
+        dcs = self.dich_vu_rieng(2)
+        bodies = [self.than(t, x, self.K(f"c09-{i}"), goc=goc, rev=rev) for i, (t, x) in enumerate(zip(taps, xs))]
+        truoc = self.dem_tat_ca()
+        kq, loi = self.song_song([lambda d=d, b=b: d.luu_doi_chieu(self.KT1, b) for d, b in zip(dcs, bodies)])
+        self.assertEqual((len(kq), loi), (1, ["DC_REVISION_CU"]), (kq, loi))
+        w = kq[0]["doi_chieu"]
+        thang = next(i for i, x in enumerate(xs) if x["doi_chieu"]["khoa_goc_sha256"] == w["tap_sha256"])
+        thua = 1 - thang
+        # bằng chứng CAS đã commit (không dựa thời gian): đúng +1 revision nối tiếp revision đã đọc; alias chỉ của bên thắng
+        pbs = self.q("SELECT jsonb_agg(jsonb_build_object('id', v.id, 'revision', v.revision, 'truoc_id', v.truoc_id) ORDER BY v.revision) "
+                     "FROM kho.mua_doi_chieu_can_cu_phien_ban v WHERE v.doi_chieu_id = %s", (goc,))
+        self.assertEqual((pbs[-1]["revision"], pbs[-1]["id"], pbs[-1]["truoc_id"]), (rev + 1, w["phien_ban_id"], cu["phien_ban_id"]))
+        self.assertEqual(self.q("SELECT count(*) FROM kho.mua_doi_chieu_can_cu_tap WHERE tap_sha256 = %s",
+                                (xs[thua]["doi_chieu"]["khoa_goc_sha256"],)), 0)
+        self.luu_rev(truoc, len(taps[thang]), tap=1, nguon=1)
+        # thứ tự thắng ngược: bên thua trước (CAS rev+1) rồi bên thắng cũ với cùng revision → DC_REVISION_CU
+        truoc = self.dem_tat_ca()
+        b_thua = self.than(taps[thua], self.xem_dc(taps[thua]), self.K("c09-nguoc-thua"), goc=goc, rev=rev + 1)
+        b_thang = self.than(taps[thang], self.xem_dc(taps[thang]), self.K("c09-nguoc-thang"), goc=goc, rev=rev + 1)
+        n = dcs[thua].luu_doi_chieu(self.KT1, b_thua)
+        self.assertEqual((n["doi_chieu"]["doi_chieu_id"], n["doi_chieu"]["revision"]), (goc, rev + 2))
+        self.assertEqual(self.loi(dcs[thang].luu_doi_chieu, self.KT1, b_thang), "DC_REVISION_CU")
+        self.luu_rev(truoc, len(taps[thua]), tap=1)
+
+    # ------------------------------------------------------------------ C10 xác nhận vs revision (cổng hóa đơn dương)
+    def test_c10_xac_nhan_vs_revision(self):
+        self.can("a3x", "rh", "r1")
+        r1, rh = self.s["r1"], self.s["rh"]
+        goc = self.s["a1b"]["doi_chieu"]["doi_chieu_id"]
+        du = [r1, rh]
+        xf = self.xem_dc(du)
+        self.assertEqual((xf["kt"]["thieu"], xf["doi_chieu"]["goc_cua_tap"]), ([], goc))
+        x1 = self.xem_dc([r1])
+        dcs = self.dich_vu_rieng(2)
+
+        def nhap(nhan):
+            return self.dc.luu_doi_chieu(self.KT1, self.than(du, xf, self.K(f"c10-nhap-{nhan}"), goc=goc, rev=self.cuoi(goc)["revision"]))
+
+        def kiem_ket_thuc(truoc, d, xac_nhan_thang: bool):
+            pbs = self.q("SELECT jsonb_agg(to_jsonb(v) ORDER BY v.revision) FROM kho.mua_doi_chieu_can_cu_phien_ban v WHERE v.doi_chieu_id = %s",
+                         (goc,))
+            cuoi = pbs[-1]
+            self.assertEqual((cuoi["revision"], cuoi["truoc_id"]), (d["doi_chieu"]["revision"] + 1, d["doi_chieu"]["phien_ban_id"]))
+            if xac_nhan_thang:
+                self.assertEqual((cuoi["loai"], cuoi["nhap_id"]), ("XAC_NHAN", d["doi_chieu"]["phien_ban_id"]))
+                self.doi_dc(truoc, kho__mua_doi_chieu_can_cu_phien_ban=1, kho__mua_doi_chieu_can_cu_thanh_phan=2,
+                            kho__mua_doi_chieu_can_cu_nhat_ky=1, kho__bien_nhan_thao_tac=1)
+            else:
+                self.assertEqual((cuoi["loai"], cuoi["tap_sha256"]), ("NHAP", x1["doi_chieu"]["khoa_goc_sha256"]))
+                self.luu_rev(truoc, 1, tap=0)
+
+        # đua thật hai kết nối: đúng một thành công, bên kia DC_REVISION_CU; trạng thái commit quyết định bên thắng
+        d = nhap("dua")
+        xn = self.xn_cua(d, self.K("c10-xn-dua"))
+        rv = self.than([r1], x1, self.K("c10-rv-dua"), goc=goc, rev=d["doi_chieu"]["revision"])
+        truoc = self.dem_tat_ca()
+        kq, loi = self.song_song([lambda: dcs[0].xac_nhan_doi_chieu(self.KT1, xn), lambda: dcs[1].luu_doi_chieu(self.KT1, rv)])
+        self.assertEqual((len(kq), loi), (1, ["DC_REVISION_CU"]), (kq, loi))
+        kiem_ket_thuc(truoc, d, kq[0]["doi_chieu"]["trang_thai"] == SG.TT_XAC_NHAN)
+        # cả hai thứ tự thắng, xác định bằng CAS đã commit
+        for xn_truoc in (True, False):
+            nhan = "xn" if xn_truoc else "rv"
+            d = nhap(f"thu-tu-{nhan}")
+            xn = self.xn_cua(d, self.K(f"c10-xn-{nhan}"))
+            rv = self.than([r1], x1, self.K(f"c10-rv-{nhan}"), goc=goc, rev=d["doi_chieu"]["revision"])
+            truoc = self.dem_tat_ca()
+            if xn_truoc:
+                dcs[0].xac_nhan_doi_chieu(self.KT1, xn)
+                self.assertEqual(self.loi(dcs[1].luu_doi_chieu, self.KT1, rv), "DC_REVISION_CU")
+            else:
+                dcs[1].luu_doi_chieu(self.KT1, rv)
+                self.assertEqual(self.loi(dcs[0].xac_nhan_doi_chieu, self.KT1, xn), "DC_REVISION_CU")
+            kiem_ket_thuc(truoc, d, xn_truoc)
 
 
 if __name__ == "__main__":
