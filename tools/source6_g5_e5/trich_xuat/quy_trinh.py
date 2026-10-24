@@ -726,28 +726,110 @@ def _ngay_iso(ngay, thang, nam):
         return None
 
 
-def _token_e5(dong_norm):
-    """Token typed THEO THỨ TỰ trong một dòng đã norm: ("ngay", iso|None, None) và ("so", số canonical, hậu tố) — hậu tố '%', mã tiền tệ
-    VND/USD/EUR theo chữ liền sau, từ đơn vị liền sau (vd 'ngày'), hoặc None. Số nằm trong một ngày không tách riêng."""
+def _token_e5_vt(dong_norm):
+    """Như `_token_e5` nhưng giữ khoảng ký tự [đầu, cuối) của từng token (cuối gồm cả hậu tố %/tiền tệ/từ đơn vị) — để tách ô bảng theo vị trí."""
     ngay = []
     for rx in (_RE_NGAY_GACH, _RE_NGAY_CHU):
         for m in rx.finditer(dong_norm):
             ngay.append((m.start(), m.end(), _ngay_iso(m.group(1), m.group(2), m.group(3))))
-    tok = [(a, "ngay", iso, None) for a, _b, iso in ngay]
+    tok = [(a, b, "ngay", iso, None) for a, b, iso in ngay]
     for m in _RE_SO_VN.finditer(dong_norm):
         if any(a <= m.start() < b for a, b, _ in ngay):
             continue
-        sau = dong_norm[m.end():].lstrip()
+        sau_tho = dong_norm[m.end():]
+        sau = sau_tho.lstrip()
+        dau = m.end() + len(sau_tho) - len(sau)
+        cuoi = m.end()
         if sau.startswith("%"):
-            hau = "%"
+            hau, cuoi = "%", dau + 1
         else:
-            hau = next((ma for ma, rx in _TIEN_TE_HAU_TO if rx.match(sau)), None)
-            if hau is None:
+            tt = next(((ma, rx.match(sau)) for ma, rx in _TIEN_TE_HAU_TO if rx.match(sau)), None)
+            if tt is not None:
+                hau, cuoi = tt[0], dau + tt[1].end()
+            else:
                 w = re.match(r"[^\W\d_]+", sau)
                 hau = w.group(0) if w else None
+                if w:
+                    cuoi = dau + w.end()
         so = _so_chuan_e5(decimal.Decimal(m.group(1).replace(".", "") + (("." + m.group(2)) if m.group(2) else "")))
-        tok.append((m.start(), "so", so, hau))
-    return [t[1:] for t in sorted(tok, key=lambda t: t[0])]
+        tok.append((m.start(), cuoi, "so", so, hau))
+    return sorted(tok, key=lambda t: t[0])
+
+
+def _token_e5(dong_norm):
+    """Token typed THEO THỨ TỰ trong một dòng đã norm: ("ngay", iso|None, None) và ("so", số canonical, hậu tố) — hậu tố '%', mã tiền tệ
+    VND/USD/EUR theo chữ liền sau, từ đơn vị liền sau (vd 'ngày'), hoặc None. Số nằm trong một ngày không tách riêng."""
+    return [t[2:] for t in _token_e5_vt(dong_norm)]
+
+
+_DAU_BIEN = " :;,.|"
+
+
+def _tu_bang_e5(dong):
+    """Từ của MỘT dòng bản ký: (từ gốc NFC đã gọn khoảng trắng, từ norm tương ứng 1:1). norm làm mất/tách từ → None (không tự ghép)."""
+    goc = [w for w in re.sub(r"\s+", " ", unicodedata.normalize("NFC", dong or "")).strip().split(" ") if w]
+    nn = [norm(w) for w in goc]
+    if not goc or any(not x or " " in x for x in nn):
+        return None
+    return goc, nn
+
+
+def _o_bang_e5(cot, con_goc, con_nn, mau):
+    """Ô cột 2..n của MỘT dòng bảng, đọc từ phần SAU khóa dòng theo đúng thứ tự xuất hiện (không tìm chuỗi kỳ vọng). Trả (ô[], None) | (None, lý do).
+    - Không có cột text ngoài khóa: chữ giữa các token là lời nối; số token typed phải BẰNG số cột typed, đổi theo thứ tự.
+    - Có cột text: chuỗi đoạn [text | typed] phải khớp 1:1 nhóm cột (cột text liền nhau gom một nhóm); nhóm k>1 cột text chỉ tách được khi đoạn
+      có đúng k từ. Thừa/thiếu từ, đoạn không khớp cấu trúc → O_KHONG_XAC_DINH (không đoán ranh giới ô)."""
+    s = " ".join(con_nn)
+    dau_tu, p = [], 0
+    for w in con_nn:
+        dau_tu.append(p)
+        p += len(w) + 1
+
+    def tu(c):
+        return max(k for k, a in enumerate(dau_tu) if a <= c)
+    seg, k = [], 0
+    for a, b, *tk in (_token_e5_vt(s) if con_nn else []):
+        w0, w1 = tu(a), tu(max(a, b - 1))
+        if w0 > k:
+            seg.append(("text", con_goc[k:w0]))
+        seg.append(("typed", tuple(tk)))
+        k = max(k, w1 + 1)
+    if k < len(con_goc):
+        seg.append(("text", con_goc[k:]))
+    seg = [(x, v if x == "typed" else [w.strip(_DAU_BIEN) for w in v if w.strip(_DAU_BIEN)]) for x, v in seg]
+    seg = [(x, v) for x, v in seg if x == "typed" or v]
+    loai = [c["kieu"] for c in cot[1:]]
+    o = [None] * len(loai)
+    if "text" not in loai:
+        typed = [v for x, v in seg if x == "typed"]
+        if len(typed) != len(loai):
+            return None, "O_KHONG_XAC_DINH"
+        cap = [(j, tk) for j, tk in enumerate(typed)]
+    else:
+        nhom = []
+        for j, l in enumerate(loai):
+            if l == "text" and nhom and nhom[-1][0] == "text":
+                nhom[-1][1].append(j)
+            else:
+                nhom.append(("text" if l == "text" else "typed", [j]))
+        if len(nhom) != len(seg) or any(n[0] != x for n, (x, _v) in zip(nhom, seg)):
+            return None, "O_KHONG_XAC_DINH"
+        cap = []
+        for (x, cs), (_x, v) in zip(nhom, seg):
+            if x == "typed":
+                cap.append((cs[0], v))
+            elif len(cs) == 1:
+                o[cs[0]] = " ".join(v)
+            elif len(v) == len(cs):
+                for j, w in zip(cs, v):
+                    o[j] = w
+            else:
+                return None, "O_KHONG_XAC_DINH"
+    for j, tk in cap:
+        o[j] = _gia_tri_tu_token(loai[j], tk, mau[j])
+        if o[j] is None:
+            return None, "O_KHONG_DOC_DUOC"
+    return o, None
 
 
 def _gia_tri_tu_token(kieu, tk, ky_vong):
@@ -827,35 +909,64 @@ def _doc_ma_e5(bo, kieu, kv, p, lines, dong_norm, tc, ma):
     if bo == "BANG_DONG":
         if kieu != "bang":
             return "thieu", "KIEU_KHONG_HO_TRO_BO_TRICH", []
+        # FIX01: bảng đọc TỪ bản ký — vùng bảng = khối dòng liên tiếp mở đầu bằng nhãn dòng chung của khóa expected (vd 'Đợt'); khóa dòng, thứ tự
+        # dòng và từng ô lấy từ chính dòng đọc được. Expected chỉ dùng làm schema (cột/kiểu/nhãn/đơn vị) và để đối chiếu; dòng thừa trong vùng giữ lại.
         cot = kv["cot"]
         if any(x is None for r in kv["dong"] for x in r):
             return "thieu", "KY_VONG_CO_O_NULL", []
-        quan_sat, ix_all, mot_phan, chua = [], [], [], []
-        for r in kv["dong"]:
-            k = norm(r[0])
-            ix = [i for i, ln in enumerate(dong_norm) if ln.startswith(k) and (len(ln) == len(k) or not ln[len(k)].isalnum())]
-            if len(ix) != 1:
-                chua.append({"dong": r[0], "ly_do": "KHONG_THAY_DONG" if not ix else "NHIEU_DONG"})
+        kn = [norm(r[0]).split(" ") for r in kv["dong"]]
+        nhan = {k[0] for k in kn}
+        if len(nhan) != 1 or any(len(k) < 2 for k in kn):
+            return "thieu", "KHONG_XAC_DINH_VUNG_BANG", []   # không có nhãn dòng chung quan sát được → không định vùng
+        nhan = nhan.pop()
+        ung = [i for i, ln in enumerate(dong_norm) if len(ln.split(" ")) > 1 and ln.split(" ")[0].rstrip(_DAU_BIEN) == nhan]
+        if ung and ung[-1] - ung[0] + 1 != len(ung):
+            return "thieu", "NHIEU_VUNG_BANG", [{"dong_so": [i + 1 for i in ung]}]
+        mau_cot = [next(x for x in (r[j] for r in kv["dong"]) if x is not None) for j in range(1, len(cot))]
+        ky_vong = {" ".join(k): r for k, r in zip(kn, kv["dong"])}
+        doc, chua, thay, ix_all = [], [], {}, []
+        for i in ung:
+            t = _tu_bang_e5(lines[i])
+            if t is None:
+                chua.append({"ly_do": "KHOA_DONG_KHONG_XAC_DINH", "dong_so": i + 1})
                 continue
-            i = ix[0]
-            con = dong_norm[i][len(k):]
-            toks, j, obs = _token_e5(con), 0, [r[0]]
-            for c, x in zip(cot[1:], r[1:]):
-                if c["kieu"] == "text":
-                    obs.append(x if re.search(r"(?<!\w)" + re.escape(norm(x)) + r"(?!\w)", con) else None)
-                    continue
-                v = None
-                while j < len(toks) and v is None:
-                    v = _gia_tri_tu_token(c["kieu"], toks[j], x)
-                    j += 1
-                obs.append(v)
+            goc_w, nn = t
+            dai = max((len(k) for k in kn if len(nn) >= len(k) and nn[:len(k) - 1] == k[:-1] and nn[len(k) - 1].rstrip(_DAU_BIEN) == k[-1]),
+                      default=2)
+            if len(goc_w) < dai or not goc_w[dai - 1].strip(_DAU_BIEN):
+                chua.append({"ly_do": "KHOA_DONG_KHONG_XAC_DINH", "dong_so": i + 1})
+                continue
+            khoa = " ".join(goc_w[:dai]).rstrip(_DAU_BIEN)
+            kh = norm(khoa)
+            thay.setdefault(kh, (khoa, []))[1].append(i)
+            r_kv = ky_vong.get(kh)
+            mau = list(r_kv[1:]) if r_kv is not None else mau_cot
+            o, ly_do = _o_bang_e5(cot, goc_w[dai:], nn[dai:], mau)
             ix_all.append(i)
-            if any(o is None for o in obs):
-                chua.append({"dong": r[0], "ly_do": "O_KHONG_DOC_DUOC", "dong_so": i + 1})
-            elif _canon_e5(obs) != _canon_e5(r):
-                mot_phan.append({"dong": r[0], "gia_tri_ky_vong": r, "gia_tri_ban_ky": obs, "dong_so": i + 1})
-            quan_sat.append(obs)
+            if o is None:
+                chua.append({"dong": khoa, "ly_do": ly_do, "dong_so": i + 1})
+                continue
+            doc.append(([khoa] + o, i, kh))
+        for khoa, ds in thay.values():
+            if len(ds) > 1:
+                chua.append({"dong": khoa, "ly_do": "NHIEU_DONG", "dong_so": [i + 1 for i in ds]})
+        for k, r in zip(kn, kv["dong"]):
+            if " ".join(k) not in thay:
+                chua.append({"dong": r[0], "ly_do": "KHONG_THAY_DONG"})
+        quan_sat = [r for r, _i, _k in doc]
+        if not chua and not gia_tri_e5_hop_le("bang", {"cot": cot, "dong": quan_sat}):
+            chua.append({"ly_do": "BANG_DOC_KHONG_HOP_LE"})
         if chua:
+            mot_phan = []
+            for r, i, kh in doc:
+                r_kv = ky_vong.get(kh)
+                if r_kv is None:
+                    mot_phan.append({"dong": r[0], "ly_do": "DONG_NGOAI_KY_VONG", "gia_tri_ban_ky": r, "dong_so": i + 1})
+                elif _canon_e5(r) != _canon_e5(r_kv):
+                    mot_phan.append({"dong": r[0], "gia_tri_ky_vong": r_kv, "gia_tri_ban_ky": r, "dong_so": i + 1})
+            thu_tu = [kh for _r, _i, kh in doc if kh in ky_vong]
+            if thu_tu != [k for k in (" ".join(x) for x in kn) if k in thu_tu]:
+                mot_phan.append({"ly_do": "THU_TU_DONG_KHAC", "thu_tu_ban_ky": [r[0] for r, _i, kh in doc if kh in ky_vong]})
             return "thieu", "BANG_CHUA_DU", chua + mot_phan
         return "doc", {"cot": cot, "dong": quan_sat}, ix_all, "\n".join(lines[i] for i in ix_all)
     return "thieu", "CHUA_CO_BO_TRICH", []
