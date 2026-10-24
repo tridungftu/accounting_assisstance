@@ -32,6 +32,10 @@ HEADER_TOKEN = "X-Trich6-Token"
 KIEU_CAU_HINH, KIEU_SAN_SANG, KIEU_LOI = "trich6_host_cau_hinh/v1", "trich6_host_san_sang/v1", "trich6_host_loi/v1"
 RE_LUOT = re.compile(r"\d{8}_\d{6}(?:_\d+)?")
 RE_HEX64 = re.compile(r"[0-9a-f]{64}")
+# SOURCE6-G5-E5: biến thể tagged `doi_chieu_ban_ky` trên CÙNG common lifecycle — cổng chỉ mở body ĐÚNG 13 khóa (8 legacy + 5 E5), JSON nghiêm.
+MODE_E5 = "doi_chieu_ban_ky"
+KHOA_E5 = frozenset({"contract", "mode", "loai_hop_dong", "catalog_id", "catalog_sha256", "source_sha256", "request_id", "tham_so",
+                     "signed_pdf_sha256", "expected", "expected_sha256", "catalog_binding", "catalog_binding_sha256"})
 # Môi trường con: CHỈ runtime/guard + kỹ thuật cần chạy. Không PG*/DSN/API key/cloud/KHO_*/HD_* của parent.
 # 06A/06B: giữ CẢ HAI đường khởi động guard hiện hành — PYTHONUSERBASE (tệp `.pth` trong user site-packages `import codex_no_delete_guard`,
 # KHÔNG phải usercustomize) và PYTHONPATH (sitecustomize) — cùng cờ CODEX_NO_DELETE_FILES.
@@ -446,6 +450,31 @@ def lop_handler_so_huu(Goc, dv, token: str):
                 return {}
             return v if isinstance(v, dict) else {}
 
+        def _body_json_e5(self):
+            """SOURCE6-G5-E5: body JSON NGHIÊM cho biến thể đối chiếu bản ký — khóa trùng ở bất kỳ mức nào, NaN/Infinity, không phải object →
+            None (cổng từ chối, không chạm route)."""
+            def mot_lan(cap):
+                d = {}
+                for k, v in cap:
+                    if k in d:
+                        raise ValueError("khóa trùng")
+                    d[k] = v
+                return d
+
+            def hang(_x):
+                raise ValueError("hằng số JSON không hữu hạn")
+            try:
+                v = json.loads(self.raw().decode("utf-8"), object_pairs_hook=mot_lan, parse_constant=hang)
+            except (ValueError, UnicodeDecodeError):
+                return None
+            return v if isinstance(v, dict) else None
+
+        def _e5_hop_le(self, y):
+            """Thân E5 đúng tag: đủ ĐÚNG 13 khóa, contract common, mode E5, source = PDF ký. Kiểm cấu trúc sâu do nguồn làm (_kiem_common)."""
+            return isinstance(y, dict) and set(y) == KHOA_E5 and y.get("contract") == common and y.get("mode") == MODE_E5 \
+                and isinstance(y.get("source_sha256"), str) and RE_HEX64.fullmatch(y["source_sha256"]) is not None \
+                and y.get("signed_pdf_sha256") == y["source_sha256"]
+
         def _la_common(self, luot):
             if not RE_LUOT.fullmatch(luot):
                 return False
@@ -481,6 +510,10 @@ def lop_handler_so_huu(Goc, dv, token: str):
             if path == "/api/trich_xuat":
                 b = self._body_json()
                 y = b.get("yeu_cau")
+                if isinstance(y, dict) and y.get("mode") == MODE_E5:   # SOURCE6-G5-E5: chỉ thân tagged đúng 13 khóa, JSON nghiêm
+                    b = self._body_json_e5()
+                    return b is not None and set(b) == {"contract", "request_id", "yeu_cau"} and b["contract"] == common \
+                        and self._e5_hop_le(b["yeu_cau"]) and b["request_id"] == b["yeu_cau"].get("request_id")
                 return set(b) == {"contract", "request_id", "yeu_cau"} and b["contract"] == common and isinstance(y, dict) \
                     and y.get("contract") == common and y.get("mode") == "RULE_ONLY"
             m = re.fullmatch(r"/api/trich_xuat/([^/]+)/(tep|chay|dung)", path)
@@ -488,6 +521,8 @@ def lop_handler_so_huu(Goc, dv, token: str):
                 return False
             if m.group(2) == "chay":
                 b = self._body_json()
+                if b.get("mode") == MODE_E5:
+                    return self._e5_hop_le(self._body_json_e5())
                 return b.get("contract") == common and b.get("mode") == "RULE_ONLY"
             return True
 
