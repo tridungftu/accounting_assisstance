@@ -8,7 +8,8 @@ Trạng thái lát: Đang code → Chờ kiểm → Chờ Anh (cổng A/B) → S
 |---|---|---|---|---|---|
 | BG-1b | CRM · Báo giá gói 1 màn hình (BG-01…05) → cổng A | Claude Sonnet | `lat/bg-1b` (từ `lat/bg-1a`) · `.claude/worktrees/lat-bg-1b` · DEMO cổng 8784, CSDL riêng `p8784` | 24/10 | Đang code — bị ngắt 1 lần (đứng 600 giây), đã nối lại; đã gộp BG-1a vòng 2; server DEMO 8784 đang chạy |
 | M2c | M2-00 · nhận hóa đơn theo manifest qua đường nhận K2 sẵn có (ca M2-00-03/-04/-05/-10) | Codex | `lat/m2c` · `.claude/worktrees/lat-m2c` | 24/10 | Đang code |
-| L0-3c | Cập nhật test lỗi thời (N5): đếm cứng số migration, khẳng định trạng thái cũ, kết nối giả thiếu hàm — không nới ý nghĩa test | Codex | `lat/l0-3c` · `.claude/worktrees/lat-l0-3c` | 24/10 | Đang code |
+| M4-2 | M4 · Nghiệm thu & chi phí dự án: giao diện Duyệt đợt & PDF — gộp `m4-02c-ui` + `ui-fix01` (3 lỗi: phiên bản cũ/ABA, quyền khi gửi lại, tài nguyên về muộn) | Claude Sonnet | `lat/m4-2` · `.claude/worktrees/lat-m4-2` · DEMO 8785 | 24/10 | Đang code |
+| L0-3c | Cập nhật test lỗi thời (N5) | Codex | `lat/l0-3c` | 24/10 | Chờ thử lại — lượt 1 dừng vì máy chủ OpenAI báo model quá tải ("at capacity"), chưa sửa file nào; thử lại 1 lần khi M2c xong |
 
 ## Lát đã xong (24/10)
 
@@ -41,7 +42,8 @@ Worktree đo nền: `.claude/worktrees/nen-chinh-59b7d8e` (chinh) · `.claude/wo
 | `giao_dien\crm_g.py`, `k2\crm_giao_ket.py` | — |
 | `giao_dien\assets\crm_g.js`, `style.css` | BG-1b |
 | `m4\*` dùng chung | — |
-| `tests\` (chỉ test lỗi thời N5) | L0-3c |
+| `tests\` (chỉ test lỗi thời N5) | L0-3c (chờ) |
+| `m4\giao_dien\m4_duyet_pdf.js`, `m4.js`, `m4.css` | M4-2 |
 | `tools\mo_demo_worktree.ps1`, `CLAUDE.md` | lead |
 
 ## Màn hình / module chờ Anh
