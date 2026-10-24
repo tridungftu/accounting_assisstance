@@ -12,9 +12,9 @@
 
 | Mã | Việc | Worker gợi ý | Giữ file chung | Phụ thuộc | Trạng thái |
 |---|---|---|---|---|---|
-| L0-1 | Nền test `chinh` vs `hop-nhat`, tìm test treo, nhóm nguyên nhân ERROR | Claude | — | — | Sẵn sàng |
-| L0-2a | Gộp chuỗi `m4-03b-common-identity` fix01→fix04 | Codex | — | — | Sẵn sàng |
-| L0-2d | Gộp `crm-g5-doi-chieu` + `crm-m4-three` | Claude | `crm_g.py`, `crm_g.js`, `pg_migrations.py` | — | Sẵn sàng |
+| L0-1 | Nền test `chinh` vs `hop-nhat`, tìm test treo, nhóm nguyên nhân ERROR | Claude | — | — | Đang code (24/10) |
+| L0-2a | Gộp chuỗi `m4-03b-common-identity` fix01→fix04 | Codex | — | — | Đang code (24/10) |
+| L0-2d | Gộp `crm-g5-doi-chieu` + `crm-m4-three` | Claude | `crm_g.py`, `crm_g.js`, `pg_migrations.py` | — | Đang code (24/10) |
 | L0-2b | Gộp `m4-02c-ui` → `ui-fix01` | Codex | — | — | Sẵn sàng |
 | L0-2e | Gộp `m2-00b-fix01` (có thể là nguyên nhân 114 ERROR M2-00B) | Codex | — | — | Sẵn sàng |
 | L0-2f | Gộp `source6-g5-e5-ordered-fix01` | Codex | — | — | Chờ slot |
@@ -90,3 +90,12 @@ Các lát L0-2b, L0-2e, L0-2f, L0-2g, L0-2c, L0-2h dùng cùng mẫu với L0-2a
 Mở ứng dụng Claude trên máy → tab Code → phiên **trên máy này** (không phải đám mây) → chọn thư mục `D:\Claude\Phan mem ho tro ke toan\Phần mềm kho tri thức` → chọn model Opus, rồi dán:
 
 > Bạn là lead điều phối của repo này từ hôm nay. Đọc `CLAUDE.md`, `AGENTS.md` và `docs\46-chuyen-doi-dieu-phoi\4-KE-HOACH-LEAD.md`. Chép nguyên cây `docs\46-chuyen-doi-dieu-phoi\cai-dat-claude\` (settings.json, agents\, hooks\) vào `.claude\` ở gốc repo, chạy thử hook `chan_lenh_nguy_hiem.py` với một lệnh `rm` giả để chắc nó chặn được, rồi khởi động lại phiên để nạp cấu hình. Kiểm `git status`, nhánh hiện tại phải là `hop-nhat-20261023`. Kiểm `codex --version`: nếu chưa có Codex CLI thì đề xuất cài (`npm install -g @openai/codex`) và đăng nhập bằng tài khoản ChatGPT của tôi (`codex login`, mở trình duyệt) — hỏi tôi trước khi cài; thử một lệnh `codex exec` nhỏ chỉ đọc để chắc chạy được. Sau đó giao song song L0-1 (subagent worker-lat-man-hinh), L0-2a (Codex nếu có, không thì Claude) và L0-2d (subagent worker-lat-man-hinh), đồng thời làm lát MOD: lập hàng đợi lát cho mọi module đã chốt thiết kế theo lệnh của tôi ngày 24/10 (M9 dừng), chia việc cho Claude và Codex. Cập nhật cột trạng thái trong kế hoạch và `TRANG-THAI.md` khi mỗi lát đổi trạng thái. Chỉ báo tôi khi: L0-1 có bảng nền test, một lát bị chặn, hoặc cần tôi quyết.
+
+## 7. Nhật ký lead
+
+**24/10/2026 — phiên lead đầu tiên**
+- Cài cấu hình: chép `cai-dat-claude\` vào `.claude\` (commit 1502fe7 trên `hop-nhat`). Hook chặn thử 13/13 ca đúng; đã sửa hook đọc/ghi UTF-8 (Windows cp1252 làm lỗi phông), thêm matcher PowerShell/Read/Grep/Glob và deny đọc kho thật. Bản mẫu trong `cai-dat-claude\` đồng bộ theo.
+- Worktree: `isolation: worktree` của Claude Code tạo worktree từ nhánh `main` (48e164f, nền cũ, không có hook) → hook lỗi chặn mọi công cụ. Bỏ `isolation` khỏi `worker-lat-man-hinh`; **lead tự tạo worktree**: `git worktree add -b lat/<ma> .claude/worktrees/lat-<ma> hop-nhat-20261023`.
+- Subagent tự định nghĩa (`worker-lat-man-hinh`, `kiem-nhanh`) chỉ nạp khi khởi động lại phiên; tới lúc đó lead gọi worker bằng agent chung + Sonnet + đọc file vai.
+- Codex CLI 0.164.0 đã cài, đã đăng nhập ChatGPT sẵn. Lệnh worker: `codex exec --sandbox workspace-write --add-dir <repo>/.git -c model_reasoning_effort=high -o <báo cáo> - < <handoff>` chạy trong worktree của lát. Cấu hình Codex toàn máy có quy tắc "hỏi trước khi code" và mức `ultra` → handoff ghi rõ "Anh đã duyệt qua lead, làm ngay"; hạ `high` cho lát gộp/sửa.
+- Giao song song: L0-1 (Claude), L0-2a (Codex), L0-2d (Claude).

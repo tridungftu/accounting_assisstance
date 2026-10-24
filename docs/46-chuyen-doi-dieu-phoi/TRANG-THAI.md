@@ -1,4 +1,35 @@
-# Trạng thái hợp nhất — 24/10/2026
+# Trạng thái — lead Claude Code cập nhật khi lát đổi trạng thái
+
+Trạng thái lát: Đang code → Chờ kiểm → Chờ Anh (cổng A/B) → Sửa → Xong · Bị chặn. Kế hoạch và hàng đợi đầy đủ: `4-KE-HOACH-LEAD.md`.
+
+## Lát đang chạy (tối đa 3 worker)
+
+| Lát | Việc | Worker | Nhánh · worktree | Giao lúc | Trạng thái |
+|---|---|---|---|---|---|
+| L0-1 | Nền test `chinh` vs `hop-nhat` | Claude Sonnet | `lat/l0-1` · `.claude/worktrees/lat-l0-1` | 24/10 | Đang code |
+| L0-2a | Gộp chuỗi M4 common identity fix01→04 | Codex | `lat/l0-2a` · `.claude/worktrees/lat-l0-2a` | 24/10 | Đang code |
+| L0-2d | Gộp CRM G5 + CRM-M4-three | Claude Sonnet | `lat/l0-2d` · `.claude/worktrees/lat-l0-2d` | 24/10 | Đang code |
+
+Worktree đo nền `chinh`: `.claude/worktrees/nen-chinh-59b7d8e` (tách rời ở 59b7d8e, chỉ chạy test).
+
+## Khóa file dùng chung (mỗi lúc một lát)
+
+| File | Lát giữ |
+|---|---|
+| `src\kho_tri_thuc\server.py` | — |
+| `ha_tang\pg_migrations.py` | L0-2d |
+| `giao_dien\crm_g.py`, `giao_dien\assets\crm_g.js` | L0-2d |
+| `m4\*` dùng chung | — (L0-2a chỉ giữ `k2\ghi_nhan_chung.py`, `k2\sql_ghi_nhan_chung.py`) |
+
+## Màn hình / module chờ Anh
+
+| Màn | Trạng thái |
+|---|---|
+| CRM · Báo giá (#42, TL 45) | Chưa làm — bắt đầu BG-1 khi L0-2d xong |
+
+---
+
+# Trạng thái hợp nhất — 24/10/2026 (bàn giao từ Codex, giữ làm lịch sử)
 
 | Phần | Đã có | Còn pending / kết luận |
 |---|---|---|

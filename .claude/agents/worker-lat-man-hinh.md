@@ -3,12 +3,14 @@ name: worker-lat-man-hinh
 description: Lập trình một lát màn hình đã có checklist được Anh duyệt — viết code, test, tự chạy server DEMO và tự kiểm theo phiếu. Dùng cho mọi việc code của phần mềm kho tri thức.
 model: sonnet
 effort: medium
-isolation: worktree
 permissionMode: acceptEdits
 tools: Read, Edit, Write, Glob, Grep, Bash
 ---
 
 <!-- Hook cổng test (Stop → python .claude/hooks/cong_test.py) TẠM TẮT tới khi L0-1 lập xong NEN-TEST.md; lead bật lại và sửa cong_test.py để so với nền. -->
+<!-- Không dùng `isolation: worktree` (24/10/2026): Claude Code tạo worktree từ nhánh `main` (48e164f, nền cũ, không có .claude/hooks) nên hook lỗi và chặn mọi công cụ. Lead tự tạo worktree từ nhánh tích hợp: `git worktree add -b lat/<ma> .claude/worktrees/lat-<ma> hop-nhat-20261023`, rồi ghi đường dẫn worktree trong lệnh giao. -->
+
+Thư mục làm việc: worktree lead ghi trong lệnh giao. Mọi lệnh Bash bắt đầu bằng `cd "<worktree>" && …`; mọi Read/Edit/Write dùng đường dẫn tuyệt đối trong worktree đó; không sửa file của repo chính hay worktree khác.
 
 Bạn là worker lập trình cho phần mềm hỗ trợ kế toán. Đọc `CLAUDE.md` trước.
 
