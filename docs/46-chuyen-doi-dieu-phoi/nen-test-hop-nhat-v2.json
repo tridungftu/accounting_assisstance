@@ -1,0 +1,1172 @@
+{
+ "test_crm_41_02": {
+  "ok": 27,
+  "error": 0,
+  "fail": 2,
+  "skip": 0,
+  "treo": 0,
+  "giay": 0.5,
+  "tong": 29,
+  "ids_loi": [
+   "test_crm_41_02.PrefixMigration.test_17_checksum_va_digest_thu_tu",
+   "test_crm_41_02.PrefixMigration.test_791902_byte_dau_giu_nguyen_va_chi_append"
+  ],
+  "loi_dau": "AssertionError: 25 != 18"
+ },
+ "test_crm_41_02_http": {
+  "ok": 0,
+  "error": 0,
+  "fail": 0,
+  "skip": 13,
+  "treo": 0,
+  "giay": 0.7,
+  "tong": 13,
+  "ids_loi": [],
+  "loi_dau": ""
+ },
+ "test_crm_doi_chieu_http": {
+  "ok": 26,
+  "error": 0,
+  "fail": 0,
+  "skip": 0,
+  "treo": 0,
+  "giay": 5.0,
+  "tong": 26,
+  "ids_loi": [],
+  "loi_dau": ""
+ },
+ "test_crm_doi_chieu_pg": {
+  "ok": 0,
+  "error": 0,
+  "fail": 16,
+  "skip": 0,
+  "treo": 0,
+  "giay": 1.1,
+  "tong": 16,
+  "ids_loi": [
+   "test_crm_doi_chieu_pg.CrmDoiChieuBanSao.test_p00_chuan_bi_va_viec_bat_buoc_cung_giao_dich",
+   "test_crm_doi_chieu_pg.CrmDoiChieuBanSao.test_p01_quyen_truoc_doc_va_lenh",
+   "test_crm_doi_chieu_pg.CrmDoiChieuBanSao.test_p02_bat_buoc_cho_nguoi_chay",
+   "test_crm_doi_chieu_pg.CrmDoiChieuBanSao.test_p03_nguoi_chay_chua_dang_ky",
+   "test_crm_doi_chieu_pg.CrmDoiChieuBanSao.test_p04_e5_chua_ghep_giu_y_dinh",
+   "test_crm_doi_chieu_pg.CrmDoiChieuBanSao.test_p05_chua_ro_doi_soat_va_khop_demo",
+   "test_crm_doi_chieu_pg.CrmDoiChieuBanSao.test_p06_thu_cong_cas_replay",
+   "test_crm_doi_chieu_pg.CrmDoiChieuBanSao.test_p07_lease_hai_worker_va_khoi_phuc",
+   "test_crm_doi_chieu_pg.CrmDoiChieuBanSao.test_p08_thu_hoi_truoc_cong_bo",
+   "test_crm_doi_chieu_pg.CrmDoiChieuBanSao.test_p09_thu_cong_lech_g6_xu_ly",
+   "test_crm_doi_chieu_pg.CrmDoiChieuBanSao.test_p10_ket_qua_moi_check_cu_bi_tu_choi",
+   "test_crm_doi_chieu_pg.CrmDoiChieuBanSao.test_p11_bat_buoc_duong_co_dieu_kien",
+   "test_crm_doi_chieu_pg.CrmDoiChieuBanSao.test_p12_chua_doi_chieu_duoc_giu_nghia_vu",
+   "test_crm_doi_chieu_pg.CrmDoiChieuBanSao.test_p13_ket_qua_hoan_tat_dong_nghia_vu",
+   "test_crm_doi_chieu_pg.CrmDoiChieuBanSao.test_p14_dang_ky_moi_tiep_tuc",
+   "test_crm_doi_chieu_pg.CrmDoiChieuBanSao.test_p15_lease_het_han_khong_ap_dung"
+  ],
+  "loi_dau": "AssertionError: NOT_VERIFIED: thiếu biến môi trường KTT_G6A_CLONE_OWNER_DSN, KTT_G6A_CLONE_APP_DSN, KTT_G6A_CLONE_PROVENANCE"
+ },
+ "test_crm_doi_chieu_tinh": {
+  "ok": 60,
+  "error": 0,
+  "fail": 0,
+  "skip": 0,
+  "treo": 0,
+  "giay": 0.7,
+  "tong": 60,
+  "ids_loi": [],
+  "loi_dau": ""
+ },
+ "test_crm_g6a_m25_integration": {
+  "ok": 9,
+  "error": 0,
+  "fail": 7,
+  "skip": 0,
+  "treo": 0,
+  "giay": 0.9,
+  "tong": 16,
+  "ids_loi": [
+   "test_crm_g6a_m25_integration.CrmG6aM25BanSao.test_n01_lich_su_exact25",
+   "test_crm_g6a_m25_integration.CrmG6aM25BanSao.test_n02_vai_ung_dung_thuong",
+   "test_crm_g6a_m25_integration.CrmG6aM25BanSao.test_n03_quyen_hep_sau_revoke",
+   "test_crm_g6a_m25_integration.CrmG6aM25BanSao.test_n04_viec_chu_so_huu_trien_khai",
+   "test_crm_g6a_m25_integration.CrmG6aM25BanSao.test_n05_k5_doc_hang_g6a",
+   "test_crm_g6a_m25_integration.CrmG6aM25BanSao.test_n06_anh_xa_khach_du_thao",
+   "test_crm_g6a_m25_integration.CrmG6aM25BanSao.test_n07_g5_hold"
+  ],
+  "loi_dau": "AssertionError: NOT_VERIFIED: thiếu biến môi trường KTT_G6A_CLONE_OWNER_DSN, KTT_G6A_CLONE_APP_DSN, KTT_G6A_CLONE_PROVENANCE"
+ },
+ "test_crm_giao_ket": {
+  "ok": 50,
+  "error": 0,
+  "fail": 1,
+  "skip": 2,
+  "treo": 0,
+  "giay": 1.6,
+  "tong": 53,
+  "ids_loi": [
+   "test_crm_giao_ket.PrefixMigration.test_870225_byte_dau_giu_nguyen_chi_append_m0021"
+  ],
+  "loi_dau": "AssertionError: False is not true : iem_hd import CRM_G6A_SQL  # noqa: E402 — module chỉ hằng SQL, không import ha_tang"
+ },
+ "test_crm_giao_ket_http": {
+  "ok": 0,
+  "error": 0,
+  "fail": 0,
+  "skip": 11,
+  "treo": 0,
+  "giay": 1.0,
+  "tong": 11,
+  "ids_loi": [],
+  "loi_dau": ""
+ },
+ "test_crm_k2": {
+  "ok": 0,
+  "error": 0,
+  "fail": 0,
+  "skip": 23,
+  "treo": 0,
+  "giay": 0.8,
+  "tong": 23,
+  "ids_loi": [],
+  "loi_dau": ""
+ },
+ "test_crm_khoi_dong": {
+  "ok": 32,
+  "error": 3,
+  "fail": 0,
+  "skip": 0,
+  "treo": 0,
+  "giay": 4.9,
+  "tong": 35,
+  "ids_loi": [
+   "test_crm_khoi_dong.ChuanBiStubTests.test_control_duong_va_kiem_sau_ket_noi",
+   "test_crm_khoi_dong.ChuoiNutTests.test_env_server_toi_connector_raw_va_da_chuan_hoa",
+   "test_crm_khoi_dong.ChuoiNutTests.test_raw_json_doc_ket_noi_chuan_bi_toi_connector"
+  ],
+  "loi_dau": "AttributeError: '_KetNoiGia' object has no attribute 'transaction'"
+ },
+ "test_crm_kiem_hd": {
+  "ok": 22,
+  "error": 0,
+  "fail": 4,
+  "skip": 0,
+  "treo": 0,
+  "giay": 1.0,
+  "tong": 26,
+  "ids_loi": [
+   "test_crm_kiem_hd.CrmKiemBanSao.test_p01_guard_chu_bang",
+   "test_crm_kiem_hd.CrmKiemBanSao.test_p02_g5_van_hanh_hold",
+   "test_crm_kiem_hd.CrmKiemBanSao.test_p03_quyen_login_ung_dung",
+   "test_crm_kiem_hd.CrmKiemBanSao.test_p04_k5_doc_khong_loi_quyen"
+  ],
+  "loi_dau": "AssertionError: NOT_VERIFIED: thiếu biến môi trường KTT_G6A_CLONE_OWNER_DSN, KTT_G6A_CLONE_APP_DSN, KTT_G6A_CLONE_PROVENANCE"
+ },
+ "test_crm_kiem_hd_http": {
+  "ok": 8,
+  "error": 0,
+  "fail": 10,
+  "skip": 0,
+  "treo": 0,
+  "giay": 1.8,
+  "tong": 18,
+  "ids_loi": [
+   "test_crm_kiem_hd_http.CrmKiemHttpBanSao.test_n00_chuan_bi",
+   "test_crm_kiem_hd_http.CrmKiemHttpBanSao.test_n01_quyen_truoc_pham_vi",
+   "test_crm_kiem_hd_http.CrmKiemHttpBanSao.test_n02_tim_junsky_khach_du_thao",
+   "test_crm_kiem_hd_http.CrmKiemHttpBanSao.test_n03_luu_tu_choi_ma_sai",
+   "test_crm_kiem_hd_http.CrmKiemHttpBanSao.test_n04_luu_cap_cho_khach_du_thao_va_g5_hold",
+   "test_crm_kiem_hd_http.CrmKiemHttpBanSao.test_n05_k5_doc_thu_hoi_va_ngoai_pham_vi",
+   "test_crm_kiem_hd_http.CrmKiemHttpBanSao.test_n06_khach_dinh_danh_khong_thay",
+   "test_crm_kiem_hd_http.CrmKiemHttpBanSao.test_n07_synthetic_kich_hoat",
+   "test_crm_kiem_hd_http.CrmKiemHttpBanSao.test_n08_f6_f7",
+   "test_crm_kiem_hd_http.CrmKiemHttpBanSao.test_n09_k5_khong_lien_quan_khong_doi"
+  ],
+  "loi_dau": "AssertionError: NOT_VERIFIED: thiếu biến môi trường KTT_G6A_CLONE_OWNER_DSN, KTT_G6A_CLONE_APP_DSN, KTT_G6A_CLONE_PROVENANCE"
+ },
+ "test_crm_ky_ket": {
+  "ok": 32,
+  "error": 0,
+  "fail": 1,
+  "skip": 6,
+  "treo": 0,
+  "giay": 2.8,
+  "tong": 39,
+  "ids_loi": [
+   "test_crm_ky_ket.PrefixVaPhamVi.test_928356_byte_dau_nguyen_chi_append_m0023"
+  ],
+  "loi_dau": "AssertionError: False is not true : iem_hd import CRM_G6A_SQL  # noqa: E402 — module chỉ hằng SQL, không import ha_tang"
+ },
+ "test_crm_ky_ket_http": {
+  "ok": 0,
+  "error": 0,
+  "fail": 0,
+  "skip": 9,
+  "treo": 0,
+  "giay": 2.1,
+  "tong": 9,
+  "ids_loi": [],
+  "loi_dau": ""
+ },
+ "test_crm_neutral_compat": {
+  "ok": 0,
+  "error": 0,
+  "fail": 0,
+  "skip": 5,
+  "treo": 0,
+  "giay": 1.3,
+  "tong": 5,
+  "ids_loi": [],
+  "loi_dau": ""
+ },
+ "test_crm_phan_tich": {
+  "ok": 21,
+  "error": 0,
+  "fail": 0,
+  "skip": 0,
+  "treo": 0,
+  "giay": 2.9,
+  "tong": 21,
+  "ids_loi": [],
+  "loi_dau": ""
+ },
+ "test_doi_chieu_hoa_don": {
+  "ok": 32,
+  "error": 0,
+  "fail": 0,
+  "skip": 0,
+  "treo": 0,
+  "giay": 0.5,
+  "tong": 32,
+  "ids_loi": [],
+  "loi_dau": ""
+ },
+ "test_hoa_don_xml": {
+  "ok": 32,
+  "error": 0,
+  "fail": 0,
+  "skip": 0,
+  "treo": 0,
+  "giay": 0.7,
+  "tong": 32,
+  "ids_loi": [],
+  "loi_dau": ""
+ },
+ "test_ket_noi": {
+  "ok": 12,
+  "error": 0,
+  "fail": 0,
+  "skip": 11,
+  "treo": 0,
+  "giay": 1.5,
+  "tong": 23,
+  "ids_loi": [],
+  "loi_dau": ""
+ },
+ "test_kho_10": {
+  "ok": 49,
+  "error": 0,
+  "fail": 0,
+  "skip": 0,
+  "treo": 0,
+  "giay": 0.6,
+  "tong": 49,
+  "ids_loi": [],
+  "loi_dau": ""
+ },
+ "test_l11_http": {
+  "ok": 0,
+  "error": 0,
+  "fail": 0,
+  "skip": 2,
+  "treo": 0,
+  "giay": 0.9,
+  "tong": 2,
+  "ids_loi": [],
+  "loi_dau": ""
+ },
+ "test_l11_k2": {
+  "ok": 2,
+  "error": 1,
+  "fail": 0,
+  "skip": 20,
+  "treo": 0,
+  "giay": 1.0,
+  "tong": 23,
+  "ids_loi": [
+   "test_l11_k2.ThuanL11.test_profile_va_fixture_dung_pin"
+  ],
+  "loi_dau": "kho_tri_thuc.ha_tang.primitives.DataError: Manifest fixture L11 không khớp SHA đã pin."
+ },
+ "test_l11_migrations": {
+  "ok": 11,
+  "error": 0,
+  "fail": 1,
+  "skip": 2,
+  "treo": 0,
+  "giay": 1.0,
+  "tong": 14,
+  "ids_loi": [
+   "test_l11_migrations.TinhM0016.test_append_only_1_15_dung_oracle"
+  ],
+  "loi_dau": "AssertionError: 25 != 16"
+ },
+ "test_m0_m5_migrations": {
+  "ok": 5,
+  "error": 0,
+  "fail": 2,
+  "skip": 10,
+  "treo": 0,
+  "giay": 1.2,
+  "tong": 17,
+  "ids_loi": [
+   "test_m0_m5_migrations.TinhLineage.test_kiem_lich_su_duong_va_am",
+   "test_m0_m5_migrations.TinhLineage.test_m0013_full_m9_chi_la_dinh_nghia_lich_su"
+  ],
+  "loi_dau": "AssertionError: 25 != 14"
+ },
+ "test_m1": {
+  "ok": 43,
+  "error": 0,
+  "fail": 0,
+  "skip": 0,
+  "treo": 0,
+  "giay": 14.3,
+  "tong": 43,
+  "ids_loi": [],
+  "loi_dau": ""
+ },
+ "test_m2_00b_quyen": {
+  "ok": 24,
+  "error": 0,
+  "fail": 0,
+  "skip": 0,
+  "treo": 0,
+  "giay": 2.2,
+  "tong": 24,
+  "ids_loi": [],
+  "loi_dau": ""
+ },
+ "test_m2_00b_tien_trinh": {
+  "ok": 17,
+  "error": 0,
+  "fail": 0,
+  "skip": 0,
+  "treo": 0,
+  "giay": 2.1,
+  "tong": 17,
+  "ids_loi": [],
+  "loi_dau": ""
+ },
+ "test_m2_00b_tinh": {
+  "ok": 19,
+  "error": 0,
+  "fail": 0,
+  "skip": 0,
+  "treo": 0,
+  "giay": 1.9,
+  "tong": 19,
+  "ids_loi": [],
+  "loi_dau": ""
+ },
+ "test_m2_http": {
+  "ok": 1,
+  "error": 0,
+  "fail": 0,
+  "skip": 2,
+  "treo": 0,
+  "giay": 1.9,
+  "tong": 3,
+  "ids_loi": [],
+  "loi_dau": ""
+ },
+ "test_m2_k2": {
+  "ok": 0,
+  "error": 1,
+  "fail": 0,
+  "skip": 0,
+  "treo": 0,
+  "giay": 0.8,
+  "tong": null,
+  "ids_loi": [
+   "TIEN_TRINH_CON_CHET(ma=1) khi chay nap module"
+  ],
+  "loi_dau": "AssertionError: workflow.json khác pin",
+  "test_treo": ""
+ },
+ "test_m2_migrations": {
+  "ok": 3,
+  "error": 0,
+  "fail": 1,
+  "skip": 3,
+  "treo": 0,
+  "giay": 0.9,
+  "tong": 7,
+  "ids_loi": [
+   "test_m2_migrations.TinhM0015.test_append_only_15"
+  ],
+  "loi_dau": "AssertionError: 25 != 15"
+ },
+ "test_m4_01b_pg": {
+  "ok": 0,
+  "error": 0,
+  "fail": 0,
+  "skip": 10,
+  "treo": 0,
+  "giay": 1.0,
+  "tong": 10,
+  "ids_loi": [],
+  "loi_dau": ""
+ },
+ "test_m4_01b_tinh": {
+  "ok": 41,
+  "error": 0,
+  "fail": 0,
+  "skip": 9,
+  "treo": 0,
+  "giay": 2.0,
+  "tong": 50,
+  "ids_loi": [],
+  "loi_dau": ""
+ },
+ "test_m4_01c": {
+  "ok": 15,
+  "error": 0,
+  "fail": 1,
+  "skip": 0,
+  "treo": 0,
+  "giay": 1.5,
+  "tong": 16,
+  "ids_loi": [
+   "test_m4_01c.M4Js.test_khong_nut_gia_nhanh_sau"
+  ],
+  "loi_dau": "AssertionError: '/api/m4/ke-toan' unexpectedly found in '\"use strict\";\\n// M4-01C — Cổng hồ sơ xây dựng (gói 1) trong shell hiện có: nguồn HĐ → trích/soát 37 mã → phòng dự án xác nhận → PL/BOQ → đợt/checklist → Nộp →\\n// reviewer đọc/tải. Chỉ gọi đúng route/DTO thật của giao_dien/m4.py + k2/xay_dung"
+ },
+ "test_m4_01c_http": {
+  "ok": 0,
+  "error": 0,
+  "fail": 0,
+  "skip": 8,
+  "treo": 0,
+  "giay": 1.0,
+  "tong": 8,
+  "ids_loi": [],
+  "loi_dau": ""
+ },
+ "test_m4_02b_http": {
+  "ok": 0,
+  "error": 0,
+  "fail": 0,
+  "skip": 4,
+  "treo": 0,
+  "giay": 2.1,
+  "tong": 4,
+  "ids_loi": [],
+  "loi_dau": ""
+ },
+ "test_m4_02b_k2": {
+  "ok": 8,
+  "error": 0,
+  "fail": 0,
+  "skip": 15,
+  "treo": 0,
+  "giay": 1.9,
+  "tong": 23,
+  "ids_loi": [],
+  "loi_dau": ""
+ },
+ "test_m4_02b_pure": {
+  "ok": 17,
+  "error": 0,
+  "fail": 1,
+  "skip": 18,
+  "treo": 0,
+  "giay": 1.6,
+  "tong": 36,
+  "ids_loi": [
+   "test_m4_02b_pure.M22Tinh.test_prefix_927604_byte_va_append_m22"
+  ],
+  "loi_dau": "AssertionError: False is not true : iem_hd import CRM_G6A_SQL  # noqa: E402 — module chỉ hằng SQL, không import ha_tang"
+ },
+ "test_m4_02c_dto_ui": {
+  "ok": 11,
+  "error": 0,
+  "fail": 0,
+  "skip": 0,
+  "treo": 0,
+  "giay": 78.7,
+  "tong": 11,
+  "ids_loi": [],
+  "loi_dau": ""
+ },
+ "test_m4_02c_pg": {
+  "ok": 0,
+  "error": 1,
+  "fail": 0,
+  "skip": 0,
+  "treo": 0,
+  "giay": 2.1,
+  "tong": null,
+  "ids_loi": [
+   "TIEN_TRINH_CON_CHET(ma=1) khi chay nap module"
+  ],
+  "loi_dau": "AttributeError: module 'kho_tri_thuc.kiem_chung.fixtures_m4' has no attribute 'KET_LUAN_VND'",
+  "test_treo": ""
+ },
+ "test_m4_03a_full_basis_pg": {
+  "ok": 0,
+  "error": 1,
+  "fail": 0,
+  "skip": 0,
+  "treo": 0,
+  "giay": 2.1,
+  "tong": null,
+  "ids_loi": [
+   "TIEN_TRINH_CON_CHET(ma=1) khi chay nap module"
+  ],
+  "loi_dau": "AttributeError: module 'kho_tri_thuc.kiem_chung.fixtures_m4' has no attribute 'KET_LUAN_VND'",
+  "test_treo": ""
+ },
+ "test_m4_03a_full_basis_tinh": {
+  "ok": 22,
+  "error": 0,
+  "fail": 0,
+  "skip": 0,
+  "treo": 0,
+  "giay": 0.6,
+  "tong": 22,
+  "ids_loi": [],
+  "loi_dau": ""
+ },
+ "test_m4_03a_graph_guard_pg": {
+  "ok": 0,
+  "error": 1,
+  "fail": 0,
+  "skip": 0,
+  "treo": 0,
+  "giay": 1.3,
+  "tong": null,
+  "ids_loi": [
+   "TIEN_TRINH_CON_CHET(ma=1) khi chay nap module"
+  ],
+  "loi_dau": "AttributeError: module 'kho_tri_thuc.kiem_chung.fixtures_m4' has no attribute 'KET_LUAN_VND'",
+  "test_treo": ""
+ },
+ "test_m4_03a_graph_guard_tinh": {
+  "ok": 15,
+  "error": 0,
+  "fail": 0,
+  "skip": 0,
+  "treo": 0,
+  "giay": 0.8,
+  "tong": 15,
+  "ids_loi": [],
+  "loi_dau": ""
+ },
+ "test_m4_03a_gui_fix01_http": {
+  "ok": 7,
+  "error": 0,
+  "fail": 0,
+  "skip": 0,
+  "treo": 0,
+  "giay": 0.9,
+  "tong": 7,
+  "ids_loi": [],
+  "loi_dau": ""
+ },
+ "test_m4_03a_http": {
+  "ok": 15,
+  "error": 0,
+  "fail": 0,
+  "skip": 1,
+  "treo": 0,
+  "giay": 1.3,
+  "tong": 16,
+  "ids_loi": [],
+  "loi_dau": ""
+ },
+ "test_m4_03a_m26_integration": {
+  "ok": 5,
+  "error": 0,
+  "fail": 3,
+  "skip": 0,
+  "treo": 0,
+  "giay": 0.8,
+  "tong": 8,
+  "ids_loi": [
+   "test_m4_03a_m26_integration.M26Prefix.test_phan_noi_chi_import_alias_mot_dang_ky",
+   "test_m4_03a_m26_integration.M26Prefix.test_prefix_baseline25_nguyen_byte",
+   "test_m4_03a_m26_integration.M26Registry.test_version26_kt_dung_mot_lan_cung_object"
+  ],
+  "loi_dau": "AssertionError: Tuples differ: () != ('from ..m4.sql_ke_toan_nghiem_thu import [184 chars]NS)')"
+ },
+ "test_m4_03a_pg": {
+  "ok": 0,
+  "error": 1,
+  "fail": 0,
+  "skip": 0,
+  "treo": 0,
+  "giay": 1.3,
+  "tong": null,
+  "ids_loi": [
+   "TIEN_TRINH_CON_CHET(ma=1) khi chay nap module"
+  ],
+  "loi_dau": "AttributeError: module 'kho_tri_thuc.kiem_chung.fixtures_m4' has no attribute 'KET_LUAN_VND'",
+  "test_treo": ""
+ },
+ "test_m4_03a_tinh": {
+  "ok": 27,
+  "error": 0,
+  "fail": 0,
+  "skip": 0,
+  "treo": 0,
+  "giay": 0.7,
+  "tong": 27,
+  "ids_loi": [],
+  "loi_dau": ""
+ },
+ "test_m4_03b_common_pg": {
+  "ok": 0,
+  "error": 1,
+  "fail": 0,
+  "skip": 0,
+  "treo": 0,
+  "giay": 1.5,
+  "tong": null,
+  "ids_loi": [
+   "TIEN_TRINH_CON_CHET(ma=1) khi chay nap module"
+  ],
+  "loi_dau": "AttributeError: module 'kho_tri_thuc.kiem_chung.fixtures_m4' has no attribute 'KET_LUAN_VND'",
+  "test_treo": ""
+ },
+ "test_m4_03b_common_tinh": {
+  "ok": 60,
+  "error": 0,
+  "fail": 0,
+  "skip": 0,
+  "treo": 0,
+  "giay": 1.1,
+  "tong": 60,
+  "ids_loi": [],
+  "loi_dau": ""
+ },
+ "test_m4_04b_request_wiring_http": {
+  "ok": 3,
+  "error": 13,
+  "fail": 0,
+  "skip": 0,
+  "treo": 0,
+  "giay": 59.9,
+  "tong": 16,
+  "ids_loi": [
+   "test_m4_04b_request_wiring_http.WiringHttp.test_w01_ba_route_tai_san_cong",
+   "test_m4_04b_request_wiring_http.WiringHttp.test_w02_khong_cau_hinh_khong_mang",
+   "test_m4_04b_request_wiring_http.WiringHttp.test_w03_context_va_tham_so",
+   "test_m4_04b_request_wiring_http.WiringHttp.test_w04_duong_hien_hanh_ngoai_lock",
+   "test_m4_04b_request_wiring_http.WiringHttp.test_w05_tao_lich_su_va_hien_hanh_doi_giua_chung",
+   "test_m4_04b_request_wiring_http.WiringHttp.test_w06_lich_su_can_tao_tai_hold_khong_io",
+   "test_m4_04b_request_wiring_http.WiringHttp.test_w06b_lich_su_can_tai_va_chua_co_y_dinh",
+   "test_m4_04b_request_wiring_http.WiringHttp.test_w06c_lich_su_chua_co_y_dinh",
+   "test_m4_04b_request_wiring_http.WiringHttp.test_w07_lich_su_chua_ro_tai_chi_get",
+   "test_m4_04b_request_wiring_http.WiringHttp.test_w08_mat_tien_qua_domain",
+   "test_m4_04b_request_wiring_http.WiringHttp.test_w09_phien_doi_trong_lenh_dai",
+   "test_m4_04b_request_wiring_http.WiringHttp.test_w10_quyen_authority_phat_lai",
+   "test_m4_04b_request_wiring_http.WiringHttp.test_w11_query_rong_lap_qua_handle_route_that"
+  ],
+  "loi_dau": "AttributeError: 'LocalApp' object has no attribute 'go_request_nhap'"
+ },
+ "test_m4_master_dung_chung_http": {
+  "ok": 0,
+  "error": 1,
+  "fail": 0,
+  "skip": 0,
+  "treo": 0,
+  "giay": 0.5,
+  "tong": null,
+  "ids_loi": [
+   "TIEN_TRINH_CON_CHET(ma=1) khi chay nap module"
+  ],
+  "loi_dau": "AttributeError: module 'kho_tri_thuc.kiem_chung.fixtures_m4' has no attribute 'KET_LUAN_VND'",
+  "test_treo": ""
+ },
+ "test_m4_master_dung_chung_pg": {
+  "ok": 0,
+  "error": 1,
+  "fail": 0,
+  "skip": 0,
+  "treo": 0,
+  "giay": 0.5,
+  "tong": null,
+  "ids_loi": [
+   "TIEN_TRINH_CON_CHET(ma=1) khi chay nap module"
+  ],
+  "loi_dau": "AttributeError: module 'kho_tri_thuc.kiem_chung.fixtures_m4' has no attribute 'KET_LUAN_VND'",
+  "test_treo": ""
+ },
+ "test_m4_master_dung_chung_tinh": {
+  "ok": 12,
+  "error": 0,
+  "fail": 2,
+  "skip": 0,
+  "treo": 0,
+  "giay": 0.4,
+  "tong": 14,
+  "ids_loi": [
+   "test_m4_master_dung_chung_tinh.TinhSql.test_khong_sua_doi_tuong_hien_huu",
+   "test_m4_master_dung_chung_tinh.TinhSql.test_moi_ham_co_search_path_co_dinh_va_definer_dung_cho"
+  ],
+  "loi_dau": "AssertionError: 'm' not found in {'m4.master_can_cu_phien_ban', 'm4.master_can_cu'} : chỉ ALTER bảng mới của gói"
+ },
+ "test_m4_request_fix01": {
+  "ok": 25,
+  "error": 0,
+  "fail": 0,
+  "skip": 0,
+  "treo": 0,
+  "giay": 0.8,
+  "tong": 25,
+  "ids_loi": [],
+  "loi_dau": ""
+ },
+ "test_m4_request_fix02": {
+  "ok": 15,
+  "error": 0,
+  "fail": 0,
+  "skip": 0,
+  "treo": 0,
+  "giay": 0.8,
+  "tong": 15,
+  "ids_loi": [],
+  "loi_dau": ""
+ },
+ "test_m4_request_http": {
+  "ok": 0,
+  "error": 1,
+  "fail": 0,
+  "skip": 0,
+  "treo": 0,
+  "giay": 0.8,
+  "tong": null,
+  "ids_loi": [
+   "TIEN_TRINH_CON_CHET(ma=1) khi chay nap module"
+  ],
+  "loi_dau": "AttributeError: module 'kho_tri_thuc.kiem_chung.fixtures_m4' has no attribute 'KET_LUAN_VND'",
+  "test_treo": ""
+ },
+ "test_m4_request_pg": {
+  "ok": 0,
+  "error": 1,
+  "fail": 0,
+  "skip": 0,
+  "treo": 0,
+  "giay": 0.6,
+  "tong": null,
+  "ids_loi": [
+   "TIEN_TRINH_CON_CHET(ma=1) khi chay nap module"
+  ],
+  "loi_dau": "AttributeError: module 'kho_tri_thuc.kiem_chung.fixtures_m4' has no attribute 'KET_LUAN_VND'",
+  "test_treo": ""
+ },
+ "test_m4_request_tinh": {
+  "ok": 55,
+  "error": 0,
+  "fail": 1,
+  "skip": 0,
+  "treo": 0,
+  "giay": 1.0,
+  "tong": 56,
+  "ids_loi": [
+   "test_m4_request_tinh.R13ClientSql.test_hang_sql_mot_constant_khong_registry"
+  ],
+  "loi_dau": "AssertionError: 973003 not greater than or equal to 973783"
+ },
+ "test_m4_review_compute": {
+  "ok": 46,
+  "error": 0,
+  "fail": 2,
+  "skip": 3,
+  "treo": 0,
+  "giay": 1.4,
+  "tong": 51,
+  "ids_loi": [
+   "test_m4_review_compute.MigrationM19.test_1_18_identity_m19_m20_cuoi",
+   "test_m4_review_compute.MigrationM19.test_fix04_prefix_1_19_da_ap_dung_bat_bien_m20_noi_cuoi"
+  ],
+  "loi_dau": "AssertionError: 25 != 20"
+ },
+ "test_m4_review_http": {
+  "ok": 0,
+  "error": 0,
+  "fail": 0,
+  "skip": 7,
+  "treo": 0,
+  "giay": 1.2,
+  "tong": 7,
+  "ids_loi": [],
+  "loi_dau": ""
+ },
+ "test_m4_review_k2": {
+  "ok": 0,
+  "error": 0,
+  "fail": 0,
+  "skip": 14,
+  "treo": 0,
+  "giay": 1.2,
+  "tong": 14,
+  "ids_loi": [],
+  "loi_dau": ""
+ },
+ "test_m5_http": {
+  "ok": 0,
+  "error": 0,
+  "fail": 0,
+  "skip": 2,
+  "treo": 0,
+  "giay": 0.6,
+  "tong": 2,
+  "ids_loi": [],
+  "loi_dau": ""
+ },
+ "test_m5_k2": {
+  "ok": 10,
+  "error": 0,
+  "fail": 0,
+  "skip": 26,
+  "treo": 0,
+  "giay": 1.4,
+  "tong": 36,
+  "ids_loi": [],
+  "loi_dau": ""
+ },
+ "test_m9_k2": {
+  "ok": 0,
+  "error": 0,
+  "fail": 0,
+  "skip": 18,
+  "treo": 0,
+  "giay": 1.0,
+  "tong": 18,
+  "ids_loi": [],
+  "loi_dau": ""
+ },
+ "test_m9_phan_tich": {
+  "ok": 10,
+  "error": 0,
+  "fail": 0,
+  "skip": 0,
+  "treo": 0,
+  "giay": 0.4,
+  "tong": 10,
+  "ids_loi": [],
+  "loi_dau": ""
+ },
+ "test_modules": {
+  "ok": 48,
+  "error": 0,
+  "fail": 0,
+  "skip": 0,
+  "treo": 0,
+  "giay": 8.9,
+  "tong": 48,
+  "ids_loi": [],
+  "loi_dau": ""
+ },
+ "test_nghiem_thu_bridge": {
+  "ok": 21,
+  "error": 0,
+  "fail": 0,
+  "skip": 0,
+  "treo": 0,
+  "giay": 4.4,
+  "tong": 21,
+  "ids_loi": [],
+  "loi_dau": ""
+ },
+ "test_pg_bo_chuyen_schema10": {
+  "ok": 0,
+  "error": 0,
+  "fail": 0,
+  "skip": 1,
+  "treo": 0,
+  "giay": 0.7,
+  "tong": 1,
+  "ids_loi": [],
+  "loi_dau": ""
+ },
+ "test_pg_schema": {
+  "ok": 0,
+  "error": 0,
+  "fail": 0,
+  "skip": 18,
+  "treo": 0,
+  "giay": 0.8,
+  "tong": 18,
+  "ids_loi": [],
+  "loi_dau": ""
+ },
+ "test_source6_docx_tables": {
+  "ok": 0,
+  "error": 1,
+  "fail": 0,
+  "skip": 0,
+  "treo": 0,
+  "giay": 0.3,
+  "tong": 35,
+  "ids_loi": [
+   "setUpModule (test_source6_docx_tables)"
+  ],
+  "loi_dau": "RuntimeError: Thiếu KTT_SOURCE6_E3_OVERLAY (overlay đóng băng + hai artifact) — không skip, không tự tìm nguồn"
+ },
+ "test_source6_g5_e5": {
+  "ok": 6,
+  "error": 0,
+  "fail": 0,
+  "skip": 1,
+  "treo": 1,
+  "giay": 180.8,
+  "tong": 33,
+  "ids_loi": [],
+  "loi_dau": "",
+  "test_treo": "test_source6_g5_e5.E5ClientIoMockTests.test_raw_khac_yeu_cau_khong_nhan"
+ },
+ "test_source6_lazy_excel": {
+  "ok": 0,
+  "error": 3,
+  "fail": 0,
+  "skip": 0,
+  "treo": 0,
+  "giay": 0.3,
+  "tong": 18,
+  "ids_loi": [
+   "setUpClass (test_source6_lazy_excel.TestExcelThat)",
+   "setUpClass (test_source6_lazy_excel.TestRuleOnlyBlockedSubprocess)",
+   "setUpClass (test_source6_lazy_excel.TestStaticCandidate)"
+  ],
+  "loi_dau": "RuntimeError: SETUP NOT_VERIFIED (baseline/bố cục): thư mục chứa tests/tools phải là 'files' của bố cục đóng băng, đang là D:\\Claude\\Phan mem ho tro ke toan\\Phần mềm kho tri thức\\.claude\\worktrees\\nen-hop-nhat-v2; thiếu baseline D:\\Claude\\Phan mem ho tro ke toan\\Phần mềm kho tri thức\\.claude\\worktre"
+ },
+ "test_trich6_host": {
+  "ok": 14,
+  "error": 3,
+  "fail": 0,
+  "skip": 3,
+  "treo": 0,
+  "giay": 2.9,
+  "tong": 20,
+  "ids_loi": [
+   "test_trich6_host.VongDoiThatTests.test_06a_docx_that_all37_tap_con_seal_replay_va_tu_choi",
+   "test_trich6_host.VongDoiThatTests.test_hai_instance_doc_lap_va_buoc_dung_central",
+   "test_trich6_host.VongDoiThatTests.test_vong_doi_auth_common_only_va_dung"
+  ],
+  "loi_dau": "kho_tri_thuc.nguon.trich6_host.LoiHost: Guard giữ tệp của tiến trình central chưa đạt — không mở engine DEMO."
+ },
+ "test_trich_chung_6": {
+  "ok": 31,
+  "error": 0,
+  "fail": 1,
+  "skip": 1,
+  "treo": 0,
+  "giay": 1.9,
+  "tong": 33,
+  "ids_loi": [
+   "test_trich_chung_6.WiringTests.test_m4_khong_con_loi_chep"
+  ],
+  "loi_dau": "AssertionError: 'LENH_RIENG = REVIEW_LENH | {\"hop-dong/trich\"}' not found in '\"\"\"M4-01 — HTTP mỏng cho Cổng hồ sơ xây dựng trên LocalApp hiện có (cùng token X-KTT-Token, phiên cookie HttpOnly do máy chủ cấp, mutation lock,\\ncùng kết nối login ứng dụng + cổng lineage của CRM). Không webserver/iframe "
+ },
+ "test_v10": {
+  "ok": 25,
+  "error": 0,
+  "fail": 0,
+  "skip": 0,
+  "treo": 0,
+  "giay": 4.7,
+  "tong": 25,
+  "ids_loi": [],
+  "loi_dau": ""
+ },
+ "test_v11": {
+  "ok": 25,
+  "error": 0,
+  "fail": 0,
+  "skip": 0,
+  "treo": 0,
+  "giay": 5.7,
+  "tong": 25,
+  "ids_loi": [],
+  "loi_dau": ""
+ },
+ "test_v12": {
+  "ok": 9,
+  "error": 0,
+  "fail": 0,
+  "skip": 0,
+  "treo": 0,
+  "giay": 2.4,
+  "tong": 9,
+  "ids_loi": [],
+  "loi_dau": ""
+ },
+ "test_v13_backup_safety": {
+  "ok": 18,
+  "error": 0,
+  "fail": 0,
+  "skip": 0,
+  "treo": 0,
+  "giay": 1.6,
+  "tong": 18,
+  "ids_loi": [],
+  "loi_dau": ""
+ },
+ "test_v13_backup_safety_pg": {
+  "ok": 0,
+  "error": 0,
+  "fail": 0,
+  "skip": 11,
+  "treo": 0,
+  "giay": 0.7,
+  "tong": 11,
+  "ids_loi": [],
+  "loi_dau": ""
+ },
+ "test_v13_doi_chieu": {
+  "ok": 15,
+  "error": 0,
+  "fail": 0,
+  "skip": 3,
+  "treo": 0,
+  "giay": 2.3,
+  "tong": 18,
+  "ids_loi": [],
+  "loi_dau": ""
+ },
+ "test_v1_matching": {
+  "ok": 27,
+  "error": 0,
+  "fail": 0,
+  "skip": 0,
+  "treo": 0,
+  "giay": 4.3,
+  "tong": 27,
+  "ids_loi": [],
+  "loi_dau": ""
+ },
+ "test_v1b": {
+  "ok": 14,
+  "error": 0,
+  "fail": 0,
+  "skip": 0,
+  "treo": 0,
+  "giay": 2.0,
+  "tong": 14,
+  "ids_loi": [],
+  "loi_dau": ""
+ },
+ "test_v2": {
+  "ok": 5,
+  "error": 0,
+  "fail": 0,
+  "skip": 0,
+  "treo": 0,
+  "giay": 2.1,
+  "tong": 5,
+  "ids_loi": [],
+  "loi_dau": ""
+ },
+ "test_v3": {
+  "ok": 4,
+  "error": 0,
+  "fail": 0,
+  "skip": 0,
+  "treo": 0,
+  "giay": 1.5,
+  "tong": 4,
+  "ids_loi": [],
+  "loi_dau": ""
+ },
+ "test_v4": {
+  "ok": 2,
+  "error": 0,
+  "fail": 0,
+  "skip": 0,
+  "treo": 0,
+  "giay": 2.0,
+  "tong": 2,
+  "ids_loi": [],
+  "loi_dau": ""
+ },
+ "test_v5": {
+  "ok": 2,
+  "error": 0,
+  "fail": 0,
+  "skip": 0,
+  "treo": 0,
+  "giay": 1.8,
+  "tong": 2,
+  "ids_loi": [],
+  "loi_dau": ""
+ },
+ "test_v6": {
+  "ok": 1,
+  "error": 0,
+  "fail": 0,
+  "skip": 0,
+  "treo": 0,
+  "giay": 2.2,
+  "tong": 1,
+  "ids_loi": [],
+  "loi_dau": ""
+ },
+ "test_v7": {
+  "ok": 6,
+  "error": 0,
+  "fail": 0,
+  "skip": 0,
+  "treo": 0,
+  "giay": 2.7,
+  "tong": 6,
+  "ids_loi": [],
+  "loi_dau": ""
+ },
+ "test_v8": {
+  "ok": 3,
+  "error": 0,
+  "fail": 0,
+  "skip": 0,
+  "treo": 0,
+  "giay": 2.9,
+  "tong": 3,
+  "ids_loi": [],
+  "loi_dau": ""
+ },
+ "test_v9": {
+  "ok": 3,
+  "error": 0,
+  "fail": 0,
+  "skip": 0,
+  "treo": 0,
+  "giay": 2.6,
+  "tong": 3,
+  "ids_loi": [],
+  "loi_dau": ""
+ },
+ "test_v9b": {
+  "ok": 19,
+  "error": 0,
+  "fail": 0,
+  "skip": 0,
+  "treo": 0,
+  "giay": 4.8,
+  "tong": 19,
+  "ids_loi": [],
+  "loi_dau": ""
+ },
+ "test_web": {
+  "ok": 22,
+  "error": 0,
+  "fail": 1,
+  "skip": 0,
+  "treo": 0,
+  "giay": 4.1,
+  "tong": 23,
+  "ids_loi": [
+   "test_web.IntakeTests.test_scope_changes_receipt_not_raw_storage_size"
+  ],
+  "loi_dau": "AssertionError: 1 != 2"
+ }
+}

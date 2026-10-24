@@ -2,6 +2,58 @@
 
 Nền để "xanh" = **không thêm lỗi so với bảng này**. Đo bằng `tools/chay_test_theo_module.py`: mỗi module test chạy trong tiến trình con riêng, giới hạn 180 giây/module, engine sqlite, không PostgreSQL, không đụng kho thật.
 
+## 0b. Nền v2 — dùng từ 24/10 chiều (hop-nhat `7b114e2`, sau P0 + L0-3a)
+
+Đo bằng `python -X utf8 tools/chay_test_theo_module.py <worktree> --runtime <repo chính>/var/web/crm-demo/runtime.local.json` trên worktree mới `nen-hop-nhat-v2` (checkout mới nên `.gitattributes` có hiệu lực). Dạng máy đọc: `nen-test-hop-nhat-v2.json`. **Lát mới so với nền v2**, không so với v1.
+
+| | module | ok / ERROR / FAIL / skip | treo |
+|---|---|---|---|
+| chinh `59b7d8e` | 60 | 711 / 25 / 31 / 272 | 0 |
+| hop-nhat v1 `1502fe7` | 80 | 501 / 112 / 20 / 140 | 1 |
+| **hop-nhat v2 `7b114e2`** | **94** | **1276 / 34 / 57 / 292** | **1** (`test_source6_g5_e5`) |
+
+So với `chinh` theo mã lỗi: chỉ 3 module có lỗi không có ở chinh — `test_crm_khoi_dong` (3, kết nối giả trong test thiếu `transaction`), `test_m0_m5_migrations` (2, đếm cứng số migration 25 ≠ 14), `test_m4_01c` (1, test giao diện cũ không ngờ có route `/api/m4/ke-toan`) — đều là test lỗi thời (N5) → lát L0-3c. Còn lại là module mới hoặc lỗi có sẵn ở chinh.
+
+Module còn lỗi trên nền v2 (ok/ERROR/FAIL/skip):
+
+| Module | Số | So với chinh | Lỗi đầu |
+|---|---|---|---|
+| `test_crm_41_02` | 27/0/2/0 | 0 mã lỗi không có ở chinh | AssertionError: 25 != 18 |
+| `test_crm_doi_chieu_pg` | 0/0/16/0 | mới (không có ở chinh) | AssertionError: NOT_VERIFIED: thiếu biến môi trường KTT_G6A_CLONE_OWNER_DSN, KTT_G6A_CLONE |
+| `test_crm_g6a_m25_integration` | 9/0/7/0 | mới (không có ở chinh) | AssertionError: NOT_VERIFIED: thiếu biến môi trường KTT_G6A_CLONE_OWNER_DSN, KTT_G6A_CLONE |
+| `test_crm_giao_ket` | 50/0/1/2 | 0 mã lỗi không có ở chinh | AssertionError: False is not true : iem_hd import CRM_G6A_SQL  # noqa: E402 — module chỉ h |
+| `test_crm_khoi_dong` | 32/3/0/0 | 3 mã lỗi không có ở chinh | AttributeError: '_KetNoiGia' object has no attribute 'transaction' |
+| `test_crm_kiem_hd` | 22/0/4/0 | mới (không có ở chinh) | AssertionError: NOT_VERIFIED: thiếu biến môi trường KTT_G6A_CLONE_OWNER_DSN, KTT_G6A_CLONE |
+| `test_crm_kiem_hd_http` | 8/0/10/0 | mới (không có ở chinh) | AssertionError: NOT_VERIFIED: thiếu biến môi trường KTT_G6A_CLONE_OWNER_DSN, KTT_G6A_CLONE |
+| `test_crm_ky_ket` | 32/0/1/6 | 0 mã lỗi không có ở chinh | AssertionError: False is not true : iem_hd import CRM_G6A_SQL  # noqa: E402 — module chỉ h |
+| `test_l11_k2` | 2/1/0/20 | 0 mã lỗi không có ở chinh | kho_tri_thuc.ha_tang.primitives.DataError: Manifest fixture L11 không khớp SHA đã pin. |
+| `test_l11_migrations` | 11/0/1/2 | 0 mã lỗi không có ở chinh | AssertionError: 25 != 16 |
+| `test_m0_m5_migrations` | 5/0/2/10 | 2 mã lỗi không có ở chinh | AssertionError: 25 != 14 |
+| `test_m2_k2` | 0/1/0/0 | 0 mã lỗi không có ở chinh | AssertionError: workflow.json khác pin |
+| `test_m2_migrations` | 3/0/1/3 | 0 mã lỗi không có ở chinh | AssertionError: 25 != 15 |
+| `test_m4_01c` | 15/0/1/0 | 1 mã lỗi không có ở chinh | AssertionError: '/api/m4/ke-toan' unexpectedly found in '"use strict";\n// M4-01C — Cổng h |
+| `test_m4_02b_pure` | 17/0/1/18 | 0 mã lỗi không có ở chinh | AssertionError: False is not true : iem_hd import CRM_G6A_SQL  # noqa: E402 — module chỉ h |
+| `test_m4_02c_pg` | 0/1/0/0 | mới (không có ở chinh) | AttributeError: module 'kho_tri_thuc.kiem_chung.fixtures_m4' has no attribute 'KET_LUAN_VN |
+| `test_m4_03a_full_basis_pg` | 0/1/0/0 | mới (không có ở chinh) | AttributeError: module 'kho_tri_thuc.kiem_chung.fixtures_m4' has no attribute 'KET_LUAN_VN |
+| `test_m4_03a_graph_guard_pg` | 0/1/0/0 | mới (không có ở chinh) | AttributeError: module 'kho_tri_thuc.kiem_chung.fixtures_m4' has no attribute 'KET_LUAN_VN |
+| `test_m4_03a_m26_integration` | 5/0/3/0 | mới (không có ở chinh) | AssertionError: Tuples differ: () != ('from ..m4.sql_ke_toan_nghiem_thu import [184 chars] |
+| `test_m4_03a_pg` | 0/1/0/0 | mới (không có ở chinh) | AttributeError: module 'kho_tri_thuc.kiem_chung.fixtures_m4' has no attribute 'KET_LUAN_VN |
+| `test_m4_03b_common_pg` | 0/1/0/0 | mới (không có ở chinh) | AttributeError: module 'kho_tri_thuc.kiem_chung.fixtures_m4' has no attribute 'KET_LUAN_VN |
+| `test_m4_04b_request_wiring_http` | 3/13/0/0 | mới (không có ở chinh) | AttributeError: 'LocalApp' object has no attribute 'go_request_nhap' |
+| `test_m4_master_dung_chung_http` | 0/1/0/0 | mới (không có ở chinh) | AttributeError: module 'kho_tri_thuc.kiem_chung.fixtures_m4' has no attribute 'KET_LUAN_VN |
+| `test_m4_master_dung_chung_pg` | 0/1/0/0 | mới (không có ở chinh) | AttributeError: module 'kho_tri_thuc.kiem_chung.fixtures_m4' has no attribute 'KET_LUAN_VN |
+| `test_m4_master_dung_chung_tinh` | 12/0/2/0 | mới (không có ở chinh) | AssertionError: 'm' not found in {'m4.master_can_cu_phien_ban', 'm4.master_can_cu'} : chỉ  |
+| `test_m4_request_http` | 0/1/0/0 | mới (không có ở chinh) | AttributeError: module 'kho_tri_thuc.kiem_chung.fixtures_m4' has no attribute 'KET_LUAN_VN |
+| `test_m4_request_pg` | 0/1/0/0 | mới (không có ở chinh) | AttributeError: module 'kho_tri_thuc.kiem_chung.fixtures_m4' has no attribute 'KET_LUAN_VN |
+| `test_m4_request_tinh` | 55/0/1/0 | mới (không có ở chinh) | AssertionError: 973003 not greater than or equal to 973783 |
+| `test_m4_review_compute` | 46/0/2/3 | 0 mã lỗi không có ở chinh | AssertionError: 25 != 20 |
+| `test_source6_docx_tables` | 0/1/0/0 | mới (không có ở chinh) | RuntimeError: Thiếu KTT_SOURCE6_E3_OVERLAY (overlay đóng băng + hai artifact) — không skip |
+| `test_source6_g5_e5` | 6/0/0/1 · TREO | mới (không có ở chinh) |  |
+| `test_source6_lazy_excel` | 0/3/0/0 | mới (không có ở chinh) | RuntimeError: SETUP NOT_VERIFIED (baseline/bố cục): thư mục chứa tests/tools phải là 'file |
+| `test_trich6_host` | 14/3/0/3 | 0 mã lỗi không có ở chinh | kho_tri_thuc.nguon.trich6_host.LoiHost: Guard giữ tệp của tiến trình central chưa đạt — kh |
+| `test_trich_chung_6` | 31/0/1/1 | 0 mã lỗi không có ở chinh | AssertionError: 'LENH_RIENG = REVIEW_LENH / {"hop-dong/trich"}' not found in '"""M4-01 — H |
+| `test_web` | 22/0/1/0 | 0 mã lỗi không có ở chinh | AssertionError: 1 != 2 |
+
 ## 0. Cách đo và số liệu chung
 
 | | `chinh` | `hop-nhat` |
