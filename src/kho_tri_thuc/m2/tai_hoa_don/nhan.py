@@ -106,16 +106,18 @@ def _bo_sung_xml(raw):
     return thong_tin, quan_he, mo_ho
 
 
-def lap_ke_hoach_nhan(thu_muc_run, *, ma_phap_nhan: str) -> dict:
+def lap_ke_hoach_nhan(thu_muc_run, *, ma_phap_nhan: str, goc_hoi_cuu_tin_cay=None) -> dict:
     """Đọc/kiểm bytes theo M2b, không CSDL/ghi đĩa/gọi cổng.
 
     ma_phap_nhan do caller lấy từ profile tin cậy, không phải tự lấy từ
     manifest. Chiều bắt buộc khớp thư mục cha mua_vao/ban_ra của run.
     Identity 6 phần theo binding hiện có (SHDon bỏ số 0 đầu); raw giữ riêng.
     Kế hoạch không phải quyết định duyệt hay bằng chứng quyền.
+    goc_hoi_cuu_tin_cay nhận một hoặc nhiều gốc; bỏ trống giữ hành vi cũ.
+    Đường nhận tự động (M2e/M2f) PHẢI truyền gốc từ cấu hình tin cậy.
     """
     goc = Path(thu_muc_run).absolute()
-    m = doc_manifest(goc)
+    m = doc_manifest(goc, goc_hoi_cuu_tin_cay=goc_hoi_cuu_tin_cay)
     if ma_phap_nhan != m["phap_nhan"]["ma"]:
         _loi("PHAP_NHAN_KHONG_KHOP_PROFILE")
     # Hồi cứu giữ file tại chỗ: manifest có thể nằm ngay trong thư mục chiều
