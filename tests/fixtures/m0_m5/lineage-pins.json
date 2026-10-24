@@ -1,0 +1,102 @@
+{
+  "kind": "ROOT_REVIEWED_DEFINITION_ONLY_SQL_STRING_HASHES",
+  "status": "PREPARE_ONLY_NOT_APPLIED",
+  "source_sha256": "2ee87c8437de6f5f2af9ded324d33a6b651f57ba3f5c48eef19938208013dfbb",
+  "hash_algorithm": "sha256(UTF8(newline_join_statements)); no strip or SQL execution",
+  "prefix_1_12": [
+    {
+      "version": 1,
+      "statement_count": 13,
+      "checksum": "bfc6bc40de873b8b17d8dd5d1874867da7f777b33bc5b74be67750aefe267747"
+    },
+    {
+      "version": 2,
+      "statement_count": 13,
+      "checksum": "aae0557f9399d1a251c8848a9b290d4941568edf0e2440f058d660a36e810436"
+    },
+    {
+      "version": 3,
+      "statement_count": 10,
+      "checksum": "d98b294f81e98bac0b0d328fe1dc5baa381ee73368e361fe47e2f0d9b5791d87"
+    },
+    {
+      "version": 4,
+      "statement_count": 9,
+      "checksum": "7870d3ff9cd1f82f9d31445a816063ae9f9765536364193b4629a21b9507fad0"
+    },
+    {
+      "version": 5,
+      "statement_count": 10,
+      "checksum": "324486e2f67b5ccbfe31b5da14fbf46d0a3a6a326878420f460767e830409a74"
+    },
+    {
+      "version": 6,
+      "statement_count": 19,
+      "checksum": "f39221c8ea9207a7bc8fd52bf227640e35b5207851111ed215545c56b423ae9e"
+    },
+    {
+      "version": 7,
+      "statement_count": 8,
+      "checksum": "341a351cd42a90eca9926ccf74b16fa834a6e96ae544fc1094137ae6d75d371a"
+    },
+    {
+      "version": 8,
+      "statement_count": 1,
+      "checksum": "2b95271d36fe1e965d47e6f2d6e7fd0b31df84b5509c93563c03e13b5dc4c729"
+    },
+    {
+      "version": 9,
+      "statement_count": 9,
+      "checksum": "e232a96cb519c5919d2ed72b5ff27b976b4e32f867cf5059c4a8f81792a7a0f9"
+    },
+    {
+      "version": 10,
+      "statement_count": 54,
+      "checksum": "8f34e92ba911436bed9f5aa8c1afaa4a70a6ce72e4fae34b90413441532208d7"
+    },
+    {
+      "version": 11,
+      "statement_count": 60,
+      "checksum": "308f095f7a28d688c6629607579a2de40ea4919596920e5a8a4ac3db46dd9549"
+    },
+    {
+      "version": 12,
+      "statement_count": 7,
+      "checksum": "90bcba1ce921e2a097b31564026a134354dffb17ccea64f2972958b28f529d96"
+    }
+  ],
+  "legacy_full_m9_m13": {
+    "version": 13,
+    "statement_count": 155,
+    "checksum": "2a2acb81bc85f57a5643a4736528d120f9f48ee1d005ad8bec0a178ba1926d40"
+  },
+  "legacy_m10_compatible_checksum": "345d562665cdd5b91bd5229b6e8108f4ceb227510ecbd1dd3c77afa754b4b353",
+  "source_definition_sha256": {
+    "M0001": "a8f67f558ec64a1b1a61614c76aa1596668bcfbba7def4cd6c4f2aaccf9b31b4",
+    "M0002": "a53a83573d546df5de1919cacc0b07244dfe733df5b020d1752d7a781864bc6e",
+    "M0003": "088ddf4f5700970d4133b8663b16fd6151589671ea2202a77161d56f015f1976",
+    "M0004": "9b7cca492772fc383bc6ec6afe084f259ae47b0bd64a067827962892b51e1cd3",
+    "M0005": "c49ea955660ea4793de2eb52da8be085b6ff55cf377c8357764e186edbd3d337",
+    "M0006": "4a6946cdc0bc0464ac73c6be8c5d19a87c068a5da816efa0b3b60bc337862420",
+    "M0007": "f6150c124ddd5238bd1ec21ac294275803d51e3f29b585f4f2ee8b19a3e155b4",
+    "M0008": "c447e2e294b72374914a5e1318ba5040cd822850304c99ed3a661364ed9dce90",
+    "M0009": "6944502560ecfe2e75ae573adc50beb3e3e7f699d3aaa081c8e6a488867c1776",
+    "_RLS_BANG": "da31e7575f757920f6d2eecebb63c581b78f096a5c76cf2e9abb312c8f93ab8d",
+    "_rls_statements": "eb0cbdeab34208c619d8756f0edbe1fcc13f27a81f77e4a955790ecd55ba257d",
+    "M0010_V1_BAN_GIAO_DAU": "dd08ee446629d8295add9f89a681ce249c596c23e89659051150b3d14b4cdf14",
+    "M0010": "3953b2663e3621a32f3354a6ee169fe5e9d7989c4bb1d59a55bf08c37703732c",
+    "_RLS_V11": "4adbf571a22d086b6d1e635ba4b15c0cbbffefe06cc32400947859893bdb2f70",
+    "_RLS_MOI_V11": "6ad8c9948cf266a49db2f8e16b2f1273e97e7700faa2b0a13301873b1a37371f",
+    "_rls_v11": "608e1a26fe762c65ac73650967f67fc8314294fa3b09969990dac0a7f5e12150",
+    "M0011": "a8e20529a6ad8fb794425bbb7a456c90ada00f0b41b69a4cda3c480b8671a10e",
+    "M0012": "8c6b4fd464e751cff12bb6e1fff750a1e34dd0635b7774a134f4d98b700654a1",
+    "_RLS_V13": "0c6c72a93bc673a886b653de5f68bc929dc0a96106317ef75dbf9e4a2e8efa2f",
+    "_RLS_MOI_V13": "e602831d1e068543951c2bbd0e8581be9d6bd2dec01081a29f5b74cf8e8aa90e",
+    "_rls_v13": "e5adc7a2e6df1634b531dc214354eb363271ceacae5c91a8d15adb88e2860ee5",
+    "_M9_KIEM_GHI": "037808bfa3f5328ea406ea5d5fa1b1aab76f65bf21ad4c851e83d41946dfb6d2",
+    "M0013": "22397a8283995a999d542365671547af9ebcdb26963476f32c0eef3c564240d6"
+  },
+  "db_connections": 0,
+  "migrations_applied": 0,
+  "M9_runtime": false
+}

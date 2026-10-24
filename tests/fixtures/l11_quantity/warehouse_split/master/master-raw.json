@@ -1,0 +1,23 @@
+{
+  "DM_HangHoa": [
+    {
+      "MaHang": "HH_DEMO_A",
+      "TenHang": "DEMO R16 new split-six source item",
+      "DVT_Goc": "CAI",
+      "DVT_QuyDoi": null
+    }
+  ],
+  "DM_Kho": [
+    {
+      "MaKho": "KHO_DEMO",
+      "TenKho": "DEMO R16 source warehouse declaration",
+      "TrangThai": "Hoạt động"
+    }
+  ],
+  "DM_DoiTac": [
+    {
+      "MaDoiTac": "DT_DEMO",
+      "MaDoiTuong_KT": "DTKT_DEMO"
+    }
+  ]
+}

@@ -1,0 +1,186 @@
+{
+  "kind": "M2_XML_PURE_DEMO_READONLY_FIXTURE_INPUTS",
+  "status": "DATA_ONLY_NOT_PRODUCT_ACCEPTANCE",
+  "source_baseline_sha256": "7d545cbcbcd0942fb3a63db9ca88ee81570789a2d635cdef453f955370d5f059",
+  "private_input_pins": {
+    "var/codex-dieu-phoi/kiem-chung-20261018-101441/m0-m5-ui05-handoff-20261019-180910-058-4d872643/source-hashes.json": "7d545cbcbcd0942fb3a63db9ca88ee81570789a2d635cdef453f955370d5f059",
+    "var/codex-dieu-phoi/m2-invoice-line-corpus-20261019-171705-76e6dedb/manifest.json": "3f947bbbad7313a31111b19cf4057c6119ce17419ac7e1b426ad92032c13c0f8",
+    "var/codex-dieu-phoi/m2-invoice-line-corpus-20261019-171705-76e6dedb/oracle.json": "fd34eebb243410ee73f5537599a98b282ae7d0e932a7b7725f271f42dc37e182",
+    "var/codex-dieu-phoi/m2-invoice-line-corpus-20261019-171705-76e6dedb/profile.md": "37d57c38138e7b76f916cb20ef72d92306967d1cce572820b15b135246c32fcf",
+    "var/codex-dieu-phoi/m2-neutral-bridge-contract-20261019/overlay-20261019-b98e2a61/generated/manifest.json": "ccf1d1a73f9c8a856e1e02c2b68b1763cb9381eceb4b5de6f4eb8934776005af",
+    "var/codex-dieu-phoi/m2-neutral-bridge-contract-20261019/overlay-20261019-b98e2a61/manual-expected.json": "0aaf3d06d5dbad147fe4eee40ff87b600a8d96132c510c574388ea1700e6caf2",
+    "var/codex-dieu-phoi/m2-neutral-bridge-contract-20261019/overlay-20261019-b98e2a61/root-data-integrity.json": "9fb19c235a2b12cdfb2f51aa6e694faa0888d85c55dad956cbbeb6df5ad435af",
+    "var/codex-dieu-phoi/m2-neutral-bridge-contract-20261019/pure-reader-handoff-20261019-61cafd32/HANDOFF-PURE-01.md": "dbd36ac2f0e21a31177c0c2ea8ce0bb88161c26536e72e82162e2759ae0e99a2",
+    "var/codex-dieu-phoi/m2-neutral-bridge-contract-20261019/pure-reader-handoff-20261019-61cafd32/DTO-OUTLINE-01.json": "29cdfb7fc0fbf9df12d071a61ad403df4edb619e458167e1327fa32287496237"
+  },
+  "files": [
+    {
+      "path": "inputs/G01-wrapped-positive.xml",
+      "source": "var/codex-dieu-phoi/m2-invoice-line-corpus-20261019-171705-76e6dedb/inputs/G01-wrapped-positive.xml",
+      "sha256": "863ce3c1330ce67e6a41e74699f2ac378dbb574d03afa5d8257ce0d23c15fe97",
+      "bytes": 523
+    },
+    {
+      "path": "inputs/G02-direct-legacy.xml",
+      "source": "var/codex-dieu-phoi/m2-invoice-line-corpus-20261019-171705-76e6dedb/inputs/G02-direct-legacy.xml",
+      "sha256": "95faed9f7d139b54f8c35fc3f48920d1db0c052a22e349eaa11d6f513373a6aa",
+      "bytes": 506
+    },
+    {
+      "path": "inputs/G03-identical-members.zip",
+      "source": "var/codex-dieu-phoi/m2-invoice-line-corpus-20261019-171705-76e6dedb/inputs/G03-identical-members.zip",
+      "sha256": "51cb0f3a0dbac5be45ffe4cdad32f9b45bcccb994690b0b62beb342d6b9975b4",
+      "bytes": 1272
+    },
+    {
+      "path": "inputs/G03-identical-raw.xml",
+      "source": "var/codex-dieu-phoi/m2-invoice-line-corpus-20261019-171705-76e6dedb/inputs/G03-identical-raw.xml",
+      "sha256": "863ce3c1330ce67e6a41e74699f2ac378dbb574d03afa5d8257ce0d23c15fe97",
+      "bytes": 523
+    },
+    {
+      "path": "inputs/G04-purchase-a-padded.xml",
+      "source": "var/codex-dieu-phoi/m2-invoice-line-corpus-20261019-171705-76e6dedb/inputs/G04-purchase-a-padded.xml",
+      "sha256": "87b3ed5d3a2aa1c77155b6272488d4feb147e6a873c8d1dfbe41efff49cc3646",
+      "bytes": 521
+    },
+    {
+      "path": "inputs/G04-purchase-a-unpadded.xml",
+      "source": "var/codex-dieu-phoi/m2-invoice-line-corpus-20261019-171705-76e6dedb/inputs/G04-purchase-a-unpadded.xml",
+      "sha256": "3597177c6b1c9f36d15d6b9187ede8e31a8650250c61b01c0653081de977d355",
+      "bytes": 518
+    },
+    {
+      "path": "inputs/G04-purchase-b-padded.xml",
+      "source": "var/codex-dieu-phoi/m2-invoice-line-corpus-20261019-171705-76e6dedb/inputs/G04-purchase-b-padded.xml",
+      "sha256": "5082cb18d2252f0c91cdaf8dc4c00df1703f870f73f1dd5867e62ec406876987",
+      "bytes": 521
+    },
+    {
+      "path": "inputs/G04-sale-a.xml",
+      "source": "var/codex-dieu-phoi/m2-invoice-line-corpus-20261019-171705-76e6dedb/inputs/G04-sale-a.xml",
+      "sha256": "238777900b7b03a1bc6aef2c06ff4ceaf21b6c39ec06c5c58c52839fc6c67f97",
+      "bytes": 518
+    },
+    {
+      "path": "inputs/G05-order-a.xml",
+      "source": "var/codex-dieu-phoi/m2-invoice-line-corpus-20261019-171705-76e6dedb/inputs/G05-order-a.xml",
+      "sha256": "b68affc37a3ef474119cf7fd21d8c1ce88843fb61c2945fa5c793b02c811f72a",
+      "bytes": 726
+    },
+    {
+      "path": "inputs/G05-order-b.xml",
+      "source": "var/codex-dieu-phoi/m2-invoice-line-corpus-20261019-171705-76e6dedb/inputs/G05-order-b.xml",
+      "sha256": "c2d4750dcce4aba327b10e7e3be05e1d05fac3afa238ede39641c9cb033725e6",
+      "bytes": 726
+    },
+    {
+      "path": "inputs/G05-stt-ambiguity.xml",
+      "source": "var/codex-dieu-phoi/m2-invoice-line-corpus-20261019-171705-76e6dedb/inputs/G05-stt-ambiguity.xml",
+      "sha256": "87e23319337e57bd5442ae8eef7b5e2f9bc2293f21a0696791c684dbfc6eb9ce",
+      "bytes": 1119
+    },
+    {
+      "path": "inputs/G06-quantity-boundaries.xml",
+      "source": "var/codex-dieu-phoi/m2-invoice-line-corpus-20261019-171705-76e6dedb/inputs/G06-quantity-boundaries.xml",
+      "sha256": "14c06dbbe3e80324f1df63c6075b1cfb375c5023cee62a07c55d38a18ffe7b42",
+      "bytes": 2462
+    },
+    {
+      "path": "inputs/G07-malformed.xml",
+      "source": "var/codex-dieu-phoi/m2-invoice-line-corpus-20261019-171705-76e6dedb/inputs/G07-malformed.xml",
+      "sha256": "39417b3ea9c6c7823a67b79eaf25d9376dc31db50ac8085ba4a803d3746c3c1f",
+      "bytes": 14
+    },
+    {
+      "path": "inputs/G07-missing-basis-and-natures.xml",
+      "source": "var/codex-dieu-phoi/m2-invoice-line-corpus-20261019-171705-76e6dedb/inputs/G07-missing-basis-and-natures.xml",
+      "sha256": "28ff7972d6ad9c866c2b48b903bb0988a4ab1ad4979db99cbaec2483eab98707",
+      "bytes": 1677
+    },
+    {
+      "path": "inputs/G07-unit-no-fact.xml",
+      "source": "var/codex-dieu-phoi/m2-invoice-line-corpus-20261019-171705-76e6dedb/inputs/G07-unit-no-fact.xml",
+      "sha256": "75155b4ffede34387aa3adea4dc427567438306b7135bf8d35a2236dfc2ac629",
+      "bytes": 720
+    },
+    {
+      "path": "inputs/G07-unsupported-namespace.xml",
+      "source": "var/codex-dieu-phoi/m2-invoice-line-corpus-20261019-171705-76e6dedb/inputs/G07-unsupported-namespace.xml",
+      "sha256": "620b49b916e63df79e17c22a3c667140d73dd683c4f0c99b0510bfc9d14285d2",
+      "bytes": 552
+    },
+    {
+      "path": "inputs/G07-wrong-path-decoy.xml",
+      "source": "var/codex-dieu-phoi/m2-invoice-line-corpus-20261019-171705-76e6dedb/inputs/G07-wrong-path-decoy.xml",
+      "sha256": "86d6a66e62a7440dfa88f00bc8dc6d122cf39e7790341b2ce6cde53866c6fc32",
+      "bytes": 117
+    },
+    {
+      "path": "inputs/G08-duplicate-name-partial.zip",
+      "source": "var/codex-dieu-phoi/m2-invoice-line-corpus-20261019-171705-76e6dedb/inputs/G08-duplicate-name-partial.zip",
+      "sha256": "fd960d02971136317f0ca608141dad792f359a3e7bef25948efcdb3747eb5b01",
+      "bytes": 1361
+    },
+    {
+      "path": "manual-expected.json",
+      "source": "var/codex-dieu-phoi/m2-neutral-bridge-contract-20261019/overlay-20261019-b98e2a61/manual-expected.json",
+      "sha256": "0aaf3d06d5dbad147fe4eee40ff87b600a8d96132c510c574388ea1700e6caf2",
+      "bytes": 9923
+    },
+    {
+      "path": "oracle.json",
+      "source": "var/codex-dieu-phoi/m2-invoice-line-corpus-20261019-171705-76e6dedb/oracle.json",
+      "sha256": "fd34eebb243410ee73f5537599a98b282ae7d0e932a7b7725f271f42dc37e182",
+      "bytes": 62717
+    },
+    {
+      "path": "overlay/actor-matrix.json",
+      "source": "var/codex-dieu-phoi/m2-neutral-bridge-contract-20261019/overlay-20261019-b98e2a61/generated/actor-matrix.json",
+      "sha256": "166d239d63e319c7e0982a92d44b4d1f2a242cf7c62bba6d67eccd098e04b569",
+      "bytes": 2867
+    },
+    {
+      "path": "overlay/identity-content-expected.json",
+      "source": "var/codex-dieu-phoi/m2-neutral-bridge-contract-20261019/overlay-20261019-b98e2a61/generated/identity-content-expected.json",
+      "sha256": "a7f6fb0f137179cb8ce2946a8e868a8d6db8cb6e0ce2942d82442ce4f4410efd",
+      "bytes": 34807
+    },
+    {
+      "path": "overlay/line-crosswalk.json",
+      "source": "var/codex-dieu-phoi/m2-neutral-bridge-contract-20261019/overlay-20261019-b98e2a61/generated/line-crosswalk.json",
+      "sha256": "79574902b50315768cfee4bdf7cac05b87bac44c55937a119ac43c50306db362",
+      "bytes": 5104
+    },
+    {
+      "path": "overlay/manifest.json",
+      "source": "var/codex-dieu-phoi/m2-neutral-bridge-contract-20261019/overlay-20261019-b98e2a61/generated/manifest.json",
+      "sha256": "ccf1d1a73f9c8a856e1e02c2b68b1763cb9381eceb4b5de6f4eb8934776005af",
+      "bytes": 1547
+    },
+    {
+      "path": "overlay/route-decisions.json",
+      "source": "var/codex-dieu-phoi/m2-neutral-bridge-contract-20261019/overlay-20261019-b98e2a61/generated/route-decisions.json",
+      "sha256": "b054c91393e76f202eebcef38a5f2ebedec7f17166e73148323e3ef9f665b8c8",
+      "bytes": 1385
+    },
+    {
+      "path": "overlay/trusted-contexts.json",
+      "source": "var/codex-dieu-phoi/m2-neutral-bridge-contract-20261019/overlay-20261019-b98e2a61/generated/trusted-contexts.json",
+      "sha256": "c3af51f80b2f3631324e814f7c9ee70d4b1f35d8e7f5a56bd83eaceb9d7aac04",
+      "bytes": 13025
+    },
+    {
+      "path": "profile.md",
+      "source": "var/codex-dieu-phoi/m2-invoice-line-corpus-20261019-171705-76e6dedb/profile.md",
+      "sha256": "37d57c38138e7b76f916cb20ef72d92306967d1cce572820b15b135246c32fcf",
+      "bytes": 5986
+    }
+  ],
+  "copied_file_count": 27,
+  "physical_file_count_including_this_manifest": 28,
+  "XML_artifact_count": 16,
+  "ZIP_artifact_count": 2,
+  "product_import_parser_test_SQL_network_execution": false,
+  "registry_payload_sha256": null
+}

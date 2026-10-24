@@ -1,0 +1,1460 @@
+{
+  "source_svg_sha256": "5eec9b536669a333be07281a219e8d2c026ad83db012a3831da607908607c47c",
+  "scope": "M0 + M1-M10 + every source/document/receiver + L1-L12",
+  "tables": {
+    "SOURCES": [
+      [
+        "NH",
+        "Ngân hàng",
+        "VietinBank eFAST",
+        [
+          [
+            "SK",
+            "Sao kê theo tài khoản (.xlsx)",
+            "mỗi file một TK 112; go-live 112111"
+          ],
+          [
+            "UNC",
+            "Lệnh chi / UNC do ta lập",
+            "nội dung có mã RQ / số hóa đơn (app lệnh thanh toán)"
+          ]
+        ]
+      ],
+      [
+        "CT",
+        "Cổng thuế (HĐĐT)",
+        "hoadondientu.gdt.gov.vn",
+        [
+          [
+            "XMLM",
+            "XML hóa đơn mua vào",
+            "người bán, MST, dòng hàng, thuế"
+          ],
+          [
+            "XMLB",
+            "XML hóa đơn bán ra",
+            "người mua, căn/lô/dịch vụ, thuế"
+          ],
+          [
+            "BK",
+            "Bảng kê hóa đơn cổng thuế",
+            "mua vào / bán ra theo kỳ"
+          ]
+        ]
+      ],
+      [
+        "BASE",
+        "Base (đề nghị thanh toán)",
+        "sẽ thay bằng Phần mềm Request 2027",
+        [
+          [
+            "RQ",
+            "RQ: Dự án · Chi phí (Dự án/Vận hành) · nội dung · STK · người đề nghị",
+            "kèm file đính kèm"
+          ]
+        ]
+      ],
+      [
+        "HD",
+        "Hợp đồng đã ký",
+        "kinh doanh BĐS · Ban QLDA · tài chính / pháp chế",
+        [
+          [
+            "HDKCN",
+            "HĐ thuê đất / hạ tầng KCN + phụ lục",
+            "loại hình doanh thu 1"
+          ],
+          [
+            "HDNO",
+            "HĐ mua bán nhà ở + phụ lục",
+            "loại hình doanh thu 2 (mở rộng loại mới = thêm cấu hình)"
+          ],
+          [
+            "BBG",
+            "Biên bản bàn giao căn / lô / đất",
+            "sự kiện ghi nhận doanh thu"
+          ],
+          [
+            "HDTHAU",
+            "HĐ thầu xây lắp + phụ lục",
+            "giá trị, tạm ứng %, bảo hành %"
+          ],
+          [
+            "HDVAY",
+            "HĐ vay / LC / bảo lãnh",
+            "lịch trả gốc, lãi; gắn dự án"
+          ]
+        ]
+      ],
+      [
+        "QLDA",
+        "Ban Quản lý dự án",
+        "bảng Excel theo dõi + biên bản ký PDF",
+        [
+          [
+            "NT",
+            "Hồ sơ nghiệm thu khối lượng theo đợt",
+            "giá trị đợt, lũy kế, khấu trừ tạm ứng, giữ lại bảo hành"
+          ]
+        ]
+      ],
+      [
+        "NS",
+        "Nhân sự",
+        "không tự tính lương (QT02)",
+        [
+          [
+            "BL",
+            "Bảng lương đã tính (Excel)",
+            "mã NV, bộ phận / dự án, BH, TNCN, thực lĩnh"
+          ]
+        ]
+      ],
+      [
+        "KHO",
+        "Kho vận hành KCN",
+        "vật tư bảo trì, CCDC",
+        [
+          [
+            "PNX",
+            "Phiếu nhập / xuất, cấp phát CCDC",
+            "theo thiết kế 9 sheet"
+          ]
+        ]
+      ],
+      [
+        "KT",
+        "Kế toán (bảng tính nội bộ)",
+        "bảng người đã duyệt",
+        [
+          [
+            "KH",
+            "Bảng khấu hao · phân bổ 242 · trích trước 335 · lịch phân bổ DT KCN",
+            "đầu vào bút toán định kỳ"
+          ]
+        ]
+      ]
+    ],
+    "RECEIVERS": [
+      [
+        "R_SK",
+        "Bộ đọc sao kê eFAST",
+        "đã có (V10–V12), phễu 6 bước",
+        [
+          "SK",
+          "UNC"
+        ],
+        "có"
+      ],
+      [
+        "R_HD",
+        "#7 Tải hóa đơn điện tử hàng loạt",
+        "đã có; XML + bảng kê theo tháng",
+        [
+          "XMLM",
+          "XMLB",
+          "BK"
+        ],
+        "có"
+      ],
+      [
+        "R_BASE",
+        "#8 Backup dữ liệu Base Request",
+        "đã có; API → Excel index + đính kèm",
+        [
+          "RQ"
+        ],
+        "có"
+      ],
+      [
+        "R_CRM",
+        "#6 Trích tham số hợp đồng → CRM kế toán",
+        "danh mục hợp đồng + lịch thu + trạng thái; tham số theo loại hình doanh thu (cấu hình); kế toán duyệt",
+        [
+          "HDKCN",
+          "HDNO",
+          "BBG"
+        ],
+        "mở rộng"
+      ],
+      [
+        "R_REV",
+        "#5 Review hồ sơ thanh toán xây dựng",
+        "đã có; xuất kết quả review có cấu trúc",
+        [
+          "HDTHAU",
+          "NT"
+        ],
+        "có"
+      ],
+      [
+        "R_VAY",
+        "#9 Theo dõi khoản vay (Google Sheets API)",
+        "Sheet là nguồn duy nhất; service account chỉ đọc",
+        [
+          "HDVAY"
+        ],
+        "có"
+      ],
+      [
+        "R_BL",
+        "Bộ đọc bảng lương",
+        "mới; kiểm tổng, mã NV, bảng phân bổ bộ phận",
+        [
+          "BL"
+        ],
+        "mới"
+      ],
+      [
+        "R_KHO",
+        "#10 Quản lý kho 9 sheet → CSV",
+        "có thiết kế; chốt ranh giới với kho Junsky",
+        [
+          "PNX"
+        ],
+        "chờ"
+      ],
+      [
+        "R_KH",
+        "Bộ đọc bảng khấu hao / phân bổ",
+        "mới; mẫu cố định theo kỳ",
+        [
+          "KH"
+        ],
+        "mới"
+      ]
+    ],
+    "MODULES": [
+      [
+        "M1",
+        "M1 · Tiền về / tiền đi từ sao kê",
+        [
+          "R_SK"
+        ],
+        "đang chạy thật"
+      ],
+      [
+        "M2",
+        "M2 · Hóa đơn mua vào → phải trả",
+        [
+          "R_HD",
+          "R_BASE"
+        ],
+        "V12 có đề xuất"
+      ],
+      [
+        "M3",
+        "M3 · Hóa đơn bán ra & doanh thu BĐS",
+        [
+          "R_HD",
+          "R_CRM"
+        ],
+        "V12 + CRM kế toán"
+      ],
+      [
+        "M4",
+        "M4 · Nghiệm thu & chi phí dự án",
+        [
+          "R_REV"
+        ],
+        "tiếp theo (1)"
+      ],
+      [
+        "M9",
+        "M9 · Vốn vay & đầu tư tài chính",
+        [
+          "R_VAY"
+        ],
+        "tiếp theo (2)"
+      ],
+      [
+        "M8",
+        "M8 · Bảng kê thuế & đối chiếu cổng thuế",
+        [
+          "R_HD"
+        ],
+        "tiếp theo (3)"
+      ],
+      [
+        "M6",
+        "M6 · TSCĐ & CCDC",
+        [
+          "R_KH"
+        ],
+        "chờ khảo sát"
+      ],
+      [
+        "M7",
+        "M7 · Lương & bảo hiểm",
+        [
+          "R_BL"
+        ],
+        "chờ khảo sát"
+      ],
+      [
+        "M5",
+        "M5 · Kho vận hành KCN",
+        [
+          "R_KHO"
+        ],
+        "chờ khảo sát"
+      ],
+      [
+        "M10",
+        "M10 · Bút toán định kỳ, đóng sổ & đối chiếu ngược",
+        [
+          "R_KH"
+        ],
+        "sau khi mở mức 2"
+      ]
+    ],
+    "OUTPUTS": [
+      [
+        "B1",
+        "Phiếu thu / chi NH (02BR / 02BP): Nợ–Có 112 ↔ 131 · 344 · 331 · 141 · 341 · 515 · 6427…",
+        "M1"
+      ],
+      [
+        "B2",
+        "Nợ 6xx / 241 / 211 / 152 (đích theo tri thức học) + 1331 / Có 331",
+        "M2"
+      ],
+      [
+        "B3",
+        "Nợ 131 / Có 511 · 3387 · 3331; ghi nhận doanh thu khi bàn giao; phân bổ DT KCN",
+        "M3"
+      ],
+      [
+        "B4",
+        "Nợ 241 / 154 + 1331 / Có 331; thu hồi tạm ứng, giữ bảo hành; kết chuyển giá vốn",
+        "M4"
+      ],
+      [
+        "B9",
+        "Nợ 112 / Có 341 (giải ngân); Nợ 341, 635 hoặc 241 (vốn hóa) / Có 112; lãi dự trả",
+        "M9"
+      ],
+      [
+        "B8",
+        "Bảng kê GTGT hỗ trợ tờ khai + danh sách hóa đơn lệch — KHÔNG phải bút toán",
+        "M8"
+      ],
+      [
+        "B6",
+        "Ghi tăng 211 / 213 / 153; khấu hao 214; phân bổ 242",
+        "M6"
+      ],
+      [
+        "B7",
+        "Nợ 642 / 627 / 241 theo bộ phận – dự án / Có 334 · 338x · 3335",
+        "M7"
+      ],
+      [
+        "B5",
+        "Nhập kho 152 / 153; xuất dùng 627 / 642 / 241; CCDC → 242",
+        "M5"
+      ],
+      [
+        "B10",
+        "Bút toán định kỳ (02GJ) · checklist đóng sổ · báo cáo đối chiếu ngược (bước 8)",
+        "M10"
+      ]
+    ],
+    "LINKS": [
+      [
+        "L1",
+        "M3",
+        "M1",
+        true,
+        "Phải thu ↔ Thu tiền: đợt / hóa đơn ↔ tiền về; tiền về trước → Vàng theo quy tắc CFO (344 / 131)"
+      ],
+      [
+        "L2",
+        "M2",
+        "M1",
+        true,
+        "Phải trả ↔ Chi tiền: hóa đơn / RQ ↔ lệnh chi; tạm ứng trước hóa đơn → 331 dư Nợ"
+      ],
+      [
+        "L3",
+        "M2",
+        "M4",
+        false,
+        "Hóa đơn nhà thầu chỉ Xanh khi khớp nghiệm thu"
+      ],
+      [
+        "L4",
+        "M2",
+        "M6",
+        false,
+        "Dòng hóa đơn đích 'tài sản' → ghi tăng TSCĐ / CCDC"
+      ],
+      [
+        "L5",
+        "M4",
+        "M6",
+        false,
+        "XDCB hoàn thành → kết chuyển 241 → 211"
+      ],
+      [
+        "L6",
+        "M4",
+        "M3",
+        false,
+        "Bàn giao → kết chuyển giá vốn dự án"
+      ],
+      [
+        "L7",
+        "M9",
+        "M4",
+        false,
+        "Lãi vay vốn hóa vào 241 theo dự án"
+      ],
+      [
+        "L8",
+        "M9",
+        "M1",
+        true,
+        "Lịch trả nợ ↔ giải ngân / trả gốc / lãi trên sao kê"
+      ],
+      [
+        "L9",
+        "M2",
+        "M8",
+        false,
+        "Hóa đơn + chứng từ thanh toán (L2) → điều kiện khấu trừ GTGT"
+      ],
+      [
+        "L10",
+        "M7",
+        "M1",
+        false,
+        "Lệnh chi lương ↔ bảng lương (tổng khớp)"
+      ],
+      [
+        "L11",
+        "M5",
+        "M2",
+        true,
+        "Phiếu nhập kho ↔ hóa đơn mua vật tư"
+      ]
+    ],
+    "L12_NOTE": "L12 · Mọi chu trình → M10: bút toán định kỳ lấy từ M3 (phân bổ DT KCN), M4 (trích trước), M6 (khấu hao), M9 (lãi dự trả); mọi lô đã đẩy đều qua đối chiếu ngược."
+  },
+  "counts": {
+    "sources": 8,
+    "documents": 15,
+    "receivers": 9,
+    "modules": 10,
+    "links": 12
+  },
+  "latest_overrides": {
+    "M5": "Quantity only; inventory value stays in Junsky per TL35 section8.6",
+    "master": "Nine approved catalogues",
+    "source_sheets": "Use TL40 latest source integration; do not fix M5 to CSV only",
+    "M10": "Prepare close/recurring now; real Junsky import activation has separate gate",
+    "R_KHO": "User19OctclarifiesSOFTWARE10_KHO=SOURCE_FOR_M5_NOT_MODULE_M10;EXISTINGCODE_CRUD_APPROVE_REVERSE_PWA_API;Code.gs62f46583_796lines_matchesM5binding;REUSE_NO_REBUILD;OLD_SVG_DESIGN_LABEL_HISTORICAL_NOT_CURRENT_ACCEPTANCE",
+    "M9": "Human19Oct:ONLYidentifydataretrieval;trackingalreadyinexistingapp. NewCodefinal2filespinned;reusepairedJSON_RAW_PLUS_EXCEL_SOURCE_COMPUTED_SAME_SCOPE_ASOF. NoM9codechanges/noautoResume.",
+    "L11_M2_M5_SCOPE": "HUMAN_CONFIRMED_REPORT_SCOPE20Oct:INVOICES_MISSING_EXTRA_DUPLICATE_AND_PER_ITEM_LINE_QUANTITY_DIFFERENCES;USER_WILL_ADD_M5_SOURCE_APP_INVOICE_IMPORT_WITH_QUANTITY;REUSE_EXISTING_M2_XML_ZIP_AND_IDENTITY_KEYS_WITH_M5_IMPORTED_DATASET;ACTUAL_M5_EXPORT_IMPORT_CONTRACT_NOT_YET_PROVIDED_BIND_BEFORE_ADAPTER;NO_AUTOMATIC_UNIT_CONVERSION_OR_ALLOCATION;NEW_DEEP_POOL_Q09_SIX_NOT_RUN_STOPPED;PRESERVE_PRIOR_CODE_EVIDENCE;EXISTING_WHOLE_GOAL_AUTHORITY_REMAINS;DOCUMENTATION_DOES_NOT_GRANT_NEW_RUNTIME;M0_M10_SCOPE_UNCHANGED_M9_STOP"
+  },
+  "acceptance": "NOT_VERIFIED",
+  "table_booleans_are_svg_metadata_not_acceptance": true,
+  "current_delivery": {
+    "updated": "2026-10-20T07:58:44.2433720+07:00",
+    "R_REV": "DEMO_SLICE_INDEPENDENT_CHECKS_PASSED_FULL_M4_AND_PRODUCTION_PENDING",
+    "CRM_01": "SQL03_PARSER_HTTP_M1_SELECTED_SCOPED;HOST06_WINDOWS51_DEFAULTCMD_REOPEN_MO_WORKFLOW_XLSX9161_BYTES_CELLS_OS_RESTART_ENVRESTORE_VERIFIED;GUI_COLD_FULLM1_G10_V13_PENDING",
+    "CRM_review": "REVIEW-CRM-HOST-06.md_FROZEN125_C828D1FF_TARGETED_HOST_ACCEPTED_NO_FULLCRM_OR_ALL33_ACCEPTANCE",
+    "M9": "READ_METHOD_STATIC_IDENTIFIED_CODE_FINAL;REPORT15197208_ROOT_READ_2SOURCE_HASHES_UNCHANGED;NO_APP_GOOGLE_EXECUTION_OR_CODE_EDIT;PREVIOUS_WAIT_SOURCE_SUPERSEDED",
+    "M6_M7_M10": "M6_M7_FINALc7ef270b_ROOT_READ_INDEPENDENT_R1_CLOSED_CONTRACT_ACCEPTED;M10_FINALdf57cd30_ROOT_READ_INDEPENDENT_R1_CLOSED_CONTRACT_ACCEPTED_NO_RUNTIME",
+    "V13": "BACKUP_SELECTED_DEMO_VERIFIED_ROOT_UNIT18_ON04_PLUS_PG11_ON03_CORE_UNCHANGED;CUTOFF_A5_PERF_GUI_REMAIN;NOT_FULL_ACCEPTANCE",
+    "M5": "EXISTING_WAREHOUSE_SOURCE_APP_REUSE;USER_WILL_ADD_INVOICE_IMPORT_WITH_QUANTITY_ACTUAL_INTERFACE_NOT_PROVIDED;HUMAN_CONFIRMED_MISSING_EXTRA_DUPLICATE_INVOICE_AND_PER_ITEM_LINE_QUANTITY_REPORT;NO_AUTOMATIC_UNIT_CONVERSION_OR_ALLOCATION;PRIOR_FINITE_EVIDENCE_RETAINED;NO_FULL_MODULE_ACCEPTANCE",
+    "M8": "BINDINGa52b952f_ROOT_FULL_READ_INDEPENDENT_R1_R3_CLOSED3_OF3_CONTRACT_ACCEPTED_SUBJECT_COMMON_DEPENDENCIES_NO_RUNTIME_NO_TAX_POLICY",
+    "M2": "PURE02_XML_ZIP_AND_R15_FINITE_DEMO_EVIDENCE_RETAINED;HUMAN_CONFIRMED_M2_M5_REPORT_MISSING_EXTRA_DUPLICATE_INVOICES_AND_PER_LINE_QUANTITY_DIFFERENCES;REUSE_EXISTING_M2_READER_AND_TECHNICAL_IDENTITY_KEYS;BIND_ACTUAL_M5_DATASET_CONTRACT_BEFORE_ADAPTER;NO_FULL_MODULE_ACCEPTANCE",
+    "source_templates": "LOCAL_80BOOK_INITIAL_AND_10BOOK57SHEET_DEEP_STRUCTURE_RO_SOURCEHASHES_SAME;PAYROLL_242_CANDIDATES;335_KEYWORD_NO_CONFIRMED_AMOUNT_PERIOD_BASIS;INVESTMENT_NO_REGISTER_COMBINATION_IN_WINDOW;0_ACTIVATED",
+    "M3": "FINAL50ad86e8_ROOT_READ_INITIAL_AND_ALL_AMENDMENTS_INDEPENDENT_R1_R2_C1_CLOSED_TECHNICAL_CONTRACT_NO_NEW_RUNTIME_ACCEPTANCE",
+    "M4": "RREV_DEMO_SCOPED_VERIFIED;FINAL1760a36b_ROOT_AND_INDEPENDENT_R1_R5_CLOSED_TECHNICAL_CONTRACT_FULL_IMPLEMENTATION_PRODUCTION_PENDING",
+    "M9_reviews": "K2add43c7e_SERVICE39883bb0_TARGETf779822e_HTTP5e353698_ROOTREAD;REPAIRCONTRACT274e4fe6_INDEPENDENTREVIEW_CLEAN",
+    "R_KHO": "EXISTING_SOFTWARE10_TO_M5_REUSE;PURE_NATIVE_READER_DEMO_VERIFIED;SOURCE_PROFILE_MAPPING_PRODUCER_PRECISION_GOOGLE_DEPLOYMENT_RUNTIME_NOT_VERIFIED_NO_SOURCE_EDITS",
+    "R_KHO_source_review": "docs/TAI-SU-DUNG-PHAN-MEM-KHO-10.md SHA92dfe44947baad6cc2d0f34bb27c2a8d5f21949cf33ffc9bd91a8dbe9c1621c4;Code.gs62f46583_796lines24functions9sheetdefs_MATCHES_M5binding7de60be4",
+    "M0_M5": "BACKEND04_ROOT17MIGRATION36SERVICE2HTTP_AND_UI05_SELECTED_HISTORICAL;L11_GUI06_G01_K01_QUANTITY_CURRENT_FILE_PHYSICAL_AUTH_FINITE_VERIFIED;NO_FULL_MODULE_ACCEPTANCE",
+    "L11": "HUMAN_CONFIRMED_REPORT_SCOPE_MISSING_EXTRA_DUPLICATE_INVOICES_AND_PER_ITEM_LINE_QUANTITY_DIFFERENCES;REUSE_M2_XML_ZIP_PLUS_FUTURE_M5_IMPORTED_DATASET;M5_ACTUAL_INTERFACE_CONTRACT_PENDING_NOT_HUMAN_REPORT_SCOPE_GATE;NEW_DEEP_SHAREDPOOL_Q09_SIX_STOPPED_BEFORE_AST_RUNTIME_NOT_RUN;PRIOR_PRODUCT_CODE_FINITE_EVIDENCE_RETAINED;EXISTING_OVERALL_GOAL_AUTHORITY_REMAINS;NO_DOCUMENTATION_GRANTED_RUNTIME_OR_FULL_GUI_Q09_L11_M2_M5_33_ACCEPTANCE",
+    "L11_review": "docs/REVIEW-L11-ROOT-ACTUAL-06.md SHA35b52ec61e0f2a5002179d60e2b2bc556277691fb7672a655b41a82c2e2619da;docs/REVIEW-L11-ROOT-ACTUAL-05.md;docs/REVIEW-L11-ROOT-ACTUAL-04.md;docs/GIAO-CODE-L11-QUANTITY-06.md",
+    "L11_C2_history": "FIRST_TWO_ATTEMPTS_NOT_PASS_RETAINED;EXACT_NO_DELETE_GUARD_TEMP_FILE_ORACLE_FIXED_IN_AUDITOR03;ACTUAL_THIRD_ATTEMPT_HANDLE15611_TERMINAL98F26D_EXIT0_FINITE5PASS;NO_PRODUCT_FIX_OR_FULL_ACCEPTANCE",
+    "L11_next": "BIND_ACTUAL_M5_EXPORT_IMPORT_CONTRACT_BEFORE_ADAPTER;REUSE_EXISTING_M2_INVOICE_AND_LINE_IDENTITY_KEYS_AS_TECHNICAL_MAPPING_NOT_NEW_HUMAN_PERMISSION_GATE;IMPLEMENT_CONFIRMED_MISSING_EXTRA_DUPLICATE_AND_PER_ITEM_LINE_QUANTITY_REPORT_WITHIN_EXISTING_GOAL_AUTHORITY;NO_AUTOMATIC_UNIT_CONVERSION_ALLOCATION_OR_NEW_DEEP_Q09_WORK;THIS_DOCUMENT_UPDATE_DOES_NOT_GRANT_RUNTIME",
+    "L11_04_evidence": {
+      "code_manifest_sha256": "d7a2ebb6fc1013b397271ebdeb1c49aec3f4f5c4260124c8c35baf7722217add",
+      "source_count": 273,
+      "protected_source_count": 271,
+      "native": {
+        "k2_pass": 23,
+        "http_pass": 2,
+        "skip": 0
+      },
+      "async": {
+        "setup_error": 0,
+        "pass": 14
+      },
+      "causal": {
+        "status": "FINITE_SIX_CASES_ROOT_AGGREGATED",
+        "aggregate_sha256": "9db9ca4066b14690986e8ecb062a77581941e98989d811623c71ef3a42744f72",
+        "completed_in_A_B": [
+          "C01",
+          "C02",
+          "C05",
+          "C06"
+        ],
+        "A_B_runner_status": "NOT_PASS_RETAINED",
+        "new_R_completed": [
+          "C03",
+          "C04"
+        ],
+        "new_R_terminal_chunk": "4cf548",
+        "new_R_exit_code": 0,
+        "full_Q09": "NOT_VERIFIED"
+      },
+      "gui": {
+        "status": "FINITE_G01_K01_IDENTITY_8_8_PHYSICAL_FILE_DOWNLOAD_VERIFIED",
+        "candidates": 2,
+        "proofs": 2,
+        "encodings": 2,
+        "line_pools": 2,
+        "parents": 1,
+        "children": 1,
+        "warehouse_line_quantities": [
+          "8",
+          "2"
+        ],
+        "confirmed": [
+          "8",
+          "8"
+        ],
+        "held": [
+          "0",
+          "0"
+        ],
+        "capacities": [
+          "10",
+          "8"
+        ],
+        "remaining": [
+          "2",
+          "0"
+        ],
+        "downloaded_bytes": 8865,
+        "retained_registry_download_sha256": "09df86c4b4ebd18e342a2da1721932e26a3f6b78aec73bc82f6e128e9ccb229e",
+        "current_M5_only_UI_cross_links": 0,
+        "current_M5_only_UI_FILE_buttons": 0,
+        "exact_cross_file_GET_under_CFO": "NOT_RUN",
+        "owned_stop_handle": 71165,
+        "owned_stop_chunk": "d8e153",
+        "owned_stop_exit_code": 0
+      },
+      "carried_03_evidence": "MIG14_M2K2_18_M2HTTP3_M5K2_36_UPGRADE15_TO16_NONEMPTY_C1_C2;SOURCE_PROTECTED_NOT_RERUN_ON04",
+      "acceptance": "NOT_VERIFIED"
+    },
+    "L11_06_evidence": {
+      "review_path": "docs/REVIEW-L11-ROOT-ACTUAL-06.md",
+      "review_sha256": "35b52ec61e0f2a5002179d60e2b2bc556277691fb7672a655b41a82c2e2619da",
+      "code_manifest_sha256": "d483184e9e48e4698db43a4d8085c8f417ad76bd22934e217282ef117e0ed299",
+      "source_count": 273,
+      "protected_source_count": 272,
+      "changed_sources": [
+        "src/kho_tri_thuc/giao_dien/assets/app.js"
+      ],
+      "async": {
+        "regression14_pass": 14,
+        "cross_module23_pass": 23,
+        "fail": 0,
+        "setup_errors": 0,
+        "case_executions": 37,
+        "distinct_independent_oracles": "NOT_ASSERTED_POSITIVE_CONTROLS_OVERLAP",
+        "pending_role_get_cases": 9,
+        "old_actor_gets_after_click": 0,
+        "old_context_restored": false,
+        "runtime_handle": 82017,
+        "terminal_chunk": "c51a68",
+        "terminal_exit_code": 0,
+        "receipt_sha256": "a6df5a476ccfc208640bb026c08c86b2db0c981a42b858b7b7dbd21ac5fec798",
+        "whole273_pre_post_unchanged": true
+      },
+      "batch_prior05": {
+        "finite_cases": 2,
+        "cases": [
+          "B01",
+          "B02"
+        ],
+        "runtime_handle": 9270,
+        "terminal_chunk": "b365fc",
+        "exit_code": 0,
+        "parent_receipt_sha256": "e444c658b1081331e1ec1f93120259c839ea5ded17f905db27bdc08f915688bd",
+        "B02_live_children": 1,
+        "B02_four_native_pool_amounts": [
+          "2",
+          "2",
+          "2",
+          "2"
+        ],
+        "backend_source_unchanged_in06": true,
+        "rerun06": false,
+        "full_Q09": "NOT_VERIFIED"
+      },
+      "gui": {
+        "status": "FINITE_G01_K01_SOURCE_FIRST_BUTTON_FLOW_PHYSICAL_WORKBOOK_AND_AUTH_VERIFIED",
+        "candidates": 2,
+        "proofs": 2,
+        "encodings": 2,
+        "line_pools": 2,
+        "parents": 1,
+        "children": 1,
+        "warehouse_line_quantities": [
+          "8",
+          "2"
+        ],
+        "four_native_pool_amounts": [
+          "8",
+          "8",
+          "8",
+          "8"
+        ],
+        "confirmed": [
+          "8",
+          "8"
+        ],
+        "held": [
+          "0",
+          "0"
+        ],
+        "capacities": [
+          "10",
+          "8"
+        ],
+        "remaining": [
+          "2",
+          "0"
+        ],
+        "retained_workbook_bytes": 8864,
+        "retained_registry_sha256": "1ea12dd7508804ce25e69e1eac0bc9b22fa1e31c601b2f9681fda2cb88948fa6",
+        "four_sheets_full_business_text_cells_no_formulas_verified": true,
+        "whole_observer_delta": 0,
+        "physical_receipt_sha256": "731de14dd3c6d051729baca579de36c4c21cf5d4b499e96dc4e5b0f244a15836",
+        "browser_observation_sha256": "d0048deba37fd4bde24544ba5a52a4b845adc85d2857584748ba7c9e9dd70bda",
+        "browser_download_bytes": "NOT_VERIFIED_CURRENT06",
+        "M5_only_first_snapshot_old_links": 0,
+        "M5_only_FILE_buttons": 0,
+        "M2_only_first_snapshot_old_links": 0,
+        "M2_only_FILE_buttons": 0,
+        "role_POST_held_in_browser": false,
+        "fresh_document_live_child_reload_verified": true,
+        "backend_restart": false,
+        "mixed_LIVE_HELD_HUY_revoked_reopen": "NOT_RUN",
+        "exact_current_FILE_HTTP": {
+          "status": "FINITE_PASS",
+          "requests": 10,
+          "own_session": true,
+          "same_cookie": true,
+          "token_header_present": true,
+          "checks": [
+            "LINK_200_8864_SAME_SHA",
+            "M5_ONLY_400_FILE_SOAT",
+            "M2_ONLY_400_FILE_SOAT",
+            "LINK_200_8864_SAME_SHA"
+          ],
+          "runtime_handle": 70579,
+          "terminal_chunk": "5cee84",
+          "exit_code": 0,
+          "receipt_sha256": "57ee8da3be876ad69a87ffaac085f7c39940c8585a22d43cd5f7ea9489749292",
+          "browser_download_claim": false
+        },
+        "owned_stop": {
+          "handle": 44695,
+          "chunk": "29854a",
+          "exit_code": 0,
+          "child_pid": 27256,
+          "stop_confirmed": true,
+          "parent_posthash_verified": true,
+          "close_errors": [],
+          "server_active": false,
+          "resources_retained": true,
+          "terminal_receipt_sha256": "add032edd9e1345d4c5bfc85ea00a6750b6513eaccdaabb4c69da06afa6c0e25"
+        }
+      },
+      "historical_evidence": "NATIVE04_K2_23_HTTP2;CAUSAL6;03_M2K2_18_M2HTTP3_M5K2_36_UPGRADE15_TO16_NONEMPTY_C1_C2;04_BROWSER_DOWNLOAD09DF;VERSION_PINNED_NOT_RERUN06",
+      "full_GUI_acceptance": false,
+      "full_Q09_acceptance": false,
+      "full_L11_acceptance": false,
+      "acceptance": "NOT_VERIFIED"
+    },
+    "L11_scope_decision": {
+      "status": "HUMAN_CONFIRMED_REPORT_SCOPE",
+      "recorded_at": "2026-10-20T07:58:44.2433720+07:00",
+      "human_confirmation_quote": "Hóa đơn thiếu/thừa/trùng và chênh số lượng từng dòng hàng (tôi đề xuất)",
+      "confirmed_report_scope": [
+        "MISSING_INVOICES",
+        "EXTRA_INVOICES",
+        "DUPLICATE_INVOICES",
+        "PER_ITEM_LINE_QUANTITY_DIFFERENCES"
+      ],
+      "report_scope_confirmed": true,
+      "M5_source_app_invoice_import": "USER_WILL_ADD_INVOICE_IMPORT_WITH_QUANTITY;ACTUAL_INTERFACE_AND_DATASET_CONTRACT_NOT_YET_PROVIDED",
+      "accounting_reuse": [
+        "EXISTING_M2_XML_ZIP_READER",
+        "EXISTING_M2_INVOICE_AND_LINE_IDENTITY_KEYS",
+        "M5_IMPORTED_INVOICE_DATASET_WHEN_PROVIDED"
+      ],
+      "matching_keys": "TECHNICAL_REUSE_AND_ACTUAL_M5_CONTRACT_BINDING;NOT_A_NEW_HUMAN_PERMISSION_GATE",
+      "adapter_prerequisite": "BIND_ACTUAL_M5_EXPORT_IMPORT_CONTRACT",
+      "automatic_unit_conversion": false,
+      "automatic_allocation": false,
+      "new_deep_allocation_pool_work": {
+        "status": "STOPPED_BEFORE_AST_RUNTIME",
+        "planned_sharedpool_cases": 6,
+        "runtime_status": "NOT_RUN",
+        "all_code_drafts_files_retained": true,
+        "no_further_binding_or_release_authorized": true
+      },
+      "prior_finite_evidence": "PRESERVED_AT_RECORDED_VERSION_AND_SCOPE",
+      "overall_M0_M10_and_33_scope": "UNCHANGED",
+      "existing_whole_goal_authority": "REMAINS_IN_FORCE;NOT_A_BLANKET_PROJECT_CODING_STOP",
+      "documentation_grants_new_runtime": false,
+      "M9": "RETRIEVAL_ONLY_TRACKER_UNCHANGED_NO_RESUME",
+      "full_acceptance": false
+    }
+  },
+  "module_status": {
+    "M0": "PARTIAL_COMMON_M0_M5_SELECTED_VERIFIED;M2_R15_FINITE_DEMO_ACCEPTED;L11_CODE06_FINITE_UI_GUI_PHYSICAL_AUTH_NOT_FULL_ACCEPTANCE;M9_STOP",
+    "M1": "PARTIAL_IMPLEMENTATION",
+    "M2": "PARTIAL_XML_ZIP_PURE02_R15_FINITE_EVIDENCE_RETAINED;HUMAN_CONFIRMED_INVOICE_MISSING_EXTRA_DUPLICATE_AND_PER_LINE_QUANTITY_REPORT;ACTUAL_M5_INTERFACE_BINDING_BEFORE_ADAPTER;NO_FULL_MODULE_ACCEPTANCE",
+    "M3": "PARTIAL_CRM_VERIFIED_REVENUE_TECHNICAL_CONTRACT_REVIEWED_FULL_IMPLEMENTATION_RUNTIME_PENDING",
+    "M4": "PARTIAL_RREV_DEMO_VERIFIED_FULL_TECHNICAL_CONTRACT_REVIEWED_IMPLEMENTATION_RUNTIME_PENDING",
+    "M9": "EXISTING_TRACKER_SOURCE_CODE_FINAL_PROVIDED_READ_METHOD_IDENTIFIED_ONLY;NO_TRACKING_REBUILD_NO_SOURCE_OR_M9_REPAIR;LIVE_INGEST_NOT_RUN",
+    "M8": "TECHNICAL_CONTRACT_REVIEWED_IMPLEMENTATION_RUNTIME_ACCEPTANCE_PENDING",
+    "M6": "TECHNICAL_CONTRACT_REVIEWED_IMPLEMENTATION_RUNTIME_ACCEPTANCE_PENDING",
+    "M7": "TECHNICAL_CONTRACT_REVIEWED_IMPLEMENTATION_RUNTIME_ACCEPTANCE_PENDING",
+    "M5": "PARTIAL_PRIOR_READER_BACKEND_L11_FINITE_EVIDENCE_RETAINED;USER_FUTURE_INVOICE_IMPORT_WITH_QUANTITY;REPORT_SCOPE_HUMAN_CONFIRMED_ACTUAL_DATASET_CONTRACT_PENDING;NO_AUTOMATIC_CONVERSION_ALLOCATION_OR_NEW_DEEP_Q09;NO_FULL_MODULE_ACCEPTANCE",
+    "M10": "TECHNICAL_CONTRACT_REVIEWED_IMPLEMENTATION_RUNTIME_ACCEPTANCE_PENDING"
+  },
+  "coordination_history": [
+    {
+      "archived_at": "2026-10-20T06:24:55.4199503+07:00",
+      "reason": "L11 actual04 milestone; previous03 coordination state retained verbatim as JSON values",
+      "previous_current_delivery": {
+        "updated": "2026-10-20T04:29:24+07:00",
+        "R_REV": "DEMO_SLICE_INDEPENDENT_CHECKS_PASSED_FULL_M4_AND_PRODUCTION_PENDING",
+        "CRM_01": "SQL03_PARSER_HTTP_M1_SELECTED_SCOPED;HOST06_WINDOWS51_DEFAULTCMD_REOPEN_MO_WORKFLOW_XLSX9161_BYTES_CELLS_OS_RESTART_ENVRESTORE_VERIFIED;GUI_COLD_FULLM1_G10_V13_PENDING",
+        "CRM_review": "REVIEW-CRM-HOST-06.md_FROZEN125_C828D1FF_TARGETED_HOST_ACCEPTED_NO_FULLCRM_OR_ALL33_ACCEPTANCE",
+        "M9": "READ_METHOD_STATIC_IDENTIFIED_CODE_FINAL;REPORT15197208_ROOT_READ_2SOURCE_HASHES_UNCHANGED;NO_APP_GOOGLE_EXECUTION_OR_CODE_EDIT;PREVIOUS_WAIT_SOURCE_SUPERSEDED",
+        "M6_M7_M10": "M6_M7_FINALc7ef270b_ROOT_READ_INDEPENDENT_R1_CLOSED_CONTRACT_ACCEPTED;M10_FINALdf57cd30_ROOT_READ_INDEPENDENT_R1_CLOSED_CONTRACT_ACCEPTED_NO_RUNTIME",
+        "V13": "BACKUP_SELECTED_DEMO_VERIFIED_ROOT_UNIT18_ON04_PLUS_PG11_ON03_CORE_UNCHANGED;CUTOFF_A5_PERF_GUI_REMAIN;NOT_FULL_ACCEPTANCE",
+        "M5": "READER_DEMO_VERIFIED;BACKEND04_SELECTED_CONTROLS_PASS;UI05_STATIC_F1_CLOSED_ROOT_ASYNC4_HTTP2_PASS;WINDOWS_GUI_L11_FULLMODULE_PENDING",
+        "M8": "BINDINGa52b952f_ROOT_FULL_READ_INDEPENDENT_R1_R3_CLOSED3_OF3_CONTRACT_ACCEPTED_SUBJECT_COMMON_DEPENDENCIES_NO_RUNTIME_NO_TAX_POLICY",
+        "M2": "PURE02_DEMO_UNIT32_AND_INDEPENDENT_FINITE_VERIFIED;R15_BRIDGE03_FINITE_DEMO_ACCEPTED_FOR_R16;MIG7_SVC18_HTTP3_M5SVC36_SELECTED15_PROBE20_PASS;L11_CODE03_FINITE_VERIFICATION_NOT_FULL_ACCEPTANCE",
+        "source_templates": "LOCAL_80BOOK_INITIAL_AND_10BOOK57SHEET_DEEP_STRUCTURE_RO_SOURCEHASHES_SAME;PAYROLL_242_CANDIDATES;335_KEYWORD_NO_CONFIRMED_AMOUNT_PERIOD_BASIS;INVESTMENT_NO_REGISTER_COMBINATION_IN_WINDOW;0_ACTIVATED",
+        "M3": "FINAL50ad86e8_ROOT_READ_INITIAL_AND_ALL_AMENDMENTS_INDEPENDENT_R1_R2_C1_CLOSED_TECHNICAL_CONTRACT_NO_NEW_RUNTIME_ACCEPTANCE",
+        "M4": "RREV_DEMO_SCOPED_VERIFIED;FINAL1760a36b_ROOT_AND_INDEPENDENT_R1_R5_CLOSED_TECHNICAL_CONTRACT_FULL_IMPLEMENTATION_PRODUCTION_PENDING",
+        "M9_reviews": "K2add43c7e_SERVICE39883bb0_TARGETf779822e_HTTP5e353698_ROOTREAD;REPAIRCONTRACT274e4fe6_INDEPENDENTREVIEW_CLEAN",
+        "R_KHO": "EXISTING_SOFTWARE10_TO_M5_REUSE;PURE_NATIVE_READER_DEMO_VERIFIED;SOURCE_PROFILE_MAPPING_PRODUCER_PRECISION_GOOGLE_DEPLOYMENT_RUNTIME_NOT_VERIFIED_NO_SOURCE_EDITS",
+        "R_KHO_source_review": "docs/TAI-SU-DUNG-PHAN-MEM-KHO-10.md SHA92dfe44947baad6cc2d0f34bb27c2a8d5f21949cf33ffc9bd91a8dbe9c1621c4;Code.gs62f46583_796lines24functions9sheetdefs_MATCHES_M5binding7de60be4",
+        "M0_M5": "CODE04_ROOT17MIGRATION36SERVICE2HTTP_PASS_AND_INDEPENDENT_COHERENCE;UI05_TERMINAL_FROZEN210_SOURCEUNCHANGED_ROOT_ASYNC4_HTTP2_STATICF1CLOSED;NO_BROWSER_OR_FULLMODULE_ACCEPTANCE",
+        "L11": "R16_CODE03_TERMINAL_FROZEN273_09D658;MIG14_HTTP2_PASS_K2_21_OF23_ROUTE_TEST_ORACLE_AND_CASCADE;REGRESSION_M2K2_18_M2HTTP3_M5K2_36_PASS_0SKIP;UPGRADE15_TO16_NONEMPTY_PASS_OLD_ROWS_SEQUENCES_FILES_PRESERVED;JS14_12PASS_2DOMFAIL_0SETUP_0WRONG_DOWNLOAD;C1_1POS_1NEG_REPLAY_PASS;C2_FIVE_FRESH_DB_1POS_4_METADATA_HOLD_PASS;CAUSAL6_PREPARED_UNRUN_GUI_UNRUN;REPAIR04_PREPARED_NOT_DISPATCHED;NO_FULL_L11_M2_M5_33_ACCEPTANCE",
+        "L11_review": "docs/REVIEW-L11-ROOT-ACTUAL-03.md;docs/REVIEW-L11-HTTP-UI-03.md;docs/GIAO-CODE-L11-QUANTITY-04.md",
+        "L11_C2_history": "FIRST_TWO_ATTEMPTS_NOT_PASS_RETAINED;EXACT_NO_DELETE_GUARD_TEMP_FILE_ORACLE_FIXED_IN_AUDITOR03;ACTUAL_THIRD_ATTEMPT_HANDLE15611_TERMINAL98F26D_EXIT0_FINITE5PASS;NO_PRODUCT_FIX_OR_FULL_ACCEPTANCE",
+        "L11_next": "REPAIR04_READY_CODE_ONLY_APP_JS_AND_TEST_L11_K2_PLUS_NEW_REPORT04;NOT_DISPATCHED_UNTIL_ROOT_CONFIRMS_ALL_RUNTIME03_TERMINAL;CAUSAL_AND_REAL_BROWSER_GUI_STILL_PENDING"
+      },
+      "previous_module_status": {
+        "M0": "PARTIAL_COMMON_M0_M5_BACKEND04_SELECTED_VERIFIED;M2_R15_FINITE_DEMO_ACCEPTED;L11_03_FINITE_VERIFICATION_NOT_FULL_ACCEPTANCE;M9_STOP",
+        "M1": "PARTIAL_IMPLEMENTATION",
+        "M2": "PARTIAL_XML_ZIP_PURE02_VERIFIED_R15_BRIDGE03_FINITE_DEMO_ACCEPTED;L11_03_FINITE_C1_C2_VERIFIED_UI_CAUSAL_GUI_PENDING;NO_FULL_MODULE_ACCEPTANCE",
+        "M3": "PARTIAL_CRM_VERIFIED_REVENUE_TECHNICAL_CONTRACT_REVIEWED_FULL_IMPLEMENTATION_RUNTIME_PENDING",
+        "M4": "PARTIAL_RREV_DEMO_VERIFIED_FULL_TECHNICAL_CONTRACT_REVIEWED_IMPLEMENTATION_RUNTIME_PENDING",
+        "M9": "EXISTING_TRACKER_SOURCE_CODE_FINAL_PROVIDED_READ_METHOD_IDENTIFIED_ONLY;NO_TRACKING_REBUILD_NO_SOURCE_OR_M9_REPAIR;LIVE_INGEST_NOT_RUN",
+        "M8": "TECHNICAL_CONTRACT_REVIEWED_IMPLEMENTATION_RUNTIME_ACCEPTANCE_PENDING",
+        "M6": "TECHNICAL_CONTRACT_REVIEWED_IMPLEMENTATION_RUNTIME_ACCEPTANCE_PENDING",
+        "M7": "TECHNICAL_CONTRACT_REVIEWED_IMPLEMENTATION_RUNTIME_ACCEPTANCE_PENDING",
+        "M5": "PARTIAL_READER_DEMO_VERIFIED_BACKEND04_UI05_SELECTED_VERIFIED;L11_03_FINITE_C1_C2_VERIFIED_UI_CAUSAL_GUI_PENDING;PRODUCTION_AND_FULL_MODULE_NOT_ACCEPTED",
+        "M10": "TECHNICAL_CONTRACT_REVIEWED_IMPLEMENTATION_RUNTIME_ACCEPTANCE_PENDING"
+      }
+    },
+    {
+      "archived_at": "2026-10-20T07:20:57.5170930+07:00",
+      "reason": "L11 actual06 finite UI/GUI/current FILE-auth milestone; full previous04 coordination JSON values preserved, historical suites are not rerun06",
+      "before_manifest_sha256": "2b5552f849aefbfdfeb0556329c16a2ec1d615c469205de4e7d1314707b655cd",
+      "previous_current_delivery": {
+        "updated": "2026-10-20T06:24:55.4199503+07:00",
+        "R_REV": "DEMO_SLICE_INDEPENDENT_CHECKS_PASSED_FULL_M4_AND_PRODUCTION_PENDING",
+        "CRM_01": "SQL03_PARSER_HTTP_M1_SELECTED_SCOPED;HOST06_WINDOWS51_DEFAULTCMD_REOPEN_MO_WORKFLOW_XLSX9161_BYTES_CELLS_OS_RESTART_ENVRESTORE_VERIFIED;GUI_COLD_FULLM1_G10_V13_PENDING",
+        "CRM_review": "REVIEW-CRM-HOST-06.md_FROZEN125_C828D1FF_TARGETED_HOST_ACCEPTED_NO_FULLCRM_OR_ALL33_ACCEPTANCE",
+        "M9": "READ_METHOD_STATIC_IDENTIFIED_CODE_FINAL;REPORT15197208_ROOT_READ_2SOURCE_HASHES_UNCHANGED;NO_APP_GOOGLE_EXECUTION_OR_CODE_EDIT;PREVIOUS_WAIT_SOURCE_SUPERSEDED",
+        "M6_M7_M10": "M6_M7_FINALc7ef270b_ROOT_READ_INDEPENDENT_R1_CLOSED_CONTRACT_ACCEPTED;M10_FINALdf57cd30_ROOT_READ_INDEPENDENT_R1_CLOSED_CONTRACT_ACCEPTED_NO_RUNTIME",
+        "V13": "BACKUP_SELECTED_DEMO_VERIFIED_ROOT_UNIT18_ON04_PLUS_PG11_ON03_CORE_UNCHANGED;CUTOFF_A5_PERF_GUI_REMAIN;NOT_FULL_ACCEPTANCE",
+        "M5": "READER_DEMO_VERIFIED;BACKEND04_UI05_SELECTED_CONTROLS_HISTORICAL;L11_CODE04_FINITE_NATIVE_ASYNC_CAUSAL_GUI_PHYSICAL_FILE_DOWNLOAD_VERIFIED;FULL_M5_PRODUCTION_NOT_VERIFIED",
+        "M8": "BINDINGa52b952f_ROOT_FULL_READ_INDEPENDENT_R1_R3_CLOSED3_OF3_CONTRACT_ACCEPTED_SUBJECT_COMMON_DEPENDENCIES_NO_RUNTIME_NO_TAX_POLICY",
+        "M2": "PURE02_DEMO_UNIT32_AND_INDEPENDENT_FINITE_VERIFIED;R15_BRIDGE03_FINITE_DEMO_ACCEPTED_FOR_R16;L11_CODE04_FINITE_NATIVE_ASYNC_CAUSAL_GUI_VERIFIED;NO_FULL_M2_ACCEPTANCE",
+        "source_templates": "LOCAL_80BOOK_INITIAL_AND_10BOOK57SHEET_DEEP_STRUCTURE_RO_SOURCEHASHES_SAME;PAYROLL_242_CANDIDATES;335_KEYWORD_NO_CONFIRMED_AMOUNT_PERIOD_BASIS;INVESTMENT_NO_REGISTER_COMBINATION_IN_WINDOW;0_ACTIVATED",
+        "M3": "FINAL50ad86e8_ROOT_READ_INITIAL_AND_ALL_AMENDMENTS_INDEPENDENT_R1_R2_C1_CLOSED_TECHNICAL_CONTRACT_NO_NEW_RUNTIME_ACCEPTANCE",
+        "M4": "RREV_DEMO_SCOPED_VERIFIED;FINAL1760a36b_ROOT_AND_INDEPENDENT_R1_R5_CLOSED_TECHNICAL_CONTRACT_FULL_IMPLEMENTATION_PRODUCTION_PENDING",
+        "M9_reviews": "K2add43c7e_SERVICE39883bb0_TARGETf779822e_HTTP5e353698_ROOTREAD;REPAIRCONTRACT274e4fe6_INDEPENDENTREVIEW_CLEAN",
+        "R_KHO": "EXISTING_SOFTWARE10_TO_M5_REUSE;PURE_NATIVE_READER_DEMO_VERIFIED;SOURCE_PROFILE_MAPPING_PRODUCER_PRECISION_GOOGLE_DEPLOYMENT_RUNTIME_NOT_VERIFIED_NO_SOURCE_EDITS",
+        "R_KHO_source_review": "docs/TAI-SU-DUNG-PHAN-MEM-KHO-10.md SHA92dfe44947baad6cc2d0f34bb27c2a8d5f21949cf33ffc9bd91a8dbe9c1621c4;Code.gs62f46583_796lines24functions9sheetdefs_MATCHES_M5binding7de60be4",
+        "M0_M5": "BACKEND04_ROOT17MIGRATION36SERVICE2HTTP_AND_INDEPENDENT_COHERENCE_HISTORICAL;UI05_ASYNC4_HTTP2_HISTORICAL;L11_GUI04_G01_K01_QUANTITY_FILE_FINITE_VERIFIED;NO_FULL_MODULE_ACCEPTANCE",
+        "L11": "R16_CODE04_TERMINAL96629_827178_FROZEN273_D7A2EBB6_271_PROTECTED;NATIVE_K2_23_HTTP2_PASS_0SKIP;ASYNC14_PASS_0SETUP;FINITE_CAUSAL6_ROOT_AGGREGATE_WITH_OLD_A_B_NOT_PASS_RETAINED;REAL_GUI_G01_K01_GOODS_CAI_APPROVE_ENCODE_LINK8_8_PHYSICAL_WORKBOOK_DOWNLOADED8865_SHA09DF86_PASS;M5_ONLY_UI_CROSS0_FILEBUTTON0_EXACT_FILEGET_CFO_NOT_RUN;NO_FULL_Q09_L11_M2_M5_33_ACCEPTANCE",
+        "L11_review": "docs/REVIEW-L11-ROOT-ACTUAL-04.md SHAa268cbb6f95c3e36a10583cebf03b17a004f0c24e0502d9870d2b2129f813ec7;docs/REVIEW-L11-ROOT-ACTUAL-03.md;docs/REVIEW-L11-HTTP-UI-03.md;docs/GIAO-CODE-L11-QUANTITY-04.md",
+        "L11_C2_history": "FIRST_TWO_ATTEMPTS_NOT_PASS_RETAINED;EXACT_NO_DELETE_GUARD_TEMP_FILE_ORACLE_FIXED_IN_AUDITOR03;ACTUAL_THIRD_ATTEMPT_HANDLE15611_TERMINAL98F26D_EXIT0_FINITE5PASS;NO_PRODUCT_FIX_OR_FULL_ACCEPTANCE",
+        "L11_next": "REPAIR04_COMPLETED_FINITE_CHECKS;REMAIN_TWO_BATCH_CONCURRENCY_LATE_VISIBLE_IDENTITY_SHARED_ROOT_MULTIPOOL_SPLIT_ABA_LIVE_ALLOCATION_SOURCE_MAP_UNIT_CAPACITY_TRANSITIONS_CURRENT_RIGHTS_PERIOD_DIRECT_WRITE_CROSS_PN_OLD_FILEGET_REOPEN_GUI_LIFECYCLE;NO_FULL_ACCEPTANCE",
+        "L11_04_evidence": {
+          "code_manifest_sha256": "d7a2ebb6fc1013b397271ebdeb1c49aec3f4f5c4260124c8c35baf7722217add",
+          "source_count": 273,
+          "protected_source_count": 271,
+          "native": {
+            "k2_pass": 23,
+            "http_pass": 2,
+            "skip": 0
+          },
+          "async": {
+            "setup_error": 0,
+            "pass": 14
+          },
+          "causal": {
+            "status": "FINITE_SIX_CASES_ROOT_AGGREGATED",
+            "aggregate_sha256": "9db9ca4066b14690986e8ecb062a77581941e98989d811623c71ef3a42744f72",
+            "completed_in_A_B": [
+              "C01",
+              "C02",
+              "C05",
+              "C06"
+            ],
+            "A_B_runner_status": "NOT_PASS_RETAINED",
+            "new_R_completed": [
+              "C03",
+              "C04"
+            ],
+            "new_R_terminal_chunk": "4cf548",
+            "new_R_exit_code": 0,
+            "full_Q09": "NOT_VERIFIED"
+          },
+          "gui": {
+            "status": "FINITE_G01_K01_IDENTITY_8_8_PHYSICAL_FILE_DOWNLOAD_VERIFIED",
+            "candidates": 2,
+            "proofs": 2,
+            "encodings": 2,
+            "line_pools": 2,
+            "parents": 1,
+            "children": 1,
+            "warehouse_line_quantities": [
+              "8",
+              "2"
+            ],
+            "confirmed": [
+              "8",
+              "8"
+            ],
+            "held": [
+              "0",
+              "0"
+            ],
+            "capacities": [
+              "10",
+              "8"
+            ],
+            "remaining": [
+              "2",
+              "0"
+            ],
+            "downloaded_bytes": 8865,
+            "retained_registry_download_sha256": "09df86c4b4ebd18e342a2da1721932e26a3f6b78aec73bc82f6e128e9ccb229e",
+            "current_M5_only_UI_cross_links": 0,
+            "current_M5_only_UI_FILE_buttons": 0,
+            "exact_cross_file_GET_under_CFO": "NOT_RUN",
+            "owned_stop_handle": 71165,
+            "owned_stop_chunk": "d8e153",
+            "owned_stop_exit_code": 0
+          },
+          "carried_03_evidence": "MIG14_M2K2_18_M2HTTP3_M5K2_36_UPGRADE15_TO16_NONEMPTY_C1_C2;SOURCE_PROTECTED_NOT_RERUN_ON04",
+          "acceptance": "NOT_VERIFIED"
+        }
+      },
+      "previous_module_status": {
+        "M0": "PARTIAL_COMMON_M0_M5_SELECTED_VERIFIED;M2_R15_FINITE_DEMO_ACCEPTED;L11_CODE04_FINITE_NATIVE_ASYNC_CAUSAL_GUI_VERIFIED_NOT_FULL_ACCEPTANCE;M9_STOP",
+        "M1": "PARTIAL_IMPLEMENTATION",
+        "M2": "PARTIAL_XML_ZIP_PURE02_VERIFIED_R15_BRIDGE03_FINITE_DEMO_ACCEPTED;L11_CODE04_FINITE_NATIVE_ASYNC_CAUSAL_GUI_QUANTITY_FILE_DOWNLOAD_VERIFIED;FULL_Q09_L11_M2_33_NOT_VERIFIED",
+        "M3": "PARTIAL_CRM_VERIFIED_REVENUE_TECHNICAL_CONTRACT_REVIEWED_FULL_IMPLEMENTATION_RUNTIME_PENDING",
+        "M4": "PARTIAL_RREV_DEMO_VERIFIED_FULL_TECHNICAL_CONTRACT_REVIEWED_IMPLEMENTATION_RUNTIME_PENDING",
+        "M9": "EXISTING_TRACKER_SOURCE_CODE_FINAL_PROVIDED_READ_METHOD_IDENTIFIED_ONLY;NO_TRACKING_REBUILD_NO_SOURCE_OR_M9_REPAIR;LIVE_INGEST_NOT_RUN",
+        "M8": "TECHNICAL_CONTRACT_REVIEWED_IMPLEMENTATION_RUNTIME_ACCEPTANCE_PENDING",
+        "M6": "TECHNICAL_CONTRACT_REVIEWED_IMPLEMENTATION_RUNTIME_ACCEPTANCE_PENDING",
+        "M7": "TECHNICAL_CONTRACT_REVIEWED_IMPLEMENTATION_RUNTIME_ACCEPTANCE_PENDING",
+        "M5": "PARTIAL_READER_BACKEND04_UI05_SELECTED_VERIFIED;L11_CODE04_FINITE_G01_K01_GUI_QUANTITY_FILE_DOWNLOAD_AND_CAUSAL_VERIFIED;PRODUCTION_AND_FULL_MODULE_NOT_ACCEPTED",
+        "M10": "TECHNICAL_CONTRACT_REVIEWED_IMPLEMENTATION_RUNTIME_ACCEPTANCE_PENDING"
+      }
+    },
+    {
+      "archived_at": "2026-10-20T07:54:21.1829155+07:00",
+      "reason": "Human simplified M2-M5 scope to reuse invoice datasets and report missing/extra; new deep allocation/pool six cases stopped NOT_RUN; previous06 current values and overrides retained exactly",
+      "before_manifest_sha256": "f0fd3aaac6f36b9b6d58ec6d31061106a5bacf9202c5ef4eb6ab91ae1a447a5d",
+      "previous_latest_overrides": {
+        "M5": "Quantity only; inventory value stays in Junsky per TL35 section8.6",
+        "master": "Nine approved catalogues",
+        "source_sheets": "Use TL40 latest source integration; do not fix M5 to CSV only",
+        "M10": "Prepare close/recurring now; real Junsky import activation has separate gate",
+        "R_KHO": "User19OctclarifiesSOFTWARE10_KHO=SOURCE_FOR_M5_NOT_MODULE_M10;EXISTINGCODE_CRUD_APPROVE_REVERSE_PWA_API;Code.gs62f46583_796lines_matchesM5binding;REUSE_NO_REBUILD;OLD_SVG_DESIGN_LABEL_HISTORICAL_NOT_CURRENT_ACCEPTANCE",
+        "M9": "Human19Oct:ONLYidentifydataretrieval;trackingalreadyinexistingapp. NewCodefinal2filespinned;reusepairedJSON_RAW_PLUS_EXCEL_SOURCE_COMPUTED_SAME_SCOPE_ASOF. NoM9codechanges/noautoResume."
+      },
+      "previous_current_delivery": {
+        "updated": "2026-10-20T07:20:57.5170930+07:00",
+        "R_REV": "DEMO_SLICE_INDEPENDENT_CHECKS_PASSED_FULL_M4_AND_PRODUCTION_PENDING",
+        "CRM_01": "SQL03_PARSER_HTTP_M1_SELECTED_SCOPED;HOST06_WINDOWS51_DEFAULTCMD_REOPEN_MO_WORKFLOW_XLSX9161_BYTES_CELLS_OS_RESTART_ENVRESTORE_VERIFIED;GUI_COLD_FULLM1_G10_V13_PENDING",
+        "CRM_review": "REVIEW-CRM-HOST-06.md_FROZEN125_C828D1FF_TARGETED_HOST_ACCEPTED_NO_FULLCRM_OR_ALL33_ACCEPTANCE",
+        "M9": "READ_METHOD_STATIC_IDENTIFIED_CODE_FINAL;REPORT15197208_ROOT_READ_2SOURCE_HASHES_UNCHANGED;NO_APP_GOOGLE_EXECUTION_OR_CODE_EDIT;PREVIOUS_WAIT_SOURCE_SUPERSEDED",
+        "M6_M7_M10": "M6_M7_FINALc7ef270b_ROOT_READ_INDEPENDENT_R1_CLOSED_CONTRACT_ACCEPTED;M10_FINALdf57cd30_ROOT_READ_INDEPENDENT_R1_CLOSED_CONTRACT_ACCEPTED_NO_RUNTIME",
+        "V13": "BACKUP_SELECTED_DEMO_VERIFIED_ROOT_UNIT18_ON04_PLUS_PG11_ON03_CORE_UNCHANGED;CUTOFF_A5_PERF_GUI_REMAIN;NOT_FULL_ACCEPTANCE",
+        "M5": "READER_DEMO_VERIFIED;BACKEND04_UI05_SELECTED_HISTORICAL;L11_CODE06_FINITE_ASYNC14_AND_CROSS23_REAL_GUI_PHYSICAL_CURRENT_FILE_HTTP_VERIFIED;BROWSER_DOWNLOAD06_NOT_VERIFIED;FULL_M5_PRODUCTION_NOT_VERIFIED",
+        "M8": "BINDINGa52b952f_ROOT_FULL_READ_INDEPENDENT_R1_R3_CLOSED3_OF3_CONTRACT_ACCEPTED_SUBJECT_COMMON_DEPENDENCIES_NO_RUNTIME_NO_TAX_POLICY",
+        "M2": "PURE02_DEMO_UNIT32_AND_INDEPENDENT_FINITE_VERIFIED;R15_BRIDGE03_FINITE_DEMO_ACCEPTED;L11_CODE06_FINITE_UI_GUI_CURRENT_FILE_HTTP_VERIFIED;PRIOR05_BATCH_B01_B02_VERIFIED_UNCHANGED_BACKEND_NOT_RERUN06;NO_FULL_M2_ACCEPTANCE",
+        "source_templates": "LOCAL_80BOOK_INITIAL_AND_10BOOK57SHEET_DEEP_STRUCTURE_RO_SOURCEHASHES_SAME;PAYROLL_242_CANDIDATES;335_KEYWORD_NO_CONFIRMED_AMOUNT_PERIOD_BASIS;INVESTMENT_NO_REGISTER_COMBINATION_IN_WINDOW;0_ACTIVATED",
+        "M3": "FINAL50ad86e8_ROOT_READ_INITIAL_AND_ALL_AMENDMENTS_INDEPENDENT_R1_R2_C1_CLOSED_TECHNICAL_CONTRACT_NO_NEW_RUNTIME_ACCEPTANCE",
+        "M4": "RREV_DEMO_SCOPED_VERIFIED;FINAL1760a36b_ROOT_AND_INDEPENDENT_R1_R5_CLOSED_TECHNICAL_CONTRACT_FULL_IMPLEMENTATION_PRODUCTION_PENDING",
+        "M9_reviews": "K2add43c7e_SERVICE39883bb0_TARGETf779822e_HTTP5e353698_ROOTREAD;REPAIRCONTRACT274e4fe6_INDEPENDENTREVIEW_CLEAN",
+        "R_KHO": "EXISTING_SOFTWARE10_TO_M5_REUSE;PURE_NATIVE_READER_DEMO_VERIFIED;SOURCE_PROFILE_MAPPING_PRODUCER_PRECISION_GOOGLE_DEPLOYMENT_RUNTIME_NOT_VERIFIED_NO_SOURCE_EDITS",
+        "R_KHO_source_review": "docs/TAI-SU-DUNG-PHAN-MEM-KHO-10.md SHA92dfe44947baad6cc2d0f34bb27c2a8d5f21949cf33ffc9bd91a8dbe9c1621c4;Code.gs62f46583_796lines24functions9sheetdefs_MATCHES_M5binding7de60be4",
+        "M0_M5": "BACKEND04_ROOT17MIGRATION36SERVICE2HTTP_AND_UI05_SELECTED_HISTORICAL;L11_GUI06_G01_K01_QUANTITY_CURRENT_FILE_PHYSICAL_AUTH_FINITE_VERIFIED;NO_FULL_MODULE_ACCEPTANCE",
+        "L11": "R16_CODE06_TERMINAL56619_F5D495_FROZEN273_D483184E_272_PROTECTED_ONLY_APPJS_CHANGED;ASYNC_REGRESSION14_AND_CROSS23_PASS_0FAIL_0SETUP_OVERLAP_NOT_UNIQUE_ORACLE_SUM;REAL_GUI_RECEIVE_FACTS_APPROVE2_ENCODE2_LINK8_8_PHYSICAL_REMAIN2_0_WORKBOOK8864_SHA1EA12_PASS;EXACT_FILE_TOKENED_HTTP_LINK_POS_M5_ONLY_DENY_M2_ONLY_DENY_LINK_POS_SAMEHASH;BROWSER_DOWNLOAD06_NOT_VERIFIED;PRIOR05_BATCH_B01_B02_PASS_CARRIED_BACKEND_NOT_RERUN06;NO_FULL_GUI_Q09_L11_M2_M5_33_ACCEPTANCE",
+        "L11_review": "docs/REVIEW-L11-ROOT-ACTUAL-06.md SHA35b52ec61e0f2a5002179d60e2b2bc556277691fb7672a655b41a82c2e2619da;docs/REVIEW-L11-ROOT-ACTUAL-05.md;docs/REVIEW-L11-ROOT-ACTUAL-04.md;docs/GIAO-CODE-L11-QUANTITY-06.md",
+        "L11_C2_history": "FIRST_TWO_ATTEMPTS_NOT_PASS_RETAINED;EXACT_NO_DELETE_GUARD_TEMP_FILE_ORACLE_FIXED_IN_AUDITOR03;ACTUAL_THIRD_ATTEMPT_HANDLE15611_TERMINAL98F26D_EXIT0_FINITE5PASS;NO_PRODUCT_FIX_OR_FULL_ACCEPTANCE",
+        "L11_next": "SHARED_INVOICE_SHARED_WAREHOUSE_MULTIPAIR_CONCURRENCY_BOTH_WINNER_ORDERS;LIVE_ABA_CAPACITY_REVERSAL_RATIO_EDGE_PERIOD_PROTECTION_AND_MIXED_LIVE_HELD_HUY_REVOKED_REOPEN;CURRENT06_BROWSER_DOWNLOAD_BYTES_AND_GUI_COLUMN_READABILITY_PENDING;NO_FULL_ACCEPTANCE",
+        "L11_04_evidence": {
+          "code_manifest_sha256": "d7a2ebb6fc1013b397271ebdeb1c49aec3f4f5c4260124c8c35baf7722217add",
+          "source_count": 273,
+          "protected_source_count": 271,
+          "native": {
+            "k2_pass": 23,
+            "http_pass": 2,
+            "skip": 0
+          },
+          "async": {
+            "setup_error": 0,
+            "pass": 14
+          },
+          "causal": {
+            "status": "FINITE_SIX_CASES_ROOT_AGGREGATED",
+            "aggregate_sha256": "9db9ca4066b14690986e8ecb062a77581941e98989d811623c71ef3a42744f72",
+            "completed_in_A_B": [
+              "C01",
+              "C02",
+              "C05",
+              "C06"
+            ],
+            "A_B_runner_status": "NOT_PASS_RETAINED",
+            "new_R_completed": [
+              "C03",
+              "C04"
+            ],
+            "new_R_terminal_chunk": "4cf548",
+            "new_R_exit_code": 0,
+            "full_Q09": "NOT_VERIFIED"
+          },
+          "gui": {
+            "status": "FINITE_G01_K01_IDENTITY_8_8_PHYSICAL_FILE_DOWNLOAD_VERIFIED",
+            "candidates": 2,
+            "proofs": 2,
+            "encodings": 2,
+            "line_pools": 2,
+            "parents": 1,
+            "children": 1,
+            "warehouse_line_quantities": [
+              "8",
+              "2"
+            ],
+            "confirmed": [
+              "8",
+              "8"
+            ],
+            "held": [
+              "0",
+              "0"
+            ],
+            "capacities": [
+              "10",
+              "8"
+            ],
+            "remaining": [
+              "2",
+              "0"
+            ],
+            "downloaded_bytes": 8865,
+            "retained_registry_download_sha256": "09df86c4b4ebd18e342a2da1721932e26a3f6b78aec73bc82f6e128e9ccb229e",
+            "current_M5_only_UI_cross_links": 0,
+            "current_M5_only_UI_FILE_buttons": 0,
+            "exact_cross_file_GET_under_CFO": "NOT_RUN",
+            "owned_stop_handle": 71165,
+            "owned_stop_chunk": "d8e153",
+            "owned_stop_exit_code": 0
+          },
+          "carried_03_evidence": "MIG14_M2K2_18_M2HTTP3_M5K2_36_UPGRADE15_TO16_NONEMPTY_C1_C2;SOURCE_PROTECTED_NOT_RERUN_ON04",
+          "acceptance": "NOT_VERIFIED"
+        },
+        "L11_06_evidence": {
+          "review_path": "docs/REVIEW-L11-ROOT-ACTUAL-06.md",
+          "review_sha256": "35b52ec61e0f2a5002179d60e2b2bc556277691fb7672a655b41a82c2e2619da",
+          "code_manifest_sha256": "d483184e9e48e4698db43a4d8085c8f417ad76bd22934e217282ef117e0ed299",
+          "source_count": 273,
+          "protected_source_count": 272,
+          "changed_sources": [
+            "src/kho_tri_thuc/giao_dien/assets/app.js"
+          ],
+          "async": {
+            "regression14_pass": 14,
+            "cross_module23_pass": 23,
+            "fail": 0,
+            "setup_errors": 0,
+            "case_executions": 37,
+            "distinct_independent_oracles": "NOT_ASSERTED_POSITIVE_CONTROLS_OVERLAP",
+            "pending_role_get_cases": 9,
+            "old_actor_gets_after_click": 0,
+            "old_context_restored": false,
+            "runtime_handle": 82017,
+            "terminal_chunk": "c51a68",
+            "terminal_exit_code": 0,
+            "receipt_sha256": "a6df5a476ccfc208640bb026c08c86b2db0c981a42b858b7b7dbd21ac5fec798",
+            "whole273_pre_post_unchanged": true
+          },
+          "batch_prior05": {
+            "finite_cases": 2,
+            "cases": [
+              "B01",
+              "B02"
+            ],
+            "runtime_handle": 9270,
+            "terminal_chunk": "b365fc",
+            "exit_code": 0,
+            "parent_receipt_sha256": "e444c658b1081331e1ec1f93120259c839ea5ded17f905db27bdc08f915688bd",
+            "B02_live_children": 1,
+            "B02_four_native_pool_amounts": [
+              "2",
+              "2",
+              "2",
+              "2"
+            ],
+            "backend_source_unchanged_in06": true,
+            "rerun06": false,
+            "full_Q09": "NOT_VERIFIED"
+          },
+          "gui": {
+            "status": "FINITE_G01_K01_SOURCE_FIRST_BUTTON_FLOW_PHYSICAL_WORKBOOK_AND_AUTH_VERIFIED",
+            "candidates": 2,
+            "proofs": 2,
+            "encodings": 2,
+            "line_pools": 2,
+            "parents": 1,
+            "children": 1,
+            "warehouse_line_quantities": [
+              "8",
+              "2"
+            ],
+            "four_native_pool_amounts": [
+              "8",
+              "8",
+              "8",
+              "8"
+            ],
+            "confirmed": [
+              "8",
+              "8"
+            ],
+            "held": [
+              "0",
+              "0"
+            ],
+            "capacities": [
+              "10",
+              "8"
+            ],
+            "remaining": [
+              "2",
+              "0"
+            ],
+            "retained_workbook_bytes": 8864,
+            "retained_registry_sha256": "1ea12dd7508804ce25e69e1eac0bc9b22fa1e31c601b2f9681fda2cb88948fa6",
+            "four_sheets_full_business_text_cells_no_formulas_verified": true,
+            "whole_observer_delta": 0,
+            "physical_receipt_sha256": "731de14dd3c6d051729baca579de36c4c21cf5d4b499e96dc4e5b0f244a15836",
+            "browser_observation_sha256": "d0048deba37fd4bde24544ba5a52a4b845adc85d2857584748ba7c9e9dd70bda",
+            "browser_download_bytes": "NOT_VERIFIED_CURRENT06",
+            "M5_only_first_snapshot_old_links": 0,
+            "M5_only_FILE_buttons": 0,
+            "M2_only_first_snapshot_old_links": 0,
+            "M2_only_FILE_buttons": 0,
+            "role_POST_held_in_browser": false,
+            "fresh_document_live_child_reload_verified": true,
+            "backend_restart": false,
+            "mixed_LIVE_HELD_HUY_revoked_reopen": "NOT_RUN",
+            "exact_current_FILE_HTTP": {
+              "status": "FINITE_PASS",
+              "requests": 10,
+              "own_session": true,
+              "same_cookie": true,
+              "token_header_present": true,
+              "checks": [
+                "LINK_200_8864_SAME_SHA",
+                "M5_ONLY_400_FILE_SOAT",
+                "M2_ONLY_400_FILE_SOAT",
+                "LINK_200_8864_SAME_SHA"
+              ],
+              "runtime_handle": 70579,
+              "terminal_chunk": "5cee84",
+              "exit_code": 0,
+              "receipt_sha256": "57ee8da3be876ad69a87ffaac085f7c39940c8585a22d43cd5f7ea9489749292",
+              "browser_download_claim": false
+            },
+            "owned_stop": {
+              "handle": 44695,
+              "chunk": "29854a",
+              "exit_code": 0,
+              "child_pid": 27256,
+              "stop_confirmed": true,
+              "parent_posthash_verified": true,
+              "close_errors": [],
+              "server_active": false,
+              "resources_retained": true,
+              "terminal_receipt_sha256": "add032edd9e1345d4c5bfc85ea00a6750b6513eaccdaabb4c69da06afa6c0e25"
+            }
+          },
+          "historical_evidence": "NATIVE04_K2_23_HTTP2;CAUSAL6;03_M2K2_18_M2HTTP3_M5K2_36_UPGRADE15_TO16_NONEMPTY_C1_C2;04_BROWSER_DOWNLOAD09DF;VERSION_PINNED_NOT_RERUN06",
+          "full_GUI_acceptance": false,
+          "full_Q09_acceptance": false,
+          "full_L11_acceptance": false,
+          "acceptance": "NOT_VERIFIED"
+        }
+      },
+      "previous_module_status": {
+        "M0": "PARTIAL_COMMON_M0_M5_SELECTED_VERIFIED;M2_R15_FINITE_DEMO_ACCEPTED;L11_CODE06_FINITE_UI_GUI_PHYSICAL_AUTH_NOT_FULL_ACCEPTANCE;M9_STOP",
+        "M1": "PARTIAL_IMPLEMENTATION",
+        "M2": "PARTIAL_XML_ZIP_PURE02_VERIFIED_R15_BRIDGE03_FINITE_DEMO_ACCEPTED;L11_CODE06_FINITE_UI_GUI_QUANTITY_FILE_AUTH_VERIFIED;PRIOR05_BATCH2_CARRIED;BROWSER_DOWNLOAD06_AND_FULL_MODULE_NOT_VERIFIED",
+        "M3": "PARTIAL_CRM_VERIFIED_REVENUE_TECHNICAL_CONTRACT_REVIEWED_FULL_IMPLEMENTATION_RUNTIME_PENDING",
+        "M4": "PARTIAL_RREV_DEMO_VERIFIED_FULL_TECHNICAL_CONTRACT_REVIEWED_IMPLEMENTATION_RUNTIME_PENDING",
+        "M9": "EXISTING_TRACKER_SOURCE_CODE_FINAL_PROVIDED_READ_METHOD_IDENTIFIED_ONLY;NO_TRACKING_REBUILD_NO_SOURCE_OR_M9_REPAIR;LIVE_INGEST_NOT_RUN",
+        "M8": "TECHNICAL_CONTRACT_REVIEWED_IMPLEMENTATION_RUNTIME_ACCEPTANCE_PENDING",
+        "M6": "TECHNICAL_CONTRACT_REVIEWED_IMPLEMENTATION_RUNTIME_ACCEPTANCE_PENDING",
+        "M7": "TECHNICAL_CONTRACT_REVIEWED_IMPLEMENTATION_RUNTIME_ACCEPTANCE_PENDING",
+        "M5": "PARTIAL_READER_BACKEND04_UI05_SELECTED_VERIFIED;L11_CODE06_FINITE_GUI_QUANTITY_FILE_PHYSICAL_AUTH_AND_ASYNC_VERIFIED;BROWSER_DOWNLOAD06_PRODUCTION_FULL_MODULE_NOT_ACCEPTED",
+        "M10": "TECHNICAL_CONTRACT_REVIEWED_IMPLEMENTATION_RUNTIME_ACCEPTANCE_PENDING"
+      }
+    },
+    {
+      "archived_at": "2026-10-20T07:58:44.2433720+07:00",
+      "reason": "Human confirmed missing/extra/duplicate invoices plus per-item-line quantity differences; previous pending scope version preserved exactly; M5 actual contract still not provided",
+      "before_manifest_sha256": "546e3d8d6958f6524ce70deaf7aa98a8dda039d1fac636831cf11c3450a667bb",
+      "previous_latest_overrides": {
+        "M5": "Quantity only; inventory value stays in Junsky per TL35 section8.6",
+        "master": "Nine approved catalogues",
+        "source_sheets": "Use TL40 latest source integration; do not fix M5 to CSV only",
+        "M10": "Prepare close/recurring now; real Junsky import activation has separate gate",
+        "R_KHO": "User19OctclarifiesSOFTWARE10_KHO=SOURCE_FOR_M5_NOT_MODULE_M10;EXISTINGCODE_CRUD_APPROVE_REVERSE_PWA_API;Code.gs62f46583_796lines_matchesM5binding;REUSE_NO_REBUILD;OLD_SVG_DESIGN_LABEL_HISTORICAL_NOT_CURRENT_ACCEPTANCE",
+        "M9": "Human19Oct:ONLYidentifydataretrieval;trackingalreadyinexistingapp. NewCodefinal2filespinned;reusepairedJSON_RAW_PLUS_EXCEL_SOURCE_COMPUTED_SAME_SCOPE_ASOF. NoM9codechanges/noautoResume.",
+        "L11_M2_M5_SCOPE": "Human20Oct:SIMPLIFY_M2_M5_CONNECTION;USER_WILL_ADD_M5_SOURCE_APP_INVOICE_IMPORT_WITH_QUANTITY;REUSE_M2_XML_ZIP_AND_M5_IMPORT_DATASET_FOR_MISSING_EXTRA_INVOICE_REPORT;DUPLICATE_MATCHING_AND_PER_LINE_QUANTITY_LEVEL_NOT_YET_APPROVED;STOP_NEW_DEEP_ALLOCATION_POOL_Q09_SIX_PREPARED_CASES_NOT_RUN;PRESERVE_PRIOR_CODE_AND_FINITE_EVIDENCE;NO_NEW_CODING_OR_RUNTIME_AUTHORITY;M0_M10_SCOPE_UNCHANGED_M9_STOP"
+      },
+      "previous_current_delivery": {
+        "updated": "2026-10-20T07:54:21.1829155+07:00",
+        "R_REV": "DEMO_SLICE_INDEPENDENT_CHECKS_PASSED_FULL_M4_AND_PRODUCTION_PENDING",
+        "CRM_01": "SQL03_PARSER_HTTP_M1_SELECTED_SCOPED;HOST06_WINDOWS51_DEFAULTCMD_REOPEN_MO_WORKFLOW_XLSX9161_BYTES_CELLS_OS_RESTART_ENVRESTORE_VERIFIED;GUI_COLD_FULLM1_G10_V13_PENDING",
+        "CRM_review": "REVIEW-CRM-HOST-06.md_FROZEN125_C828D1FF_TARGETED_HOST_ACCEPTED_NO_FULLCRM_OR_ALL33_ACCEPTANCE",
+        "M9": "READ_METHOD_STATIC_IDENTIFIED_CODE_FINAL;REPORT15197208_ROOT_READ_2SOURCE_HASHES_UNCHANGED;NO_APP_GOOGLE_EXECUTION_OR_CODE_EDIT;PREVIOUS_WAIT_SOURCE_SUPERSEDED",
+        "M6_M7_M10": "M6_M7_FINALc7ef270b_ROOT_READ_INDEPENDENT_R1_CLOSED_CONTRACT_ACCEPTED;M10_FINALdf57cd30_ROOT_READ_INDEPENDENT_R1_CLOSED_CONTRACT_ACCEPTED_NO_RUNTIME",
+        "V13": "BACKUP_SELECTED_DEMO_VERIFIED_ROOT_UNIT18_ON04_PLUS_PG11_ON03_CORE_UNCHANGED;CUTOFF_A5_PERF_GUI_REMAIN;NOT_FULL_ACCEPTANCE",
+        "M5": "EXISTING_WAREHOUSE_SOURCE_APP_REUSE;USER_PLANS_INVOICE_IMPORT_WITH_QUANTITY_NOT_IMPLEMENTED_BY_THIS_UPDATE;ACCOUNTING_MISSING_EXTRA_REPORT_REUSES_M2_XML_ZIP_AND_M5_IMPORTED_INVOICE_DATASET;DUPLICATE_AND_LINE_QUANTITY_MATCHING_LEVEL_PENDING_HUMAN;PRIOR_READER_BACKEND_L11_FINITE_EVIDENCE_RETAINED_HISTORICALLY;NO_NEW_DEEP_ALLOCATION_POOL_RUNTIME_OR_FULL_ACCEPTANCE",
+        "M8": "BINDINGa52b952f_ROOT_FULL_READ_INDEPENDENT_R1_R3_CLOSED3_OF3_CONTRACT_ACCEPTED_SUBJECT_COMMON_DEPENDENCIES_NO_RUNTIME_NO_TAX_POLICY",
+        "M2": "PURE02_XML_ZIP_DEMO_VERIFIED_AND_R15_BRIDGE03_FINITE_EVIDENCE_RETAINED;REUSE_EXISTING_READER_FOR_SIMPLIFIED_M5_INVOICE_COMPARISON_REPORT;MATCH_GRAIN_DUPLICATE_AND_PER_LINE_QUANTITY_DETAILS_NOT_APPROVED;NO_NEW_DEEP_M2_M5_ALLOCATION_WORK;NO_FULL_MODULE_ACCEPTANCE",
+        "source_templates": "LOCAL_80BOOK_INITIAL_AND_10BOOK57SHEET_DEEP_STRUCTURE_RO_SOURCEHASHES_SAME;PAYROLL_242_CANDIDATES;335_KEYWORD_NO_CONFIRMED_AMOUNT_PERIOD_BASIS;INVESTMENT_NO_REGISTER_COMBINATION_IN_WINDOW;0_ACTIVATED",
+        "M3": "FINAL50ad86e8_ROOT_READ_INITIAL_AND_ALL_AMENDMENTS_INDEPENDENT_R1_R2_C1_CLOSED_TECHNICAL_CONTRACT_NO_NEW_RUNTIME_ACCEPTANCE",
+        "M4": "RREV_DEMO_SCOPED_VERIFIED;FINAL1760a36b_ROOT_AND_INDEPENDENT_R1_R5_CLOSED_TECHNICAL_CONTRACT_FULL_IMPLEMENTATION_PRODUCTION_PENDING",
+        "M9_reviews": "K2add43c7e_SERVICE39883bb0_TARGETf779822e_HTTP5e353698_ROOTREAD;REPAIRCONTRACT274e4fe6_INDEPENDENTREVIEW_CLEAN",
+        "R_KHO": "EXISTING_SOFTWARE10_TO_M5_REUSE;PURE_NATIVE_READER_DEMO_VERIFIED;SOURCE_PROFILE_MAPPING_PRODUCER_PRECISION_GOOGLE_DEPLOYMENT_RUNTIME_NOT_VERIFIED_NO_SOURCE_EDITS",
+        "R_KHO_source_review": "docs/TAI-SU-DUNG-PHAN-MEM-KHO-10.md SHA92dfe44947baad6cc2d0f34bb27c2a8d5f21949cf33ffc9bd91a8dbe9c1621c4;Code.gs62f46583_796lines24functions9sheetdefs_MATCHES_M5binding7de60be4",
+        "M0_M5": "BACKEND04_ROOT17MIGRATION36SERVICE2HTTP_AND_UI05_SELECTED_HISTORICAL;L11_GUI06_G01_K01_QUANTITY_CURRENT_FILE_PHYSICAL_AUTH_FINITE_VERIFIED;NO_FULL_MODULE_ACCEPTANCE",
+        "L11": "LATEST_HUMAN_SCOPE_CHANGE_SIMPLIFY_TO_MISSING_EXTRA_INVOICE_REPORT_WITH_M5_USER_PLANNED_INVOICE_IMPORT;EXACT_MATCH_DUPLICATE_PER_LINE_QUANTITY_LEVEL_PENDING;NEW_SHAREDPOOL_Q09_SIX_CASES_STOPPED_BEFORE_AST_RUNTIME_NOT_RUN;PRIOR_PRODUCT_CODE_AND_FINITE_EVIDENCE_RETAINED_HISTORICALLY;NOT_NEW_IMPLEMENTATION_OR_ACCEPTANCE_AUTHORITY;FULL_GUI_Q09_L11_M2_M5_33_NOT_VERIFIED",
+        "L11_review": "docs/REVIEW-L11-ROOT-ACTUAL-06.md SHA35b52ec61e0f2a5002179d60e2b2bc556277691fb7672a655b41a82c2e2619da;docs/REVIEW-L11-ROOT-ACTUAL-05.md;docs/REVIEW-L11-ROOT-ACTUAL-04.md;docs/GIAO-CODE-L11-QUANTITY-06.md",
+        "L11_C2_history": "FIRST_TWO_ATTEMPTS_NOT_PASS_RETAINED;EXACT_NO_DELETE_GUARD_TEMP_FILE_ORACLE_FIXED_IN_AUDITOR03;ACTUAL_THIRD_ATTEMPT_HANDLE15611_TERMINAL98F26D_EXIT0_FINITE5PASS;NO_PRODUCT_FIX_OR_FULL_ACCEPTANCE",
+        "L11_next": "WAIT_HUMAN_CONFIRM_EXACT_MATCH_GRAIN_DUPLICATE_AND_PER_LINE_QUANTITY_LEVEL;REUSE_M2_XML_ZIP_AND_FUTURE_M5_IMPORTED_INVOICE_DATASET_FOR_MISSING_EXTRA_REPORT;DO_NOT_CONTINUE_NEW_DEEP_ALLOCATION_POOL_Q09_SIX_CASES;NO_NEW_PRODUCT_CODING_OR_RUNTIME_AUTHORITY_FROM_SCOPE_DOCUMENTATION",
+        "L11_04_evidence": {
+          "code_manifest_sha256": "d7a2ebb6fc1013b397271ebdeb1c49aec3f4f5c4260124c8c35baf7722217add",
+          "source_count": 273,
+          "protected_source_count": 271,
+          "native": {
+            "k2_pass": 23,
+            "http_pass": 2,
+            "skip": 0
+          },
+          "async": {
+            "setup_error": 0,
+            "pass": 14
+          },
+          "causal": {
+            "status": "FINITE_SIX_CASES_ROOT_AGGREGATED",
+            "aggregate_sha256": "9db9ca4066b14690986e8ecb062a77581941e98989d811623c71ef3a42744f72",
+            "completed_in_A_B": [
+              "C01",
+              "C02",
+              "C05",
+              "C06"
+            ],
+            "A_B_runner_status": "NOT_PASS_RETAINED",
+            "new_R_completed": [
+              "C03",
+              "C04"
+            ],
+            "new_R_terminal_chunk": "4cf548",
+            "new_R_exit_code": 0,
+            "full_Q09": "NOT_VERIFIED"
+          },
+          "gui": {
+            "status": "FINITE_G01_K01_IDENTITY_8_8_PHYSICAL_FILE_DOWNLOAD_VERIFIED",
+            "candidates": 2,
+            "proofs": 2,
+            "encodings": 2,
+            "line_pools": 2,
+            "parents": 1,
+            "children": 1,
+            "warehouse_line_quantities": [
+              "8",
+              "2"
+            ],
+            "confirmed": [
+              "8",
+              "8"
+            ],
+            "held": [
+              "0",
+              "0"
+            ],
+            "capacities": [
+              "10",
+              "8"
+            ],
+            "remaining": [
+              "2",
+              "0"
+            ],
+            "downloaded_bytes": 8865,
+            "retained_registry_download_sha256": "09df86c4b4ebd18e342a2da1721932e26a3f6b78aec73bc82f6e128e9ccb229e",
+            "current_M5_only_UI_cross_links": 0,
+            "current_M5_only_UI_FILE_buttons": 0,
+            "exact_cross_file_GET_under_CFO": "NOT_RUN",
+            "owned_stop_handle": 71165,
+            "owned_stop_chunk": "d8e153",
+            "owned_stop_exit_code": 0
+          },
+          "carried_03_evidence": "MIG14_M2K2_18_M2HTTP3_M5K2_36_UPGRADE15_TO16_NONEMPTY_C1_C2;SOURCE_PROTECTED_NOT_RERUN_ON04",
+          "acceptance": "NOT_VERIFIED"
+        },
+        "L11_06_evidence": {
+          "review_path": "docs/REVIEW-L11-ROOT-ACTUAL-06.md",
+          "review_sha256": "35b52ec61e0f2a5002179d60e2b2bc556277691fb7672a655b41a82c2e2619da",
+          "code_manifest_sha256": "d483184e9e48e4698db43a4d8085c8f417ad76bd22934e217282ef117e0ed299",
+          "source_count": 273,
+          "protected_source_count": 272,
+          "changed_sources": [
+            "src/kho_tri_thuc/giao_dien/assets/app.js"
+          ],
+          "async": {
+            "regression14_pass": 14,
+            "cross_module23_pass": 23,
+            "fail": 0,
+            "setup_errors": 0,
+            "case_executions": 37,
+            "distinct_independent_oracles": "NOT_ASSERTED_POSITIVE_CONTROLS_OVERLAP",
+            "pending_role_get_cases": 9,
+            "old_actor_gets_after_click": 0,
+            "old_context_restored": false,
+            "runtime_handle": 82017,
+            "terminal_chunk": "c51a68",
+            "terminal_exit_code": 0,
+            "receipt_sha256": "a6df5a476ccfc208640bb026c08c86b2db0c981a42b858b7b7dbd21ac5fec798",
+            "whole273_pre_post_unchanged": true
+          },
+          "batch_prior05": {
+            "finite_cases": 2,
+            "cases": [
+              "B01",
+              "B02"
+            ],
+            "runtime_handle": 9270,
+            "terminal_chunk": "b365fc",
+            "exit_code": 0,
+            "parent_receipt_sha256": "e444c658b1081331e1ec1f93120259c839ea5ded17f905db27bdc08f915688bd",
+            "B02_live_children": 1,
+            "B02_four_native_pool_amounts": [
+              "2",
+              "2",
+              "2",
+              "2"
+            ],
+            "backend_source_unchanged_in06": true,
+            "rerun06": false,
+            "full_Q09": "NOT_VERIFIED"
+          },
+          "gui": {
+            "status": "FINITE_G01_K01_SOURCE_FIRST_BUTTON_FLOW_PHYSICAL_WORKBOOK_AND_AUTH_VERIFIED",
+            "candidates": 2,
+            "proofs": 2,
+            "encodings": 2,
+            "line_pools": 2,
+            "parents": 1,
+            "children": 1,
+            "warehouse_line_quantities": [
+              "8",
+              "2"
+            ],
+            "four_native_pool_amounts": [
+              "8",
+              "8",
+              "8",
+              "8"
+            ],
+            "confirmed": [
+              "8",
+              "8"
+            ],
+            "held": [
+              "0",
+              "0"
+            ],
+            "capacities": [
+              "10",
+              "8"
+            ],
+            "remaining": [
+              "2",
+              "0"
+            ],
+            "retained_workbook_bytes": 8864,
+            "retained_registry_sha256": "1ea12dd7508804ce25e69e1eac0bc9b22fa1e31c601b2f9681fda2cb88948fa6",
+            "four_sheets_full_business_text_cells_no_formulas_verified": true,
+            "whole_observer_delta": 0,
+            "physical_receipt_sha256": "731de14dd3c6d051729baca579de36c4c21cf5d4b499e96dc4e5b0f244a15836",
+            "browser_observation_sha256": "d0048deba37fd4bde24544ba5a52a4b845adc85d2857584748ba7c9e9dd70bda",
+            "browser_download_bytes": "NOT_VERIFIED_CURRENT06",
+            "M5_only_first_snapshot_old_links": 0,
+            "M5_only_FILE_buttons": 0,
+            "M2_only_first_snapshot_old_links": 0,
+            "M2_only_FILE_buttons": 0,
+            "role_POST_held_in_browser": false,
+            "fresh_document_live_child_reload_verified": true,
+            "backend_restart": false,
+            "mixed_LIVE_HELD_HUY_revoked_reopen": "NOT_RUN",
+            "exact_current_FILE_HTTP": {
+              "status": "FINITE_PASS",
+              "requests": 10,
+              "own_session": true,
+              "same_cookie": true,
+              "token_header_present": true,
+              "checks": [
+                "LINK_200_8864_SAME_SHA",
+                "M5_ONLY_400_FILE_SOAT",
+                "M2_ONLY_400_FILE_SOAT",
+                "LINK_200_8864_SAME_SHA"
+              ],
+              "runtime_handle": 70579,
+              "terminal_chunk": "5cee84",
+              "exit_code": 0,
+              "receipt_sha256": "57ee8da3be876ad69a87ffaac085f7c39940c8585a22d43cd5f7ea9489749292",
+              "browser_download_claim": false
+            },
+            "owned_stop": {
+              "handle": 44695,
+              "chunk": "29854a",
+              "exit_code": 0,
+              "child_pid": 27256,
+              "stop_confirmed": true,
+              "parent_posthash_verified": true,
+              "close_errors": [],
+              "server_active": false,
+              "resources_retained": true,
+              "terminal_receipt_sha256": "add032edd9e1345d4c5bfc85ea00a6750b6513eaccdaabb4c69da06afa6c0e25"
+            }
+          },
+          "historical_evidence": "NATIVE04_K2_23_HTTP2;CAUSAL6;03_M2K2_18_M2HTTP3_M5K2_36_UPGRADE15_TO16_NONEMPTY_C1_C2;04_BROWSER_DOWNLOAD09DF;VERSION_PINNED_NOT_RERUN06",
+          "full_GUI_acceptance": false,
+          "full_Q09_acceptance": false,
+          "full_L11_acceptance": false,
+          "acceptance": "NOT_VERIFIED"
+        },
+        "L11_scope_decision": {
+          "status": "HUMAN_SCOPE_CHANGE_DOCUMENTED_NO_IMPLEMENTATION_RELEASE",
+          "recorded_at": "2026-10-20T07:54:21.1829155+07:00",
+          "human_quote": "không cần quá đi sâu vào kết nối M2-M5, do M5 tôi sẽ hình thành module import hóa đơn (sẽ có số lượng), như vậy chỉ đối chiếu thừa thiếu hóa đơn để báo thôi",
+          "M5_source_app_invoice_import": "USER_WILL_ADD_INVOICE_IMPORT_WITH_QUANTITY;NOT_IMPLEMENTED_OR_VERIFIED_BY_THIS_UPDATE",
+          "accounting_reuse": [
+            "EXISTING_M2_XML_ZIP_READER",
+            "M5_IMPORTED_INVOICE_DATASET_WHEN_PROVIDED"
+          ],
+          "report_intent": "MISSING_EXTRA_INVOICES",
+          "pending_human_decisions": [
+            "EXACT_MATCHING_GRAIN_AND_DUPLICATE_LEVEL",
+            "PER_LINE_QUANTITY_COMPARISON_LEVEL"
+          ],
+          "pending_details_approved": false,
+          "new_deep_allocation_pool_work": {
+            "status": "STOPPED_BEFORE_AST_RUNTIME",
+            "planned_sharedpool_cases": 6,
+            "runtime_status": "NOT_RUN",
+            "all_code_drafts_files_retained": true,
+            "no_further_binding_or_release_authorized": true
+          },
+          "prior_finite_evidence": "PRESERVED_AT_RECORDED_VERSION_AND_SCOPE_NOT_DISCARDED_OR_EXPANDED",
+          "overall_M0_M10_and_33_scope": "UNCHANGED",
+          "M9": "RETRIEVAL_ONLY_TRACKER_UNCHANGED_NO_RESUME",
+          "coding_or_runtime_authority_granted": false,
+          "full_acceptance": false
+        }
+      },
+      "previous_module_status": {
+        "M0": "PARTIAL_COMMON_M0_M5_SELECTED_VERIFIED;M2_R15_FINITE_DEMO_ACCEPTED;L11_CODE06_FINITE_UI_GUI_PHYSICAL_AUTH_NOT_FULL_ACCEPTANCE;M9_STOP",
+        "M1": "PARTIAL_IMPLEMENTATION",
+        "M2": "PARTIAL_XML_ZIP_PURE02_AND_R15_FINITE_DEMO_EVIDENCE_RETAINED;LATEST_M2_M5_SCOPE_SIMPLIFIED_MISSING_EXTRA_INVOICE_REPORT;MATCH_DETAILS_PENDING_HUMAN;NO_FULL_MODULE_ACCEPTANCE",
+        "M3": "PARTIAL_CRM_VERIFIED_REVENUE_TECHNICAL_CONTRACT_REVIEWED_FULL_IMPLEMENTATION_RUNTIME_PENDING",
+        "M4": "PARTIAL_RREV_DEMO_VERIFIED_FULL_TECHNICAL_CONTRACT_REVIEWED_IMPLEMENTATION_RUNTIME_PENDING",
+        "M9": "EXISTING_TRACKER_SOURCE_CODE_FINAL_PROVIDED_READ_METHOD_IDENTIFIED_ONLY;NO_TRACKING_REBUILD_NO_SOURCE_OR_M9_REPAIR;LIVE_INGEST_NOT_RUN",
+        "M8": "TECHNICAL_CONTRACT_REVIEWED_IMPLEMENTATION_RUNTIME_ACCEPTANCE_PENDING",
+        "M6": "TECHNICAL_CONTRACT_REVIEWED_IMPLEMENTATION_RUNTIME_ACCEPTANCE_PENDING",
+        "M7": "TECHNICAL_CONTRACT_REVIEWED_IMPLEMENTATION_RUNTIME_ACCEPTANCE_PENDING",
+        "M5": "PARTIAL_PRIOR_READER_BACKEND_L11_FINITE_EVIDENCE_RETAINED;USER_WILL_ADD_SOURCE_APP_INVOICE_IMPORT_WITH_QUANTITY;ACCOUNTING_COMPARISON_REPORT_SCOPE_PENDING_MATCH_DETAILS;NO_NEW_DEEP_Q09_ALLOCATION_POOL_WORK_OR_FULL_ACCEPTANCE",
+        "M10": "TECHNICAL_CONTRACT_REVIEWED_IMPLEMENTATION_RUNTIME_ACCEPTANCE_PENDING"
+      }
+    }
+  ],
+  "crm_feedback_delivery_20261020": {
+    "status": "RUNNING_FOR_HUMAN_FEEDBACK_NOT_FULL_MODULE_ACCEPTED",
+    "url": "http://127.0.0.1:64900/#hopdong",
+    "review": "docs/REVIEW-CRM-FEEDBACK-GUI-20261020.md",
+    "native_methods_passed": 5,
+    "native_methods_failed": 0,
+    "native_method_groups_share_one_DB": true,
+    "browser_workflow_observed": true,
+    "native_workbook_sheets": 4,
+    "browser_download_bytes": "NOT_VERIFIED",
+    "production_acceptance": false,
+    "M9_resume": false
+  },
+  "module_design_queue_20261020": {
+    "status": "DESIGNS_DELIVERED_FOR_HUMAN_APPROVAL_QUEUE_PREPARED",
+    "directory": "D:\\Claude\\Phan mem ho tro ke toan\\THIET-KE-MODULE-DE-CHOT-2026-10-20",
+    "documents": 14,
+    "module_designs": 11,
+    "CRM_standalone": true,
+    "receivers_covered": 9,
+    "links_covered": 12,
+    "new_designs_approved": false,
+    "new_claude_dispatch": false,
+    "existing_code_independent_review_authorized": true,
+    "full_module_acceptance": false,
+    "M9_code_resume": false
+  },
+  "crm_4142_queue_20261020": {
+    "status": "QUEUED_NOT_DISPATCHED",
+    "queue": "docs/HANG-CHO-CRM-41-42.md",
+    "screen_count": 9,
+    "detail_tabs": 7,
+    "menu_children": 6,
+    "design_states_including_report": 17,
+    "product_acceptance": false,
+    "M4_active_not_replaced": true
+  }
+}

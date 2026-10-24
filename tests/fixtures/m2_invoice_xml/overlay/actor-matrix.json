@@ -1,0 +1,139 @@
+{
+  "status": "DECLARED_DEMO_NOT_INSTALLED",
+  "actors": [
+    {
+      "login": "MO_PHONG_M0_HD_INTAKE",
+      "role": "KE_TOAN",
+      "source_actions": [
+        "INTAKE",
+        "READ_SOURCE"
+      ],
+      "source_scope": "INSTANCE_PROFILE_WIDE_BOTH_CONFIGURED_COMPANIES",
+      "business": []
+    },
+    {
+      "login": "MO_PHONG_HD_NO_SOURCE",
+      "role": "KE_TOAN",
+      "source_actions": [],
+      "business": []
+    },
+    {
+      "login": "MO_PHONG_KT_MUA_A",
+      "role": "KE_TOAN",
+      "source_actions": [],
+      "business": [
+        {
+          "pn": "PN_DEMO_A",
+          "modules": [
+            "M2"
+          ],
+          "actions": [
+            "M2_READ"
+          ],
+          "duyet_loai_viec": []
+        }
+      ],
+      "neutral_FILE_SOAT": "NOT_GRANTED_UNTIL_SEPARATE_RELEASE"
+    },
+    {
+      "login": "MO_PHONG_KT_MUA_B",
+      "role": "KE_TOAN",
+      "source_actions": [],
+      "business": [
+        {
+          "pn": "PN_DEMO_B",
+          "modules": [
+            "M2"
+          ],
+          "actions": [
+            "M2_READ"
+          ],
+          "duyet_loai_viec": []
+        }
+      ],
+      "neutral_FILE_SOAT": "NOT_GRANTED_UNTIL_SEPARATE_RELEASE"
+    },
+    {
+      "login": "MO_PHONG_CFO_MUA_A",
+      "role": "CFO",
+      "source_actions": [
+        "SOURCE_MAP"
+      ],
+      "source_target_pn": "PN_DEMO_A",
+      "business": [
+        {
+          "pn": "PN_DEMO_A",
+          "modules": [
+            "M2"
+          ],
+          "actions": [
+            "M2_READ",
+            "M2_MAP",
+            "M2_ROUTE"
+          ],
+          "duyet_loai_viec": [
+            "V4"
+          ]
+        }
+      ]
+    },
+    {
+      "login": "MO_PHONG_CFO_MUA_B",
+      "role": "CFO",
+      "source_actions": [
+        "SOURCE_MAP"
+      ],
+      "source_target_pn": "PN_DEMO_B",
+      "business": [
+        {
+          "pn": "PN_DEMO_B",
+          "modules": [
+            "M2"
+          ],
+          "actions": [
+            "M2_READ",
+            "M2_MAP",
+            "M2_ROUTE"
+          ],
+          "duyet_loai_viec": [
+            "V4"
+          ]
+        }
+      ]
+    },
+    {
+      "login": "MO_PHONG_VIEW_MUA_A",
+      "role": "XEM",
+      "source_actions": [],
+      "business": [
+        {
+          "pn": "PN_DEMO_A",
+          "modules": [
+            "M2"
+          ],
+          "actions": [
+            "M2_READ"
+          ],
+          "duyet_loai_viec": []
+        }
+      ]
+    },
+    {
+      "login": "MO_PHONG_M1_ONLY_MUA_A",
+      "role": "KE_TOAN",
+      "source_actions": [],
+      "business": [
+        {
+          "pn": "PN_DEMO_A",
+          "modules": [
+            "M1"
+          ],
+          "actions": [],
+          "duyet_loai_viec": []
+        }
+      ],
+      "purpose": "NEGATIVE_NEW_M2_ACCESS_NO_OLD_M1_RETAG"
+    }
+  ],
+  "existing_CRM_M1_M5_M9_grants_or_revocations": "UNCHANGED"
+}

@@ -1,0 +1,11 @@
+# R15 HTTP — supplementary SQL error classification finding02
+
+19/10/2026. **FINAL_FROZEN_STATIC_CONFIRMATION_WITH_ROOT_REPORTED_RUNTIME_FAILURE.** The prior report `REVIEW-M2-BRIDGE-HTTP-UI-01.md` SHA `948bf9a581be24ef7719a6af8fd85b7b240cc6db998f91dbf0a85a2c8df3888c` remains unchanged. This reviewer did not execute/import product, tests, SQL, HTTP or JS.
+
+**F3 — P2, confirmed classification gap:** frozen `server.py` SHA `b107ccc54bf1359204a3fc588660413856b842cbd1f91403dc42fdf44673842d`, `_crm_db:255–263`, accepts a SQL `message_primary` prefix only if removing underscores leaves alphabetic characters. Consequently `M2_VERSION_CHANGED`, and every other `M2_*` SQL code, fails because of digit2 and is replaced with `CSDL_TU_CHOI`. The unified HTTP exception handler1060–1061 then cannot match the actual M2 conflict/permission sets683–689 and returns400 rather than409/403. This is a server error-code translation defect, distinct from the separate mapping/route exact-retry service defect.
+
+Root reported actual guarded HTTP execution chunk `9455bd`, retained evidence `pg-retained-20261019-205843-e64f31d6/summary.json`: a stale expected graph received400/`CSDL_TU_CHOI` instead of409/`M2_VERSION_CHANGED`. The frozen source call graph explains that observed result exactly. Later retry assertions must not be counted as additional independent classifier defects.
+
+The bounded fix is an anchored ASCII uppercase identifier check permitting digits and underscore, for example the lexical rule `[A-Z][A-Z0-9_]*`, while preserving primary-prefix extraction, sanitized messages and generic fallback for arbitrary/private database text. Preserve existing M1/M5/CRM code behavior. Verify concrete M2 conflict and permission codes, an existing KHO/legacy code, and malformed/nonidentifier messages that must remain sanitized. The stale-token HTTP path must then retain the actual code and409; current-cap/forged ownership paths must retain403 where defined. No private SQL message or DSN should be returned.
+
+F1/F2 from report01 still require independent async UI controls. Any prepared JS unit is a controlled Promise/render/download unit using extracted frozen functions; it is not HTTP, authorization, browser or GUI acceptance.

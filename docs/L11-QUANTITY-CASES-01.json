@@ -1,0 +1,288 @@
+{
+  "status": "ROOT_CODE_TASK_EXPECTED_VECTORS_NOT_RUNTIME_ACCEPTANCE",
+  "R15_final_interfaces": {
+    "source_manifest_sha256": "8002cbe331cb222110d7ed6beef7e2f9a7e2157128bb31abde796834a0baa7c0",
+    "migration_source_sha256": "626619b8a9b73261c6370119d39ac8eece92e8b512e45d26eaef76d6a7130989",
+    "hoa_don_source_sha256": "176d6d23bf79279205d06a20a90af7d4b2d096e7e0e367352f6713beb653f075",
+    "preserve_generated_migrations_1_to_15": [
+      {
+        "version": 1,
+        "statement_count": 13,
+        "checksum": "bfc6bc40de873b8b17d8dd5d1874867da7f777b33bc5b74be67750aefe267747"
+      },
+      {
+        "version": 2,
+        "statement_count": 13,
+        "checksum": "aae0557f9399d1a251c8848a9b290d4941568edf0e2440f058d660a36e810436"
+      },
+      {
+        "version": 3,
+        "statement_count": 10,
+        "checksum": "d98b294f81e98bac0b0d328fe1dc5baa381ee73368e361fe47e2f0d9b5791d87"
+      },
+      {
+        "version": 4,
+        "statement_count": 9,
+        "checksum": "7870d3ff9cd1f82f9d31445a816063ae9f9765536364193b4629a21b9507fad0"
+      },
+      {
+        "version": 5,
+        "statement_count": 10,
+        "checksum": "324486e2f67b5ccbfe31b5da14fbf46d0a3a6a326878420f460767e830409a74"
+      },
+      {
+        "version": 6,
+        "statement_count": 19,
+        "checksum": "f39221c8ea9207a7bc8fd52bf227640e35b5207851111ed215545c56b423ae9e"
+      },
+      {
+        "version": 7,
+        "statement_count": 8,
+        "checksum": "341a351cd42a90eca9926ccf74b16fa834a6e96ae544fc1094137ae6d75d371a"
+      },
+      {
+        "version": 8,
+        "statement_count": 1,
+        "checksum": "2b95271d36fe1e965d47e6f2d6e7fd0b31df84b5509c93563c03e13b5dc4c729"
+      },
+      {
+        "version": 9,
+        "statement_count": 9,
+        "checksum": "e232a96cb519c5919d2ed72b5ff27b976b4e32f867cf5059c4a8f81792a7a0f9"
+      },
+      {
+        "version": 10,
+        "statement_count": 54,
+        "checksum": "8f34e92ba911436bed9f5aa8c1afaa4a70a6ce72e4fae34b90413441532208d7"
+      },
+      {
+        "version": 11,
+        "statement_count": 60,
+        "checksum": "308f095f7a28d688c6629607579a2de40ea4919596920e5a8a4ac3db46dd9549"
+      },
+      {
+        "version": 12,
+        "statement_count": 7,
+        "checksum": "90bcba1ce921e2a097b31564026a134354dffb17ccea64f2972958b28f529d96"
+      },
+      {
+        "version": 13,
+        "statement_count": 84,
+        "checksum": "35477196573b46477c3154fab9b7a3bea27bb39d2b6c1749bf516165e2b29019"
+      },
+      {
+        "version": 14,
+        "statement_count": 31,
+        "checksum": "34f181713953ecf98f2fc303aa15c99ad52b905894a1e9d15bdb43f078291906"
+      },
+      {
+        "version": 15,
+        "statement_count": 91,
+        "checksum": "5f77b6acf51fab70a248a18c109a3678925efd285e95805596c1cb8f1de82a68"
+      }
+    ]
+  },
+  "groups": [
+    {
+      "id": "Q00_PROOF_ADMISSION",
+      "positive": "Actual current CFO confirms pinned goods+unit+native-encoding+cross-proof through owner stage after raw evidence registration; no seeded approvals",
+      "negative": [
+        "same CAI label without cross-definition proof",
+        "unapproved raw proof JSON",
+        "body factor or PROVEN",
+        "wrong actor/stage-purpose/crossPN",
+        "overlapping conflicting ratios",
+        "ratio raw integer strings: reject 1.5, zero, JSON Number, >38digits before cast; do not mistake unpinned-byte denial for rational-parser test"
+      ],
+      "expected": "HOLD or deny0confirmedchild; valid ordinary-app stage positive required",
+      "proof_intake_contract": "Actual dedicated L11_PROOF/JSON_UTF8 source profile canonical SHA3cc2d403d3ae7986c75fd21767763c2fe23678d59290618225463c870e3d9251; one pinned raw proof per intake; current scoped evidence intake/READ_SOURCE and CFO BOTH V4, no seeded approval"
+    },
+    {
+      "id": "Q01_PRIMARY_8_OF_10_AND_REPLAY",
+      "given": "G01 invoice10CAI and actual K01 HH_DEMO_A8CAI; approved distinct-definition1/1 plus current routeKHO",
+      "native_pair": [
+        "8",
+        "8"
+      ],
+      "pool_consumptions": [
+        "8",
+        "8"
+      ],
+      "remaining": [
+        "2",
+        "0"
+      ],
+      "parent": "Existing HD_PHIEU_KHO/EVIDENCE/M5/amountNULL",
+      "replay": "Same key/H gives same IDs/no extra usage; current rights before receipt lookup"
+    },
+    {
+      "id": "Q02_BOTH_BUDGETS_AND_MULTIPOOL",
+      "positive": "Two distinct confirmkeys allocate4/4 twice on SAME logical pair/basis, reuse1documentpairparent and create2immutablechildren; UNIQUE(PN,confirmation_receipt_id), current bothbudgets checked",
+      "negative": [
+        "extra1/1 after warehouse8 exhausted though invoice2 remains",
+        "two invoice lines share one warehouse pool8 and total9",
+        "two warehouse lines share one invoice pool10 and total11"
+      ],
+      "expected": "Separate full-domain sums and0loser mutation; no new pool per PB/UOM/basis/profile/key",
+      "expected_child_count": 2,
+      "expected_parent_count": 1,
+      "confirmed_pool_use": [
+        "8",
+        "8"
+      ]
+    },
+    {
+      "id": "Q03_THUNG_EXACT_CONVERSION",
+      "new_native": "native/new-thung-one.xml",
+      "pure_normalized": "NULL_CAIONLY_PROFILE_UNCHANGED",
+      "separate_approved_cross_ratio": [
+        "12",
+        "1"
+      ],
+      "available_existing_K01_positive": {
+        "native_pair": [
+          "0.5",
+          "6"
+        ],
+        "pool_pair": [
+          "0.5",
+          "6"
+        ],
+        "remaining": [
+          "0.5",
+          "2"
+        ]
+      },
+      "full_split_vector": {
+        "invoice_capacity": "1",
+        "warehouse_capacities": [
+          "6",
+          "6"
+        ],
+        "native_pairs": [
+          [
+            "0.5",
+            "6"
+          ],
+          [
+            "0.5",
+            "6"
+          ]
+        ],
+        "requires": "ACTUALLY_STAGED20_PUBLIC_SUBSET_THEN_ACTUAL_CONFIG_CAPTURE_SOURCE_ACCEPTANCE_AND_PROOF_CONFIRMATION_NOT_SEEDED; opaque upstream manifest is provenance only",
+        "native_source_sha256": "adfd623e4f4432272646ef925a5db0d5d3fd209fb50e870549d28223b4af009b",
+        "master_sha256": "3c67491146ef8025aa6b07a8092000fe400be6f3ed7f51671e4c06c35e1c7665",
+        "warehouse_logical_keys": [
+          [
+            "DEMO_KHO_A",
+            "NK20261019006",
+            "ID_1792382400001"
+          ],
+          [
+            "DEMO_KHO_A",
+            "NK20261019006",
+            "ID_1792382400002"
+          ]
+        ]
+      },
+      "negative": [
+        "wrong cross multiplication",
+        "native1CAI to existing THUNGpool under verified1/12 continuity proof cannot normalize by rounding nonrepresentable1/12",
+        "out-of-domain38_12",
+        "float/abs/default1"
+      ],
+      "expected": "Validate exact rational representability before cast; retain raw facts no proof bypass",
+      "new_invoice_line_fact": "candidate-line-facts-r16-v2.json"
+    },
+    {
+      "id": "Q04_MEANING_CHANGE_HELD",
+      "given": "Confirmed link consumes6 on stable pools",
+      "changes": [
+        "eligible capacity8 gives available2",
+        "capacity4/reversed source givesblockedNULLavailability+held6",
+        "route KHO to CHI_PHI",
+        "profile/unit/goods mapping/ratio change without continuity",
+        "proof revoked"
+      ],
+      "expected": "CAN_SOAT with original native/pool amounts and proof IDs; no free/clamp/reinterpret/reparent/new pool; separate V2 handling",
+      "budget_bins": "DA_KHOP+CO_HIEU_LUC_CONFIRMED_6_OR_DA_KHOP+CAN_SOAT_HELD_6_NEVER_12_HUY_ZERO"
+    },
+    {
+      "id": "Q05_AA_ABA_AND_DUPLICATE_ZIP",
+      "positive": "A,A duplicate same native/content delivery advances observation/CAS token but preserves semantic route/proofs/pools/children; ZIP entries retained",
+      "negative": "A->B->A old content reappears; accepted oldA audit may remain but eligibleNULL and held reservations persist",
+      "expected": "No automatic resurrection even if semanticA was once accepted; source-review alone does not reactivate old held child"
+    },
+    {
+      "id": "Q06_TYPED_GRAPH_AND_SQL_FORGERY",
+      "positive": "Current approved invoice bridge+phiếu PB-line match exact PN/root/content/core/encoding/pool graph; genuine old M1/CRM positive must remain, while every typed quantity parent projection requires current BOTH READ",
+      "negative": [
+        "samePN invoiceA/PB_B",
+        "wrong core/STT/line/pool/owner/subject",
+        "crossPN or BAN_RA",
+        "retarget approved unit/goods proof",
+        "ordinary app child/parent/receipt prefill",
+        "generic money child on evidence parent",
+        "typed quantity parent visible under old permissive M1/legacy policies without current BOTH M2_READ+M5_READ",
+        "generic legacy parent disguises newly typed M2/M5 graph",
+        "generic parent HUY frees live child reservations"
+      ],
+      "expected": "Actual DB guards refuse0businessdelta; old CRM/M1 behavior and source snapshots unchanged"
+    },
+    {
+      "id": "Q07_CURRENT_CAPS_PERIOD_REVOKE",
+      "positive": "NewLINK_A has BOTH M2_READ+M5_READ/V2 and explicitM5_FILE_SOAT; PROOF_CFO_A scopedV4/evidence only, existingactors unchanged",
+      "negative": [
+        "M5-only or M2-only",
+        "actor/login inactive",
+        "revoke before replay or undo",
+        "locked/protected period",
+        "raw read through scoped derivative",
+        "M5_FILE_SOATwithoutM2_READ for crossfile replay/download",
+        "M2_READwithoutM5_READ for crossfile",
+        "fake legacy-source mode for existingcrossfile"
+      ],
+      "expected": "403 or blocked before lookup/replay/delta; no owner/GUC/client authority bypass; seed/reopen never regrant revoked old rights"
+    },
+    {
+      "id": "Q08_UNDO_CURRENT_TOMBSTONE_FILE_REOPEN",
+      "given": "Nonempty confirmed or held link",
+      "expected": "Authorized explicit undo releases exact old normalized reservations and writes HUY/audit/tombstone even when source is ineligible; old confirm key returns currentHUY not historicalDA_KHOP; no auto-undo on partial/missing row",
+      "file": "Crossfields require BOTHREAD+M5_FILE_SOAT rightsbefore replay/download, quantitywholegraphH, fourquantities/proofs/held exacttext/formulasafe; M5only sourceformat noinvoicefields, oldGETbytesstable",
+      "reopen": "Pools/consumption/held/tombstones/revocations persist; no extra invoice/core/BANK/331/recognition rows"
+    },
+    {
+      "id": "Q09_CAUSAL_CONCURRENCY",
+      "cases": [
+        "different pairs contend same invoice pool both winner orders",
+        "different pairs contend same warehouse pool both winner orders",
+        "same operation/key across different pairs sameH/differentH",
+        "confirm versus source/route/proof revocation",
+        "undo versus confirm or proof change",
+        "confirm versus profile/map/source-review/reversal, both winner orders and whole affected closure",
+        "undo versus confirm/proof change, both winner orders"
+      ],
+      "observer": "Real separate PG connections plus pg_blocking_pids and actual locked-root/pool identity; owned finite watchdog",
+      "expected": "Only allowed winner or current-state reevaluation, loser0delta, no overuse/half parent/receipt; timeout/deadlock/exception is NOTPASS"
+    }
+  ],
+  "runtime_acceptance": false,
+  "product_or_fixture_stage": false,
+  "root_decisions_2026_10_19": {
+    "scope": "ONLY_SUPERSEDE_M5_BINDING_LINE86_ACTIVE_PAIR_BASIS_UNIQUE_KEEP_BINDING_HASH_UNCHANGED",
+    "confirm_grain": "ONE_CONFIRMATION_RECEIPT_ONE_IMMUTABLE_ALLOCATION_CHILD",
+    "parent": "REUSE_TYPED_DOCUMENT_SNAPSHOT_PAIR",
+    "budgets": "DISJOINT_CONFIRMED_HELD_HUY_ZERO",
+    "cross_file": "CURRENT_BOTH_M2_READ_M5_READ_PLUS_M5_FILE_SOAT_BEFORE_REPLAY_DOWNLOAD"
+  },
+  "fixture_stage": {
+    "status": "ACTUAL_DATA_ONLY_NOT_PRODUCT_ACCEPTANCE",
+    "files": 20,
+    "baseline_source_files": 269,
+    "fixture_manifest_sha256": "227980804428af52fb153b9c15a9142e5b261f2b50bbd4b8e873ba421b3081dd",
+    "baseline_manifest_sha256": "57b5b7bcbc49319565bd010003c74333cba98455c0fa65097235d1a3dd1bcbab",
+    "stage_receipt_sha256": "f341de1576550a60cdc1f0f76d017305314ab1d03a359fc899b6c56edbd94a28"
+  },
+  "fixture_staged": true,
+  "source_inputs_or_cases_are_runtime_authority": false
+}

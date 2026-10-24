@@ -1,0 +1,355 @@
+{
+  "status": "ROOT_TECHNICAL_DEMO_APPROVED_NOT_INSTALLED",
+  "phase": "R15_M2_BRIDGE_ONLY",
+  "source_instance": "DEMO_M2_XML_INSTANCE_A",
+  "profile_ref": "DEMO_M2_XML_QD1271_FIELDS_V1",
+  "profile_document_sha256": "37d57c38138e7b76f916cb20ef72d92306967d1cce572820b15b135246c32fcf",
+  "profile_payload_sha256": "7e17794151a7711317da3d9ab00d96427d2b1e1c688b132feb78ce540bb2188d",
+  "payload_digest_contract": "SHA256_UTF8_NO_BOM_NO_TRAILING_NEWLINE_RECURSIVE_ORDINAL_SORTED_KEYS_COMPACT_JSON_ARRAY_ORDER_PRESERVED_ASCII_PAYLOAD_ONLY",
+  "profile_payload": {
+    "artifact_roles": [
+      {
+        "allowed_media_types": [
+          "application/xml",
+          "application/zip"
+        ],
+        "required": true,
+        "role": "NATIVE"
+      },
+      {
+        "allowed_media_types": [
+          "application/json"
+        ],
+        "required": false,
+        "role": "CROSSWALK"
+      }
+    ],
+    "authority": "DECLARED_DEMO_NOT_ACTUAL_PRODUCER_VERIFIED",
+    "capture_contract": "m0-capture/v1",
+    "coverage_values": [
+      "COMPLETE_INPUT",
+      "PARTIAL_INPUT",
+      "UNKNOWN"
+    ],
+    "identity_profile": {
+      "number_rule": "NONEMPTY_ASCII_DIGITS_STRING_STRIP_LEADING_ZERO_OR_0",
+      "other_fields": "EXACT_NONEMPTY_ASCII_NO_TRIM_NO_CASEFOLD",
+      "ref": "DEMO_M2_ID_DIGITS_V1"
+    },
+    "module": "M2",
+    "profile_document_sha256": "37d57c38138e7b76f916cb20ef72d92306967d1cce572820b15b135246c32fcf",
+    "quantity_encoding": {
+      "kind": "EXACT_TEXT_DECIMAL",
+      "max_lexical_digits": 21,
+      "max_scale": 6,
+      "pattern": "^-?[0-9]+(?:\\.[0-9]+)?$",
+      "ref": "DEMO_XML_EXACT_DECIMAL_21_6_V1"
+    },
+    "raw_row_basis": "XML_DECODED_CHARACTER_DATA_NO_TRIM_WITH_FIELD_STATE_FINGERPRINT_NOT_BYTE_SPAN",
+    "reference_id": "DEMO_M2_XML_QD1271_FIELDS_V1",
+    "scope_kind": "INVOICE_SET",
+    "source_instance": "DEMO_M2_XML_INSTANCE_A",
+    "source_paths": {
+      "header": "HDon/DLHDon/TTChung",
+      "line": "HDon/DLHDon/NDHDon/DSHHDVu/HHDVu",
+      "namespaces": "NONE_SUPPORTED",
+      "party": "HDon/DLHDon/NDHDon/{NBan,NMua}/MST"
+    },
+    "unit_fact": {
+      "canonical_definition_ref": "DEMO_M2_UNIT_CAI_V1",
+      "denominator_text": "1",
+      "numerator_text": "1",
+      "raw_unit": "CAI",
+      "scope": "INVOICE_SIDE_ONLY_NOT_M5_EQUIVALENCE"
+    },
+    "version": 1
+  },
+  "scope": {
+    "ref": "DEMO_M2_SCOPE_BOTH_COMPANIES_V1",
+    "kind": "INVOICE_SET",
+    "company_keys": [
+      "DEMO_M2_COMPANY_A",
+      "DEMO_M2_COMPANY_B"
+    ],
+    "sections": [
+      "XML_HEADER",
+      "XML_LINE",
+      "ZIP_ENTRY",
+      "CROSSWALK"
+    ],
+    "ma_kho": null,
+    "so_phieu": null,
+    "period_completeness": "UNKNOWN"
+  },
+  "companies": [
+    {
+      "company_key": "DEMO_M2_COMPANY_A",
+      "pure_pn_alias": "PN_DEMO_A",
+      "existing_master_phap_nhan_ma": "PN_DEMO_A",
+      "mapping_ref": "DEMO_M2_COMPANY_MAP_A",
+      "revision": 1,
+      "kind": "COMPANY",
+      "match": "EXACT_BUYER_XOR_SELLER",
+      "buyer_direction": "MUA_VAO",
+      "seller_direction": "BAN_RA_CANDIDATE_NO_M3_PROMOTION_R15"
+    },
+    {
+      "company_key": "DEMO_M2_COMPANY_B",
+      "pure_pn_alias": "PN_DEMO_B",
+      "existing_master_phap_nhan_ma": "PN_DEMO_B",
+      "mapping_ref": "DEMO_M2_COMPANY_MAP_B",
+      "revision": 1,
+      "kind": "COMPANY",
+      "match": "EXACT_BUYER_XOR_SELLER",
+      "buyer_direction": "MUA_VAO",
+      "seller_direction": "BAN_RA_CANDIDATE_NO_M3_PROMOTION_R15"
+    }
+  ],
+  "shared_master_unit_definition": {
+    "table": "master.dinh_nghia_don_vi_luong",
+    "reference_id": "DEMO_M2_UNIT_CAI_V1",
+    "canonical_DB_UUID": null,
+    "definition_payload_sha256": "923a98f25aaf80b5762d97c1f183e8432aa347c74ce4525c8ef82f1633c73f89",
+    "payload": {
+      "authority": "DECLARED_DEMO",
+      "definition_kind": "COUNT_PIECE",
+      "label": "CAI",
+      "meaning": "ONE_INVOICE_DECLARED_PIECE_NO_PACK_FACTOR",
+      "native_unit_code": "CAI",
+      "reference_id": "DEMO_M2_UNIT_CAI_V1",
+      "scope": "DEMO_M2_XML_INSTANCE_A_INVOICE_SIDE_V1",
+      "version": 1
+    },
+    "existing_M5_reference": "DEMO_UNIT_CAI_A",
+    "same_label_does_not_merge_definition": true,
+    "immutable": true,
+    "R16_uses_same_shared_table_not_second_registry": true
+  },
+  "line_crosswalk_source": {
+    "existing_overlay_sha256": "79574902b50315768cfee4bdf7cac05b87bac44c55937a119ac43c50306db362",
+    "identity_content_sha256": "a7f6fb0f137179cb8ce2946a8e868a8d6db8cb6e0ce2942d82442ce4f4410efd",
+    "root_pre_stage_transformation": "ROOT_ONLY_RESOLVE_REVIEWED_OVERLAY_ALIASES_TO_LITERAL_NATIVE_IDENTITY_AND_ARTIFACT_FACTS_BEFORE_FIXTURE_STAGE",
+    "runtime_algorithm": "COMPARE_ACTUAL_PURE_DERIVATION_WITH_ROOT_PINNED_LITERAL_CONFIGURED_FACTS_ONLY_NO_ORACLE_READ_OR_ALIAS_RESOLUTION",
+    "literal_line_facts_artifact": {
+      "path": "tests/fixtures/m2_bridge/line-facts.json",
+      "sha256": "2195792bef97a1c94773f7fbe3391192e0ed24e872dfd904ac90ed54ba3b41fd",
+      "status": "ROOT_PREPARED_DATA_ONLY_REQUIRES_REVIEW_NOT_INSTALLED",
+      "record_count": 8,
+      "mapping_refs_unique": 8
+    },
+    "runtime_context_excludes": [
+      "ORACLE_I_C_O_ALIASES",
+      "EXPECTED_SEMANTIC_DIGESTS",
+      "EXPECTED_RESULT_IDS"
+    ],
+    "crosswalk_upload_authority": "RAW_EVIDENCE_ONLY_NOT_APPROVED_MAPPING",
+    "line_mapping_workflow": {
+      "capture_initial": "RETAIN_HEADER_PB_CORE_AND_UNMAPPED_RAW_LINES_ZERO_LOGICAL_BRIDGE",
+      "approval": "ACTUAL_CFO_M2_MAP_V4_AND_CURRENT_SOURCE_MAP_TARGET_PN",
+      "input": "CURRENT_FULL_ARTIFACT_NATIVE_IDENTITY_ORDINAL_RAW_ROW_PLUS_EXPLICIT_LOGICAL_LINE_KEY",
+      "atomic_effect": "CREATE_OR_REUSE_LOGICAL_ROOT_CREATE_APPROVED_TYPED_MAPPING_BRIDGE_EXISTING_CORE_LINE_SAME_OWNER_TRANSACTION",
+      "intake_actor_auto_approval": false,
+      "preseed_fake_logical_UUIDs": false,
+      "route_requires_actual_approved_line_bridge": true
+    },
+    "required_keys": [
+      "native_xml_sha256",
+      "container_sha256_if_zip",
+      "entry_ordinal_if_zip",
+      "entry_name_if_zip",
+      "source_locator",
+      "source_ordinal",
+      "invoice_identity_binding",
+      "logical_line_ref",
+      "continuity_ref",
+      "mapping_ref",
+      "revision"
+    ],
+    "automatic_STT_item_or_name_matching": false,
+    "row_raw_sha256": null
+  },
+  "actors": [
+    {
+      "login": "MO_PHONG_M0_HD_INTAKE",
+      "role": "KE_TOAN",
+      "source_actions": [
+        "INTAKE",
+        "READ_SOURCE"
+      ],
+      "source_scope": "INSTANCE_PROFILE_BOTH_CONFIGURED_COMPANIES",
+      "business": []
+    },
+    {
+      "login": "MO_PHONG_HD_NO_SOURCE",
+      "role": "KE_TOAN",
+      "source_actions": [],
+      "business": []
+    },
+    {
+      "login": "MO_PHONG_KT_MUA_A",
+      "role": "KE_TOAN",
+      "source_actions": [],
+      "business": [
+        {
+          "pn_ma": "PN_DEMO_A",
+          "modules": [
+            "M2"
+          ],
+          "actions": [
+            "M2_READ"
+          ],
+          "work_types": []
+        }
+      ]
+    },
+    {
+      "login": "MO_PHONG_KT_MUA_B",
+      "role": "KE_TOAN",
+      "source_actions": [],
+      "business": [
+        {
+          "pn_ma": "PN_DEMO_B",
+          "modules": [
+            "M2"
+          ],
+          "actions": [
+            "M2_READ"
+          ],
+          "work_types": []
+        }
+      ]
+    },
+    {
+      "login": "MO_PHONG_CFO_MUA_A",
+      "role": "CFO",
+      "source_actions": [
+        "SOURCE_MAP"
+      ],
+      "source_target_pn_ma": "PN_DEMO_A",
+      "business": [
+        {
+          "pn_ma": "PN_DEMO_A",
+          "modules": [
+            "M2"
+          ],
+          "actions": [
+            "M2_READ",
+            "M2_MAP",
+            "M2_ROUTE",
+            "M2_SOURCE_REVIEW"
+          ],
+          "work_types": [
+            "V4"
+          ]
+        }
+      ]
+    },
+    {
+      "login": "MO_PHONG_CFO_MUA_B",
+      "role": "CFO",
+      "source_actions": [
+        "SOURCE_MAP"
+      ],
+      "source_target_pn_ma": "PN_DEMO_B",
+      "business": [
+        {
+          "pn_ma": "PN_DEMO_B",
+          "modules": [
+            "M2"
+          ],
+          "actions": [
+            "M2_READ",
+            "M2_MAP",
+            "M2_ROUTE",
+            "M2_SOURCE_REVIEW"
+          ],
+          "work_types": [
+            "V4"
+          ]
+        }
+      ]
+    },
+    {
+      "login": "MO_PHONG_VIEW_MUA_A",
+      "role": "XEM",
+      "source_actions": [],
+      "business": [
+        {
+          "pn_ma": "PN_DEMO_A",
+          "modules": [
+            "M2"
+          ],
+          "actions": [
+            "M2_READ"
+          ],
+          "work_types": []
+        }
+      ]
+    },
+    {
+      "login": "MO_PHONG_M1_ONLY_MUA_A",
+      "role": "KE_TOAN",
+      "source_actions": [],
+      "business": [
+        {
+          "pn_ma": "PN_DEMO_A",
+          "modules": [
+            "M1"
+          ],
+          "actions": [],
+          "work_types": []
+        }
+      ]
+    }
+  ],
+  "actor_limits": {
+    "existing_overlay_actor_matrix_sha256": "166d239d63e319c7e0982a92d44b4d1f2a242cf7c62bba6d67eccd098e04b569",
+    "source_review_action_addition": "DRAFT_TECHNICAL_CURRENT_SOURCE_SELECTION_ONLY_ROOT_REVIEW_REQUIRED",
+    "FILE_SOAT": "NOT_GRANTED_IN_R15",
+    "M5_L11_MODULE_V2": "NOT_GRANTED_IN_R15",
+    "existing_M5_actors_grants_revocations": "UNCHANGED",
+    "reopen_seed": "ONE_TIME_ADDITIVE_NEVER_REGRANT_REVOKED"
+  },
+  "R16_separate_declared_proofs": {
+    "installed": false,
+    "goods_equivalence": {
+      "ref": "DEMO_M2_M5_GOODS_EQ_A_V1",
+      "pn_ma": "PN_DEMO_A",
+      "invoice_item": "DEMO_ITEM_A",
+      "warehouse_item": "HH_DEMO_A",
+      "authority": "DECLARED_DEMO_ROOT_DECISION",
+      "source_basis": "ROOT_SYNTHETIC_CORPUS_CONTEXT_NOT_FUZZY_NAME"
+    },
+    "cross_unit_one_to_one": {
+      "ref": "DEMO_M2_M5_CAI_EQ_A_V1",
+      "from_definition_ref": "DEMO_M2_UNIT_CAI_V1",
+      "to_definition_ref": "DEMO_UNIT_CAI_A",
+      "numerator_text": "1",
+      "denominator_text": "1",
+      "goods_equivalence_ref": "DEMO_M2_M5_GOODS_EQ_A_V1",
+      "proof_source_artifact_sha256": null,
+      "source_basis": "SEPARATE_ROOT_PINNED_SYNTHETIC_PROOF_REQUIRED_BEFORE_R16_INSTALL",
+      "authority": "DECLARED_DEMO_NOT_INSTALLED"
+    },
+    "new_conversion_fixture": {
+      "ref": "DEMO_NEW_THUNG12CAI_PROOF_V1",
+      "from_unit": "THUNG",
+      "to_unit": "CAI",
+      "numerator_text": "12",
+      "denominator_text": "1",
+      "native_source_bytes": "NOT_YET_CREATED_NEW_SYNTHETIC_ARTIFACT_REQUIRED",
+      "native_source_sha256": null,
+      "old_CAIfixture_relabel_or_reuse_as_factor_proof": false
+    }
+  },
+  "runtime_receiver_UUIDs": "SERVER_RESOLVED_NOT_BOUND",
+  "no_claims": [
+    "PRODUCTION_POLICY",
+    "ACTUAL_PRODUCER_VERIFIED",
+    "NATIVE_FISCAL_APPROVAL",
+    "FINANCIAL_ACCEPTANCE",
+    "L11_CONFIRMED",
+    "ACTUAL_SOURCE_HISTORY",
+    "RUNTIME_PASS"
+  ]
+}

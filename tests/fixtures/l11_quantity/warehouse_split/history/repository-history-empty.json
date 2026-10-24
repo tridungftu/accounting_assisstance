@@ -1,0 +1,17 @@
+{
+  "summary_kind": "EXPLICIT_EMPTY",
+  "authority_ref": "urn:demo:m5:history:r16-split-six-explicit-empty",
+  "logical_source_identity": {
+    "source_instance": "DEMO_KHO_A",
+    "SoPhieu": "NK20261019006"
+  },
+  "scope_ref": "urn:demo:m5:scope:r16-split-six-v1",
+  "profile_ref": "urn:demo:m5:source-profile:f05eee570c7c8861b219ca97",
+  "receipts_seen": [],
+  "seen_content_references": [],
+  "seen_content_digests": [],
+  "accepted_source": null,
+  "old_line_unit_basis_refs": [],
+  "digest_binding_state": "EXPLICIT_EMPTY_SYNTHETIC_DEMO_NO_PRIOR_ACCEPTANCE_OR_CFO_ACTION",
+  "actual_repository_state": "NOT_CREATED_NOT_VERIFIED_REQUIRES_ACTUAL_INTAKE_AND_SOURCE_ACCEPTANCE"
+}

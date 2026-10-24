@@ -1,0 +1,80 @@
+{
+  "status": "DRAFT_ROOT_REVIEW_REQUIRED_NOT_INSTALLED_NOT_APPROVED",
+  "shared_table": "master.dinh_nghia_don_vi_luong",
+  "canonical_payload_digest": "SHA256_RECURSIVE_SORTED_KEYS_COMPACT_UTF8_NO_BOM_NO_TRAILING_NEWLINE",
+  "existing_invoice_CAI": {
+    "reference_id": "DEMO_M2_UNIT_CAI_V1",
+    "definition_sha256": "923a98f25aaf80b5762d97c1f183e8432aa347c74ce4525c8ef82f1633c73f89",
+    "rewrite": false
+  },
+  "definitions": [
+    {
+      "reference_id": "DEMO_UNIT_CAI_A",
+      "definition_sha256": "206b26eac399c240adf71f26c8daec5de13f8be45b4badc64523c7ae76b3977f",
+      "payload": {
+        "authority": "DECLARED_DEMO_ROOT_TECHNICAL_NOT_PRODUCTION",
+        "definition_kind": "COUNT_PIECE",
+        "label": "CAI",
+        "meaning": "ONE_EXISTING_M5_DECLARED_PIECE_NO_PACK_FACTOR",
+        "native_unit_code": "CAI",
+        "reference_id": "DEMO_UNIT_CAI_A",
+        "scope": "DEMO_KHO_A_PROFILE_CAI_V1",
+        "source_basis": {
+          "master_raw_sha256": "3a806526917dac322ee9ba4c6f7ea5ed88e02b780ea282c0300465e980e16801",
+          "measurement_declaration_payload_sha256": "4ef4dcf27d5044a76729d6f617b4381c6fff0fcced4bdf9f9315c638ffd515f1",
+          "measurement_declaration_ref": "ROOT_DEMO_CAI_EXACT_TEXT_38_12_V1",
+          "source_instance": "DEMO_KHO_A",
+          "source_profile_ref": "urn:demo:m5:source-profile:f05eee570c7c8861b219ca97",
+          "source_profile_sha256": "b8735806b72701dc6a4a54c3b3772e70326efbc812543b1c5969576be3eedb41"
+        },
+        "version": 1
+      },
+      "source_basis_ref": "urn:demo:l11:sourcebasis:m5cai:3a806526917dac322ee9ba4c6f7ea5ed88e02b780ea282c0300465e980e16801",
+      "declared_scope": "DEMO_KHO_A_PROFILE_CAI_V1",
+      "supporting_artifact": {
+        "path": "tests/fixtures/m0_m5/masterraw/K01.json",
+        "sha256": "3a806526917dac322ee9ba4c6f7ea5ed88e02b780ea282c0300465e980e16801",
+        "pointer": "/DM_HangHoa/MaHang=HH_DEMO_A/DVT_Goc"
+      },
+      "known_at_server": null,
+      "created_by": null,
+      "canonical_DB_UUID": null,
+      "action": "REGISTER_EXISTING_M5_REFERENCE_ONCE_DO_NOT_CHANGE_OLD_MEASUREMENT_FACTS"
+    },
+    {
+      "reference_id": "DEMO_M2_UNIT_THUNG_R16_V1",
+      "definition_sha256": "774d51c9017314e156e19729b64870d55a34187628fb6d21e2080ee90b83bdb1",
+      "payload": {
+        "authority": "DECLARED_DEMO_ROOT_TECHNICAL_NOT_PRODUCTION",
+        "definition_kind": "DECLARED_CONTAINER_UNIT",
+        "label": "THUNG",
+        "meaning": "ONE_DECLARED_THUNG_FOR_EXPLICIT_DEMO_GOODS_CONTEXT_FACTOR_ONLY_IN_SEPARATE_PROOF",
+        "native_unit_code": "THUNG",
+        "reference_id": "DEMO_M2_UNIT_THUNG_R16_V1",
+        "scope": "DEMO_M2_XML_INSTANCE_A_ITEM_A_THUNG_R16_V1",
+        "source_basis": {
+          "item_code": "DEMO_ITEM_A",
+          "native_xml_sha256": "65ce193e68053e59d5b18e4a7fa6879fa31499fbc2cd1ca5d138a95a30883a7a",
+          "source_instance": "DEMO_M2_XML_INSTANCE_A",
+          "source_locator": "/HDon/DLHDon/NDHDon/DSHHDVu/HHDVu[1]/DVTinh",
+          "source_profile_ref": "DEMO_M2_XML_QD1271_FIELDS_V1",
+          "source_profile_sha256": "7e17794151a7711317da3d9ab00d96427d2b1e1c688b132feb78ce540bb2188d",
+          "unit_decoded_lexeme": "THUNG"
+        },
+        "version": 1
+      },
+      "source_basis_ref": "urn:demo:l11:sourcebasis:thung:65ce193e68053e59d5b18e4a7fa6879fa31499fbc2cd1ca5d138a95a30883a7a",
+      "declared_scope": "DEMO_M2_XML_INSTANCE_A_ITEM_A_THUNG_R16_V1",
+      "supporting_artifact": {
+        "path": "native/new-thung-one.xml",
+        "sha256": "65ce193e68053e59d5b18e4a7fa6879fa31499fbc2cd1ca5d138a95a30883a7a",
+        "pointer": "/HDon/DLHDon/NDHDon/DSHHDVu/HHDVu[1]/DVTinh"
+      },
+      "known_at_server": null,
+      "created_by": null,
+      "canonical_DB_UUID": null,
+      "action": "NEW_DEFINITION_NOT_CONVERSION_APPROVAL"
+    }
+  ],
+  "CFO_approval_seeded": false
+}

@@ -1,0 +1,44 @@
+{
+  "schema": "CRM_DOCGEN_FILTERED_TECHNICAL_REFERENCE_V1",
+  "status": "SOURCE_ALGORITHM_REFERENCE_ONLY_NOT_RUN",
+  "created_utc": "2026-10-21T00:10:35.7321116Z",
+  "source_root": "D:/Claude/Phan mem duyet kieu base",
+  "source_audit_sha256": "857b58d3a97274640990d3d6252ba73018eca6226877b20814a3d0d53d3fb921",
+  "source_file_count": 5,
+  "source_pre_post_unchanged": true,
+  "product_imported": false,
+  "renderer_executed": false,
+  "request_authority_included": false,
+  "files": [
+    {
+      "source_relative": "docgen/mau.py",
+      "staged_relative": "docgen/mau.py",
+      "sha256": "9e74874ffaa92488f569a2d6c30f4013a9b762b0ff99b86f83f4a7e815116294",
+      "bytes": 19963
+    },
+    {
+      "source_relative": "docgen/pdf.py",
+      "staged_relative": "docgen/pdf.py",
+      "sha256": "fb09237ec74eee67be911a3fc31861421a5dfa048fe9a5ac0c348abf64a7e14e",
+      "bytes": 13200
+    },
+    {
+      "source_relative": "docgen/loc.py",
+      "staged_relative": "docgen/loc.py",
+      "sha256": "bb5eb16884048415680c547e2a01ab8506dcb510661cc45248852ee7eb91859a",
+      "bytes": 4830
+    },
+    {
+      "source_relative": "docgen/so_chu.py",
+      "staged_relative": "docgen/so_chu.py",
+      "sha256": "989353b78bfb14a106f136787f0b490d46a77ef27e83a23a125c002fded133aa",
+      "bytes": 6618
+    },
+    {
+      "source_relative": "docgen/requirements.txt",
+      "staged_relative": "docgen/requirements.txt",
+      "sha256": "3947d743d7a6572e91c481237a8e253960aa2cda915dced301967d02f6bb0a24",
+      "bytes": 96
+    }
+  ]
+}

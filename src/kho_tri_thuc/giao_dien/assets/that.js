@@ -111,18 +111,28 @@ function toTxn(r) {
   const status = STATUS_MAP[r.state] || 'cho';
   const level = r.state === 'EXISTING' ? 'junsky' : (LEVEL_MAP[r.proposal_level] || 'do');
   const lines = (r.entry_lines || []).map(toLine);
-  const dir = r.amount_minor > 0 ? 'thu' : 'chi';
+  /* V12: hóa đơn — chiều là Mua vào / Bán ra */
+  const inv = r.invoice_direction || '';
+  const dir = inv ? (inv === 'MUA_VAO' ? 'mua' : 'ban') : (r.amount_minor > 0 ? 'thu' : 'chi');
   const options = (r.options || []).map((o) => ({ label: o.label, note: o.note, lines: (o.lines || []).map(toLine) }));
   const chosen = options.findIndex((o) => linesKey(o.lines) === linesKey(lines));
   const missingAccount = lines.some((l) => !l.tk);
+  /* V11: công nợ đang mở của đối tượng đứng trước "TK hay gặp" */
+  const accOpts = (r.account_options || []).map((o) => ({ kind: 'tk', value: o.account, note: 'công nợ đang mở' + (o.count ? ' · ' + o.count + ' chứng từ' : '') }));
+  const sugg = accOpts.concat((r.suggest_accounts || []).filter((v) => !accOpts.some((o) => o.value === v)).map((v) => ({ kind: 'tk', value: v })));
+  const nameOpts = (r.name_options || []).filter((o) => o && o.code);
+  const party = r.fields && r.fields.counterparty ? r.fields.counterparty : '';
   return {
     id: r.id, date: vnDate(r.business_date), iso: r.business_date, dir, amt: Math.abs(r.amount_minor), desc: r.source_description || '',
     party: r.source_counterparty_name || '', level, status, exported: r.state === 'EXPORTED', lines, orig: linesKey(lines), dirty: false,
     why: r.why || '', basis: r.basis || [], options: options.length >= 2 ? options : null, chosen,
-    suggest: missingAccount && (r.suggest_accounts || []).length ? r.suggest_accounts.map((v) => ({ kind: 'tk', value: v })) : null,
-    sgTitle: 'TK hay gặp cho ' + (dir === 'thu' ? 'thu tiền:' : 'chi tiền:'),
+    suggest: missingAccount && sugg.length ? sugg : null,
+    sgTitle: accOpts.length ? 'TK đối ứng gợi ý:' : 'TK hay gặp cho ' + ({ thu: 'thu tiền:', chi: 'chi tiền:', mua: 'hóa đơn mua vào:', ban: 'hóa đơn bán ra:' })[dir],
+    inv: !!inv,
     junskyNo: r.junsky_voucher || '', skipReason: r.reason || '', cashMissing: (r.constraints || []).some((c) => c.indexOf('CASH_ACCOUNT_MAPPING') === 0),
-    reference: r.source_reference || ''
+    reference: r.source_reference || '',
+    nameOpts: !party && nameOpts.length ? nameOpts : (nameOpts.length > 1 ? nameOpts : null), conflict: r.identifier_conflict || null,
+    group: r.group || null, stats: r.stats || null, aiNote: r.ai_note || '', aiDraft: r.ai_note || '', aiOpen: !!r.ai_note
   };
 }
 
@@ -134,7 +144,8 @@ let S = {
   open: null, cursor: null, basisOpen: null, fLevel: 'all', fStatus: 'all', fDir: 'all', q: '',
   drawer: null, modal: null, skipId: null, skipReason: '', exportDone: false, exportResult: null, exporting: false, toast: null,
   kbQ: '', kb: null, overview: null, recent: [], history: [], historyFolder: '', error: null, dragOver: false,
-  mocDraft: '', objDraft: '', debtDraft: '', srcLoading: false, mapForm: null, saving: false
+  mocDraft: '', objDraft: '', debtDraft: '', srcLoading: false, mapForm: null, saving: false,
+  score: null, scoring: false, aiResult: null, cfo: null, cfoBusy: null, invMonths: null
 };
 const timers = {};
 const pending = new Map(); /* id → trạng thái đang chờ máy chủ xác nhận */
@@ -155,6 +166,8 @@ function applyRows(data, extra) {
     const t = toTxn(r); const old = local.get(t.id);
     if (pending.has(t.id)) t.status = pending.get(t.id).status;
     else if (old && old.dirty && old.status === 'cho' && t.status === 'cho') { t.lines = old.lines; t.dirty = true; t.chosen = old.chosen; }
+    if (old && old.aiNote === t.aiNote) { t.aiDraft = old.aiDraft; t.aiOpen = old.aiOpen; }
+    if (old && old.dirty && old.nameOpts === null && t.status === 'cho') t.nameOpts = null;
     return t;
   });
   txns.sort((a, b) => (a.iso < b.iso ? -1 : a.iso > b.iso ? 1 : (a.reference < b.reference ? -1 : a.reference > b.reference ? 1 : 0)));
@@ -173,7 +186,8 @@ function check(lines, t) {
   else if (lines.some((l) => !l.tk)) miss.push('tài khoản đối ứng');
   lines.forEach((l) => { if (l.tk && isDebt(l.tk) && !l.dt) { const m = 'đối tượng cho TK ' + l.tk; if (miss.indexOf(m) < 0) miss.push(m); } });
   const bal = n === c && n > 0;
-  if (t && bal && n !== t.amt && !lines.some((l) => l.tk && l.tk.indexOf('112') === 0 && l.amt === t.amt)) miss.push('dòng TK tiền đúng số tiền sao kê');
+  if (t && !t.inv && bal && n !== t.amt && !lines.some((l) => l.tk && l.tk.indexOf('112') === 0 && l.amt === t.amt)) miss.push('dòng TK tiền đúng số tiền sao kê');
+  if (t && t.inv && bal && n !== t.amt) miss.push('tổng Nợ = tổng tiền hóa đơn');
   return { miss, bal, n, c, ok: miss.length === 0 && bal };
 }
 function reasonText(ck) {
@@ -188,6 +202,8 @@ function entrySum(lines) {
   const c = uniq(lines.filter((l) => l.side === 'C').map((l) => l.tk || '?'));
   return 'Nợ ' + d.join(' + ') + ' / Có ' + c.join(' + ');
 }
+const DIR_WORD = { thu: 'Thu', chi: 'Chi', mua: 'Mua vào', ban: 'Bán ra' };
+const DIR_SIGN = { thu: '+', chi: '−', mua: '', ban: '' };
 function objText(t) { const l = t.lines.find((x) => x.dt && x.tk && x.tk.indexOf('112') !== 0) || t.lines.find((x) => x.dt); return l ? lbl('dt', l.dt) : ''; }
 function visible(s) {
   const q = norm(s.q).trim(); const qd = s.q.replace(/\D/g, '');
@@ -231,7 +247,7 @@ const applyIf = (res, extra) => { if (res) applyRows(res, extra); };
 
 async function startUpload(file) {
   if (!file) return;
-  if (!/\.(xlsx|xls)$/i.test(file.name)) { toast('Giai đoạn này chỉ nhận sao kê Excel (.xlsx, .xls). Hóa đơn XML sẽ mở ở giai đoạn sau.'); set({ dragOver: false }); return; }
+  if (!/\.(xlsx|xls)$/i.test(file.name)) { toast('Vùng thả file nhận sao kê Excel (.xlsx, .xls). Hóa đơn XML: chọn tháng ở khung “Hóa đơn theo tháng”.'); set({ dragOver: false }); return; }
   lastFile = file;
   clearInterval(timers.load);
   set({ phase: 'processing', progress: { done: 0, total: 0 }, procLabel: file.name, screen: 'dk', dragOver: false, open: null, modal: null, error: null });
@@ -250,6 +266,7 @@ function showError(e) {
   let title = 'Chưa đề xuất được bút toán', cause = e.message || 'Có lỗi khi xử lý tệp.', todo = 'Kiểm tra lại tệp rồi bấm Thử lại.';
   if (code === 'NO_CATALOG') { title = 'Chưa có danh mục đối tượng'; todo = 'Nạp danh mục ở màn hình Nguồn dữ liệu, rồi quay lại bấm Thử lại. File vẫn được giữ, không cần thả lại.'; }
   else if (code === 'NO_NEW_RECORDS') { title = 'Tệp này đã làm trước đó'; todo = 'Mở lại lần làm cũ ở mục “Đã làm gần đây” bên dưới vùng thả file.'; }
+  else if (code === 'INVOICE_MONTH_EMPTY') { title = 'Không thấy hóa đơn của tháng này'; todo = 'Kiểm tra thư mục tải hóa đơn (Nguồn dữ liệu → Hóa đơn) có thư mục tháng với mua_vao / ban_ra chứa file XML.'; }
   else if (code === 'REJECTED') { title = 'Chưa đọc được tệp'; todo = 'Kiểm tra đúng file sao kê Excel (.xlsx/.xls) xuất từ ngân hàng rồi thả lại.'; }
   else if (code === 'SESSION_TOKEN') { title = 'Phiên giao diện đã đổi'; todo = 'Tải lại trang (phím F5) rồi thử lại.'; }
   set({ phase: 'error', error: { title, cause, todo, code } });
@@ -333,6 +350,40 @@ function pickSuggest(id, i) {
     });
     return Object.assign({}, x, { lines, dirty: linesKey(lines) !== x.orig });
   }) }));
+}
+function pickName(id, code) {
+  set((s) => ({ txns: s.txns.map((x) => {
+    if (x.id !== id) return x;
+    const lines = clone(x.lines);
+    lines.forEach((l) => { if (!l.tk || l.tk.indexOf('112') !== 0) l.dt = code; });
+    return Object.assign({}, x, { lines, dirty: linesKey(lines) !== x.orig, nameOpts: null });
+  }) }));
+}
+async function saveAiNote(id) {
+  const t = findTxn(id); if (!t) return;
+  try {
+    const res = await api('/api/that/quick/ai-note', { json: { run_id: S.runId, id, note: t.aiDraft || '', actor: ACTOR } });
+    set((s) => ({ txns: s.txns.map((x) => x.id === id ? Object.assign({}, x, { aiNote: res.ai_note || '', aiDraft: res.ai_note || '' }) : x) }));
+    toast(res.ai_note ? 'Đã lưu ghi chú cho AI' : 'Đã xóa ghi chú');
+  } catch (e) { toast('Không lưu được ghi chú: ' + e.message); }
+}
+async function sendAiContext(id) {
+  const t = findTxn(id);
+  if (t && (t.aiDraft || '') !== (t.aiNote || '')) await saveAiNote(id);
+  try {
+    const res = await api('/api/that/quick/ai-context', { json: { run_id: S.runId, ids: id ? [id] : null } });
+    set({ modal: 'ai', aiResult: res }); focusLater('modal-cancel');
+  } catch (e) { toast('Chưa tạo được gói ngữ cảnh: ' + e.message); }
+}
+async function runScore() {
+  if (!S.runId) return;
+  set({ scoring: true });
+  try { const res = await api('/api/that/quick/score', { json: { run_id: S.runId } }); set({ modal: 'score', score: res, scoring: false }); focusLater('modal-cancel'); }
+  catch (e) { set({ scoring: false }); toast('Chưa chấm được: ' + e.message); }
+}
+async function toggleScoring(on) {
+  try { await api('/api/that/learning-settings', { json: { scoring_mode: !!on } }); await loadOverview(); toast(on ? 'Đã bật chế độ chấm điểm. Bấm “Đề xuất lại” ở màn Định khoản để tính lại.' : 'Đã tắt chế độ chấm điểm. Bấm “Đề xuất lại” để đánh dấu lại các dòng đã có trong Junsky.'); }
+  catch (e) { toast('Không đổi được chế độ: ' + e.message); }
 }
 async function confirmBulk() {
   const ids = bulkList(S).map((t) => t.id);
@@ -436,11 +487,34 @@ async function saveDrawer() {
 /* nạp dữ liệu */
 async function loadOverview() { try { const o = await api('/api/that/overview'); set({ overview: o, mocDraft: S.mocDraft || (o.learning_cutoff ? vnDate(o.learning_cutoff) : ''), objDraft: S.objDraft || vnDate(o.object_learning_from || ''), debtDraft: S.debtDraft || (o.debt_accounts || []).join(', ') }); if (o.debt_accounts) DEBT = o.debt_accounts; return o; } catch (e) { return null; } }
 async function loadCatalogData() { try { const d = new Date(); const iso = d.getFullYear() + '-' + p2(d.getMonth() + 1) + '-' + p2(d.getDate()); loadCatalog(await api('/api/that/catalog?date=' + iso + '&cutoff=' + encodeURIComponent(new Date().toISOString()))); } catch (e) { /* danh mục trống: ô chọn sẽ báo không tìm thấy */ } }
+async function loadInvoiceMonths() { try { set({ invMonths: await api('/api/that/invoice-months') }); } catch (e) { set({ invMonths: null }); } }
+async function startInvoiceMonth(month) {
+  if (!month) return;
+  lastFile = null;
+  clearInterval(timers.load);
+  set({ phase: 'processing', progress: { done: 0, total: 0 }, procLabel: 'Hóa đơn tháng ' + month.slice(5) + '/' + month.slice(0, 4), screen: 'dk', dragOver: false, open: null, modal: null, error: null });
+  try {
+    const job = await api('/api/that/quick/invoice-month', { json: { month } });
+    const result = await waitJob(job.job_id, (p) => set({ progress: p }));
+    if (result.state !== 'READY') throw Object.assign(new Error(result.message || 'Chưa đọc được hóa đơn tháng này.'), { code: 'REJECTED' });
+    pending.clear();
+    applyRows(result, { open: null, cursor: null, fLevel: 'all', fStatus: 'all', fDir: 'all', q: '' });
+    if (result.reused) toast('Tháng này đã làm trước đó — mở lại kết quả cũ, giữ nguyên các quyết định đã có.');
+    loadRecent();
+  } catch (e) { showError(e); }
+}
 async function loadRecent() { try { const r = await api('/api/that/runs'); set({ recent: r.rows || [] }); return r.rows || []; } catch (e) { return []; } }
 async function loadHistory() { try { const h = await api('/api/that/history'); set({ history: h.rows || [], historyFolder: h.folder_display || '' }); } catch (e) { /* bỏ qua */ } }
+async function loadCfo() { try { set({ cfo: await api('/api/that/cfo-rules') }); } catch (e) { set({ cfo: { rules: [], error: e.message } }); } }
+async function toggleCfo(code, on) {
+  if (S.cfoBusy) return;
+  set({ cfoBusy: code });
+  try { const r = await api('/api/that/cfo-rules/toggle', { json: { ma: code, bat: !!on } }); set({ cfo: r, cfoBusy: null }); toast((on ? 'Đã bật lại ' : 'Đã tắt ') + code + '. Bấm “Đề xuất lại” ở màn Định khoản để áp dụng cho giao dịch đang chờ.'); }
+  catch (e) { set({ cfoBusy: null }); toast('Chưa đổi được: ' + e.message); }
+}
 async function loadKb() { const q = S.kbQ; try { const r = await api('/api/that/knowledge-cards?q=' + encodeURIComponent(q)); if (q === S.kbQ) set({ kb: r }); } catch (e) { set({ kb: { cards: [], total: 0, error: e.message } }); } }
 async function boot() {
-  await Promise.all([loadOverview(), loadCatalogData(), loadHistory()]);
+  await Promise.all([loadOverview(), loadCatalogData(), loadHistory(), loadInvoiceMonths()]);
   const runs = await loadRecent();
   const last = store.get('ktt-last-run');
   /* Chỉ tự mở lại lần làm dở của chính trình duyệt này; lần đầu luôn bắt đầu ở vùng thả file. */
@@ -459,11 +533,13 @@ async function pollBootstrap() {
 }
 
 const ACT = {
-  nav: (d) => { set({ screen: d.screen }); if (d.screen === 'tracuu' && !S.kb) loadKb(); if (d.screen === 'lichsu') loadHistory(); if (d.screen === 'nguon') loadOverview(); },
+  nav: (d) => { set({ screen: d.screen }); if (d.screen === 'tracuu' && !S.kb) loadKb(); if (d.screen === 'lichsu') loadHistory(); if (d.screen === 'nguon') loadOverview(); if (d.screen === 'cfo') loadCfo(); },
+  'cfo-toggle': (d) => toggleCfo(d.code, d.on === '1'),
   'start-load': () => { const input = document.getElementById('file-input'); if (input) { input.value = ''; input.click(); } },
-  'retry': () => { if (S.error && S.error.code === 'NO_NEW_RECORDS') { set({ phase: 'empty', error: null }); return; } if (lastFile) startUpload(lastFile); else set({ phase: 'empty', error: null }); },
+  'retry': () => { if (S.error && S.error.code === 'NO_NEW_RECORDS') { set({ phase: 'empty', error: null }); return; } if (lastFile) startUpload(lastFile); else { set({ phase: 'empty', error: null }); loadInvoiceMonths(); } },
   'open-run': (d) => openRun(d.run),
-  'reset-file': () => { set({ phase: 'empty', open: null, cursor: null }); loadRecent(); },
+  'invoice-month': (d) => startInvoiceMonth(d.month),
+  'reset-file': () => { set({ phase: 'empty', open: null, cursor: null }); loadRecent(); loadInvoiceMonths(); },
   'repropose': repropose,
   'go-nguon': () => { set({ screen: 'nguon' }); loadOverview(); },
   tile: (d) => set((s) => ({ fLevel: s.fLevel === d.level ? 'all' : d.level })),
@@ -502,7 +578,16 @@ const ACT = {
   'save-bank': saveMapping,
   'delete-bank': (x) => deleteMapping(x.acct),
   'open-file': (x) => openExport(x.run, x.file),
-  'hist-folder': (x) => openExport(x.run)
+  'hist-folder': (x) => openExport(x.run),
+  'pick-name': (x) => pickName(x.id, x.code),
+  'ai-toggle': (x) => { const id = x.id; set((s) => ({ txns: s.txns.map((t) => t.id === id ? Object.assign({}, t, { aiOpen: !t.aiOpen }) : t) })); focusLater('ai-' + id); },
+  'ai-save': (x) => saveAiNote(x.id),
+  'ai-send': (x) => sendAiContext(x.id),
+  'ai-send-all': () => sendAiContext(null),
+  'score': runScore,
+  'open-score-file': () => { const r = S.score || {}; if (r.file) openExport(S.runId, r.file); },
+  'download-score-file': () => { const r = S.score || {}; if (r.file) downloadExport(S.runId, r.file); },
+  'open-ai-folder': () => { api('/api/that/open', { json: { ai_folder: true } }).then((r) => { if (!r.opened) toast('Thư mục: ' + r.path); }).catch((e) => toast('Không mở được thư mục: ' + e.message)); }
 };
 
 /* =====================================================================
@@ -511,7 +596,9 @@ const ACT = {
 function kindTag(o) {
   if (!o) return '<span class="tag-kho">KHO THẬT</span>';
   const label = String(o.data_label || '');
-  return label === 'plhn-that' ? '<span class="tag-kho">KHO THẬT</span>' : `<span class="tag-kho tag-thu" title="${esc(label)}">KHO THỬ</span>`;
+  /* V13: engine lưu trữ — SQLite (mặc định) hoặc PostgreSQL (kho thử) */
+  const engine = o.storage_engine === 'postgres' ? ' · PostgreSQL' : '';
+  return label === 'plhn-that' ? `<span class="tag-kho">KHO THẬT${engine}</span>` : `<span class="tag-kho tag-thu" title="${esc(label)}${o.storage_schema ? ' · schema ' + esc(o.storage_schema) : ''}">KHO THỬ${engine}</span>`;
 }
 function viewTopbar(s) {
   const o = s.overview;
@@ -525,29 +612,32 @@ function viewTopbar(s) {
   </header>`;
 }
 function viewNav(s) {
-  const items = [['dk', 'Định khoản'], ['nguon', 'Nguồn dữ liệu'], ['tracuu', 'Tra cứu tri thức'], ['lichsu', 'Lịch sử xuất file']];
+  const items = [['dk', 'Định khoản'], ['nguon', 'Nguồn dữ liệu'], ['tracuu', 'Tra cứu tri thức'], ['cfo', 'Tri thức CFO'], ['lichsu', 'Lịch sử xuất file']];
   return `<nav class="nav" aria-label="Menu chính">
     ${items.map((n, i) => `<button type="button" class="nav-item" data-act="nav" data-screen="${n[0]}" aria-current="${s.screen === n[0] ? 'page' : 'false'}"><span class="nav-num">${i + 1}</span><span>${n[1]}</span></button>`).join('')}
-    <div class="nav-foot"><span>Chạy trên máy này · không gửi dữ liệu ra ngoài</span><span>Phiên bản V10</span></div>
+    <div class="nav-foot"><span>Chạy trên máy này · không gửi dữ liệu ra ngoài</span><span>Phiên bản V12</span></div>
   </nav>`;
 }
 function viewFileRow(s) {
   const info = (s.run && s.run.source_info) || {};
-  const name = (s.run && s.run.source_name) || s.procLabel || '';
+  const rawName = (s.run && s.run.source_name) || s.procLabel || '';
+  const name = /^Hoa don (\d{4})-(\d{2})\.zip$/.test(rawName) ? rawName.replace(/^Hoa don (\d{4})-(\d{2})\.zip$/, 'Hóa đơn tháng $2/$1 (máy tự lấy XML mua vào + bán ra)') : rawName;
   const cash = (s.txns.find((t) => t.lines.some((l) => l.tk && l.tk.indexOf('112') === 0)) || { lines: [] }).lines.find((l) => l.tk && l.tk.indexOf('112') === 0);
   const dates = s.txns.map((t) => t.iso).filter(Boolean).sort();
   const period = dates.length ? vnDate(dates[0]) + '–' + vnDate(dates[dates.length - 1]) : '';
   const bal = info.balance_ok === true ? `<span class="ok-text">${icon('checkCircle', 15, 2.4)}Số dư đầu–cuối khớp</span>` : info.balance_ok === false ? `<span class="bal-bad">${icon('xCircle', 15, 2.4)}Số dư đầu–cuối lệch — kiểm tra lại file</span>` : '';
-  const kind = (s.run && s.run.source_kind) === 'sao_ke' || !s.run ? 'Sao kê ngân hàng' : 'Chứng từ';
+  const invRun = isInvoiceRun(s);
+  const kind = invRun ? 'Hóa đơn điện tử' : (s.run && s.run.source_kind) === 'sao_ke' || !s.run ? 'Sao kê ngân hàng' : 'Chứng từ';
+  const invCounts = invRun ? s.txns.filter((t) => t.dir === 'mua').length + ' mua vào · ' + s.txns.filter((t) => t.dir === 'ban').length + ' bán ra' : '';
   return `<div class="file-row">
     <div class="card file-card">
       <span class="file-icon">${icon('file', 20)}</span>
       <div style="min-width:0;display:flex;flex-direction:column;gap:2px">
-        <div class="file-meta"><span>${kind}</span>${cash ? `<span class="dot" aria-hidden="true">·</span><span>TK ${esc(cash.tk)}</span>` : ''}${period ? `<span class="dot" aria-hidden="true">·</span><span>${esc(period)}</span>` : ''}<span class="dot" aria-hidden="true">·</span><span>${s.txns.length} giao dịch</span>${bal ? `<span class="dot" aria-hidden="true">·</span>${bal}` : ''}</div>
+        <div class="file-meta"><span>${kind}</span>${cash ? `<span class="dot" aria-hidden="true">·</span><span>TK ${esc(cash.tk)}</span>` : ''}${period ? `<span class="dot" aria-hidden="true">·</span><span>${esc(period)}</span>` : ''}<span class="dot" aria-hidden="true">·</span><span>${invRun ? s.txns.length + ' hóa đơn (' + invCounts + ')' : s.txns.length + ' giao dịch'}</span>${bal ? `<span class="dot" aria-hidden="true">·</span>${bal}` : ''}</div>
         <span class="file-name">${esc(name)}${s.run && s.run.created_at ? ' · đề xuất lúc ' + esc(vnTime(s.run.created_at)) : ''}</span>
       </div>
     </div>
-    ${s.phase === 'loaded' ? `<button type="button" class="btn btn-newfile" data-act="repropose" title="Tính lại đề xuất cho các giao dịch đang chờ (sau khi đổi mốc học, ánh xạ TK hoặc đã duyệt thêm)">${icon('refresh', 16)}Đề xuất lại</button><button type="button" class="btn btn-newfile" data-act="reset-file">${icon('upload', 16)}Thả file khác</button>` : ''}
+    ${s.phase === 'loaded' ? `<button type="button" class="btn btn-newfile" data-act="repropose" title="Tính lại đề xuất cho các giao dịch đang chờ (sau khi đổi mốc học, ánh xạ TK hoặc đã duyệt thêm)">${icon('refresh', 16)}Đề xuất lại</button><button type="button" class="btn btn-newfile" data-act="reset-file">${icon('upload', 16)}${invRun ? 'Chọn tháng / file khác' : 'Thả file khác'}</button>` : ''}
   </div>`;
 }
 function viewRecentList(s) {
@@ -555,7 +645,8 @@ function viewRecentList(s) {
   return s.recent.map((r) => {
     const period = r.first_day ? vnDate(r.first_day) + '–' + vnDate(r.last_day) : '';
     const parts = [r.count + ' giao dịch', r.approved ? r.approved + ' đã đồng ý chờ xuất' : '', r.exported ? r.exported + ' đã xuất' : '', r.waiting ? r.waiting + ' chờ duyệt' : ''].filter(Boolean).join(' · ');
-    return `<div class="recent-item">${icon('file', 20)}<div class="recent-text"><b>${esc(r.source_name || 'Sao kê')}${period ? ' · ' + esc(period) : ''}</b><span>${esc(parts)} · làm lúc ${esc(vnTime(r.created_at))}</span></div><button type="button" class="btn btn-secondary btn-sm" data-act="open-run" data-run="${esc(r.id)}">Mở lại</button></div>`;
+    const name = r.source_kind === 'hoa_don' && /^Hoa don (\d{4})-(\d{2})\.zip$/.test(r.source_name || '') ? (r.source_name || '').replace(/^Hoa don (\d{4})-(\d{2})\.zip$/, 'Hóa đơn tháng $2/$1') : (r.source_name || 'Sao kê');
+    return `<div class="recent-item">${icon('file', 20)}<div class="recent-text"><b>${esc(name)}${period ? ' · ' + esc(period) : ''}</b><span>${esc(parts)} · làm lúc ${esc(vnTime(r.created_at))}</span></div><button type="button" class="btn btn-secondary btn-sm" data-act="open-run" data-run="${esc(r.id)}">Mở lại</button></div>`;
   }).join('');
 }
 function viewEmpty(s) {
@@ -563,13 +654,31 @@ function viewEmpty(s) {
       <span class="drop-icon">${icon('upload', 26)}</span>
       <span class="drop-title">Thả file vào đây hoặc bấm để chọn</span>
       <span class="sub" style="font-size:14px">Sao kê ngân hàng (.xlsx, .xls) — mỗi lần một file</span>
-      <span style="color:var(--chu-nhat);font-size:13px">Phần mềm tự nhận loại file, không cần chọn trước. Hóa đơn XML sẽ mở ở giai đoạn sau.</span>
+      <span style="color:var(--chu-nhat);font-size:13px">Phần mềm tự nhận loại file, không cần chọn trước. Hóa đơn: chọn tháng ở khung bên dưới.</span>
       ${s.overview && s.overview.bootstrap_job && s.overview.bootstrap_job.state === 'RUNNING' ? '<span style="color:var(--chinh);font-size:13px;font-weight:600">Đang nạp dữ liệu nền từ Junsky — vẫn có thể thả file, phần mềm sẽ chờ nạp xong rồi đề xuất.</span>' : ''}
     </button>
+    ${viewInvoiceMonths(s)}
     <section class="card recent" aria-labelledby="h-recent">
       <h2 id="h-recent">Đã làm gần đây</h2>
       ${viewRecentList(s)}
     </section>`;
+}
+/* V12: hóa đơn theo tháng — máy tự lấy XML mua vào + bán ra trong thư mục tải hóa đơn */
+function isInvoiceRun(s) { return !!(s.run && s.run.source_kind === 'hoa_don') || s.txns.some((t) => t.inv); }
+function viewInvoiceMonths(s) {
+  const d = s.invMonths;
+  if (!d) return '';
+  let body;
+  if (!d.root) body = '<div class="recent-empty">Chưa khai thư mục hóa đơn. Vào Nguồn dữ liệu → mục Hóa đơn, chọn thư mục tải hóa đơn (có các thư mục tháng yyyy-mm).</div>';
+  else if (!d.exists) body = '<div class="recent-empty">Không thấy thư mục hóa đơn đã khai: ' + esc(d.root) + '</div>';
+  else {
+    const test = d.months.filter((m) => !m.learning);
+    const learn = d.months.filter((m) => m.learning);
+    body = (test.length ? test.map((m) => `<div class="recent-item">${icon('file', 20)}<div class="recent-text"><b>Hóa đơn tháng ${esc(m.month.slice(5))}/${esc(m.month.slice(0, 4))}</b><span>${m.mua_vao} mua vào · ${m.ban_ra} bán ra</span></div><button type="button" class="btn btn-secondary btn-sm" data-act="invoice-month" data-month="${esc(m.month)}">Đề xuất bút toán</button></div>`).join('')
+      : '<div class="recent-empty">Chưa có tháng nào sau mốc học.</div>')
+      + (learn.length ? `<div class="recent-empty">${learn.length} tháng đến ${esc(learn[0].month.slice(5))}/${esc(learn[0].month.slice(0, 4))} là tháng <strong>dùng để học</strong> (mốc học ${d.learning_cutoff ? esc(vnDate(d.learning_cutoff)) : '—'}): máy đọc các hóa đơn này để biết đã hạch toán thế nào, không chạy thử.</div>` : '');
+  }
+  return `<section class="card recent" aria-labelledby="h-inv"><h2 id="h-inv">Hóa đơn theo tháng (mua vào + bán ra)</h2>${body}</section>`;
 }
 function viewProc(s) {
   const p = s.progress || {}; const total = p.total || 0; const done = p.done || 0;
@@ -618,8 +727,10 @@ function viewSummary(s) {
         <div class="review-top"><b>Đã duyệt ${done}/${review}</b><span>${waiting} chờ duyệt · ${ex} chờ xuất</span></div>
         <div class="bar bar--ok" role="progressbar" aria-label="Tiến độ duyệt" aria-valuemin="0" aria-valuemax="${review}" aria-valuenow="${done}"><span style="width:${pct}%"></span></div>
       </div>
+      ${s.overview && s.overview.scoring_mode ? `<button type="button" class="btn btn-secondary btn-lg" data-act="score" aria-disabled="${s.scoring}" title="So đề xuất của máy với chứng từ Junsky (chế độ chấm điểm)">${icon('checks', 16, 2.4)}${s.scoring ? 'Đang chấm…' : 'So với Junsky'}</button>` : ''}
       <button type="button" class="btn btn-primary btn-lg" data-act="open-export">${icon('download', 16)}Xuất file</button>
     </div>
+    ${s.overview && s.overview.scoring_mode ? `<div class="note-warn">${icon('warn', 17, 2.4)}<span>${s.overview.answer_ledger_name ? `<strong>Đang chấm điểm:</strong> sổ Junsky trong kho này chỉ có đến ${s.overview.ledger_to ? vnDate(s.overview.ledger_to) : '?'} (chứng từ sau ngày đó đã xóa khỏi kho). Nút “So với Junsky” đối chiếu với file đầy đủ <strong>${esc(s.overview.answer_ledger_name)}</strong>, chỉ để chấm. Không xuất File soát cho đến khi tắt chế độ chấm điểm.` : `<strong>Chế độ chấm điểm đang bật:</strong> máy chỉ học đến ${s.overview.learning_cutoff ? vnDate(s.overview.learning_cutoff) : '(chưa đặt mốc)'}; chứng từ Junsky sau mốc là đáp án, không đánh dấu “Đã có trong Junsky”. Tắt ở màn Nguồn dữ liệu trước khi dùng thật.`}</span></div>` : ''}
   </div>`;
 }
 function viewFilters(s) {
@@ -628,7 +739,7 @@ function viewFilters(s) {
   return `<div class="card filters">
     <div class="fgroup"><span class="fgroup-label">Mức</span>${pills('fLevel', [['all', 'Tất cả'], ['xanh', 'Xanh'], ['vang', 'Vàng'], ['do', 'Đỏ'], ['junsky', 'Đã có trong Junsky']])}</div>
     <div class="fgroup"><span class="fgroup-label">Trạng thái</span>${pills('fStatus', [['all', 'Tất cả'], ['cho', 'Chờ duyệt'], ['dongy', 'Đã đồng ý'], ['boqua', 'Đã bỏ qua'], ['junsky', 'Đã có trong Junsky']])}</div>
-    <div class="fgroup"><span class="fgroup-label">Chiều</span>${pills('fDir', [['all', 'Tất cả'], ['thu', 'Thu'], ['chi', 'Chi']])}</div>
+    <div class="fgroup"><span class="fgroup-label">Chiều</span>${pills('fDir', isInvoiceRun(s) ? [['all', 'Tất cả'], ['mua', 'Mua vào'], ['ban', 'Bán ra']] : [['all', 'Tất cả'], ['thu', 'Thu'], ['chi', 'Chi']])}</div>
     <label class="search">${icon('search', 16)}<span class="sr-only">Tìm giao dịch</span><input id="tim-giao-dich" type="search" data-input="q" value="${esc(s.q)}" placeholder="Tìm diễn giải, đối tượng, số tiền…"></label>
     <button type="button" class="btn btn-sm btn-soft-ok bulk" data-act="open-bulk" aria-disabled="${bl.length === 0}" title="${bl.length ? 'Đồng ý các giao dịch Xanh đủ điều kiện trong danh sách đang lọc' : 'Không có giao dịch Xanh nào đủ điều kiện trong danh sách đang lọc'}">${icon('checks', 16, 2.4)}Đồng ý tất cả dòng Xanh đang lọc (${bl.length})</button>
   </div>`;
@@ -652,10 +763,11 @@ function viewDetail(t, s, ck) {
   if (isJ) h += `<div class="note-js">${icon('book', 18)}<span>${esc(t.why)} Không cần duyệt và không được xuất lại. <button type="button" class="btn btn-sm btn-link" data-act="clear-existing" data-id="${esc(t.id)}">Không trùng — chuyển về Chờ duyệt</button></span></div>`;
   if (t.cashMissing && pend) h += `<div class="note-warn">${icon('warn', 17, 2.4)}<span>Chưa khai TK kế toán cho tài khoản ngân hàng của sao kê này nên thiếu vế TK tiền. <button type="button" class="btn btn-sm btn-link" data-act="go-nguon">Khai ở Nguồn dữ liệu</button> rồi bấm “Đề xuất lại”.</span></div>`;
   if (t.dirty && pend) h += `<div class="note-warn">${icon('warn', 17, 2.4)}<span>Bút toán đã được đổi so với đề xuất của máy (chọn phương án/điền gợi ý). Bấm Đồng ý để lưu phương án này.</span></div>`;
+  if (t.conflict && pend) h += `<div class="note-warn">${icon('warn', 17, 2.4)}<span>Danh bạ STK đang gắn số tài khoản này với <strong>${esc(t.conflict.code)}</strong>${t.conflict.name ? ' – ' + esc(t.conflict.name) : ''}, nhưng tên trên sao kê không khớp. Máy đã bỏ qua ánh xạ đó; Anh chọn đối tượng đúng bên dưới (hoặc bấm Sửa) — khi Đồng ý, danh bạ sẽ được sửa theo.</span></div>`;
   h += `<div class="et"><div class="et-inner">
       <div class="et-grid et-head"><span>Nợ/Có</span><span>Tài khoản</span><span class="right">Số tiền (VND)</span><span>Đối tượng</span><span>Dự án</span><span>Khoản mục</span><span>Trung tâm chi phí</span></div>
       ${lines}
-      <div class="et-foot"><span>Tổng Nợ <strong>${fmt(ck.n)}</strong> · Tổng Có <strong>${fmt(ck.c)}</strong>${t.party ? ' · Tên đối ứng trên sao kê: <strong>' + esc(t.party) + '</strong>' : ''}</span>${ck.bal ? `<span class="bal-ok">${icon('checkCircle', 15, 2.4)}Nợ = Có</span>` : `<span class="bal-bad">${icon('xCircle', 15, 2.4)}Lệch ${fmt(ck.n - ck.c)} VND (Nợ ≠ Có)</span>`}</div>
+      <div class="et-foot"><span>Tổng Nợ <strong>${fmt(ck.n)}</strong> · Tổng Có <strong>${fmt(ck.c)}</strong>${t.party ? (t.inv ? (t.dir === 'mua' ? ' · Người bán trên hóa đơn: <strong>' : ' · Người mua trên hóa đơn: <strong>') : ' · Tên đối ứng trên sao kê: <strong>') + esc(t.party) + '</strong>' : ''}${t.inv && t.reference ? ' · ' + esc(t.reference) : ''}</span>${ck.bal ? `<span class="bal-ok">${icon('checkCircle', 15, 2.4)}Nợ = Có</span>` : `<span class="bal-bad">${icon('xCircle', 15, 2.4)}Lệch ${fmt(ck.n - ck.c)} VND (Nợ ≠ Có)</span>`}</div>
     </div></div>`;
   if (!isJ) {
     const sgShow = !!(pend && t.suggest && t.suggest.some((g) => g.kind === 'tk' ? t.lines.some((l) => !l.tk) : t.lines.some((l) => l.tk && isDebt(l.tk) && !l.dt)));
@@ -668,10 +780,11 @@ function viewDetail(t, s, ck) {
         <span>${esc(t.why)}</span>
         ${t.basis.length ? `<button type="button" class="btn-basis" data-act="basis" data-id="${esc(t.id)}" aria-expanded="${basisOpen}">${basisOpen ? 'Ẩn căn cứ' : 'Xem căn cứ (' + t.basis.length + ')'}</button>` : `<span style="font-size:13px;color:var(--chu-phu)">Không có chứng từ cũ đủ giống để làm căn cứ.</span>`}
       </div>`;
-    if (miss || sgShow || hasOpt) {
+    if (miss || sgShow || hasOpt || (pend && t.nameOpts)) {
       h += `<div class="side">`;
       if (miss) h += `<div class="miss">${icon('xCircle', 17, 2.4)}<span>${esc(reasonText(ck))}</span></div>`;
-      if (sgShow) h += `<div class="suggest"><span class="suggest-title">${esc(t.sgTitle)}</span>${t.suggest.map((g, i) => `<button type="button" class="chip" data-act="suggest" data-id="${esc(t.id)}" data-i="${i}" title="Bấm để điền vào bút toán">${icon('plus', 13, 2.6)}${esc(g.kind === 'tk' ? g.value + (nameOf('tk', g.value) ? ' – ' + nameOf('tk', g.value) : '') : lbl('dt', g.value))}</button>`).join('')}</div>`;
+      if (sgShow) h += `<div class="suggest"><span class="suggest-title">${esc(t.sgTitle)}</span>${t.suggest.map((g, i) => `<button type="button" class="chip" data-act="suggest" data-id="${esc(t.id)}" data-i="${i}" title="${esc(g.note ? g.note : 'Bấm để điền vào bút toán')}">${icon('plus', 13, 2.6)}${esc(g.kind === 'tk' ? g.value + (nameOf('tk', g.value) ? ' – ' + nameOf('tk', g.value) : '') : lbl('dt', g.value))}${g.note ? `<small class="chip-note">${esc(g.note)}</small>` : ''}</button>`).join('')}</div>`;
+      if (pend && t.nameOpts) h += `<div class="suggest"><span class="suggest-title">Đối tượng gợi ý theo tên:</span>${t.nameOpts.map((o) => `<button type="button" class="chip" data-act="pick-name" data-id="${esc(t.id)}" data-code="${esc(o.code)}" title="Bấm để gắn đối tượng này cho bút toán">${icon('plus', 13, 2.6)}${esc(o.code)}${o.name ? ' – ' + esc(o.name) : ''}</button>`).join('')}</div>`;
       if (hasOpt) {
         h += `<span class="eyebrow eyebrow--amber">CÁC PHƯƠNG ÁN</span><div class="options">${t.options.map((o, i) => `<div class="option${t.chosen === i ? ' is-active' : ''}">
           <span class="option-title">Phương án ${i + 1} · ${esc(o.label)}</span>
@@ -688,7 +801,23 @@ function viewDetail(t, s, ck) {
     }
     if (t.status === 'boqua') h += `<p class="skip-note">Lý do bỏ qua: ${esc(t.skipReason || 'không ghi')}</p>`;
   }
+  h += viewAiBox(t);
   return h + `</div>`;
+}
+function viewAiBox(t) {
+  const id = esc(t.id);
+  if (!t.aiOpen) return `<div class="ai-row"><button type="button" class="btn btn-sm btn-link" data-act="ai-toggle" data-id="${id}">${icon('book', 14)}${t.aiNote ? 'Xem ghi chú cho AI' : 'Ghi chú cho AI / gửi Claude'}</button></div>`;
+  const changed = (t.aiDraft || '') !== (t.aiNote || '');
+  return `<div class="ai-box">
+    <span class="eyebrow eyebrow--blue">GHI CHÚ CHO AI</span>
+    <textarea id="ai-${id}" class="input ai-text" rows="3" data-input="aiNote" data-id="${id}" placeholder="Anh muốn giao dịch này xử lý thế nào, vì sao máy sai… Ghi chú được gói cùng ngữ cảnh (đề xuất, căn cứ, chứng từ Junsky) để Claude phân tích hoặc sửa phần mềm.">${esc(t.aiDraft || '')}</textarea>
+    <div class="btn-row">
+      <button type="button" class="btn btn-sm btn-primary" data-act="ai-save" data-id="${id}" aria-disabled="${!changed}">Lưu ghi chú</button>
+      <button type="button" class="btn btn-sm btn-secondary" data-act="ai-send" data-id="${id}">Gửi Claude (tạo gói ngữ cảnh)</button>
+      <button type="button" class="btn btn-sm btn-link" data-act="ai-toggle" data-id="${id}">Thu gọn</button>
+      ${t.aiNote ? '<span class="small">Đã lưu.</span>' : ''}
+    </div>
+  </div>`;
 }
 function viewRow(t, s) {
   const ck = check(t.lines, t);
@@ -715,7 +844,7 @@ function viewRow(t, s) {
       <button type="button" class="txn-main txn-cols" id="row-${id}" data-act="toggle" data-id="${id}" aria-expanded="${open}">
         <span class="chev">${icon(open ? 'chevDown' : 'chevRight', 16, 2.2)}</span>
         <span class="date">${esc(t.date)}</span>
-        <span class="money"><span class="dir dir--${t.dir}">${t.dir === 'thu' ? 'Thu' : 'Chi'}</span><span class="amt amt--${t.dir}">${t.dir === 'thu' ? '+' : '−'}${fmt(t.amt)}</span></span>
+        <span class="money"><span class="dir dir--${t.dir}">${DIR_WORD[t.dir]}</span><span class="amt amt--${t.dir}">${DIR_SIGN[t.dir]}${fmt(t.amt)}</span></span>
         <span class="desc-cell"><span class="desc" title="${esc(t.desc)}">${esc(t.desc)}</span><span class="obj${obj ? '' : ' obj--missing'}">${esc(obj || 'Chưa có đối tượng')}</span></span>
         <span class="entry">${esc(entrySum(t.lines))}</span>
         <span style="display:flex">${badge(t.level)}</span>
@@ -729,7 +858,7 @@ function viewList(s) {
   const vis = visible(s);
   return `<div class="hint"><span class="tnum">Đang hiện ${vis.length}/${s.txns.length} giao dịch</span><span class="hint-keys">Phím tắt (bấm vào danh sách trước): <kbd>↑</kbd><kbd>↓</kbd> chuyển · <kbd>Enter</kbd> mở/đóng · <kbd>A</kbd> đồng ý · <kbd>E</kbd> sửa · <kbd>S</kbd> bỏ qua</span></div>
   <section class="card txn-list" id="ds-giao-dich" tabindex="0" aria-label="Danh sách giao dịch, dùng phím mũi tên để chuyển">
-    <div class="txn-head"><div class="txn-cols"><span></span><span>Ngày</span><span>Thu/Chi · Số tiền</span><span>Diễn giải gốc · Đối tượng</span><span>Bút toán đề xuất</span><span>Mức</span></div><div class="act-h">Thao tác</div></div>
+    <div class="txn-head"><div class="txn-cols"><span></span><span>Ngày</span><span>${isInvoiceRun(s) ? 'Mua/Bán · Tiền HĐ' : 'Thu/Chi · Số tiền'}</span><span>${isInvoiceRun(s) ? 'Tên hàng · Đối tượng' : 'Diễn giải gốc · Đối tượng'}</span><span>Bút toán đề xuất</span><span>Mức</span></div><div class="act-h">Thao tác</div></div>
     ${vis.map((t) => viewRow(t, s)).join('')}
     ${vis.length ? '' : `<div class="empty-filter"><span>Không có giao dịch khớp bộ lọc.</span><button type="button" class="btn btn-secondary" data-act="clear-filters">Xóa bộ lọc</button></div>`}
   </section>`;
@@ -806,6 +935,12 @@ function pageNguon(s) {
         </div>` : `<div><button type="button" class="btn btn-dashed" data-act="add-bank">${icon('plus', 14, 2.4)}Thêm tài khoản</button></div>`}
       </div>
       <div class="card panel">
+        <span class="panel-title">Chế độ chấm điểm (so với Junsky)</span>
+        <span class="sub">Bật khi muốn kiểm tra độ chính xác: đặt <strong>Mốc học</strong> (ví dụ 30/06/2026), bật chế độ này, rồi thả sao kê của tháng sau mốc (T7, T8). Máy không dùng chứng từ sau mốc để học và không đánh dấu “Đã có trong Junsky”; nút <strong>So với Junsky</strong> ở màn Định khoản chấm từng dòng. <strong>Tắt trước khi dùng thật.</strong></span>
+        <label class="export-opt"><input type="checkbox" data-check="scoring"${o.scoring_mode ? ' checked' : ''}><span><strong>${o.scoring_mode ? 'Đang bật' : 'Đang tắt'}</strong><small>${o.scoring_mode ? 'Chứng từ Junsky sau mốc học là đáp án, không phải tri thức.' : 'Vận hành bình thường: học toàn bộ sổ đến mốc, đánh dấu dòng đã có trong Junsky.'}</small></span></label>
+        <span style="font-size:12.5px;color:var(--chu-nhat)">AI cục bộ: ${o.local_ai && o.local_ai.enabled ? 'đang bật (' + esc(o.local_ai.url || '') + ')' : 'tắt — chỉ bật trong source-settings.json khi máy đã cài LM Studio/Ollama; chỉ dùng để chọn giữa các tên gần giống.'}</span>
+      </div>
+      <div class="card panel">
         <span class="panel-title">Tài khoản công nợ bắt buộc có đối tượng</span>
         <span class="sub">Nút Đồng ý chỉ bấm được khi các dòng có tài khoản này (kể cả tài khoản chi tiết, ví dụ 1388 gồm 13881) đã có đối tượng. <strong>Danh sách chờ CFO xác nhận.</strong></span>
         <div class="btn-row" style="align-items:flex-end"><div class="stack"><label class="lbl" for="debt">Các tài khoản (cách nhau dấu phẩy)</label><input id="debt" class="input debt-input" type="text" data-input="debtDraft" value="${esc(s.debtDraft)}"></div><button type="button" class="btn btn-primary" data-act="apply-debt">Lưu</button></div>
@@ -827,6 +962,29 @@ function pageTC(s) {
       <span></span><span class="tags">${(r.tags || []).map((t) => `<span class="tag">${esc(t)}</span>`).join('')}</span>
     </article>`).join('')}
     ${kb && !cards.length ? '<div class="card empty-card">Không tìm thấy quy tắc phù hợp. Thử số tài khoản (ví dụ 131) hoặc mã đối tượng.</div>' : ''}
+  </div>`;
+}
+function pageCFO(s) {
+  const c = s.cfo;
+  const rules = c ? c.rules || [] : [];
+  const monthLabel = (m) => (m && m.length >= 7 ? m.slice(5, 7) + '/' + m.slice(0, 4) : m || '');
+  const stat = (r) => {
+    if (!r.thang || !r.thang.length) return '<span class="sub">Chưa áp dụng lần nào.</span>';
+    return `<div class="mini-table"><div class="r r6 h"><span>Tháng</span><span>Áp dụng</span><span>Anh đồng ý giữ nguyên</span><span>Anh sửa</span><span>Bỏ qua</span><span>Chưa xử lý</span></div>
+      ${r.thang.map((m) => `<div class="r r6"><span>${esc(monthLabel(m.thang))}</span><span><strong>${m.ap_dung || 0}</strong></span><span>${m.giu_nguyen || 0}</span><span>${m.sua || 0}</span><span>${m.bo_qua || 0}</span><span>${m.cho || 0}</span></div>`).join('')}</div>`;
+  };
+  return `<div class="page page--narrow">
+    <div class="page-head page-head--stack"><h1>Tri thức CFO</h1><span class="sub">Quy tắc Anh quyết định khi trao đổi với Claude (tệp ${esc((c && c.file) || 'TRI-THUC-CFO.json')}). Claude ghi quy tắc theo xác nhận của Anh; phần mềm duyệt dưới tên Anh. Tắt ở đây thì máy ngừng dùng — bấm “Đề xuất lại” ở màn Định khoản để áp dụng.</span></div>
+    ${c && c.error ? `<div class="note-warn">${icon('warn', 17, 2.4)}<span>${esc(c.error)}</span></div>` : ''}
+    ${!c ? '<div class="card empty-card">Đang tải…</div>' : !rules.length ? '<div class="card empty-card">Chưa có quy tắc nào. Khi Anh chốt một cách hạch toán trong Cowork, Claude sẽ ghi vào đây.</div>' : ''}
+    ${rules.map((r) => `<article class="card kb">
+      <span class="eyebrow eyebrow--gray">MÃ</span><span class="kb-when"><span class="kb-kind${r.loai === 'LUU_Y' ? '' : ' kb-kind--anh'}">${r.loai === 'LUU_Y' ? 'LƯU Ý' : 'QUY TẮC'}</span> <strong>${esc(r.ma)}</strong> · Anh duyệt ${esc(r.ngay_duyet ? vnDate(r.ngay_duyet) : '?')} · ${r.dang_dung ? '<span class="tag">Đang dùng</span>' : '<span class="tag">Đã tắt</span>'}</span>
+      <span class="eyebrow eyebrow--gray">KHI</span><span>${esc(r.dieu_kien)}</span>
+      <span class="eyebrow eyebrow--blue">THÌ</span><span>${esc(r.ket_qua)}</span>
+      <span class="eyebrow eyebrow--gray">NGUỒN</span><span class="kb-why">${esc(r.nguon)}</span>
+      <span class="eyebrow eyebrow--gray">ĐÃ DÙNG</span><span>${stat(r)}</span>
+      <span></span><span class="btn-row"><button type="button" class="btn btn-sm ${r.dang_dung ? 'btn-secondary' : 'btn-primary'}" data-act="cfo-toggle" data-code="${esc(r.ma)}" data-on="${r.dang_dung ? '0' : '1'}" aria-disabled="${s.cfoBusy === r.ma}">${r.dang_dung ? 'Tắt quy tắc' : 'Bật lại'}</button></span>
+    </article>`).join('')}
   </div>`;
 }
 function pageLS(s) {
@@ -860,7 +1018,7 @@ function viewDrawer(s) {
   return `<button type="button" class="backdrop" aria-label="Đóng ngăn Sửa" data-act="close-drawer"></button>
   <aside class="drawer" aria-label="Sửa bút toán">
     <div class="drawer-head">
-      <div class="drawer-title"><h2>Sửa bút toán</h2><span class="meta">${esc(t.date)} · ${t.dir === 'thu' ? 'Thu' : 'Chi'} <strong>${fmt(t.amt)} VND</strong> · ${esc(t.desc)}</span></div>
+      <div class="drawer-title"><h2>Sửa bút toán</h2><span class="meta">${esc(t.date)} · ${DIR_WORD[t.dir]} <strong>${fmt(t.amt)} VND</strong> · ${esc(t.desc)}</span></div>
       <button type="button" class="icon-btn" id="drawer-close" aria-label="Đóng" data-act="close-drawer">${icon('x', 18, 2.2)}</button>
     </div>
     <div class="drawer-body" id="drawer-body">
@@ -898,10 +1056,32 @@ function viewModal(s) {
       <div class="mini-list">${bl.map((t) => `<div class="mini-row"><span>${esc(t.date)}</span><b>${fmt(t.amt)}</b><span class="ell">${esc(t.desc)}</span></div>`).join('')}</div>
       <p class="small">Chỉ gồm giao dịch mức Xanh, đang chờ duyệt, khớp bộ lọc hiện tại và đủ điều kiện (Nợ = Có, tài khoản công nợ có đối tượng). Có thể hoàn tác ngay sau khi đồng ý.</p>
       <div class="btn-row btn-row--end"><button type="button" class="btn btn-secondary" id="modal-cancel" data-act="close-modal">Hủy</button><button type="button" class="btn btn-primary" data-act="confirm-bulk">Đồng ý ${bl.length} giao dịch</button></div>`;
+  } else if (s.modal === 'score') {
+    const r = s.score || { summary: [], rows: [] }; label = 'So với Junsky';
+    const sum = (k) => r.summary.reduce((a, x) => a + (x[k] || 0), 0);
+    const bad = r.rows.filter((x) => x.account_ok === false || x.counterparty_ok === false).slice(0, 40);
+    const invScore = r.kind === 'INVOICE';
+    body = `<h2>So đề xuất của máy với chứng từ Junsky</h2>
+      <p class="small">${invScore ? 'Mỗi hóa đơn được ghép với chứng từ Junsky theo số tiền chưa thuế + tiền thuế (20 ngày trước đến 75 ngày sau ngày hóa đơn), rồi so TK chi phí/doanh thu (cột “TK đúng”), TK công nợ, đối tượng, dự án. Chấm riêng Mua vào và Bán ra.' + (r.summary.length ? ' TK công nợ đúng: ' + r.summary.map((x) => esc(x.level) + ' ' + (x.partner_ok || 0) + '/' + x.matched).join(' · ') + '.' : '') : 'Mỗi dòng sao kê được ghép với chứng từ Junsky theo ngày + số tiền (gộp dòng 112; nhiều lần chuyển cùng ngày = 1 chứng từ), rồi so tài khoản đối ứng, đối tượng, dự án.'}${r.answer_source ? ' Đáp án: <strong>' + esc(r.answer_source) + '</strong>.' : ''}</p>
+      <div class="score-table">
+        <div class="r r9 h"><span>Mức</span><span>Dòng</span><span>Ghép được</span><span>Không ghép</span><span>TK đúng</span><span>Có đối tượng</span><span>Đối tượng đúng</span><span>Có dự án</span><span>Dự án đúng</span></div>
+        ${r.summary.map((x) => `<div class="r r9"><span><b>${esc(x.level)}</b></span><span>${x.rows}</span><span>${x.matched}</span><span>${x.unmatched}</span><span>${x.account_ok}/${x.matched}</span><span>${x.counterparty_given}</span><span>${x.counterparty_ok}/${x.counterparty_given}</span><span>${x.project_given}</span><span>${x.project_ok}/${x.project_given}</span></div>`).join('')}
+        <div class="r r9 h"><span>Tổng</span><span>${sum('rows')}</span><span>${sum('matched')}</span><span>${sum('unmatched')}</span><span>${sum('account_ok')}/${sum('matched')}</span><span>${sum('counterparty_given')}</span><span>${sum('counterparty_ok')}/${sum('counterparty_given')}</span><span>${sum('project_given')}</span><span>${sum('project_ok')}/${sum('project_given')}</span></div>
+      </div>
+      ${bad.length ? `<p class="small" style="margin-top:10px"><strong>${bad.length} dòng máy sai TK hoặc sai đối tượng</strong> (chi tiết đầy đủ trong file):</p><div class="mini-list">${bad.map((x) => `<div class="mini-row"><span>${esc(vnDate(x.business_date))}</span><b>${fmt(x.amount_minor)}</b><span class="ell">${esc(x.level)} · máy ${esc(x.proposed || '?')}${x.counterparty ? ' [' + esc(x.counterparty) + ']' : ''} · Junsky ${esc(x.actual || '?')}${x.actual_counterparty ? ' [' + esc(x.actual_counterparty) + ']' : ''} · CT ${esc(x.voucher)}</span></div>`).join('')}</div>` : ''}
+      <div class="path">${esc((r.folder_display ? r.folder_display + '\\' : '') + (r.file || ''))}</div>
+      <div class="btn-row btn-row--end"><button type="button" class="btn btn-secondary" id="modal-cancel" data-act="close-modal">Đóng</button><button type="button" class="btn btn-secondary" data-act="download-score-file">${icon('download', 16)}Tải về</button><button type="button" class="btn btn-primary" data-act="open-score-file">${icon('folder', 16)}Mở file</button></div>`;
+  } else if (s.modal === 'ai') {
+    const r = s.aiResult || {}; label = 'Gói ngữ cảnh cho Claude';
+    body = `<div class="done-head"><span class="done-icon">${icon('check', 22, 2.6)}</span><h2>Đã tạo gói ngữ cảnh (${r.count || 0} giao dịch)</h2></div>
+      <p class="small">File nằm trong thư mục dưới đây (bản mới nhất luôn là <strong>MOI-NHAT.md</strong>). Trong phiên Cowork, Anh chỉ cần nói: <em>“đọc ghi chú AI mới nhất”</em> — Claude đọc file này từ máy Anh rồi phân tích hoặc sửa phần mềm.</p>
+      <div class="path">${esc((r.folder_display ? r.folder_display + '\\' : '') + (r.file || ''))}</div>
+      <details class="ai-preview"><summary>Xem nội dung gói</summary><pre>${esc(r.markdown || '')}</pre></details>
+      <div class="btn-row btn-row--end"><button type="button" class="btn btn-secondary" id="modal-cancel" data-act="close-modal">Đóng</button><button type="button" class="btn btn-primary" data-act="open-ai-folder">${icon('folder', 16)}Mở thư mục</button></div>`;
   } else if (s.modal === 'skip') {
     const t = s.txns.find((x) => x.id === s.skipId); label = 'Bỏ qua giao dịch';
     body = `<h2>Bỏ qua giao dịch</h2>
-      <p class="tnum">${t ? esc(t.date + ' · ' + (t.dir === 'thu' ? 'Thu ' : 'Chi ') + fmt(t.amt) + ' VND · ' + t.desc) : ''}</p>
+      <p class="tnum">${t ? esc(t.date + ' · ' + DIR_WORD[t.dir] + ' ' + fmt(t.amt) + ' VND · ' + t.desc) : ''}</p>
       <p class="small">Giao dịch sẽ không có trong file xuất; kế toán hạch toán tay trong Junsky.</p>
       <div class="stack"><label class="lbl" for="ly-do">Lý do (không bắt buộc)</label><input id="ly-do" class="input" type="text" data-input="skipReason" value="${esc(s.skipReason)}" placeholder="Ví dụ: chờ hợp đồng, cần hỏi lại phòng kinh doanh"></div>
       <div class="btn-row btn-row--end"><button type="button" class="btn btn-secondary" id="modal-cancel" data-act="close-modal">Hủy</button><button type="button" class="btn btn-dark" data-act="confirm-skip">Bỏ qua giao dịch</button></div>`;
@@ -932,7 +1112,7 @@ function viewToast(s) {
   return `<div class="toast" role="status"><span>${esc(s.toast.text)}</span>${s.toast.undo ? '<button type="button" class="toast-undo" data-act="undo">Hoàn tác</button>' : ''}<button type="button" class="toast-close" aria-label="Đóng thông báo" data-act="close-toast">${icon('x', 15, 2.4)}</button></div>`;
 }
 function view(s) {
-  const page = s.screen === 'dk' ? pageDK(s) : s.screen === 'nguon' ? pageNguon(s) : s.screen === 'tracuu' ? pageTC(s) : pageLS(s);
+  const page = s.screen === 'dk' ? pageDK(s) : s.screen === 'nguon' ? pageNguon(s) : s.screen === 'tracuu' ? pageTC(s) : s.screen === 'cfo' ? pageCFO(s) : pageLS(s);
   return `<div class="app">${viewTopbar(s)}${viewNav(s)}<main class="main" id="main">${page}</main>${s.drawer ? viewDrawer(s) : ''}${s.modal ? viewModal(s) : ''}${s.toast ? viewToast(s) : ''}</div>`;
 }
 
@@ -984,12 +1164,14 @@ $app.addEventListener('input', (e) => {
   const f = t.dataset.input; if (!f) return;
   if (f === 'amt') { const v = t.value.replace(/\D/g, ''); dSet(+t.dataset.li, 'amt', v ? Number(v) : 0); return; }
   if (f === 'mapAcct') { set({ mapForm: Object.assign({}, S.mapForm, { acct: t.value }) }); return; }
+  if (f === 'aiNote') { const id = t.dataset.id, v = t.value; set((s) => ({ txns: s.txns.map((x) => x.id === id ? Object.assign({}, x, { aiDraft: v }) : x) })); return; }
   set({ [f]: t.value });
   if (f === 'kbQ') { clearTimeout(timers.kb); timers.kb = setTimeout(loadKb, 300); }
 });
 $app.addEventListener('change', (e) => {
   const t = e.target;
   if (t.matches('[data-remember]')) dUpd((d) => { d.remember = t.checked; });
+  else if (t.matches('[data-check="scoring"]')) toggleScoring(t.checked);
   else if (t.matches('[data-select="mapGl"]')) set({ mapForm: Object.assign({}, S.mapForm, { gl: t.value }) });
 });
 $app.addEventListener('focusin', (e) => {

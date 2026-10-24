@@ -244,4 +244,10 @@ FEATURE_MIGRATIONS = (
             total_minor INTEGER NOT NULL CHECK(total_minor>=0),
             files_json TEXT NOT NULL)""",
     ),
+    (
+        # V11: a free-text note per transaction for the AI/Claude hand-off, and
+        # the scoring replay's per-row comparison with the Junsky voucher.
+        "ALTER TABLE quick_items ADD COLUMN ai_note TEXT",
+        "ALTER TABLE quick_items ADD COLUMN ai_note_at TEXT",
+    ),
 )

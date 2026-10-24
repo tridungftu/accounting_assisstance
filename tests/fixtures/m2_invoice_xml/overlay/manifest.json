@@ -1,0 +1,43 @@
+{
+  "status": "PRIVATE_DEMO_OVERLAY_NOT_PRODUCT_ACCEPTANCE",
+  "old_corpus_pins": {
+    "manifest.json": "3f947bbbad7313a31111b19cf4057c6119ce17419ac7e1b426ad92032c13c0f8",
+    "oracle.json": "fd34eebb243410ee73f5537599a98b282ae7d0e932a7b7725f271f42dc37e182",
+    "profile.md": "37d57c38138e7b76f916cb20ef72d92306967d1cce572820b15b135246c32fcf"
+  },
+  "proposal_sha256": "ebcd36fb2c3309c794a9a0f3681afa1da8d1eb3537b53e6a92486e169043f0a4",
+  "generator_sha256": "86465f1911920cc897d6635a2818fa0f4c4c61b27806452d5011eea9452a890f",
+  "manual_expected_sha256": "0aaf3d06d5dbad147fe4eee40ff87b600a8d96132c510c574388ea1700e6caf2",
+  "files": [
+    {
+      "path": "trusted-contexts.json",
+      "sha256": "c3af51f80b2f3631324e814f7c9ee70d4b1f35d8e7f5a56bd83eaceb9d7aac04",
+      "bytes": 13025
+    },
+    {
+      "path": "identity-content-expected.json",
+      "sha256": "a7f6fb0f137179cb8ce2946a8e868a8d6db8cb6e0ce2942d82442ce4f4410efd",
+      "bytes": 34807
+    },
+    {
+      "path": "line-crosswalk.json",
+      "sha256": "79574902b50315768cfee4bdf7cac05b87bac44c55937a119ac43c50306db362",
+      "bytes": 5104
+    },
+    {
+      "path": "route-decisions.json",
+      "sha256": "b054c91393e76f202eebcef38a5f2ebedec7f17166e73148323e3ef9f665b8c8",
+      "bytes": 1385
+    },
+    {
+      "path": "actor-matrix.json",
+      "sha256": "166d239d63e319c7e0982a92d44b4d1f2a242cf7c62bba6d67eccd098e04b569",
+      "bytes": 2867
+    }
+  ],
+  "observation_count": 11,
+  "identity_count": 6,
+  "content_count": 8,
+  "crosswalk_row_count": 8,
+  "actor_count": 8
+}

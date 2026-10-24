@@ -1,0 +1,16 @@
+{
+  "status": "DECLARED_DEMO_NOT_ACTUAL_NOT_CONFIGURED",
+  "source_instance": "DEMO_KHO_A",
+  "profile_ref": "urn:demo:m5:source-profile:f05eee570c7c8861b219ca97",
+  "profile_sha256": "b8735806b72701dc6a4a54c3b3772e70326efbc812543b1c5969576be3eedb41",
+  "scope_ref": "urn:demo:m5:scope:r16-split-six-v1",
+  "MaKho": "KHO_DEMO",
+  "SoPhieu": "NK20261019006",
+  "sections": [
+    "GD_Dong",
+    "GD_Phieu",
+    "MASTER_WHITELIST"
+  ],
+  "coverage_binding": "REPORTED_PER_CAPTURE_NOT_IMMUTABLE_SCOPE_FACT",
+  "actual_scope_installation": false
+}

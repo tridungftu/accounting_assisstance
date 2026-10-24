@@ -25,6 +25,28 @@ def compile_pattern(pattern):
     return compiled
 
 
+_KEYWORD_LIST = re.compile(r"^[A-Z0-9 ]+(?: \+ [A-Z0-9 ]+)*$")
+
+
+@lru_cache(maxsize=4096)
+def keyword_regex(pattern):
+    """Compile a rule trigger; a plain keyword list becomes a word-bounded "all terms" test.
+
+    The rulebook writes several keywords as ``PHI + THANH TOAN``.  Read as a
+    raw regular expression the ``+`` quantifier made such rules match only
+    text with two consecutive spaces, i.e. never (V11 finding H1).  Plain
+    keywords are therefore compiled as "every term present, on word
+    boundaries"; anything else is still an explicit regular expression.
+    """
+    text = str(pattern or "").strip()
+    plain = re.sub(r"\s*\+\s*", " + ", normalize_text(text)) if text else ""
+    if _KEYWORD_LIST.fullmatch(plain) and any(ch.isalpha() for ch in plain):
+        text = plain
+        terms = [" ".join(term.split()) for term in text.split(" + ") if term.strip()]
+        return re.compile("".join(r"(?=.*(?<![A-Z0-9])" + re.escape(term) + r"(?![A-Z0-9]))" for term in terms))
+    return compile_pattern(text)
+
+
 def literal_pattern(value):
     """Explicit conversion of a literal keyword, preserving regex syntax elsewhere."""
     term = normalize_text(text_id(value, "keyword"))
@@ -146,7 +168,7 @@ def matches(payload, bank, fields):
             value, expected = normalized_name(value, trigger.get("name_normalization")), normalized_name(expected, trigger.get("name_normalization"))
         if value != expected:
             return False
-    return trigger["mode"] == "KEY" or compile_pattern(trigger["regex"]).search(normalize_text(bank.get("description", ""))) is not None
+    return trigger["mode"] == "KEY" or keyword_regex(trigger["regex"]).search(normalize_text(bank.get("description", ""))) is not None
 
 
 def case_matches(payload, bank, entity):

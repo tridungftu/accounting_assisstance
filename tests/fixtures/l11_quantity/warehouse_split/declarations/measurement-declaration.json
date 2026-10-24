@@ -1,0 +1,43 @@
+{
+  "status": "DECLARED_DEMO_NOT_ACTUAL_NOT_INSTALLED_NOT_APPROVED",
+  "source_instance": "DEMO_KHO_A",
+  "profile_ref": "urn:demo:m5:source-profile:f05eee570c7c8861b219ca97",
+  "profile_sha256": "b8735806b72701dc6a4a54c3b3772e70326efbc812543b1c5969576be3eedb41",
+  "declaration_ref": "ROOT_DEMO_R16_SPLIT6_CAI_EXACT_TEXT_38_12_V1",
+  "payload_sha256": "c9eb6a3ca743a6d799d528a2c9d07f973fc58ddc808bfe3723890612f119dbac",
+  "payload": {
+    "declaration_ref": "ROOT_DEMO_R16_SPLIT6_CAI_EXACT_TEXT_38_12_V1",
+    "source_instance": "DEMO_KHO_A",
+    "source_profile_ref": "urn:demo:m5:source-profile:f05eee570c7c8861b219ca97",
+    "measurement_profile_ref": "DEMO_EXACT_TEXT_CAI_A_V1",
+    "declared_encoding_kind": "EXACT_TEXT_SYNTHETIC_ONLY",
+    "quantity_domain": {
+      "precision": 38,
+      "scale": 12
+    },
+    "unit_definition": {
+      "reference_id": "DEMO_UNIT_CAI_A",
+      "native_unit_code": "CAI"
+    },
+    "same_unit_ratio_evidence": {
+      "measurement_profile_ref": "DEMO_EXACT_TEXT_CAI_A_V1",
+      "unit_definition_ref": "DEMO_UNIT_CAI_A",
+      "numerator_text": "1",
+      "denominator_text": "1"
+    },
+    "authority_origin": "EXPLICIT_ROOT_SYNTHETIC_DEMO_ONLY"
+  },
+  "resolution_preconditions": {
+    "actual_master_sha256": "3c67491146ef8025aa6b07a8092000fe400be6f3ed7f51671e4c06c35e1c7665",
+    "native_detail_sha256": "adfd623e4f4432272646ef925a5db0d5d3fd209fb50e870549d28223b4af009b",
+    "all_referenced_native_master_units": "CAI",
+    "all_present_nonnull_quantity_json_kinds": [
+      "STRING"
+    ],
+    "requires_at_least_one_quantity_string": true
+  },
+  "non_matching_resolution": "NULL_PLUS_ISSUES_HOLD_NO_DEFAULT_PROOF",
+  "actual_CFO_confirmation": null,
+  "actual_source_acceptance": null,
+  "approval_seeded": false
+}

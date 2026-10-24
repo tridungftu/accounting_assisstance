@@ -1,0 +1,212 @@
+{
+  "status": "SOURCE_RAW_PROPOSAL_ONLY_STAGED_NOT_INSTALLED_NOT_APPROVED_NOT_RUNTIME_ACCEPTANCE",
+  "root_technical_decision_date": "2026-10-19",
+  "source_inputs_protected": {
+    "R15_handoff_sha256": "33c380ba98f818819890a64f4657d7c87c078c38a0ab1c0d949cc5e337b54f93",
+    "old8literal_facts_sha256": "2195792bef97a1c94773f7fbe3391192e0ed24e872dfd904ac90ed54ba3b41fd",
+    "M2_profile_payload_sha256": "7e17794151a7711317da3d9ab00d96427d2b1e1c688b132feb78ce540bb2188d",
+    "M5_profile_payload_sha256": "b8735806b72701dc6a4a54c3b3772e70326efbc812543b1c5969576be3eedb41",
+    "original_K01_native_sha256": "56037f2e8145d0ca57b947e7213e03a4586ba601dc741b5ef554858f89df1107"
+  },
+  "evidence_files": [
+    {
+      "path": "shared-unit-definitions-v2.json",
+      "sha256": "2a3c5b3323c1bf46020aba8807640070c12b32b20344da55badc587319cd4504"
+    },
+    {
+      "path": "candidate-line-facts-r16-v2.json",
+      "sha256": "4836a42700057414c0ef031d45a466c0d18f59ee8399054fe37292e597b5b41d"
+    },
+    {
+      "path": "proofs/goods-equivalence-A-v2.json",
+      "sha256": "aef5de224e04fd64ef67a272689f72a041097ae93c5160393ef2297640d2bb4f"
+    },
+    {
+      "path": "proofs/cai-crossunit-1to1-v2.json",
+      "sha256": "bf4d47208740e16ad6cb59bdade9aae015bc8e5031fa797371eadf29e55cc319"
+    },
+    {
+      "path": "proofs/thung-native-unit-and-encoding-v2.json",
+      "sha256": "a860439cf802e9b21ea1fabc24c1d9d6b79d8ca7a0402fba4bd62416a979b60f"
+    },
+    {
+      "path": "proofs/thung-to-cai-12to1-v2.json",
+      "sha256": "c6e2fa840efd2644816192c8b753e68ebad241987cf69623f09022a665e4181b"
+    }
+  ],
+  "shared_unit_definition_payloads": [
+    {
+      "reference_id": "DEMO_UNIT_CAI_A",
+      "definition_sha256": "206b26eac399c240adf71f26c8daec5de13f8be45b4badc64523c7ae76b3977f",
+      "source_basis_ref": "urn:demo:l11:sourcebasis:m5cai:3a806526917dac322ee9ba4c6f7ea5ed88e02b780ea282c0300465e980e16801",
+      "declared_scope": "DEMO_KHO_A_PROFILE_CAI_V1"
+    },
+    {
+      "reference_id": "DEMO_M2_UNIT_THUNG_R16_V1",
+      "definition_sha256": "774d51c9017314e156e19729b64870d55a34187628fb6d21e2080ee90b83bdb1",
+      "source_basis_ref": "urn:demo:l11:sourcebasis:thung:65ce193e68053e59d5b18e4a7fa6879fa31499fbc2cd1ca5d138a95a30883a7a",
+      "declared_scope": "DEMO_M2_XML_INSTANCE_A_ITEM_A_THUNG_R16_V1"
+    }
+  ],
+  "source_contexts": {
+    "invoice": {
+      "source_instance": "DEMO_M2_XML_INSTANCE_A",
+      "profile_ref": "DEMO_M2_XML_QD1271_FIELDS_V1",
+      "profile_payload_sha256": "7e17794151a7711317da3d9ab00d96427d2b1e1c688b132feb78ce540bb2188d",
+      "scope_ref": "DEMO_M2_SCOPE_BOTH_COMPANIES_V1",
+      "company_mapping_ref": "DEMO_M2_COMPANY_MAP_A",
+      "company_mapping_revision": 1,
+      "new_literal_candidate_fact_count": 1,
+      "actual_CFO_mapping_and_KHO_required": true
+    },
+    "warehouse_split": {
+      "package_path": "tests/fixtures/l11_quantity/warehouse_split",
+      "manifest_sha256": "3cd9efef09ee8bb94e87829839f83701b5a91a8f3f981ee51baaa0e0becdab09",
+      "native_sha256": "adfd623e4f4432272646ef925a5db0d5d3fd209fb50e870549d28223b4af009b",
+      "master_sha256": "3c67491146ef8025aa6b07a8092000fe400be6f3ed7f51671e4c06c35e1c7665",
+      "source_instance": "DEMO_KHO_A",
+      "profile_ref": "urn:demo:m5:source-profile:f05eee570c7c8861b219ca97",
+      "profile_payload_sha256": "b8735806b72701dc6a4a54c3b3772e70326efbc812543b1c5969576be3eedb41",
+      "scope_ref": "urn:demo:m5:scope:r16-split-six-v1",
+      "master_ref": "urn:demo:m5:master:r16-split-six-v1",
+      "measurement_declaration_ref": "ROOT_DEMO_R16_SPLIT6_CAI_EXACT_TEXT_38_12_V1",
+      "measurement_payload_sha256": "c9eb6a3ca743a6d799d528a2c9d07f973fc58ddc808bfe3723890612f119dbac",
+      "native_logical_keys": [
+        [
+          "DEMO_KHO_A",
+          "NK20261019006",
+          "ID_1792382400001"
+        ],
+        [
+          "DEMO_KHO_A",
+          "NK20261019006",
+          "ID_1792382400002"
+        ]
+      ],
+      "history": "EXPLICIT_EMPTY_ACCEPTED_NULL_SEEN_EMPTY_NOT_DB_AUTHORITY",
+      "actual_source_acceptance": null,
+      "actual_CFO_proof_approval": null,
+      "staged_subset_provenance": {
+        "source_config_member_count": 8,
+        "upstream_manifest_path": "tests/fixtures/l11_quantity/warehouse_split/upstream-manifest.json",
+        "upstream_manifest_sha256": "3cd9efef09ee8bb94e87829839f83701b5a91a8f3f981ee51baaa0e0becdab09",
+        "manifest_sha256_semantics": "ORIGINAL_UPSTREAM_PACKAGE_MANIFEST_NOT_FILTERED_SUBSET_MANIFEST",
+        "original_package_contents_not_all_staged": true,
+        "upstream_manifest_usage": "OPAQUE_BYTE_HASH_PROVENANCE_ONLY_NEVER_RESOLVE_OR_LOAD_ITS_PATH_INVENTORY",
+        "runtime_input_resolution": "EXPLICIT_TYPED_NATIVE_MASTER_PROFILE_SCOPE_DECLARATION_FACTS_ONLY_NOT_UPSTREAM_MANIFEST_TRAVERSAL",
+        "excluded_source_files": [
+          "expected-source-facts.json",
+          "generate.ps1",
+          "PROVENANCE.md"
+        ],
+        "authority": "RAW_SYNTHETIC_DEMO_PROPOSAL_NOT_SOURCE_ACCEPTANCE_NOT_CFO_PROOF_APPROVAL"
+      }
+    }
+  },
+  "allocation_grain": {
+    "supersedes_only": "M5_BINDING_7DE60_SECTION4_LINE86_ACTIVE_PARENT_PAIR_BASIS_UNIQUE",
+    "original_binding_unchanged": true,
+    "one_confirm_request": "ONE_TYPED_PAIR_ONE_IMMUTABLE_ALLOCATION_UUID",
+    "child_unique": [
+      "phap_nhan_id",
+      "confirmation_receipt_id"
+    ],
+    "confirmation_receipt_module": "M5",
+    "confirmation_receipt_operation": "L11_CONFIRM",
+    "result_child_ID_derived_same_transaction": true,
+    "parent": "REUSE_TYPED_DOCUMENT_SNAPSHOT_PAIR_OWNER_M5_EVIDENCE_AMOUNT_NULL",
+    "different_keys_repeat_same_pair_basis": "ALLOWED_ONLY_IF_CURRENT_BOTH_BUDGETS_PERMIT",
+    "no_new_pool_per_child_or_key": true
+  },
+  "budget_bins": {
+    "confirmed": "status=DA_KHOP_AND_validity=CO_HIEU_LUC",
+    "held": "status=DA_KHOP_AND_validity=CAN_SOAT_EXACTLY_ONCE",
+    "HUY": "ZERO_RESERVATION",
+    "used": "CONFIRMED_PLUS_HELD_EACH_CHILD_ONCE_PER_POOL",
+    "source_ineligible": "AVAILABLE_NULL_BLOCKED_HELD_RESERVATION_PRESERVED"
+  },
+  "actor_proposals": [
+    {
+      "login_proposal": "MO_PHONG_L11_LINK_A",
+      "pn_ma": "PN_DEMO_A",
+      "read_actions": [
+        "M2_READ",
+        "M5_READ"
+      ],
+      "work_types_by_module": {
+        "M2": [
+          "V2"
+        ],
+        "M5": [
+          "V2"
+        ]
+      },
+      "file_action": "M5_FILE",
+      "actual_granted": false
+    },
+    {
+      "login_proposal": "MO_PHONG_L11_PROOF_CFO_A",
+      "pn_ma": "PN_DEMO_A",
+      "read_actions": [
+        "M2_READ",
+        "M5_READ"
+      ],
+      "work_types_by_module": {
+        "M2": [
+          "V4"
+        ],
+        "M5": [
+          "V4"
+        ]
+      },
+      "evidence_scope": "ONLY_CONFIGURED_DEMO_PROOF_PROFILE_CURRENT_CAPS",
+      "actual_granted": false
+    }
+  ],
+  "file_guards": {
+    "cross_M2_invoice_PB_obs_route_proof_fields": "CURRENT_BOTH_M2_READ_M5_READ_PLUS_M5_FILE_BEFORE_LOOKUP_REPLAY_DOWNLOAD",
+    "file_H": "QUANTITY_WHOLEGRAPH_WHEN_CROSS_FIELDS_REQUESTED",
+    "file_mode": "OWNER_STAGE_REGISTRY_DERIVED_IMMUTABLE_NOT_BROWSER_BOOLEAN",
+    "M5_only_source_export": "OLD_SCOPE_RIGHTS_AND_FORMAT_NO_CROSS_M2_FIELDS_OLD_BYTES_PRESERVED"
+  },
+  "existing_8_M5_8_M2_grants_revocations": "UNCHANGED_NO_REGRANT",
+  "proof_approval_seeded": false,
+  "DB_UUIDs": null,
+  "final_R15_API_schema_source_pins": "NOT_BOUND_AWAIT_ACTUAL_TERMINAL_FREEZE_REVIEW",
+  "unit_declaration_documents": [
+    {
+      "path": "unit-declarations/m5-cai-unit-declaration.json",
+      "raw_sha256": "4890796ad2d8799506e831e9256723a14c964a100add7f2dc4c206a2e4051d50",
+      "byte_length": 2522,
+      "payload_locator": "/unit/payload",
+      "source_instance": "DEMO_KHO_A",
+      "profile_ref": "urn:demo:m5:source-profile:f05eee570c7c8861b219ca97",
+      "profile_payload_sha256": "b8735806b72701dc6a4a54c3b3772e70326efbc812543b1c5969576be3eedb41",
+      "unit_reference_id": "DEMO_UNIT_CAI_A",
+      "definition_payload_sha256": "206b26eac399c240adf71f26c8daec5de13f8be45b4badc64523c7ae76b3977f",
+      "unit_source_basis_ref": "urn:demo:l11:sourcebasis:m5cai:3a806526917dac322ee9ba4c6f7ea5ed88e02b780ea282c0300465e980e16801",
+      "document_registry_basis_ref": "urn:demo:l11:unitdecl:4890796ad2d8799506e831e9256723a14c964a100add7f2dc4c206a2e4051d50",
+      "supporting_artifact_raw_sha256": "3a806526917dac322ee9ba4c6f7ea5ed88e02b780ea282c0300465e980e16801",
+      "source_origin_raw_sha256": "2a3c5b3323c1bf46020aba8807640070c12b32b20344da55badc587319cd4504",
+      "authority": "RAW_DECLARATION_DOCUMENT_NOT_INSTALLED_NOT_SOURCE_ACCEPTANCE_NOT_CFO_PROOF_APPROVAL",
+      "document_registry_basis_is_distinct_from_unit_support_basis": true
+    },
+    {
+      "path": "unit-declarations/thung-unit-declaration.json",
+      "raw_sha256": "881992f011460e37b3eff58d0c9cadeb570b584ab1b7d4d21ee348e8730a8157",
+      "byte_length": 2544,
+      "payload_locator": "/unit/payload",
+      "source_instance": "DEMO_M2_XML_INSTANCE_A",
+      "profile_ref": "DEMO_M2_XML_QD1271_FIELDS_V1",
+      "profile_payload_sha256": "7e17794151a7711317da3d9ab00d96427d2b1e1c688b132feb78ce540bb2188d",
+      "unit_reference_id": "DEMO_M2_UNIT_THUNG_R16_V1",
+      "definition_payload_sha256": "774d51c9017314e156e19729b64870d55a34187628fb6d21e2080ee90b83bdb1",
+      "unit_source_basis_ref": "urn:demo:l11:sourcebasis:thung:65ce193e68053e59d5b18e4a7fa6879fa31499fbc2cd1ca5d138a95a30883a7a",
+      "document_registry_basis_ref": "urn:demo:l11:unitdecl:881992f011460e37b3eff58d0c9cadeb570b584ab1b7d4d21ee348e8730a8157",
+      "supporting_artifact_raw_sha256": "65ce193e68053e59d5b18e4a7fa6879fa31499fbc2cd1ca5d138a95a30883a7a",
+      "source_origin_raw_sha256": "2a3c5b3323c1bf46020aba8807640070c12b32b20344da55badc587319cd4504",
+      "authority": "RAW_DECLARATION_DOCUMENT_NOT_INSTALLED_NOT_SOURCE_ACCEPTANCE_NOT_CFO_PROOF_APPROVAL",
+      "document_registry_basis_is_distinct_from_unit_support_basis": true
+    }
+  ]
+}

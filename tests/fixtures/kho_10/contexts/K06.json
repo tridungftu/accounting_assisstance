@@ -1,0 +1,106 @@
+{
+  "authority_ref": "urn:demo:m5:authority:b51ecab52df3b0c39f69065a",
+  "authority_origin": "ROOT_PREPARED_SYNTHETIC_DEMO_NOT_NATIVE_OR_BROWSER",
+  "actual_source_verification": "NOT_VERIFIED",
+  "logical_source_identity": {
+    "source_instance": "DEMO_KHO_A",
+    "SoPhieu": "NK20260814001"
+  },
+  "receipt_id": "urn:demo:m5:receipt:27f26bc00213065f7cfbbd66",
+  "request_digest": null,
+  "request_binding_state": "CURRENT_REQUEST_COMPUTE_FROM_INPUT_NOT_SUPPLIED",
+  "profile_ref": "urn:demo:m5:source-profile:f05eee570c7c8861b219ca97",
+  "source_code_sha256": "62f4658321ea6c6230a58cf850d49de43e2db826e5a66f807249de29af873e2c",
+  "scope_ref": "urn:demo:m5:scope:f08b4a9bf0c11f07cee2f2fc",
+  "scope": {
+    "source_instance_id": "DEMO_KHO_A",
+    "MaKho": "KHO_DEMO",
+    "SoPhieu": "NK20260814001",
+    "sections": [
+      "GD_Phieu",
+      "GD_Dong",
+      "MASTER_WHITELIST"
+    ],
+    "coverage": "FULL_FOR_SINGLE_DETAIL_AND_REFERENCED_MASTER_ONLY"
+  },
+  "capture_ref": "urn:demo:m5:capture:09b656f6acb20e497411030b",
+  "capture_consistency_claim": "SYNTHETIC_ATOMIC_CAPTURE_NOT_NATIVE_ENDPOINT_GUARANTEE",
+  "source_revision_token": null,
+  "source_as_of": null,
+  "server_known_at": null,
+  "mapping_revision": {
+    "reference_id": "DEMO_MAP_A_V1",
+    "version": 1,
+    "source_instance": "DEMO_KHO_A",
+    "MaKho": "KHO_DEMO",
+    "phap_nhan": "DEMO_PN_A",
+    "authority_origin": "ROOT_SYNTHETIC_DEMO_ONLY",
+    "actual_mapping_verification": "NOT_VERIFIED"
+  },
+  "master_snapshot": {
+    "reference_id": "urn:demo:m5:master:7aea96355efd196e316f1ccc",
+    "raw_subtree_sha256": "3a806526917dac322ee9ba4c6f7ea5ed88e02b780ea282c0300465e980e16801",
+    "whitelist_rows": {
+      "DM_HangHoa": [
+        {
+          "MaHang": "HH_DEMO_A",
+          "DVT_Goc": "CAI",
+          "DVT_QuyDoi": null
+        },
+        {
+          "MaHang": "HH_DEMO_B",
+          "DVT_Goc": "CAI",
+          "DVT_QuyDoi": null
+        }
+      ],
+      "DM_Kho": [
+        {
+          "MaKho": "KHO_DEMO",
+          "TrangThai": "Hoạt động"
+        }
+      ],
+      "DM_DoiTac": [
+        {
+          "MaDoiTac": "DT_DEMO",
+          "MaDoiTuong_KT": "DTKT_DEMO"
+        }
+      ]
+    },
+    "actual_master_history_verification": "NOT_VERIFIED"
+  },
+  "quantity_evidence": {
+    "profile_ref": "DEMO_EXACT_TEXT_CAI_A_V1",
+    "native_encoding_kind": "EXACT_TEXT_SYNTHETIC_ONLY",
+    "unit_definition_ref": "DEMO_UNIT_CAI_A",
+    "authority_origin": "EXPLICIT_SYNTHETIC_DEMO_NOT_CURRENT_SOURCE_GUARANTEE",
+    "conversion_kind": "SAME_VERIFIED_UNIT_ONLY",
+    "approved_conversion_proof_ref": null,
+    "prior_unit_definition_ref": null,
+    "master_revision_ref": null,
+    "ratio_numerator_text": "1",
+    "ratio_denominator_text": "1"
+  },
+  "actual_profile_proof_deployment": "NOT_VERIFIED",
+  "resolved_measurement_facts": {
+    "declaration_ref": "ROOT_DEMO_CAI_EXACT_TEXT_38_12_V1",
+    "source_instance": "DEMO_KHO_A",
+    "source_profile_ref": "urn:demo:m5:source-profile:f05eee570c7c8861b219ca97",
+    "measurement_profile_ref": "DEMO_EXACT_TEXT_CAI_A_V1",
+    "declared_encoding_kind": "EXACT_TEXT_SYNTHETIC_ONLY",
+    "quantity_domain": {
+      "precision": 38,
+      "scale": 12
+    },
+    "unit_definition": {
+      "reference_id": "DEMO_UNIT_CAI_A",
+      "native_unit_code": "CAI"
+    },
+    "same_unit_ratio_evidence": {
+      "measurement_profile_ref": "DEMO_EXACT_TEXT_CAI_A_V1",
+      "unit_definition_ref": "DEMO_UNIT_CAI_A",
+      "numerator_text": "1",
+      "denominator_text": "1"
+    },
+    "authority_origin": "EXPLICIT_ROOT_SYNTHETIC_DEMO_ONLY"
+  }
+}

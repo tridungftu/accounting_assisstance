@@ -1,0 +1,36 @@
+{
+  "status": "DRAFT_DECLARED_DEMO_NATIVE_ENCODING_NOT_APPROVED_NOT_INSTALLED",
+  "reference_id": "DEMO_R16_THUNG_NATIVE_ENCODING_V1",
+  "authority": "SEPARATE_ROOT_SYNTHETIC_NATIVE_ENCODING_REQUIRES_CURRENT_CFO_V4_NOT_PURE_CAI_PROFILE",
+  "pn_ma": "PN_DEMO_A",
+  "native_xml_sha256": "65ce193e68053e59d5b18e4a7fa6879fa31499fbc2cd1ca5d138a95a30883a7a",
+  "native_byte_length": 480,
+  "profile_ref_unchanged": "DEMO_M2_XML_QD1271_FIELDS_V1",
+  "pure_profile_quantity_normalized": "NULL_UNSUPPORTED_THUNG_CAIONLY_PROFILE_UNCHANGED",
+  "quantity_field_locator": "/HDon/DLHDon/NDHDon/DSHHDVu/HHDVu[1]/SLuong",
+  "quantity_decoded_lexeme": "1",
+  "unit_field_locator": "/HDon/DLHDon/NDHDon/DSHHDVu/HHDVu[1]/DVTinh",
+  "unit_decoded_lexeme": "THUNG",
+  "encoding_kind": "EXACT_TEXT_DECIMAL_38_12",
+  "unit_definition": {
+    "reference_id": "DEMO_M2_UNIT_THUNG_R16_V1",
+    "definition_sha256": "774d51c9017314e156e19729b64870d55a34187628fb6d21e2080ee90b83bdb1",
+    "canonical_definition_bundle": "shared-unit-definitions-v2.json"
+  },
+  "pool_unit_definition_ref": "DEMO_M2_UNIT_THUNG_R16_V1",
+  "native_to_pool_ratio": {
+    "numerator_text": "1",
+    "denominator_text": "1",
+    "same_definition_required": true
+  },
+  "source_row_byte_span": null,
+  "source_row_raw_sha256": null,
+  "no_edit_to_old_CAIfixtures": true,
+  "no_financial_amount_or_default_zero": true,
+  "approved": false,
+  "DB_encoding_id": null,
+  "actual_CFO_identity_and_approval": null,
+  "goods_domain_evidence_sha256": "aef5de224e04fd64ef67a272689f72a041097ae93c5160393ef2297640d2bb4f",
+  "candidate_line_facts_sha256": "4836a42700057414c0ef031d45a466c0d18f59ee8399054fe37292e597b5b41d",
+  "evidence_revision": 2
+}

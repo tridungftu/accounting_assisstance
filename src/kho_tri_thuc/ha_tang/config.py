@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 import tomllib
 from dataclasses import dataclass
 from pathlib import Path
@@ -30,6 +31,10 @@ class Config:
     vat_payment_evidence_threshold_minor: int = 0
     knowledge_approval_actor: str = "CFO_NTD"
     entity_name: str | None = None
+    # V13 bước 5: [storage] engine = "sqlite" (mặc định, kho thật) | "postgres" (kho thử T8); dsn lấy từ .env theo dsn_key
+    storage_engine: str = "sqlite"
+    storage_dsn_key: str = "KHO_PG_DSN"
+    storage_schema: str = "v12"
 
     @classmethod
     def load(cls, path: Path, data_dir: Path | None = None) -> Config:
@@ -96,8 +101,21 @@ class Config:
             statuses_map = source_data.get("tax_gateway_statuses", {})
             if not isinstance(statuses_map, dict) or any(not isinstance(k, str) or not isinstance(v, str) for k, v in statuses_map.items()):
                 raise DataError("INVALID_TAX_GATEWAY_STATUS", "Ánh xạ trạng thái cổng thuế phải là object chuỗi.")
+            storage = values.get("storage", {})
+            if not isinstance(storage, dict):
+                raise DataError("INVALID_STORAGE", "[storage] phải là bảng.")
+            storage_engine = storage.get("engine", "sqlite")
+            if storage_engine not in {"sqlite", "postgres"}:
+                raise DataError("INVALID_STORAGE", "[storage].engine chỉ nhận sqlite hoặc postgres.")
+            storage_dsn_key = text_id(storage.get("dsn_key", "KHO_PG_DSN"), "storage.dsn_key")
+            storage_schema = storage.get("schema", "v12")
+            if not isinstance(storage_schema, str) or not (storage_schema == "auto" or re.fullmatch(r"[a-z_][a-z0-9_]{0,40}", storage_schema)):
+                raise DataError("INVALID_STORAGE", "[storage].schema phải là tên schema chữ thường (a-z, 0-9, _) hoặc \"auto\".")
+            if storage_schema != "auto":
+                from .ket_noi import kiem_ten_schema
+                kiem_ten_schema(storage_schema)  # cấm trùng schema K2/hệ thống (review lần 2 #10)
         except (KeyError, TypeError, UnicodeError, tomllib.TOMLDecodeError) as exc:
             raise DataError("INVALID_CONFIG", "Cấu hình TOML thiếu trường hoặc sai cấu trúc.") from exc
         return cls(entity, directory.resolve(), "VND", 0, raw, sha256(raw), environment, export_enabled, import_enabled, statuses, candidate_limit,
                    tax_id, float(quarantine_ratio), parsed_natures, include_non_taxable, dict(statuses_map), extend_journal_coverage,
-                   catalog_valid_from, vat_threshold, approval_actor, entity_name)
+                   catalog_valid_from, vat_threshold, approval_actor, entity_name, storage_engine, storage_dsn_key, storage_schema)

@@ -1,0 +1,48 @@
+{
+  "status": "DECLARED_DEMO_NOT_INSTALLED_NOT_RUN",
+  "positive": {
+    "ref": "DEMO_ROUTE_G01_KHO_R1",
+    "version": 1,
+    "actor": "MO_PHONG_CFO_MUA_A",
+    "pn": "PN_DEMO_A",
+    "identity": "I_G01_A",
+    "content": "C_G01",
+    "logical_line": "DEMO_LINE_G01_A",
+    "crosswalk": "CW_G01_R1",
+    "route": "KHO",
+    "route_state": "NHAP",
+    "expected_current_route": null,
+    "current_basis_sha256": null,
+    "current_basis_state": "NOT_BOUND_SERVER_MUST_RESOLVE",
+    "client_key": "DEMO_M2_ROUTE_G01_KHO_01",
+    "reason": "Explicit synthetic neutral-route decision; no financial approval",
+    "mutation_effect": "VERSIONED_ROUTE_PROJECTION_ONLY_SOURCE_IMMUTABLE"
+  },
+  "negative": [
+    {
+      "case": "NO_CROSSWALK",
+      "expected": "HOLD_NO_CONFIRMED_LOGICAL_PAIR",
+      "business_route_delta": 0
+    },
+    {
+      "case": "STALE_ROUTE_OR_BASIS",
+      "expected": "CONFLICT_BEFORE_REPLAY",
+      "business_route_delta": 0
+    },
+    {
+      "case": "CROSS_PN",
+      "expected": "DENY_SAME_PN_COMPOSITE_GRAPH",
+      "business_route_delta": 0
+    },
+    {
+      "case": "OLD_CONTENT_PB",
+      "expected": "CONFLICT_CURRENT_SOURCE_BASIS",
+      "business_route_delta": 0
+    }
+  ],
+  "financial_V1_approval": false,
+  "L11_confirmation": false,
+  "M5_cross_unit_proof": null,
+  "cross_unit_proof_state": "NOT_BOUND",
+  "runtime_receiver_UUIDs": "NOT_BOUND"
+}

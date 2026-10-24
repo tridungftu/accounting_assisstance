@@ -1,0 +1,14 @@
+# Giao Claude M4-01B3 — Sửa hai lỗi trong bộ kiểm PG
+
+**CODE_ONLY · Phần tiếp tục M4 đã được Anh giao.** B2 thực tế đã terminal exec38599/outputc87dbf, exit0; đây là code bàn giao, chưa có test/runtime nào đạt. Root freeze291 có manifest SHA256 `3051d30d9c1eacba9061fe6fe7bc9c445ba48dc229b31642426478f9b329fa46`. Giữ đầy đủ kế hoạch M4 và hàng chờ CRM; lượt này chỉ sửa bộ kiểm.
+
+Root và peer đã FULL đọc `tests/test_m4_01b_pg.py` (467 dòng, SHA `ddbcea1aab139ec0f380f451a2fc2502e665c7305ed91a725dcf5a9aaed7742b`) và report. Hai phát hiện phải sửa:
+
+1. **Không che phương thức unittest.** `setUpClass` gán `cls.run` thành chuỗi, che `unittest.TestCase.run`; cả suite sẽ lỗi trước mười method. Đổi nonce thành tên riêng như `run_id` và đổi đủ mọi chỗ dùng nonce (K, số HĐ, replay...), giữ nguyên phương thức run của unittest. Không bypass runner hoặc gọi tay các method để che lỗi.
+2. **Positive oracle phải đúng DOCX nguồn.** T04 đang đổi mọi tham số native `CHUA_CO` thành `KHONG_QUY_DINH`. Không có AI không đồng nghĩa hợp đồng không có điều khoản. Trong `fixtures_m4.DONG_HOP_DONG`, các dữ kiện thực có gồm số/ngày/gói/dự án/địa điểm/bên A–B; loại thi công và trọn gói; giá 1.000.000.000 đồng đã gồm VAT 8%; thanh toán tối đa 90%; thời hạn tối đa 30 ngày; bảo hành 12 tháng; tiến độ 180 ngày; hiệu lực từ ngày ký; tạm ứng ghi Không áp dụng. Dùng bảng expected thủ công, giá trị/trích dẫn/Điều nguồn thật và máy kiểm thực cho các mã có dữ kiện; khai Không áp dụng đúng căn cứ tạm ứng; chỉ mã thật sự vắng được khai Không quy định với lý do. Không suy tỷ lệ giữ lại bằng 100%-90% khi nguồn không nói. Expected có/không phải partition độc lập từ source fixture và catalogue, không do parser CHUA_CO quyết định. Giữ luồng ordinary DU_AN xác nhận và Nộp thật; không seed approved/XONG/DA_MAP/FINAL hoặc đổi guard nghiệp vụ.
+
+**Chỉ được sửa hai file hiện có:** `tests/test_m4_01b_pg.py` và `docs/BAO-CAO-M4-01B.md`. Cập nhật report mô tả đúng nonce/manual oracle và vẫn ghi self-test NOT_RUN. Không đổi product code, source fixture, vendor/reference, các test cũ khác, master/quyền/schema/migration hoặc guards.
+
+Giữ đủ T01–T10, mười method PG, hai connection/Barrier/concurrency T05, quyền ordinary/trusted riêng, sáu receipt families/replay gốc/current-project revoke và retained files. Không hạ expected, đổi negative thành generic exception, xóa/skip test hoặc làm im lặng setup lỗi. Suite này kiểm later replay; immediate+later của cả sáu families có bộ kiểm độc lập riêng, không nhận scope rộng hơn thực tế.
+
+Cùng session hiện hành, chỉ Read/Glob/Grep/Edit/Write theo settings Root. Không chạy lệnh/import/AST/tests/SQL/HTTP/AI/OCR/GUI/launcher/cloud/tool nạp nguồn, không Agent/session/worktree khác. Không đọc var/.env/credentials/nguồn app thật, không xóa/move/replace/cleanup. Nếu thiếu quyền thì báo đúng. Hoàn tất hai sửa hữu hạn rồi trả bàn giao, không tự sang C hoặc CRM. Root kiểm lại và chạy sau terminal/freeze.

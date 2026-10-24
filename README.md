@@ -1,5 +1,11 @@
 # Kho tri thức — M1–M6, v0.3.0
 
+## V11 (11/10/2026) — sửa cách tạo tri thức theo 5 case T8
+
+- Vân tay diễn giải, gộp dòng 112 (chứng từ có VAT), quy tắc từ khóa ghép sống lại, quy tắc yếu không chặn tri thức sổ, nhận diện đối tượng theo tên (viết tắt CT/CTCP…), chặn ánh xạ STK sai, nhiều lần chuyển = 1 chứng từ, công nợ mở làm căn cứ TK, khóa số khế ước.
+- Màn hình: "Vì sao" có số đo (n/n chứng từ), chip đối tượng/TK gợi ý, **Ghi chú cho AI → gói ngữ cảnh gửi Claude** (`var\web-that\ghi-chu-ai\MOI-NHAT.md`), **Chế độ chấm điểm** + nút **So với Junsky** (`SO-VOI-JUNSKY.xlsx`).
+- Chạy lại T8 (học đến 30/06): dòng sai TK/đối tượng 44 → 10; Xanh 41 dòng, đúng 35/36 TK và 27/27 đối tượng. 240/240 test. Chi tiết: `docs/BAO-CAO-V11.md`, hướng dẫn: `docs/HUONG-DAN-DINH-KHOAN.md`.
+
 ## V10 (03/10/2026) — giao diện Định khoản bản Claude Design
 
 - **Dùng thật**: bấm đúp **MỞ PHẦN MỀM.cmd** (cổng 8766). **Chạy thử tháng 8**, máy học đến 30/06: bấm đúp **MỞ PHẦN MỀM THỬ T8.cmd** (cổng 8767).

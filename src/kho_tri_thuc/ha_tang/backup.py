@@ -46,8 +46,15 @@ def create_backup(store: Store, destination: Path) -> dict:
     destination.parent.mkdir(parents=True, exist_ok=True)
     staging = destination.with_name(destination.name + ".partial-" + uuid4().hex)
     staging.mkdir()
-    with closing(sqlite3.connect(staging / "kho.sqlite")) as target:
-        store.conn.backup(target)
+    if getattr(store, "engine", "sqlite") == "postgres":
+        # V13: kho PostgreSQL sao lưu về file kho.sqlite cùng schema (cũng là đường lùi "engine = sqlite" của TL 39)
+        from .database import connect as _connect_sqlite
+        from .sao_chep_bang import chep_pg_sang_sqlite
+        with closing(_connect_sqlite(staging / "kho.sqlite")) as target:
+            chep_pg_sang_sqlite(store.conn, target)
+    else:
+        with closing(sqlite3.connect(staging / "kho.sqlite")) as target:
+            store.conn.backup(target)
     _, artifacts = _check_database(staging / "kho.sqlite")
     files = {"kho.sqlite": _file_entry(staging / "kho.sqlite")}
     for digest, relative, size in artifacts:
@@ -110,11 +117,15 @@ def verify_backup(directory: Path) -> dict:
     return {"verified": True, "files": len(expected), "integrity": result, "fixture_only": True}
 
 
-def restore_backup(directory: Path, destination: Path) -> dict:
+def restore_backup(directory: Path, destination: Path, config=None) -> dict:
+    """``config`` (tùy chọn): cấu hình sẽ mở thư mục phục hồi. Engine postgres → schema đích phải trống, nếu không
+    từ chối trước khi chép (V13 A3); engine sqlite hoặc không truyền → như cũ."""
     directory, destination = directory.resolve(), destination.resolve()
     if destination.exists():
         raise DataError("DESTINATION_EXISTS", "Chỉ restore vào thư mục chưa tồn tại; không ghi đè DB đang dùng.")
     verify_backup(directory)
+    from .ket_noi import kiem_dich_phuc_hoi
+    schema_dich = kiem_dich_phuc_hoi(config, destination / "kho.sqlite")
     manifest = json.loads((directory / "manifest.json").read_text(encoding="utf-8"))
     destination.parent.mkdir(parents=True, exist_ok=True)
     staging = destination.with_name(destination.name + ".partial-" + uuid4().hex)
@@ -130,4 +141,7 @@ def restore_backup(directory: Path, destination: Path) -> dict:
     if destination.exists():
         raise DataError("DESTINATION_EXISTS", "Đích restore vừa được tạo bởi tiến trình khác.")
     staging.rename(destination)
-    return {"restored_to": str(destination), "verified": True, "fixture_only": True}
+    result = {"restored_to": str(destination), "verified": True, "fixture_only": True}
+    if schema_dich:
+        result["schema_dich"] = schema_dich  # lần mở đầu với cấu hình này nạp kho.sqlite vào schema trống đó
+    return result

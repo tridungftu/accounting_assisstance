@@ -1,0 +1,61 @@
+{
+  "status": "DRAFT_DECLARED_DEMO_RAW_PROOF_NOT_APPROVED_NOT_INSTALLED",
+  "reference_id": "DEMO_NEW_THUNG12CAI_PROOF_V1",
+  "authority": "EXPLICIT_ROOT_SYNTHETIC_CONVERSION_REQUIRES_ACTUAL_CFO_V4_NOT_UNIT_LABEL",
+  "pn_ma": "PN_DEMO_A",
+  "goods_equivalence_ref": "DEMO_M2_M5_GOODS_EQ_A_V1",
+  "goods_evidence_sha256": "aef5de224e04fd64ef67a272689f72a041097ae93c5160393ef2297640d2bb4f",
+  "from_definition_ref": "DEMO_M2_UNIT_THUNG_R16_V1",
+  "to_definition_ref": "DEMO_UNIT_CAI_A",
+  "numerator_text": "12",
+  "denominator_text": "1",
+  "equation": "qty_invoice_native * 12 = qty_warehouse_native * 1",
+  "native_xml_sha256": "65ce193e68053e59d5b18e4a7fa6879fa31499fbc2cd1ca5d138a95a30883a7a",
+  "native_encoding_evidence_sha256": "a860439cf802e9b21ea1fabc24c1d9d6b79d8ca7a0402fba4bd62416a979b60f",
+  "ratio_facts_immutable": true,
+  "old_links_never_recomputed_using_new_ratio": true,
+  "pure_CAI_profile_unchanged": true,
+  "approved": false,
+  "DB_proof_id": null,
+  "actual_CFO_identity_and_approval": null,
+  "from_definition_payload_sha256": "774d51c9017314e156e19729b64870d55a34187628fb6d21e2080ee90b83bdb1",
+  "to_definition_payload_sha256": "206b26eac399c240adf71f26c8daec5de13f8be45b4badc64523c7ae76b3977f",
+  "supported_warehouse_bindings": [
+    {
+      "side": "WAREHOUSE",
+      "native_sha256": "56037f2e8145d0ca57b947e7213e03a4586ba601dc741b5ef554858f89df1107",
+      "byte_length": 803,
+      "SoPhieu": "NK20260814001",
+      "ID_Dong": "ID_1786672800001",
+      "source_ordinal": 1,
+      "master_sha256": "3a806526917dac322ee9ba4c6f7ea5ed88e02b780ea282c0300465e980e16801",
+      "measurement_payload_sha256": "4ef4dcf27d5044a76729d6f617b4381c6fff0fcced4bdf9f9315c638ffd515f1",
+      "item_code": "HH_DEMO_A"
+    },
+    {
+      "side": "WAREHOUSE",
+      "native_sha256": "adfd623e4f4432272646ef925a5db0d5d3fd209fb50e870549d28223b4af009b",
+      "byte_length": 875,
+      "SoPhieu": "NK20261019006",
+      "ID_Dong": "ID_1792382400001",
+      "source_ordinal": 1,
+      "master_sha256": "3c67491146ef8025aa6b07a8092000fe400be6f3ed7f51671e4c06c35e1c7665",
+      "measurement_payload_sha256": "c9eb6a3ca743a6d799d528a2c9d07f973fc58ddc808bfe3723890612f119dbac",
+      "item_code": "HH_DEMO_A"
+    },
+    {
+      "side": "WAREHOUSE",
+      "native_sha256": "adfd623e4f4432272646ef925a5db0d5d3fd209fb50e870549d28223b4af009b",
+      "byte_length": 875,
+      "SoPhieu": "NK20261019006",
+      "ID_Dong": "ID_1792382400002",
+      "source_ordinal": 2,
+      "master_sha256": "3c67491146ef8025aa6b07a8092000fe400be6f3ed7f51671e4c06c35e1c7665",
+      "measurement_payload_sha256": "c9eb6a3ca743a6d799d528a2c9d07f973fc58ddc808bfe3723890612f119dbac",
+      "item_code": "HH_DEMO_A"
+    }
+  ],
+  "evidence_revision": 2,
+  "legacy_supporting_K01_native_sha256": "56037f2e8145d0ca57b947e7213e03a4586ba601dc741b5ef554858f89df1107",
+  "warehouse_source_binding_policy": "EXACT_ANY_LISTED_SUPPORTED_NATIVE_MASTER_LINE_BINDING_WITH_CURRENT_APPROVED_ENCODING_NOT_K01_ONLY"
+}

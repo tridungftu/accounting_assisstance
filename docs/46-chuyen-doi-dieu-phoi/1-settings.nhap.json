@@ -1,0 +1,39 @@
+{
+  "permissions": {
+    "deny": [
+      "Read(./.env)",
+      "Read(./**/.env*)",
+      "Edit(./.env*)",
+      "Write(./.env*)",
+      "Edit(./cau_hinh.that.toml)",
+      "Write(./cau_hinh.that.toml)",
+      "Edit(./var/plhn-that/**)",
+      "Write(./var/plhn-that/**)",
+      "Edit(./var/web-that/**)",
+      "Write(./var/web-that/**)",
+      "Bash(rm *)",
+      "Bash(rmdir *)",
+      "Bash(del *)",
+      "Bash(Remove-Item *)",
+      "Bash(git clean *)",
+      "Bash(git reset --hard *)",
+      "Bash(git push --force *)"
+    ]
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          { "type": "command", "command": "python .claude/hooks/chan_lenh_nguy_hiem.py" }
+        ]
+      },
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          { "type": "command", "command": "python .claude/hooks/chan_lenh_nguy_hiem.py" }
+        ]
+      }
+    ]
+  }
+}

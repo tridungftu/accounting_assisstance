@@ -1,0 +1,105 @@
+{
+  "status": "TECHNICAL_SOURCE_PATCH_ONLY_NOT_RUNTIME",
+  "source_root": "D:\\Claude\\Ho tro review ho so xay dung\\review_xaydung",
+  "runtime_source_is_original_only": true,
+  "read_allowlist_excludes_real_config_data": true,
+  "files": [
+    {
+      "path": "may_chu/dich_vu.py",
+      "bytes": 54248,
+      "sha256": "cb4c4b84052c142dd5be5a00d952239ffccdd01c19c4825c28f85a010d70d636",
+      "patch_editable": true
+    },
+    {
+      "path": "trich_xuat/danh_muc.py",
+      "bytes": 17039,
+      "sha256": "f0796984f7b18a4d0d3389b557a6324f3ad59ca488c29ad3284e11ca97ca2ff2",
+      "patch_editable": true
+    },
+    {
+      "path": "trich_xuat/lo.py",
+      "bytes": 13914,
+      "sha256": "ef948c86eec4376c05161214107b497b12481e50b98ebfc2890b0cc6857c9f05",
+      "patch_editable": true
+    },
+    {
+      "path": "trich_xuat/quy_trinh.py",
+      "bytes": 27033,
+      "sha256": "a76e95a55cb7253cc7446ead9e7fd495fb9c3ea457c612259bd062aa27b26264",
+      "patch_editable": true
+    },
+    {
+      "path": "may_chu/server.py",
+      "bytes": 22966,
+      "sha256": "966dd8a92b4113c78431f2368913d390d58a9d318db2dc307ef8abc1fbab7d93",
+      "patch_editable": false
+    },
+    {
+      "path": "may_chu/viec.py",
+      "bytes": 4474,
+      "sha256": "f62ed78084539c15be170323e7344237105c92c9dc197df9e4baea803b166ab6",
+      "patch_editable": false
+    },
+    {
+      "path": "trich_xuat/cau_hinh.py",
+      "bytes": 6878,
+      "sha256": "53defa8fc52859c2e14cc9a00701fbc055e8eb47e0bb69156ccd8cdcacc58d93",
+      "patch_editable": false
+    },
+    {
+      "path": "trich_xuat/xuat.py",
+      "bytes": 16540,
+      "sha256": "d255b2d01b67283b3b5febfb6c3f5f937df80c5020531bd04862fc89ad969efb",
+      "patch_editable": false
+    },
+    {
+      "path": "trich_xuat/kiem_tra.py",
+      "bytes": 7606,
+      "sha256": "47ee35567cb7b864a6b3d6825bc90f93a7a26c0c6872a326e99ead9160467f12",
+      "patch_editable": false
+    },
+    {
+      "path": "trich_xuat/logic.py",
+      "bytes": 6046,
+      "sha256": "f7cfcf37ff2293d8f8ea994f1ae0a69f57d1d1d9a844f0620f018a3d285a4452",
+      "patch_editable": false
+    },
+    {
+      "path": "trich_xuat/__init__.py",
+      "bytes": 1257,
+      "sha256": "f200159d6de51d346ea40d0abc2efe3132ac679dc0c31e778c10aa266490be8b",
+      "patch_editable": false
+    },
+    {
+      "path": "tests/test_trich_xuat.py",
+      "bytes": 100611,
+      "sha256": "e3d378238d5e268350e5fd9153aeb53b288167aeaffaa60d235db73b720d82f4",
+      "patch_editable": false
+    },
+    {
+      "path": "tests/mau_gia_lap.py",
+      "bytes": 13263,
+      "sha256": "77606e600e5620b85609b670f5bac48eb50328ee69c629a5c256f25d69a3d998",
+      "patch_editable": false
+    },
+    {
+      "path": "API.md",
+      "bytes": 22996,
+      "sha256": "d0a9b82e3e510d4e9b45dd0afd39744fa0a05172401d95e461f03009c1a025ef",
+      "patch_editable": false
+    },
+    {
+      "path": "trich_xuat/DANH_MUC_THAM_SO.xlsx",
+      "bytes": 13309,
+      "sha256": "05846a2acd60f2cde708d13a163a137ee3fb0b4e08fd84f85a7e14e7ef861bcd",
+      "patch_editable": false
+    },
+    {
+      "path": "master_hd.py",
+      "bytes": 71366,
+      "sha256": "2a63289f5daa73a2500fff59c547395a56d823da7f0fdadd02ecfe8506429648",
+      "patch_editable": false
+    }
+  ],
+  "new_patch_target": "tests/test_common_api.py"
+}

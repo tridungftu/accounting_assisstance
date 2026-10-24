@@ -78,10 +78,17 @@ class V1bTests(FeatureCase):
     def test_other_connection_invalidation(self):
         key=self.kb.stage_many([policy()],'TEST',KNOWN)[0]
         self.assertEqual(self.kb.query('2026-09-10',CUTOFF),[])
-        db_path=self.store.conn.execute('PRAGMA database_list').fetchone()[2]
-        with closing(sqlite3.connect(db_path)) as other:
-            other.execute("INSERT INTO knowledge_events(version_id,action,event_at,actor,reason) VALUES (?,'APPROVE',?,'TEST','test')",(key,KNOWN))
-            other.commit()
+        if getattr(self.store,'engine','sqlite')=='postgres':
+            # V13: kết nối thứ hai tới cùng kho PostgreSQL (thay cho sqlite3.connect vào cùng file)
+            from kho_tri_thuc.ha_tang.store import Store
+            with Store(self.store.config) as other_store:
+                other_store.conn.execute("INSERT INTO knowledge_events(version_id,action,event_at,actor,reason) VALUES (?,'APPROVE',?,'TEST','test')",(key,KNOWN))
+                other_store.conn.commit()
+        else:
+            db_path=self.store.conn.execute('PRAGMA database_list').fetchone()[2]
+            with closing(sqlite3.connect(db_path)) as other:
+                other.execute("INSERT INTO knowledge_events(version_id,action,event_at,actor,reason) VALUES (?,'APPROVE',?,'TEST','test')",(key,KNOWN))
+                other.commit()
         self.assertEqual(len(self.kb.query('2026-09-10',CUTOFF)),1)
 
     def test_cache_cannot_be_mutated_by_caller(self):
@@ -129,6 +136,8 @@ class V1bTests(FeatureCase):
         self.assertIsNotNone(compile_pattern(literal_pattern('MUA HOA')).search('MUA HOA CHAT'))
 
     def test_stage_query_uses_rank_index(self):
+        if getattr(self.store,'engine','sqlite')=='postgres':
+            self.skipTest('EXPLAIN QUERY PLAN là của bộ lập kế hoạch SQLite; PostgreSQL có chỉ mục tương ứng nhưng tự chọn seq scan trên bảng nhỏ')
         plan=self.store.conn.execute("""EXPLAIN QUERY PLAN SELECT valid_from,valid_to FROM knowledge_versions
             WHERE category='POLICY' AND json_extract(payload_json,'$.contract_version')=2
             AND json_extract(payload_json,'$.partition')=? AND json_extract(payload_json,'$.tier')=?

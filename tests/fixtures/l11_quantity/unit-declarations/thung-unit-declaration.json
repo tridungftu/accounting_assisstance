@@ -1,0 +1,55 @@
+{
+  "status": "RAW_SYNTHETIC_DEMO_UNIT_DECLARATION_NOT_INSTALLED_NOT_APPROVED",
+  "source_instance": "DEMO_M2_XML_INSTANCE_A",
+  "profile_ref": "DEMO_M2_XML_QD1271_FIELDS_V1",
+  "profile_payload_sha256": "7e17794151a7711317da3d9ab00d96427d2b1e1c688b132feb78ce540bb2188d",
+  "source_origin": {
+    "reference": "shared-unit-definitions-v2.json",
+    "raw_sha256": "2a3c5b3323c1bf46020aba8807640070c12b32b20344da55badc587319cd4504",
+    "byte_length": 3942,
+    "definition_locator": "/definitions/1",
+    "payload_locator": "/definitions/1/payload",
+    "role": "EXACT_EXISTING_DECLARED_PAYLOAD_WRAPPER_NO_REINTERPRETATION"
+  },
+  "unit": {
+    "reference_id": "DEMO_M2_UNIT_THUNG_R16_V1",
+    "definition_payload_sha256": "774d51c9017314e156e19729b64870d55a34187628fb6d21e2080ee90b83bdb1",
+    "source_basis_ref": "urn:demo:l11:sourcebasis:thung:65ce193e68053e59d5b18e4a7fa6879fa31499fbc2cd1ca5d138a95a30883a7a",
+    "payload": {
+      "authority": "DECLARED_DEMO_ROOT_TECHNICAL_NOT_PRODUCTION",
+      "definition_kind": "DECLARED_CONTAINER_UNIT",
+      "label": "THUNG",
+      "meaning": "ONE_DECLARED_THUNG_FOR_EXPLICIT_DEMO_GOODS_CONTEXT_FACTOR_ONLY_IN_SEPARATE_PROOF",
+      "native_unit_code": "THUNG",
+      "reference_id": "DEMO_M2_UNIT_THUNG_R16_V1",
+      "scope": "DEMO_M2_XML_INSTANCE_A_ITEM_A_THUNG_R16_V1",
+      "source_basis": {
+        "item_code": "DEMO_ITEM_A",
+        "native_xml_sha256": "65ce193e68053e59d5b18e4a7fa6879fa31499fbc2cd1ca5d138a95a30883a7a",
+        "source_instance": "DEMO_M2_XML_INSTANCE_A",
+        "source_locator": "/HDon/DLHDon/NDHDon/DSHHDVu/HHDVu[1]/DVTinh",
+        "source_profile_ref": "DEMO_M2_XML_QD1271_FIELDS_V1",
+        "source_profile_sha256": "7e17794151a7711317da3d9ab00d96427d2b1e1c688b132feb78ce540bb2188d",
+        "unit_decoded_lexeme": "THUNG"
+      },
+      "version": 1
+    }
+  },
+  "supporting_artifact": {
+    "kind": "M2_NATIVE_XML",
+    "reference": "native/new-thung-one.xml",
+    "raw_sha256": "65ce193e68053e59d5b18e4a7fa6879fa31499fbc2cd1ca5d138a95a30883a7a",
+    "byte_length": 480,
+    "locator": "/HDon/DLHDon/NDHDon/DSHHDVu/HHDVu[1]/DVTinh",
+    "native_unit_code": "THUNG",
+    "item_locator": "/HDon/DLHDon/NDHDon/DSHHDVu/HHDVu[1]/MHHDVu",
+    "item_code": "DEMO_ITEM_A",
+    "selector_provenance": null,
+    "role": "SUPPORTING_OBSERVED_UNIT_NOT_DECLARATION_DOCUMENT_SHA"
+  },
+  "actual_CFO_approval": null,
+  "DB_unit_id": null,
+  "known_at_server": null,
+  "created_by": null,
+  "conversion_approval": false
+}

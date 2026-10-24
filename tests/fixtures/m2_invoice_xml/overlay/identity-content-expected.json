@@ -1,0 +1,1299 @@
+{
+  "identity_profile": {
+    "ref": "DEMO_M2_ID_DIGITS_V1",
+    "number_rule": "NONEMPTY_ASCII_DIGITS_STRING_STRIP_LEADING_ZERO_OR_0",
+    "other_identity_fields": "EXACT_NONEMPTY_ASCII_NO_TRIM_NO_CASEFOLD",
+    "tuple_order": [
+      "PN",
+      "chieu",
+      "mst_ban",
+      "mau_so",
+      "ky_hieu",
+      "so_chuan"
+    ],
+    "production_equivalence": "NOT_BOUND"
+  },
+  "content_contract": {
+    "ref": "M2_XML_CONTENT_V1",
+    "encoding": "UTF8_NO_BOM_NO_TRAILING_NEWLINE",
+    "canonical_json": "SORT_KEYS_RECURSIVELY_ENSURE_ASCII_FALSE_SEPARATORS_COMMA_COLON_ALLOW_NAN_FALSE",
+    "array_order": "PRESERVE_SOURCE_ORDER",
+    "includes": [
+      "canonical_invoice_tuple",
+      "exact_raw_header_field_states",
+      "ordered_line_field_states",
+      "header_total_section_state"
+    ],
+    "excludes": [
+      "delivery",
+      "actor",
+      "receipt",
+      "known_at",
+      "route",
+      "proof",
+      "receiver_UUID"
+    ],
+    "scope": "PRIVATE_DEMO_GOLDEN_NOT_EXISTING_PRODUCT_HASH"
+  },
+  "identities": [
+    {
+      "ref": "I_G01_A",
+      "tuple": [
+        "PN_DEMO_A",
+        "MUA_VAO",
+        "DEMO_M2_SUPPLIER",
+        "1",
+        "DEMO_SERIES_A",
+        "1"
+      ]
+    },
+    {
+      "ref": "I_G04_A_7",
+      "tuple": [
+        "PN_DEMO_A",
+        "MUA_VAO",
+        "DEMO_M2_SUPPLIER",
+        "1",
+        "DEMO_SERIES_A",
+        "7"
+      ]
+    },
+    {
+      "ref": "I_G04_B_7",
+      "tuple": [
+        "PN_DEMO_B",
+        "MUA_VAO",
+        "DEMO_M2_SUPPLIER",
+        "1",
+        "DEMO_SERIES_A",
+        "7"
+      ]
+    },
+    {
+      "ref": "I_G04_SALE_A_7",
+      "tuple": [
+        "PN_DEMO_A",
+        "BAN_RA",
+        "DEMO_M2_COMPANY_A",
+        "1",
+        "DEMO_SERIES_A",
+        "7"
+      ],
+      "M2_owner_or_route": false
+    },
+    {
+      "ref": "I_G05_A_6",
+      "tuple": [
+        "PN_DEMO_A",
+        "MUA_VAO",
+        "DEMO_M2_SUPPLIER",
+        "1",
+        "DEMO_SERIES_A",
+        "6"
+      ]
+    },
+    {
+      "ref": "I_G05_AMBIG_A_5",
+      "tuple": [
+        "PN_DEMO_A",
+        "MUA_VAO",
+        "DEMO_M2_SUPPLIER",
+        "1",
+        "DEMO_SERIES_A",
+        "5"
+      ],
+      "line_bridge": "HOLD_WITHOUT_CROSSWALK"
+    }
+  ],
+  "contents": [
+    {
+      "ref": "C_G01",
+      "identity_ref": "I_G01_A",
+      "semantic_sha256": "85ce0caeae57aee6c63bff1624fec665e22aefc7c8404ba89e7cb3d38fe35f8f",
+      "envelope": {
+        "contract": "M2_XML_CONTENT_V1",
+        "canonical_invoice_tuple": [
+          "PN_DEMO_A",
+          "MUA_VAO",
+          "DEMO_M2_SUPPLIER",
+          "1",
+          "DEMO_SERIES_A",
+          "1"
+        ],
+        "header": {
+          "PBan": {
+            "state": "ABSENT",
+            "lexeme": null
+          },
+          "KHMSHDon": {
+            "state": "TEXT",
+            "lexeme": "1"
+          },
+          "KHHDon": {
+            "state": "TEXT",
+            "lexeme": "DEMO_SERIES_A"
+          },
+          "SHDon": {
+            "state": "TEXT",
+            "lexeme": "000001"
+          },
+          "NLap": {
+            "state": "TEXT",
+            "lexeme": "2026-10-01"
+          },
+          "DVTTe": {
+            "state": "TEXT",
+            "lexeme": "VND"
+          },
+          "NBan/MST": {
+            "state": "TEXT",
+            "lexeme": "DEMO_M2_SUPPLIER"
+          },
+          "NMua/MST": {
+            "state": "TEXT",
+            "lexeme": "DEMO_M2_COMPANY_A"
+          }
+        },
+        "lines": [
+          {
+            "source_ordinal": 1,
+            "fields": {
+              "STT": {
+                "state": "TEXT",
+                "lexeme": "1"
+              },
+              "TChat": {
+                "state": "TEXT",
+                "lexeme": "1"
+              },
+              "MHHDVu": {
+                "state": "TEXT",
+                "lexeme": "DEMO_ITEM_A"
+              },
+              "THHDVu": {
+                "state": "TEXT",
+                "lexeme": "DEMO hang A"
+              },
+              "DVTinh": {
+                "state": "TEXT",
+                "lexeme": "CAI"
+              },
+              "SLuong": {
+                "state": "TEXT",
+                "lexeme": "10"
+              },
+              "DGia": {
+                "state": "TEXT",
+                "lexeme": "12.500000"
+              },
+              "ThTien": {
+                "state": "TEXT",
+                "lexeme": "125.000000"
+              },
+              "TSuat": {
+                "state": "TEXT",
+                "lexeme": "0"
+              }
+            }
+          }
+        ],
+        "header_total_section": {
+          "state": "ABSENT",
+          "lexeme": null
+        }
+      },
+      "origin": "INDEPENDENT_MANUAL_EXPECTED_FIELD_STATES_NOT_PRODUCT_PARSER"
+    },
+    {
+      "ref": "C_G04_A_PAD",
+      "identity_ref": "I_G04_A_7",
+      "semantic_sha256": "fdb5bac9dcf7c542fc3640552d47f5c32bc1aee7c5b9b0ced8764fd24a09f0bc",
+      "envelope": {
+        "contract": "M2_XML_CONTENT_V1",
+        "canonical_invoice_tuple": [
+          "PN_DEMO_A",
+          "MUA_VAO",
+          "DEMO_M2_SUPPLIER",
+          "1",
+          "DEMO_SERIES_A",
+          "7"
+        ],
+        "header": {
+          "PBan": {
+            "state": "ABSENT",
+            "lexeme": null
+          },
+          "KHMSHDon": {
+            "state": "TEXT",
+            "lexeme": "1"
+          },
+          "KHHDon": {
+            "state": "TEXT",
+            "lexeme": "DEMO_SERIES_A"
+          },
+          "SHDon": {
+            "state": "TEXT",
+            "lexeme": "0007"
+          },
+          "NLap": {
+            "state": "TEXT",
+            "lexeme": "2026-10-01"
+          },
+          "DVTTe": {
+            "state": "TEXT",
+            "lexeme": "VND"
+          },
+          "NBan/MST": {
+            "state": "TEXT",
+            "lexeme": "DEMO_M2_SUPPLIER"
+          },
+          "NMua/MST": {
+            "state": "TEXT",
+            "lexeme": "DEMO_M2_COMPANY_A"
+          }
+        },
+        "lines": [
+          {
+            "source_ordinal": 1,
+            "fields": {
+              "STT": {
+                "state": "TEXT",
+                "lexeme": "1"
+              },
+              "TChat": {
+                "state": "TEXT",
+                "lexeme": "1"
+              },
+              "MHHDVu": {
+                "state": "TEXT",
+                "lexeme": "DEMO_ITEM_A"
+              },
+              "THHDVu": {
+                "state": "TEXT",
+                "lexeme": "DEMO hang A"
+              },
+              "DVTinh": {
+                "state": "TEXT",
+                "lexeme": "CAI"
+              },
+              "SLuong": {
+                "state": "TEXT",
+                "lexeme": "10"
+              },
+              "DGia": {
+                "state": "TEXT",
+                "lexeme": "12.500000"
+              },
+              "ThTien": {
+                "state": "TEXT",
+                "lexeme": "125.000000"
+              },
+              "TSuat": {
+                "state": "TEXT",
+                "lexeme": "0"
+              }
+            }
+          }
+        ],
+        "header_total_section": {
+          "state": "ABSENT",
+          "lexeme": null
+        }
+      },
+      "origin": "INDEPENDENT_MANUAL_EXPECTED_FIELD_STATES_NOT_PRODUCT_PARSER"
+    },
+    {
+      "ref": "C_G04_A_UNPAD",
+      "identity_ref": "I_G04_A_7",
+      "semantic_sha256": "b3f240be2d6a4ca9b21767f030684a4cce949b7603d3c69d3d071a18f58c12c6",
+      "envelope": {
+        "contract": "M2_XML_CONTENT_V1",
+        "canonical_invoice_tuple": [
+          "PN_DEMO_A",
+          "MUA_VAO",
+          "DEMO_M2_SUPPLIER",
+          "1",
+          "DEMO_SERIES_A",
+          "7"
+        ],
+        "header": {
+          "PBan": {
+            "state": "ABSENT",
+            "lexeme": null
+          },
+          "KHMSHDon": {
+            "state": "TEXT",
+            "lexeme": "1"
+          },
+          "KHHDon": {
+            "state": "TEXT",
+            "lexeme": "DEMO_SERIES_A"
+          },
+          "SHDon": {
+            "state": "TEXT",
+            "lexeme": "7"
+          },
+          "NLap": {
+            "state": "TEXT",
+            "lexeme": "2026-10-01"
+          },
+          "DVTTe": {
+            "state": "TEXT",
+            "lexeme": "VND"
+          },
+          "NBan/MST": {
+            "state": "TEXT",
+            "lexeme": "DEMO_M2_SUPPLIER"
+          },
+          "NMua/MST": {
+            "state": "TEXT",
+            "lexeme": "DEMO_M2_COMPANY_A"
+          }
+        },
+        "lines": [
+          {
+            "source_ordinal": 1,
+            "fields": {
+              "STT": {
+                "state": "TEXT",
+                "lexeme": "1"
+              },
+              "TChat": {
+                "state": "TEXT",
+                "lexeme": "1"
+              },
+              "MHHDVu": {
+                "state": "TEXT",
+                "lexeme": "DEMO_ITEM_A"
+              },
+              "THHDVu": {
+                "state": "TEXT",
+                "lexeme": "DEMO hang A"
+              },
+              "DVTinh": {
+                "state": "TEXT",
+                "lexeme": "CAI"
+              },
+              "SLuong": {
+                "state": "TEXT",
+                "lexeme": "10"
+              },
+              "DGia": {
+                "state": "TEXT",
+                "lexeme": "12.500000"
+              },
+              "ThTien": {
+                "state": "TEXT",
+                "lexeme": "125.000000"
+              },
+              "TSuat": {
+                "state": "TEXT",
+                "lexeme": "0"
+              }
+            }
+          }
+        ],
+        "header_total_section": {
+          "state": "ABSENT",
+          "lexeme": null
+        }
+      },
+      "origin": "INDEPENDENT_MANUAL_EXPECTED_FIELD_STATES_NOT_PRODUCT_PARSER"
+    },
+    {
+      "ref": "C_G04_B_PAD",
+      "identity_ref": "I_G04_B_7",
+      "semantic_sha256": "b41ec9dd041ea8938d3744dca29fe996d4d9e012d6a7fef2c35d566f8d1cf527",
+      "envelope": {
+        "contract": "M2_XML_CONTENT_V1",
+        "canonical_invoice_tuple": [
+          "PN_DEMO_B",
+          "MUA_VAO",
+          "DEMO_M2_SUPPLIER",
+          "1",
+          "DEMO_SERIES_A",
+          "7"
+        ],
+        "header": {
+          "PBan": {
+            "state": "ABSENT",
+            "lexeme": null
+          },
+          "KHMSHDon": {
+            "state": "TEXT",
+            "lexeme": "1"
+          },
+          "KHHDon": {
+            "state": "TEXT",
+            "lexeme": "DEMO_SERIES_A"
+          },
+          "SHDon": {
+            "state": "TEXT",
+            "lexeme": "0007"
+          },
+          "NLap": {
+            "state": "TEXT",
+            "lexeme": "2026-10-01"
+          },
+          "DVTTe": {
+            "state": "TEXT",
+            "lexeme": "VND"
+          },
+          "NBan/MST": {
+            "state": "TEXT",
+            "lexeme": "DEMO_M2_SUPPLIER"
+          },
+          "NMua/MST": {
+            "state": "TEXT",
+            "lexeme": "DEMO_M2_COMPANY_B"
+          }
+        },
+        "lines": [
+          {
+            "source_ordinal": 1,
+            "fields": {
+              "STT": {
+                "state": "TEXT",
+                "lexeme": "1"
+              },
+              "TChat": {
+                "state": "TEXT",
+                "lexeme": "1"
+              },
+              "MHHDVu": {
+                "state": "TEXT",
+                "lexeme": "DEMO_ITEM_A"
+              },
+              "THHDVu": {
+                "state": "TEXT",
+                "lexeme": "DEMO hang A"
+              },
+              "DVTinh": {
+                "state": "TEXT",
+                "lexeme": "CAI"
+              },
+              "SLuong": {
+                "state": "TEXT",
+                "lexeme": "10"
+              },
+              "DGia": {
+                "state": "TEXT",
+                "lexeme": "12.500000"
+              },
+              "ThTien": {
+                "state": "TEXT",
+                "lexeme": "125.000000"
+              },
+              "TSuat": {
+                "state": "TEXT",
+                "lexeme": "0"
+              }
+            }
+          }
+        ],
+        "header_total_section": {
+          "state": "ABSENT",
+          "lexeme": null
+        }
+      },
+      "origin": "INDEPENDENT_MANUAL_EXPECTED_FIELD_STATES_NOT_PRODUCT_PARSER"
+    },
+    {
+      "ref": "C_G04_SALE_A",
+      "identity_ref": "I_G04_SALE_A_7",
+      "semantic_sha256": "5aa4eeda8ba4cb57fd827909305f3bea0392f186dbff6cfbe9073740b05df6fb",
+      "envelope": {
+        "contract": "M2_XML_CONTENT_V1",
+        "canonical_invoice_tuple": [
+          "PN_DEMO_A",
+          "BAN_RA",
+          "DEMO_M2_COMPANY_A",
+          "1",
+          "DEMO_SERIES_A",
+          "7"
+        ],
+        "header": {
+          "PBan": {
+            "state": "ABSENT",
+            "lexeme": null
+          },
+          "KHMSHDon": {
+            "state": "TEXT",
+            "lexeme": "1"
+          },
+          "KHHDon": {
+            "state": "TEXT",
+            "lexeme": "DEMO_SERIES_A"
+          },
+          "SHDon": {
+            "state": "TEXT",
+            "lexeme": "7"
+          },
+          "NLap": {
+            "state": "TEXT",
+            "lexeme": "2026-10-01"
+          },
+          "DVTTe": {
+            "state": "TEXT",
+            "lexeme": "VND"
+          },
+          "NBan/MST": {
+            "state": "TEXT",
+            "lexeme": "DEMO_M2_COMPANY_A"
+          },
+          "NMua/MST": {
+            "state": "TEXT",
+            "lexeme": "DEMO_M2_CUSTOMER"
+          }
+        },
+        "lines": [
+          {
+            "source_ordinal": 1,
+            "fields": {
+              "STT": {
+                "state": "TEXT",
+                "lexeme": "1"
+              },
+              "TChat": {
+                "state": "TEXT",
+                "lexeme": "1"
+              },
+              "MHHDVu": {
+                "state": "TEXT",
+                "lexeme": "DEMO_ITEM_A"
+              },
+              "THHDVu": {
+                "state": "TEXT",
+                "lexeme": "DEMO hang A"
+              },
+              "DVTinh": {
+                "state": "TEXT",
+                "lexeme": "CAI"
+              },
+              "SLuong": {
+                "state": "TEXT",
+                "lexeme": "10"
+              },
+              "DGia": {
+                "state": "TEXT",
+                "lexeme": "12.500000"
+              },
+              "ThTien": {
+                "state": "TEXT",
+                "lexeme": "125.000000"
+              },
+              "TSuat": {
+                "state": "TEXT",
+                "lexeme": "0"
+              }
+            }
+          }
+        ],
+        "header_total_section": {
+          "state": "ABSENT",
+          "lexeme": null
+        }
+      },
+      "origin": "INDEPENDENT_MANUAL_EXPECTED_FIELD_STATES_NOT_PRODUCT_PARSER"
+    },
+    {
+      "ref": "C_G05_A",
+      "identity_ref": "I_G05_A_6",
+      "semantic_sha256": "2c8434c6df6994b1846cda926a4cfb9b40fd453a36ff4b837b01dec3d4947f41",
+      "envelope": {
+        "contract": "M2_XML_CONTENT_V1",
+        "canonical_invoice_tuple": [
+          "PN_DEMO_A",
+          "MUA_VAO",
+          "DEMO_M2_SUPPLIER",
+          "1",
+          "DEMO_SERIES_A",
+          "6"
+        ],
+        "header": {
+          "PBan": {
+            "state": "ABSENT",
+            "lexeme": null
+          },
+          "KHMSHDon": {
+            "state": "TEXT",
+            "lexeme": "1"
+          },
+          "KHHDon": {
+            "state": "TEXT",
+            "lexeme": "DEMO_SERIES_A"
+          },
+          "SHDon": {
+            "state": "TEXT",
+            "lexeme": "000006"
+          },
+          "NLap": {
+            "state": "TEXT",
+            "lexeme": "2026-10-01"
+          },
+          "DVTTe": {
+            "state": "TEXT",
+            "lexeme": "VND"
+          },
+          "NBan/MST": {
+            "state": "TEXT",
+            "lexeme": "DEMO_M2_SUPPLIER"
+          },
+          "NMua/MST": {
+            "state": "TEXT",
+            "lexeme": "DEMO_M2_COMPANY_A"
+          }
+        },
+        "lines": [
+          {
+            "source_ordinal": 1,
+            "fields": {
+              "STT": {
+                "state": "TEXT",
+                "lexeme": "1"
+              },
+              "TChat": {
+                "state": "TEXT",
+                "lexeme": "1"
+              },
+              "MHHDVu": {
+                "state": "TEXT",
+                "lexeme": "DEMO_ITEM_A"
+              },
+              "THHDVu": {
+                "state": "TEXT",
+                "lexeme": "DEMO hang A"
+              },
+              "DVTinh": {
+                "state": "TEXT",
+                "lexeme": "CAI"
+              },
+              "SLuong": {
+                "state": "TEXT",
+                "lexeme": "10"
+              },
+              "DGia": {
+                "state": "TEXT",
+                "lexeme": "12.500000"
+              },
+              "ThTien": {
+                "state": "TEXT",
+                "lexeme": "125.000000"
+              },
+              "TSuat": {
+                "state": "TEXT",
+                "lexeme": "0"
+              }
+            }
+          },
+          {
+            "source_ordinal": 2,
+            "fields": {
+              "STT": {
+                "state": "TEXT",
+                "lexeme": "2"
+              },
+              "TChat": {
+                "state": "TEXT",
+                "lexeme": "1"
+              },
+              "MHHDVu": {
+                "state": "TEXT",
+                "lexeme": "DEMO_ITEM_B"
+              },
+              "THHDVu": {
+                "state": "TEXT",
+                "lexeme": "DEMO hang A"
+              },
+              "DVTinh": {
+                "state": "TEXT",
+                "lexeme": "CAI"
+              },
+              "SLuong": {
+                "state": "TEXT",
+                "lexeme": "10"
+              },
+              "DGia": {
+                "state": "TEXT",
+                "lexeme": "12.500000"
+              },
+              "ThTien": {
+                "state": "TEXT",
+                "lexeme": "125.000000"
+              },
+              "TSuat": {
+                "state": "TEXT",
+                "lexeme": "0"
+              }
+            }
+          }
+        ],
+        "header_total_section": {
+          "state": "ABSENT",
+          "lexeme": null
+        }
+      },
+      "origin": "INDEPENDENT_MANUAL_EXPECTED_FIELD_STATES_NOT_PRODUCT_PARSER"
+    },
+    {
+      "ref": "C_G05_B",
+      "identity_ref": "I_G05_A_6",
+      "semantic_sha256": "3debaed83449ffad751b0d1b394c9a7464f356fddad424e255ee6e486d59b611",
+      "envelope": {
+        "contract": "M2_XML_CONTENT_V1",
+        "canonical_invoice_tuple": [
+          "PN_DEMO_A",
+          "MUA_VAO",
+          "DEMO_M2_SUPPLIER",
+          "1",
+          "DEMO_SERIES_A",
+          "6"
+        ],
+        "header": {
+          "PBan": {
+            "state": "ABSENT",
+            "lexeme": null
+          },
+          "KHMSHDon": {
+            "state": "TEXT",
+            "lexeme": "1"
+          },
+          "KHHDon": {
+            "state": "TEXT",
+            "lexeme": "DEMO_SERIES_A"
+          },
+          "SHDon": {
+            "state": "TEXT",
+            "lexeme": "000006"
+          },
+          "NLap": {
+            "state": "TEXT",
+            "lexeme": "2026-10-01"
+          },
+          "DVTTe": {
+            "state": "TEXT",
+            "lexeme": "VND"
+          },
+          "NBan/MST": {
+            "state": "TEXT",
+            "lexeme": "DEMO_M2_SUPPLIER"
+          },
+          "NMua/MST": {
+            "state": "TEXT",
+            "lexeme": "DEMO_M2_COMPANY_A"
+          }
+        },
+        "lines": [
+          {
+            "source_ordinal": 1,
+            "fields": {
+              "STT": {
+                "state": "TEXT",
+                "lexeme": "1"
+              },
+              "TChat": {
+                "state": "TEXT",
+                "lexeme": "1"
+              },
+              "MHHDVu": {
+                "state": "TEXT",
+                "lexeme": "DEMO_ITEM_B"
+              },
+              "THHDVu": {
+                "state": "TEXT",
+                "lexeme": "DEMO hang A"
+              },
+              "DVTinh": {
+                "state": "TEXT",
+                "lexeme": "CAI"
+              },
+              "SLuong": {
+                "state": "TEXT",
+                "lexeme": "10"
+              },
+              "DGia": {
+                "state": "TEXT",
+                "lexeme": "12.500000"
+              },
+              "ThTien": {
+                "state": "TEXT",
+                "lexeme": "125.000000"
+              },
+              "TSuat": {
+                "state": "TEXT",
+                "lexeme": "0"
+              }
+            }
+          },
+          {
+            "source_ordinal": 2,
+            "fields": {
+              "STT": {
+                "state": "TEXT",
+                "lexeme": "2"
+              },
+              "TChat": {
+                "state": "TEXT",
+                "lexeme": "1"
+              },
+              "MHHDVu": {
+                "state": "TEXT",
+                "lexeme": "DEMO_ITEM_A"
+              },
+              "THHDVu": {
+                "state": "TEXT",
+                "lexeme": "DEMO hang A"
+              },
+              "DVTinh": {
+                "state": "TEXT",
+                "lexeme": "CAI"
+              },
+              "SLuong": {
+                "state": "TEXT",
+                "lexeme": "10"
+              },
+              "DGia": {
+                "state": "TEXT",
+                "lexeme": "12.500000"
+              },
+              "ThTien": {
+                "state": "TEXT",
+                "lexeme": "125.000000"
+              },
+              "TSuat": {
+                "state": "TEXT",
+                "lexeme": "0"
+              }
+            }
+          }
+        ],
+        "header_total_section": {
+          "state": "ABSENT",
+          "lexeme": null
+        }
+      },
+      "origin": "INDEPENDENT_MANUAL_EXPECTED_FIELD_STATES_NOT_PRODUCT_PARSER"
+    },
+    {
+      "ref": "C_G05_AMBIG",
+      "identity_ref": "I_G05_AMBIG_A_5",
+      "semantic_sha256": "a4e2612a843f91cec66d72647e9031c465c2e8bf21fb6367a4f2167084ee3235",
+      "envelope": {
+        "contract": "M2_XML_CONTENT_V1",
+        "canonical_invoice_tuple": [
+          "PN_DEMO_A",
+          "MUA_VAO",
+          "DEMO_M2_SUPPLIER",
+          "1",
+          "DEMO_SERIES_A",
+          "5"
+        ],
+        "header": {
+          "PBan": {
+            "state": "ABSENT",
+            "lexeme": null
+          },
+          "KHMSHDon": {
+            "state": "TEXT",
+            "lexeme": "1"
+          },
+          "KHHDon": {
+            "state": "TEXT",
+            "lexeme": "DEMO_SERIES_A"
+          },
+          "SHDon": {
+            "state": "TEXT",
+            "lexeme": "000005"
+          },
+          "NLap": {
+            "state": "TEXT",
+            "lexeme": "2026-10-01"
+          },
+          "DVTTe": {
+            "state": "TEXT",
+            "lexeme": "VND"
+          },
+          "NBan/MST": {
+            "state": "TEXT",
+            "lexeme": "DEMO_M2_SUPPLIER"
+          },
+          "NMua/MST": {
+            "state": "TEXT",
+            "lexeme": "DEMO_M2_COMPANY_A"
+          }
+        },
+        "lines": [
+          {
+            "source_ordinal": 1,
+            "fields": {
+              "STT": {
+                "state": "ABSENT",
+                "lexeme": null
+              },
+              "TChat": {
+                "state": "TEXT",
+                "lexeme": "1"
+              },
+              "MHHDVu": {
+                "state": "TEXT",
+                "lexeme": "DEMO_ITEM_A"
+              },
+              "THHDVu": {
+                "state": "TEXT",
+                "lexeme": "DEMO hang A"
+              },
+              "DVTinh": {
+                "state": "TEXT",
+                "lexeme": "CAI"
+              },
+              "SLuong": {
+                "state": "TEXT",
+                "lexeme": "10"
+              },
+              "DGia": {
+                "state": "TEXT",
+                "lexeme": "12.500000"
+              },
+              "ThTien": {
+                "state": "TEXT",
+                "lexeme": "125.000000"
+              },
+              "TSuat": {
+                "state": "TEXT",
+                "lexeme": "0"
+              }
+            }
+          },
+          {
+            "source_ordinal": 2,
+            "fields": {
+              "STT": {
+                "state": "EMPTY",
+                "lexeme": ""
+              },
+              "TChat": {
+                "state": "TEXT",
+                "lexeme": "1"
+              },
+              "MHHDVu": {
+                "state": "TEXT",
+                "lexeme": "DEMO_ITEM_A"
+              },
+              "THHDVu": {
+                "state": "TEXT",
+                "lexeme": "DEMO hang A"
+              },
+              "DVTinh": {
+                "state": "TEXT",
+                "lexeme": "CAI"
+              },
+              "SLuong": {
+                "state": "TEXT",
+                "lexeme": "10"
+              },
+              "DGia": {
+                "state": "TEXT",
+                "lexeme": "12.500000"
+              },
+              "ThTien": {
+                "state": "TEXT",
+                "lexeme": "125.000000"
+              },
+              "TSuat": {
+                "state": "TEXT",
+                "lexeme": "0"
+              }
+            }
+          },
+          {
+            "source_ordinal": 3,
+            "fields": {
+              "STT": {
+                "state": "TEXT",
+                "lexeme": "2"
+              },
+              "TChat": {
+                "state": "TEXT",
+                "lexeme": "1"
+              },
+              "MHHDVu": {
+                "state": "TEXT",
+                "lexeme": "DEMO_ITEM_A"
+              },
+              "THHDVu": {
+                "state": "TEXT",
+                "lexeme": "DEMO hang A"
+              },
+              "DVTinh": {
+                "state": "TEXT",
+                "lexeme": "CAI"
+              },
+              "SLuong": {
+                "state": "TEXT",
+                "lexeme": "10"
+              },
+              "DGia": {
+                "state": "TEXT",
+                "lexeme": "12.500000"
+              },
+              "ThTien": {
+                "state": "TEXT",
+                "lexeme": "125.000000"
+              },
+              "TSuat": {
+                "state": "TEXT",
+                "lexeme": "0"
+              }
+            }
+          },
+          {
+            "source_ordinal": 4,
+            "fields": {
+              "STT": {
+                "state": "TEXT",
+                "lexeme": "2"
+              },
+              "TChat": {
+                "state": "TEXT",
+                "lexeme": "1"
+              },
+              "MHHDVu": {
+                "state": "TEXT",
+                "lexeme": "DEMO_ITEM_A"
+              },
+              "THHDVu": {
+                "state": "TEXT",
+                "lexeme": "DEMO hang A"
+              },
+              "DVTinh": {
+                "state": "TEXT",
+                "lexeme": "CAI"
+              },
+              "SLuong": {
+                "state": "TEXT",
+                "lexeme": "10"
+              },
+              "DGia": {
+                "state": "TEXT",
+                "lexeme": "12.500000"
+              },
+              "ThTien": {
+                "state": "TEXT",
+                "lexeme": "125.000000"
+              },
+              "TSuat": {
+                "state": "TEXT",
+                "lexeme": "0"
+              }
+            }
+          }
+        ],
+        "header_total_section": {
+          "state": "ABSENT",
+          "lexeme": null
+        }
+      },
+      "origin": "INDEPENDENT_MANUAL_EXPECTED_FIELD_STATES_NOT_PRODUCT_PARSER"
+    }
+  ],
+  "observations": [
+    {
+      "ref": "O_G01",
+      "artifact": "inputs/G01-wrapped-positive.xml",
+      "company": "DEMO_M2_COMPANY_A",
+      "identity": "I_G01_A",
+      "content": "C_G01",
+      "raw_number": "000001",
+      "raw_ref": {
+        "native_sha256": "863ce3c1330ce67e6a41e74699f2ac378dbb574d03afa5d8257ce0d23c15fe97",
+        "byte_length": 523,
+        "media_type": "application/xml"
+      },
+      "semantic_sha256": "85ce0caeae57aee6c63bff1624fec665e22aefc7c8404ba89e7cb3d38fe35f8f"
+    },
+    {
+      "ref": "O_G03_RAW",
+      "artifact": "inputs/G03-identical-raw.xml",
+      "company": "DEMO_M2_COMPANY_A",
+      "identity": "I_G01_A",
+      "content": "C_G01",
+      "raw_number": "000001",
+      "raw_ref": {
+        "native_sha256": "863ce3c1330ce67e6a41e74699f2ac378dbb574d03afa5d8257ce0d23c15fe97",
+        "byte_length": 523,
+        "media_type": "application/xml"
+      },
+      "semantic_sha256": "85ce0caeae57aee6c63bff1624fec665e22aefc7c8404ba89e7cb3d38fe35f8f"
+    },
+    {
+      "ref": "O_G03_ZIP_1",
+      "artifact": "inputs/G03-identical-members.zip",
+      "entry_ordinal": 1,
+      "company": "DEMO_M2_COMPANY_A",
+      "identity": "I_G01_A",
+      "content": "C_G01",
+      "raw_number": "000001",
+      "raw_ref": {
+        "native_sha256": "863ce3c1330ce67e6a41e74699f2ac378dbb574d03afa5d8257ce0d23c15fe97",
+        "byte_length": 523,
+        "media_type": "application/xml",
+        "container_sha256": "51cb0f3a0dbac5be45ffe4cdad32f9b45bcccb994690b0b62beb342d6b9975b4",
+        "entry_ordinal": 1,
+        "entry_name": "invoice-a.xml"
+      },
+      "semantic_sha256": "85ce0caeae57aee6c63bff1624fec665e22aefc7c8404ba89e7cb3d38fe35f8f"
+    },
+    {
+      "ref": "O_G03_ZIP_2",
+      "artifact": "inputs/G03-identical-members.zip",
+      "entry_ordinal": 2,
+      "company": "DEMO_M2_COMPANY_A",
+      "identity": "I_G01_A",
+      "content": "C_G01",
+      "raw_number": "000001",
+      "raw_ref": {
+        "native_sha256": "863ce3c1330ce67e6a41e74699f2ac378dbb574d03afa5d8257ce0d23c15fe97",
+        "byte_length": 523,
+        "media_type": "application/xml",
+        "container_sha256": "51cb0f3a0dbac5be45ffe4cdad32f9b45bcccb994690b0b62beb342d6b9975b4",
+        "entry_ordinal": 2,
+        "entry_name": "invoice-b.xml"
+      },
+      "semantic_sha256": "85ce0caeae57aee6c63bff1624fec665e22aefc7c8404ba89e7cb3d38fe35f8f"
+    },
+    {
+      "ref": "O_G04_A_PAD",
+      "artifact": "inputs/G04-purchase-a-padded.xml",
+      "company": "DEMO_M2_COMPANY_A",
+      "identity": "I_G04_A_7",
+      "content": "C_G04_A_PAD",
+      "raw_number": "0007",
+      "raw_ref": {
+        "native_sha256": "87b3ed5d3a2aa1c77155b6272488d4feb147e6a873c8d1dfbe41efff49cc3646",
+        "byte_length": 521,
+        "media_type": "application/xml"
+      },
+      "semantic_sha256": "fdb5bac9dcf7c542fc3640552d47f5c32bc1aee7c5b9b0ced8764fd24a09f0bc"
+    },
+    {
+      "ref": "O_G04_A_UNPAD",
+      "artifact": "inputs/G04-purchase-a-unpadded.xml",
+      "company": "DEMO_M2_COMPANY_A",
+      "identity": "I_G04_A_7",
+      "content": "C_G04_A_UNPAD",
+      "raw_number": "7",
+      "raw_ref": {
+        "native_sha256": "3597177c6b1c9f36d15d6b9187ede8e31a8650250c61b01c0653081de977d355",
+        "byte_length": 518,
+        "media_type": "application/xml"
+      },
+      "semantic_sha256": "b3f240be2d6a4ca9b21767f030684a4cce949b7603d3c69d3d071a18f58c12c6"
+    },
+    {
+      "ref": "O_G04_B_PAD",
+      "artifact": "inputs/G04-purchase-b-padded.xml",
+      "company": "DEMO_M2_COMPANY_B",
+      "identity": "I_G04_B_7",
+      "content": "C_G04_B_PAD",
+      "raw_number": "0007",
+      "raw_ref": {
+        "native_sha256": "5082cb18d2252f0c91cdaf8dc4c00df1703f870f73f1dd5867e62ec406876987",
+        "byte_length": 521,
+        "media_type": "application/xml"
+      },
+      "semantic_sha256": "b41ec9dd041ea8938d3744dca29fe996d4d9e012d6a7fef2c35d566f8d1cf527"
+    },
+    {
+      "ref": "O_G04_SALE_A",
+      "artifact": "inputs/G04-sale-a.xml",
+      "company": "DEMO_M2_COMPANY_A",
+      "identity": "I_G04_SALE_A_7",
+      "content": "C_G04_SALE_A",
+      "raw_number": "7",
+      "raw_ref": {
+        "native_sha256": "238777900b7b03a1bc6aef2c06ff4ceaf21b6c39ec06c5c58c52839fc6c67f97",
+        "byte_length": 518,
+        "media_type": "application/xml"
+      },
+      "semantic_sha256": "5aa4eeda8ba4cb57fd827909305f3bea0392f186dbff6cfbe9073740b05df6fb"
+    },
+    {
+      "ref": "O_G05_A",
+      "artifact": "inputs/G05-order-a.xml",
+      "company": "DEMO_M2_COMPANY_A",
+      "identity": "I_G05_A_6",
+      "content": "C_G05_A",
+      "raw_number": "000006",
+      "raw_ref": {
+        "native_sha256": "b68affc37a3ef474119cf7fd21d8c1ce88843fb61c2945fa5c793b02c811f72a",
+        "byte_length": 726,
+        "media_type": "application/xml"
+      },
+      "semantic_sha256": "2c8434c6df6994b1846cda926a4cfb9b40fd453a36ff4b837b01dec3d4947f41"
+    },
+    {
+      "ref": "O_G05_B",
+      "artifact": "inputs/G05-order-b.xml",
+      "company": "DEMO_M2_COMPANY_A",
+      "identity": "I_G05_A_6",
+      "content": "C_G05_B",
+      "raw_number": "000006",
+      "raw_ref": {
+        "native_sha256": "c2d4750dcce4aba327b10e7e3be05e1d05fac3afa238ede39641c9cb033725e6",
+        "byte_length": 726,
+        "media_type": "application/xml"
+      },
+      "semantic_sha256": "3debaed83449ffad751b0d1b394c9a7464f356fddad424e255ee6e486d59b611"
+    },
+    {
+      "ref": "O_G05_AMBIG",
+      "artifact": "inputs/G05-stt-ambiguity.xml",
+      "company": "DEMO_M2_COMPANY_A",
+      "identity": "I_G05_AMBIG_A_5",
+      "content": "C_G05_AMBIG",
+      "raw_number": "000005",
+      "line_bridge": "HOLD_NO_AUTOMATIC_LOGICAL_KEYS",
+      "raw_ref": {
+        "native_sha256": "87e23319337e57bd5442ae8eef7b5e2f9bc2293f21a0696791c684dbfc6eb9ce",
+        "byte_length": 1119,
+        "media_type": "application/xml"
+      },
+      "semantic_sha256": "a4e2612a843f91cec66d72647e9031c465c2e8bf21fb6367a4f2167084ee3235"
+    }
+  ],
+  "manual_relations": {
+    "G01_G03": {
+      "identity_count": 1,
+      "content_count": 1,
+      "observation_count": 4,
+      "logical_line_count": 1,
+      "exact_same_capture_key_repeat_new_observations": 0,
+      "capture_bundle_count": "NOT_BOUND"
+    },
+    "G04": {
+      "identity_count": 3,
+      "content_count": 4,
+      "observation_count": 4,
+      "padded_unpadded_A_same_identity": true,
+      "padded_unpadded_A_different_raw_content": true,
+      "cross_PN_or_direction_merge": false,
+      "BAN_RA_M2_route_allowed": false
+    },
+    "G05_reorder": {
+      "identity_count": 1,
+      "content_count": 2,
+      "observation_count": 2,
+      "logical_line_count": 2,
+      "version_line_bridge_count": 4,
+      "automatic_STT_or_item_match": false
+    },
+    "G05_ambiguity": {
+      "retained_raw_row_count": 4,
+      "confirmed_logical_line_bridge_count": 0,
+      "enumeration_as_logical_key": false
+    },
+    "production_tax_account_currency_rounding_policy": "NOT_BOUND",
+    "M5_actors_grants_revocations": "UNCHANGED",
+    "other_corpus_groups": "OLD_ORACLE_UNCHANGED"
+  }
+}

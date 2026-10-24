@@ -1,0 +1,380 @@
+"""CRM-41-02 — HTTP mỏng cho G1 mẫu DOCX + G7 bộ chuẩn dự án trên LocalApp hiện có (cùng token X-KTT-Token, phiên cookie HttpOnly do máy chủ cấp,
+mutation lock, kết nối login ứng dụng của CRM + kết nối chủ bảng `_m5_ket_noi_chu`). Không nhận actor/PN/facts/đường dẫn/duyệt từ trình duyệt.
+
+Route (đều dưới /api/crm; route đặc biệt khớp CHÍNH XÁC trước UUID và trước catch-all cũ `/api/crm/`):
+  GET  /api/crm/mau · /api/crm/mau/so-sanh?a=&b= · /api/crm/mau/tep/{version_id} · /api/crm/mau/{version_id}
+  POST /api/crm/mau/{tai (bytes + X-CRM-G-Info), anh-xa, gui-kiem, kiem, tra-lai, duyet, tu-choi, xem-thu}
+  GET  /api/crm/bo-chuan[?du_an_id=&giai_doan=&as_of=] · POST /api/crm/bo-chuan/{lap, gui-duyet, duyet}
+  (tài sản /crm_g.js: static allowlist của server.py)
+POST /api/crm/mau (đúng chuỗi, không hậu tố) vẫn thuộc handler cũ nhận mẫu #6 DEMO.
+
+CRM-41-03 (G2 Báo giá → G3 Soạn; cùng phiên/token/factory, không router thứ hai):
+  GET  /api/crm/bao-gia · /api/crm/bao-gia/{id} · /api/crm/soan/{id} · /api/crm/giao-ket/tep/{xuat_id}/{docx|pdf}
+  POST /api/crm/bao-gia/{luu, huy, chuyen} · /api/crm/soan/luu   (lệnh ngắn dưới mutation lock)
+  POST /api/crm/bao-gia/in · /api/crm/soan/xuat   (ba pha: chụp dưới khóa → render NGOÀI khóa/giao dịch → công bố dưới khóa + CAS)
+
+CRM-41-04A (G4 ký lần đầu; cùng prefix giao-ket đã route, cùng phiên/token/factory):
+  GET  /api/crm/giao-ket/ky/{soan_id}   (điều kiện + căn cứ dialog + bản ký/lịch sử theo quyền hiện hành)
+  GET  /api/crm/giao-ket/ban-ky/{ky_id}/tep   (PDF bản ký; quyền + nhật ký truy cập trước tra kho)
+  POST /api/crm/giao-ket/ky-ket   (raw PDF + X-CRM-G-Info: quyền dưới khóa → parse PDF NGOÀI khóa → lệnh ký dưới khóa)
+"""
+
+from __future__ import annotations
+
+import json
+import re
+from urllib.parse import quote, unquote, urlsplit
+
+from ..ha_tang.primitives import DataError
+
+KHONG_NHAN = frozenset({"actor", "nguoi", "dang_nhap", "dang_nhap_thuc_hien", "phap_nhan_id", "phap_nhan", "trang_thai", "approved", "duyet_boi",
+                        "kiem_boi", "nguoi_duyet", "quyen", "vai", "vai_tro", "module", "path", "duong_dan", "url", "dsn", "facts", "facts_sha256",
+                        "raw_sha256", "sha256", "object_key", "receipt", "bien_nhan", "ket_qua", "viec_id", "proven", "PROVEN"})
+TRUONG = {
+    "mau/anh-xa": {"version_id", "map", "expected_graph", "khoa"},
+    "mau/gui-kiem": {"version_id", "expected_graph", "khoa"},
+    "mau/kiem": {"version_id", "expected_graph", "khoa"},
+    "mau/tra-lai": {"version_id", "ly_do", "expected_graph", "khoa"},
+    "mau/duyet": {"version_id", "valid_from", "expected_graph", "khoa"},
+    "mau/tu-choi": {"version_id", "ly_do", "expected_graph", "khoa"},
+    "mau/xem-thu": {"version_id"},
+    "bo-chuan/lap": {"du_an_id", "giai_doan", "dong", "khoa"},
+    "bo-chuan/gui-duyet": {"version_id", "expected_graph", "khoa"},
+    "bo-chuan/duyet": {"version_id", "valid_from", "expected_graph", "khoa"},
+}
+TRUONG_TAI = {"loai_hinh_id", "ma_mau", "ten_tep", "khoa"}
+# CRM-41-03: lệnh ngắn (dưới mutation lock) và lệnh dài ba pha (render ngoài khóa)
+TRUONG_GK = {
+    "bao-gia/luu": {"bao_gia_id", "expected_revision", "du_lieu", "khoa"},
+    "bao-gia/huy": {"bao_gia_id", "expected_revision", "ly_do", "khoa"},
+    "bao-gia/chuyen": {"bao_gia_id", "expected_revision", "mau_phien_ban_id", "khoa"},
+    "soan/luu": {"soan_id", "expected_revision", "gia_tri_truong", "bao_gia", "doi_mau_phien_ban_id", "ly_do", "khoa"},
+    "bao-gia/xem-truoc": {"du_lieu"},  # FIX01 #4: tính thử chỉ đọc (không khóa, không ghi)
+}
+TRUONG_GK_DAI = {"bao-gia/in": {"bao_gia_id", "expected_revision", "khoa"}, "soan/xuat": {"soan_id", "expected_revision", "khoa"}}
+MA_409_GK = frozenset({"CRM_GK_DANG_XU_LY", "CRM_GK_LAN_KHONG_KHOP", "CRM_GK_REVISION_CU", "CRM_GK_TRANG_THAI", "CRM_GK_DA_CHUYEN", "CRM_GK_G7_DOI", "CRM_GK_CHAN_IN", "CRM_GK_CHAN_XUAT",
+                       "CRM_GK_MAU_KHONG_HIEU_LUC", "CRM_GK_MAU_KHONG_HOP_LE", "CRM_GK_MAU_LECH_GHIM", "CRM_GK_LOAI_HD_CHUA_KHAI", "ARTIFACT_CHANGED"})
+MA_403_GK = frozenset({"CRM_GK_PHAM_VI"})
+MA_403 = frozenset({"CRM_G_KHONG_CO_QUYEN", "CRM_G_CLIENT_AUTHORITY", "CRM_G_DANH_TINH", "CRM_G_CHI_MAY_CHU", "CRM_G_CHI_CHU", "CRM_G_VIEC_CHI_CHU",
+                    "CRM_G_PHAN_CONG_CHI_QUAN_TRI", "CRM_G_CUNG_NGUOI", "DANH_TINH", "DANH_TINH_MO_PHONG", "KHONG_CO_QUYEN_MODULE",
+                    "KHONG_CO_QUYEN_PHAP_NHAN", "LOCAL_HOST_ONLY", "CROSS_ORIGIN", "SESSION_TOKEN"})
+MA_404 = frozenset({"NOT_FOUND", "CRM_G_KHONG_THAY", "CRM_G_TEP_KHONG_CO"})
+MA_409 = frozenset({"CRM_G_TOKEN_CU", "CRM_G_IDEMPOTENCY_KHAC", "CRM_G_TRANG_THAI", "CRM_G_HIEU_LUC_CHONG", "CRM_G_CHUA_DU_DIEU_KIEN",
+                    "CRM_G_KIEM_HET_HIEU_LUC", "CRM_G_CHUA_ANH_XA", "CRM_G_VIEC_SAI", "CRM_G_MAU_KHAC_LOAI", "CRM_G_TEP_XUNG_DOT", "CRM_G_BAT_BIEN",
+                    "CRM_G_VIEC_BAT_BIEN", "CRM_G_VIEC_DA_DONG", "CRM_G_VIEC_DOI_DICH", "CRM_G_GIAO_DICH_NGOAI", "CRM_G_TEP_HONG"})
+MA_413 = frozenset({"CRM_G_TEP_QUA_LON", "CRM_MAU_TEP_QUA_LON", "CRM_MAU_BOM_NEN", "FILE_TOO_LARGE"})
+MA_503 = frozenset({"CRM_G_CHUA_SAN_SANG", "PG_KHONG_KET_NOI", "CRM_CHUA_CAU_HINH", "CRM_SCHEMA_KHONG_KHOP"})
+# CRM-41-04A G4 ký lần đầu
+TRUONG_KY = {"soan_id", "expected_revision", "expected_xuat_id", "ten_tep", "ngay_ky", "co_sua", "mo_ta", "nguoi_ky_khach", "khoa"}
+MIME_KY = ("application/pdf", "application/octet-stream")
+MA_409_KY = frozenset({"CRM_GK_DA_KY", "CRM_KY_DA_KY", "CRM_KY_XUAT_CU", "CRM_KY_XUAT_CHUA_DAT", "CRM_KY_TRANG_THAI", "CRM_KY_G3_LECH"})
+MA_403_KY = frozenset({"CRM_KY_CHUA_CO_PHAM_VI"})
+MA_413_KY = frozenset({"CRM_KY_TEP_QUA_LON"})
+MA_503_KY = frozenset({"CRM_KY_PDF_CHUA_KIEM_DUOC"})
+_UUID = r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"
+_DOCX = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+
+
+def la_route(post: bool, path: str) -> bool:
+    """Route thuộc module này? POST /api/crm/mau (không hậu tố) KHÔNG thuộc — giữ handler #6 cũ. Tài sản /crm_g.js nằm ở static allowlist của server."""
+    if path == "/api/crm/mau":
+        return not post
+    if path == "/api/crm/bao-gia" or path.startswith(("/api/crm/bao-gia/", "/api/crm/soan/", "/api/crm/giao-ket/")):  # CRM-41-03 G2/G3
+        return True
+    return path.startswith(("/api/crm/mau/", "/api/crm/bo-chuan/")) or path == "/api/crm/bo-chuan"
+
+
+def dich_vu(app):
+    """Factory máy chủ: service G dùng login ứng dụng của CRM (nạp danh tính) + kết nối CHỦ BẢNG `_m5_ket_noi_chu` (đã kiểm đích/chủ bảng).
+    Không có admin DSN hoặc không kết nối được → conn_tin_cay=None: mọi thao tác G báo CRM_G_CHUA_SAN_SANG (503), không fallback."""
+    svc = app.__dict__.get("_crm_g")
+    if svc is None:
+        from ..k2.crm_mau import CrmMauK2
+        crm = app.crm()
+        try:
+            tin_cay, ly_do = app._m5_ket_noi_chu(crm.conn), None
+        except DataError as exc:
+            tin_cay, ly_do = None, exc.code
+        if tin_cay is None and ly_do is None:
+            ly_do = "CHUA_CAU_HINH_ADMIN_DSN"
+        svc = CrmMauK2(crm.conn, app.root / "crm-g", conn_tin_cay=tin_cay, hom_nay=crm.hom_nay)
+        svc.ly_do_chua_san_sang = ly_do
+        app.__dict__["_crm_g"] = svc
+    return svc
+
+
+def dich_vu_gk(app):
+    """CRM-41-03: service G2/G3 trên CHÍNH service G (cùng factory/kết nối chủ bảng đã kiểm, cùng kho crm-g) — không factory/IAM thứ hai."""
+    gk = app.__dict__.get("_crm_gk")
+    if gk is None:
+        from ..k2.crm_giao_ket import CrmGiaoKetK2
+        gk = CrmGiaoKetK2(dich_vu(app))
+        app.__dict__["_crm_gk"] = gk
+    return gk
+
+
+def dich_vu_ky(app):
+    """CRM-41-04A: service G4 trên CHÍNH service G2/G3 (cùng kết nối chủ bảng/kho giao-ket) — không factory/IAM thứ hai."""
+    ky = app.__dict__.get("_crm_ky")
+    if ky is None:
+        from ..k2.crm_ky_ket import CrmKyKetK2
+        ky = CrmKyKetK2(dich_vu_gk(app))
+        app.__dict__["_crm_ky"] = ky
+    return ky
+
+
+def _khong_query(h, query) -> None:
+    """Route G4 không nhận tham số truy vấn: cả query đã parse lẫn chuỗi thô (parse_qs bỏ `?x`/`?x=` rỗng) → 400, không xử lý."""
+    if query or urlsplit(str(getattr(h, "path", "") or "")).query:
+        raise DataError("CRM_G_YEU_CAU_SAI", "Không nhận tham số truy vấn.")
+
+
+def _ky_ket(h, app, query=None):
+    """G4 ký: query/header/khóa/kích thước kiểm trước; (1) dưới mutation lock — danh tính phiên + quyền/phạm vi hiện hành (không đọc bytes);
+    (2) NGOÀI khóa — parse PDF (PDFium); (3) dưới khóa — lệnh ký một giao dịch (quyền lại → biên nhận → căn cứ → ghi bất biến → DA_KY).
+    Mọi thẩm quyền/thông tin ký chỉ qua X-CRM-G-Info + body; query ngoài hợp đồng bị từ chối (không âm thầm bỏ qua)."""
+    from ..k2 import crm_ky_ket as KY
+    from .intake import MAX_FILE_SIZE
+    _khong_query(h, query)
+    encoded = h.headers.get("X-CRM-G-Info", "")
+    if len(encoded) > 24000:  # mô tả sửa tối đa 2000 ký tự (UTF-8 percent-encoded)
+        raise DataError("CRM_G_YEU_CAU_SAI", "Thông tin bản ký quá dài.")
+    try:
+        info = json.loads(unquote(encoded) or "{}")
+    except ValueError:
+        raise DataError("CRM_G_YEU_CAU_SAI", "Thông tin bản ký phải là JSON.") from None
+    if not isinstance(info, dict):
+        raise DataError("CRM_G_YEU_CAU_SAI", "Thông tin bản ký phải là object.")
+    _than(info, TRUONG_KY)
+    if (h.headers.get("Content-Type") or "").split(";", 1)[0].strip().lower() not in MIME_KY:
+        raise DataError("CRM_KY_PDF_HONG", "Bản ký phải gửi dạng PDF.")
+    g = info.get
+    KY.chuan_hoa(soan_id=g("soan_id"), expected_revision=g("expected_revision"), expected_xuat_id=g("expected_xuat_id"), ten_tep=g("ten_tep"),
+                 ngay_ky=g("ngay_ky"), co_sua=g("co_sua"), mo_ta=g("mo_ta"), nguoi_ky_khach=g("nguoi_ky_khach"), khoa=g("khoa"))
+    try:
+        raw = h.body(MAX_FILE_SIZE)
+    except DataError as exc:
+        if exc.code == "FILE_TOO_LARGE":
+            raise DataError("CRM_KY_TEP_QUA_LON", f"PDF bản ký tối đa {MAX_FILE_SIZE // (1024 * 1024)} MB.") from None
+        raise
+    with app.mutation_lock:
+        _, me, _ = app.crm_phien(h.crm_sid())
+        ky = dich_vu_ky(app)
+        app._crm_db(ky.kiem_quyen, me, g("soan_id"))  # quyền + phạm vi TRƯỚC khi parse bytes PDF
+    so_trang = KY.kiem_pdf_ky(raw)  # NGOÀI mutation lock/giao dịch
+    with app.mutation_lock:
+        _, me2, _ = app.crm_phien(h.crm_sid())
+        if me2 != me:  # vai phiên đổi trong lúc kiểm PDF: không ký dưới danh tính khác
+            raise DataError("CRM_G_DANH_TINH", "Vai phiên đã đổi trong lúc kiểm PDF — chưa ký. Gửi lại y nguyên để đối soát.")
+        return app._crm_db(lambda: ky.ky(me, raw, soan_id=g("soan_id"), expected_revision=g("expected_revision"), expected_xuat_id=g("expected_xuat_id"),
+                                         ten_tep=g("ten_tep"), ngay_ky=g("ngay_ky"), co_sua=g("co_sua"), mo_ta=g("mo_ta"),
+                                         nguoi_ky_khach=g("nguoi_ky_khach"), khoa=g("khoa"), so_trang=so_trang))
+
+
+def _lenh_gk(gk, me, ten: str, p: dict):
+    g = p.get
+    if ten == "bao-gia/luu":
+        return gk.luu(me, bao_gia_id=g("bao_gia_id"), expected_revision=g("expected_revision"), du_lieu=g("du_lieu"), khoa=g("khoa"))
+    if ten == "bao-gia/huy":
+        return gk.huy(me, bao_gia_id=g("bao_gia_id"), expected_revision=g("expected_revision"), ly_do=g("ly_do"), khoa=g("khoa"))
+    if ten == "bao-gia/chuyen":
+        return gk.chuyen(me, bao_gia_id=g("bao_gia_id"), expected_revision=g("expected_revision"), mau_phien_ban_id=g("mau_phien_ban_id"), khoa=g("khoa"))
+    if ten == "bao-gia/xem-truoc":
+        return gk.xem_truoc(me, du_lieu=g("du_lieu"))
+    if ten == "soan/luu":
+        return gk.luu_soan(me, soan_id=g("soan_id"), expected_revision=g("expected_revision"), gia_tri_truong=g("gia_tri_truong"), bao_gia=g("bao_gia"),
+                           doi_mau_phien_ban_id=g("doi_mau_phien_ban_id"), ly_do=g("ly_do"), khoa=g("khoa"))
+    raise DataError("NOT_FOUND", "Không có thao tác báo giá/soạn này.")
+
+
+def _dai_gk(h, app, ten: str, p: dict):
+    """In báo giá / Xuất hợp đồng: (A) dưới mutation lock — danh tính phiên + quyền + biên nhận + chụp nhất quán trên kết nối chủ bảng đã kiểm;
+    (B) NGOÀI mutation lock và mọi giao dịch — render/Word/PDF không có thông tin xác thực; (C) dưới mutation lock — quyền hiện hành + CAS
+    revision + công bố. Kết nối chủ bảng đệm KHÔNG dùng ngoài khóa."""
+    with app.mutation_lock:
+        _, me, _ = app.crm_phien(h.crm_sid())
+        gk = dich_vu_gk(app)
+        if ten == "bao-gia/in":
+            kh = app._crm_db(lambda: gk.chuan_bi_in(me, bao_gia_id=p.get("bao_gia_id"), expected_revision=p.get("expected_revision"), khoa=p.get("khoa")))
+        else:
+            kh = app._crm_db(lambda: gk.chuan_bi_xuat(me, soan_id=p.get("soan_id"), expected_revision=p.get("expected_revision"), khoa=p.get("khoa")))
+    if "lap_lai" in kh:
+        return kh["lap_lai"]
+    kq = gk.render(kh)  # không khóa, không giao dịch, không DSN/token
+    with app.mutation_lock:
+        _, me2, _ = app.crm_phien(h.crm_sid())
+        if me2 != me:  # vai phiên đổi trong lúc render: không công bố dưới danh tính khác; tệp đã giữ làm bằng chứng
+            raise DataError("CRM_G_DANH_TINH", "Vai phiên đã đổi trong lúc xuất — tệp đã render được giữ, chưa công bố. Gửi lại y nguyên để đối soát.")
+        return app._crm_db(gk.cong_bo, me, kh, kq)
+
+
+def _than(payload: dict, cho_phep: set) -> dict:
+    cam = sorted(k for k in payload if k in KHONG_NHAN)
+    if cam:
+        raise DataError("CRM_G_CLIENT_AUTHORITY", "Danh tính, pháp nhân, quyền, facts, trạng thái/duyệt và đường dẫn do máy chủ xác định; không nhận từ trình duyệt.")
+    la = sorted(k for k in payload if k not in cho_phep)
+    if la:
+        raise DataError("CRM_G_YEU_CAU_SAI", "Yêu cầu có trường ngoài phạm vi: " + ", ".join(la[:5]))
+    return payload
+
+
+def _q(query: dict, ten: str):
+    v = query.get(ten) or [None]
+    if len(v) != 1:
+        raise DataError("CRM_G_YEU_CAU_SAI", f"Tham số {ten} lặp.")
+    return v[0] or None
+
+
+def _lenh(svc, me, ten: str, p: dict):
+    g = p.get
+    if ten == "mau/anh-xa":
+        return svc.luu_anh_xa(me, version_id=g("version_id"), map=g("map"), expected_graph=g("expected_graph"), khoa=g("khoa"))
+    if ten == "mau/gui-kiem":
+        return svc.gui_kiem(me, version_id=g("version_id"), expected_graph=g("expected_graph"), khoa=g("khoa"))
+    if ten == "mau/kiem":
+        return svc.kiem_mau(me, version_id=g("version_id"), expected_graph=g("expected_graph"), khoa=g("khoa"))
+    if ten == "mau/tra-lai":
+        return svc.tra_lai_mau(me, version_id=g("version_id"), ly_do=g("ly_do"), expected_graph=g("expected_graph"), khoa=g("khoa"))
+    if ten == "mau/duyet":
+        return svc.duyet_mau(me, version_id=g("version_id"), valid_from=g("valid_from"), expected_graph=g("expected_graph"), khoa=g("khoa"))
+    if ten == "mau/tu-choi":
+        return svc.tu_choi_mau(me, version_id=g("version_id"), ly_do=g("ly_do"), expected_graph=g("expected_graph"), khoa=g("khoa"))
+    if ten == "mau/xem-thu":
+        return svc.xem_thu(me, g("version_id"))
+    if ten == "bo-chuan/lap":
+        return svc.lap_bo_chuan(me, du_an_id=g("du_an_id"), giai_doan=g("giai_doan"), dong=g("dong"), khoa=g("khoa"))
+    if ten == "bo-chuan/gui-duyet":
+        return svc.gui_duyet_bo_chuan(me, version_id=g("version_id"), expected_graph=g("expected_graph"), khoa=g("khoa"))
+    if ten == "bo-chuan/duyet":
+        return svc.duyet_bo_chuan(me, version_id=g("version_id"), valid_from=g("valid_from"), expected_graph=g("expected_graph"), khoa=g("khoa"))
+    raise DataError("NOT_FOUND", "Không có thao tác mẫu/bộ chuẩn này.")
+
+
+def dieu_huong(h, app, post: bool, path: str, query: dict):
+    """Một điểm vào cho route G (la_route). Tự trả lỗi có mã: 403 quyền / 404 đích ẩn / 409 CAS-idempotency-trạng thái / 413 / 400 / 503 cấu hình."""
+    try:
+        if not post:
+            if path == "/api/crm/mau":
+                with app.mutation_lock:
+                    _, me, _ = app.crm_phien(h.crm_sid())
+                    svc = dich_vu(app)
+                    data = app._crm_db(svc.danh_sach, me, _q(query, "as_of"))
+                    return h.send_content(200, {**data, "ghi_nguon": {"san_sang": svc.conn_tin_cay is not None,
+                                                                      "ly_do": getattr(svc, "ly_do_chua_san_sang", None)}})
+            if path == "/api/crm/mau/so-sanh":
+                with app.mutation_lock:
+                    _, me, _ = app.crm_phien(h.crm_sid())
+                    svc = dich_vu(app)
+                    return h.send_content(200, app._crm_db(svc.so_sanh, me, _q(query, "a"), _q(query, "b")))
+            m = re.fullmatch(r"/api/crm/mau/tep/(" + _UUID + ")", path)
+            if m:
+                with app.mutation_lock:
+                    _, me, _ = app.crm_phien(h.crm_sid())
+                    ten, raw = app._crm_db(dich_vu(app).tep_mau, me, m.group(1))  # quyền hiện hành TRƯỚC tra đường dẫn/hash
+                return h.send_content(200, raw, _DOCX, {"Content-Disposition": "attachment; filename*=UTF-8''" + quote(ten, safe=""),
+                                                        "Cache-Control": "no-store"})
+            m = re.fullmatch(r"/api/crm/mau/(" + _UUID + ")", path)
+            if m:
+                with app.mutation_lock:
+                    _, me, _ = app.crm_phien(h.crm_sid())
+                    return h.send_content(200, app._crm_db(dich_vu(app).chi_tiet, me, m.group(1)))
+            # --- CRM-41-03 G2/G3 (đọc: quyền hiện hành trong cùng giao dịch RR trên kết nối chủ bảng)
+            if path == "/api/crm/bao-gia":
+                with app.mutation_lock:
+                    _, me, _ = app.crm_phien(h.crm_sid())
+                    gk = dich_vu_gk(app)
+                    return h.send_content(200, {**app._crm_db(gk.danh_sach, me), "ly_do_chua_san_sang": getattr(gk.mau, "ly_do_chua_san_sang", None)})
+            m = re.fullmatch(r"/api/crm/bao-gia/(" + _UUID + ")", path)
+            if m:
+                with app.mutation_lock:
+                    _, me, _ = app.crm_phien(h.crm_sid())
+                    return h.send_content(200, app._crm_db(dich_vu_gk(app).chi_tiet, me, m.group(1)))
+            m = re.fullmatch(r"/api/crm/soan/(" + _UUID + ")", path)
+            if m:
+                with app.mutation_lock:
+                    _, me, _ = app.crm_phien(h.crm_sid())
+                    return h.send_content(200, app._crm_db(dich_vu_gk(app).doc_soan, me, m.group(1)))
+            m = re.fullmatch(r"/api/crm/giao-ket/tep/(" + _UUID + ")/(docx|pdf)", path)
+            if m:
+                with app.mutation_lock:
+                    _, me, _ = app.crm_phien(h.crm_sid())
+                    ten, raw, mime = app._crm_db(dich_vu_gk(app).tep, me, m.group(1), m.group(2))  # quyền hiện hành TRƯỚC tra kho
+                return h.send_content(200, raw, mime, {"Content-Disposition": "attachment; filename*=UTF-8''" + quote(ten, safe=""),
+                                                       "Cache-Control": "no-store"})
+            # --- CRM-41-04A G4 (đọc: không nhận query; quyền hiện hành trước căn cứ/hash/kho)
+            m = re.fullmatch(r"/api/crm/giao-ket/ky/(" + _UUID + ")", path)
+            if m:
+                _khong_query(h, query)
+                with app.mutation_lock:
+                    _, me, _ = app.crm_phien(h.crm_sid())
+                    return h.send_content(200, app._crm_db(dich_vu_ky(app).doc, me, m.group(1)))
+            m = re.fullmatch(r"/api/crm/giao-ket/ban-ky/(" + _UUID + ")/tep", path)
+            if m:
+                _khong_query(h, query)
+                with app.mutation_lock:
+                    _, me, _ = app.crm_phien(h.crm_sid())
+                    ten, raw, mime = app._crm_db(dich_vu_ky(app).tep, me, m.group(1))  # quyền + nhật ký truy cập TRƯỚC tra kho
+                return h.send_content(200, raw, mime, {"Content-Disposition": "attachment; filename*=UTF-8''" + quote(ten, safe=""),
+                                                       "Cache-Control": "no-store"})
+            if path == "/api/crm/bo-chuan":
+                with app.mutation_lock:
+                    _, me, _ = app.crm_phien(h.crm_sid())
+                    svc = dich_vu(app)
+                    if _q(query, "du_an_id") is not None:
+                        return h.send_content(200, app._crm_db(svc.doc_bo_chuan, me, _q(query, "du_an_id"), _q(query, "giai_doan"), _q(query, "as_of")))
+                    return h.send_content(200, app._crm_db(svc.danh_sach_bo_chuan, me))
+        else:
+            if path == "/api/crm/mau/tai":
+                encoded = h.headers.get("X-CRM-G-Info", "")
+                if len(encoded) > 4000:
+                    raise DataError("CRM_G_YEU_CAU_SAI", "Thông tin tệp quá dài.")
+                try:
+                    info = json.loads(unquote(encoded) or "{}")
+                except ValueError:
+                    raise DataError("CRM_G_YEU_CAU_SAI", "Thông tin tệp phải là JSON.") from None
+                if not isinstance(info, dict):
+                    raise DataError("CRM_G_YEU_CAU_SAI", "Thông tin tệp phải là object.")
+                _than(info, TRUONG_TAI)
+                from ..nguon.mau_docx import GIOI_HAN
+                try:
+                    raw = h.body(GIOI_HAN["tep"])
+                except DataError as exc:
+                    if exc.code == "FILE_TOO_LARGE":
+                        raise DataError("CRM_G_TEP_QUA_LON", f"Tệp mẫu tối đa {GIOI_HAN['tep'] // (1024 * 1024)} MB.") from None
+                    raise
+                with app.mutation_lock:
+                    _, me, _ = app.crm_phien(h.crm_sid())
+                    svc = dich_vu(app)
+                    return h.send_content(200, app._crm_db(lambda: svc.tai_mau(me, raw, loai_hinh_id=info.get("loai_hinh_id"), ma_mau=info.get("ma_mau"),
+                                                                               ten_tep=info.get("ten_tep"), khoa=info.get("khoa"))))
+            if path == "/api/crm/giao-ket/ky-ket":  # CRM-41-04A G4
+                return h.send_content(200, _ky_ket(h, app, query))
+            ten = path[len("/api/crm/"):]
+            if ten in TRUONG_GK:  # CRM-41-03 lệnh ngắn
+                payload = _than(h.json_body(), TRUONG_GK[ten])
+                with app.mutation_lock:
+                    _, me, _ = app.crm_phien(h.crm_sid())
+                    return h.send_content(200, app._crm_db(_lenh_gk, dich_vu_gk(app), me, ten, payload))
+            if ten in TRUONG_GK_DAI:  # CRM-41-03 lệnh dài: render NGOÀI mutation lock/giao dịch (tách khỏi nhánh lệnh chung)
+                payload = _than(h.json_body(), TRUONG_GK_DAI[ten])
+                return h.send_content(200, _dai_gk(h, app, ten, payload))
+            if ten in TRUONG:
+                payload = _than(h.json_body(), TRUONG[ten])
+                with app.mutation_lock:
+                    _, me, _ = app.crm_phien(h.crm_sid())
+                    svc = dich_vu(app)
+                    return h.send_content(200, app._crm_db(_lenh, svc, me, ten, payload))
+        return h.send_content(404, {"error": "NOT_FOUND", "message": "Không tìm thấy chức năng này."})
+    except DataError as exc:
+        code = exc.code
+        if code.startswith("CRM_MAU_") and code not in MA_413:  # parser fail-closed (tệp sai/nguy hiểm) → 400 với mã riêng
+            status = 400
+        else:
+            status = (403 if code in MA_403 or code in MA_403_GK or code in MA_403_KY else 404 if code in MA_404
+                      else 409 if code in MA_409 or code in MA_409_GK or code in MA_409_KY else 413 if code in MA_413 or code in MA_413_KY
+                      else 503 if code in MA_503 or code in MA_503_KY else 400)
+        return h.send_content(status, {"error": code, "message": str(exc)})
+    except (ValueError, TypeError, KeyError, RecursionError):
+        return h.send_content(400, {"error": "INVALID_REQUEST", "message": "Thông tin gửi lên không hợp lệ; chưa xử lý."})
+    except OSError:
+        return h.send_content(500, {"error": "LOCAL_STORAGE_ERROR", "message": "Không đọc/ghi được kho trên máy. Tệp đã lưu vẫn được giữ."})

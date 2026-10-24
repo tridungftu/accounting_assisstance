@@ -469,54 +469,10 @@ class ThatAdapter:
                     files.extend((archive.read(name), f"{path.name}::{name}") for name in archive.namelist() if name.casefold().endswith(".xml"))
         result: list[dict] = []; issues: list[Issue] = []
         for raw, _name in files:
-            try:
-                root = ET.fromstring(raw)
-            except ET.ParseError:
-                issues.append(Issue("INVALID_XML", "Không phân tích được một XML; bỏ qua tệp lỗi.", "$.source", "WARNING")); continue
-            for element in root.iter():
-                if isinstance(element.tag, str) and "}" in element.tag:
-                    element.tag = element.tag.split("}", 1)[1]
-            invoice = root.find(".//HDon")
-            if invoice is None: invoice = root
-            common = invoice.find(".//TTChung")
-            if common is None: common = invoice
-            seller, buyer, total = invoice.find(".//NBan"), invoice.find(".//NMua"), invoice.find(".//TToan")
-            def value(element, *names, default=""):
-                if element is not None:
-                    for tag in names:
-                        node = element.find(".//" + tag)
-                        if node is not None and _text(node.text): return _text(node.text)
-                return default
-            seller_tax, buyer_tax = value(seller, "MST"), value(buyer, "MST")
-            if seller_tax != config.entity_tax_id and buyer_tax != config.entity_tax_id: continue
-            model = _text(value(common, "KHMSHDon")); model = _text(int(float(model))) if re.fullmatch(r"\d+(?:\.0+)?", model) else model
-            try:
-                series, number = _text(value(common, "KHHDon")), normalized_invoice_number(_text(value(common, "SHDon")))
-                total_minor, total_fraction = _invoice_minor(value(total, "TgTTTBSo"))
-                if model == "2": net_minor, net_fraction, tax_minor, tax_fraction, tax_status = total_minor, False, "0", False, "NO_VAT_MODEL_2"
-                else: net_minor, net_fraction = _invoice_minor(value(total, "TgTCThue")); tax_minor, tax_fraction, tax_status = (*_invoice_minor(value(total, "TgTThue")), "VAT_DECLARED")
-                other_minor, other_fraction = _invoice_minor(value(total, "TGTKhac")); non_taxable_minor, non_fraction = _invoice_minor(value(total, "TGTKCThue"))
-            except DataError as exc:
-                result.append({"__quarantine_issue": {"code": exc.code, "message": str(exc)}}); continue
-            expected = int(net_minor) + int(tax_minor) + int(other_minor) + (0 if config.invoice_non_taxable_in_taxable_total else int(non_taxable_minor))
-            row: dict[str, Any] = {"business_date": _date(value(common, "NLap", "NgayLap")), "currency": value(common, "DVTTe", default="VND") or "VND", "amount": total_minor, "net_amount": net_minor, "tax_amount": tax_minor, "total_amount": total_minor, "other_amount": other_minor, "non_taxable_amount": non_taxable_minor, "seller_tax_id": seller_tax, "buyer_tax_id": buyer_tax, "model": model, "series": series, "number": number, "invoice_type": "GTGT" if model == "1" else "BAN_HANG" if model == "2" else model, "tax_status": tax_status, "direction": "MUA_VAO" if buyer_tax == config.entity_tax_id else "BAN_RA", "source_status": "XML_RECEIVED", "lines": []}
-            if abs(expected - int(total_minor)) > 1:
-                row["total_mismatch_warning"] = True; issues.append(Issue("INVOICE_TOTAL_MISMATCH", "Tổng hóa đơn XML lệch các thành phần nguồn; giữ để đối chiếu.", f"$.records[{len(result)}]", "WARNING"))
-            if any((total_fraction, net_fraction, tax_fraction, other_fraction, non_fraction)):
-                issues.append(Issue("INVOICE_FRACTION_MINOR", "Tiền XML có phần lẻ; đã làm tròn VND theo cấu hình.", f"$.records[{len(result)}]", "WARNING"))
-            relation = invoice.find(".//TTHDLQuan")
-            if relation is not None:
-                related = {"relation_type": value(relation, "TCHDon"), "model": value(relation, "KHMSHDCLQuan"), "series": value(relation, "KHHDCLQuan"), "number": value(relation, "SHDCLQuan"), "date": value(relation, "NLHDCLQuan")}
-                row["related_invoice"] = {key: item for key, item in related.items() if item}
-            for index, line in enumerate(invoice.findall(".//HHDVu"), 1):
-                line_net, line_net_fraction = _invoice_minor(value(line, "ThTien")); line_tax, line_tax_fraction = _invoice_minor(value(line, "TThue"))
-                if line_net_fraction or line_tax_fraction: issues.append(Issue("INVOICE_FRACTION_MINOR", "Dòng XML có phần lẻ; đã làm tròn VND theo cấu hình.", f"$.records[{len(result)}].lines[{index - 1}]", "WARNING"))
-                row["lines"].append({"line_id": value(line, "STT") or str(index), "description": value(line, "THHDVu", "TenHang") or "(không mô tả)", "net_amount": line_net, "tax_amount": line_tax, "total_amount": str(int(line_net) + int(line_tax)), "tax_rate": value(line, "TSuat").replace("%", "") or None, "line_nature": "GOODS"})
-            if not row["lines"]: row.pop("lines")
-            elif abs(sum(int(line["net_amount"]) for line in row["lines"]) - int(net_minor)) > len(row["lines"]):
-                row["detail_total_warning"] = True
-                issues.append(Issue("DETAIL_TOTAL_MISMATCH", "Tổng dòng XML lệch header nguồn; giữ để đối chiếu.", f"$.records[{len(result)}]", "WARNING"))
-            result.append(row)
+            row, row_issues = parse_invoice_xml(raw, config.entity_tax_id, config.invoice_non_taxable_in_taxable_total, index=len(result))
+            issues.extend(row_issues)
+            if row is not None:
+                result.append(row)
         return result, issues
 
     def _invoice_table_rows(self, config: Config) -> tuple[list[dict], list[Issue]]:
@@ -693,29 +649,124 @@ class ThatAdapter:
         return rows
 
     def _journal_rows(self, path: Path) -> list[dict]:
-        aliases = {"date": ("Ngày hạch toán", "Ngày chứng từ", "Ngày c.từ", "Ngày"), "book": ("Sổ", "Loại sổ"), "voucher_type": ("Loại chứng từ", "Mã NV"), "voucher": ("Số chứng từ", "Số CT"), "account": ("Tài khoản",), "debit": ("Phát sinh nợ",), "credit": ("Phát sinh có",), "debit_account": ("Ghi nợ",), "credit_account": ("Ghi có",), "amount": ("Số tiền",), "docs": ("Số CT đính kèm", "DocsNo"), "invoice": ("Số hóa đơn",), "description": ("Nội dung", "Diễn giải"), "party": ("Mã đối tượng", "Đối tượng"), "project": ("Mã dự án",), "expense": ("Khoản mục",), "cost_center": ("Mã TTCP", "Trung tâm chi phí"), "unit": ("Mã đơn vị",), "transaction": ("Mã NV",)}
-        grouped: dict[tuple[str, str, str, str], list[dict]] = {}
-        for row in _mapped_rows(path, aliases):
-            voucher = _text(row.get("voucher"))
-            if not voucher: continue
-            try:
-                business_date = _date(row.get("date"))
-                if _text(row.get("debit_account")) and _text(row.get("credit_account")):
-                    amount = _minor(row.get("amount")); lines = [{"account": _text(row.get("debit_account")), "debit": amount, "credit": "0"}, {"account": _text(row.get("credit_account")), "debit": "0", "credit": amount}]
-                elif _text(row.get("account")): lines = [{"account": _text(row.get("account")), "debit": _minor(row.get("debit")), "credit": _minor(row.get("credit"))}]
-                else: continue
-            except DataError: continue
-            # A workbook filename is not a Junsky BranchID.  Preserve an
-            # absent unit as absent so export can ask for the real code.
-            key = (_text(row.get("unit")), business_date, voucher, _text(row.get("book")) or path.stem)
-            context = {"docs": _text(row.get("docs")), "invoice": _text(row.get("invoice")), "description": _text(row.get("description")), "party": _text(row.get("party")), "project": _text(row.get("project")), "expense": _text(row.get("expense")), "cost_center": _text(row.get("cost_center")), "unit": _text(row.get("unit")), "transaction": _text(row.get("transaction")), "voucher_type": _text(row.get("voucher_type"))}
-            grouped.setdefault(key, []).append({"lines": lines, **context})
-        result = []
-        for (unit, business_date, voucher, book), rows in grouped.items():
-            lines = [line for row in rows for line in row["lines"]]; debit, credit = sum(int(row["debit"]) for row in lines), sum(int(row["credit"]) for row in lines)
-            if debit != credit or not debit: continue
-            first = rows[0]
-            pick = lambda name: next((entry[name] for entry in rows if entry.get(name)), "")
-            row = {"kind": "JOURNAL", "business_date": business_date, "currency": "VND", "amount": "0", "book": book, "fiscal_year": business_date[:4], "voucher_type": pick("voucher_type") or "JUNSKY", "voucher_number": voucher, "source_status": "POSTED", "posting_status": "POSTED", "complete_voucher": True, "bank_transaction_number": pick("docs") or None, "invoice_reference": normalized_invoice_number(pick("invoice")) if pick("invoice") else None, "description": pick("description") or None, "counterparty": pick("party") or None, "project": pick("project") or None, "expense": pick("expense") or None, "cost_center": pick("cost_center") or None, "unit_code": unit or None, "transaction_code": pick("transaction") or None, "lines": [{"line_id": str(index), "account": line["account"], "debit": line["debit"], "credit": line["credit"]} for index, line in enumerate(lines, 1)]}
-            result.append({key: value for key, value in row.items() if value is not None})
+        return read_journal_rows(path)
+
+
+def read_journal_rows(path: Path) -> list[dict]:
+    """Vouchers of a Junsky ledger workbook (Sổ NKC), grouped and balanced.
+
+    Also used read-only by the scoring replay of a trial kho, whose own
+    ledger was cut at the learning date (answer = the full ledger file).
+    """
+    aliases = {"date": ("Ngày hạch toán", "Ngày chứng từ", "Ngày c.từ", "Ngày"), "book": ("Sổ", "Loại sổ"), "voucher_type": ("Loại chứng từ", "Mã NV"), "voucher": ("Số chứng từ", "Số CT"), "account": ("Tài khoản",), "debit": ("Phát sinh nợ",), "credit": ("Phát sinh có",), "debit_account": ("Ghi nợ",), "credit_account": ("Ghi có",), "amount": ("Số tiền",), "docs": ("Số CT đính kèm", "DocsNo"), "invoice": ("Số hóa đơn",), "description": ("Nội dung", "Diễn giải"), "party": ("Mã đối tượng", "Đối tượng"), "project": ("Mã dự án",), "expense": ("Khoản mục",), "cost_center": ("Mã TTCP", "Trung tâm chi phí"), "unit": ("Mã đơn vị",), "transaction": ("Mã NV",)}
+    grouped: dict[tuple[str, str, str, str], list[dict]] = {}
+    for row in _mapped_rows(path, aliases):
+        voucher = _text(row.get("voucher"))
+        if not voucher: continue
+        try:
+            business_date = _date(row.get("date"))
+            if _text(row.get("debit_account")) and _text(row.get("credit_account")):
+                amount = _minor(row.get("amount")); lines = [{"account": _text(row.get("debit_account")), "debit": amount, "credit": "0"}, {"account": _text(row.get("credit_account")), "debit": "0", "credit": amount}]
+            elif _text(row.get("account")): lines = [{"account": _text(row.get("account")), "debit": _minor(row.get("debit")), "credit": _minor(row.get("credit"))}]
+            else: continue
+        except DataError: continue
+        # A workbook filename is not a Junsky BranchID.  Preserve an
+        # absent unit as absent so export can ask for the real code.
+        key = (_text(row.get("unit")), business_date, voucher, _text(row.get("book")) or path.stem)
+        context = {"docs": _text(row.get("docs")), "invoice": _text(row.get("invoice")), "description": _text(row.get("description")), "party": _text(row.get("party")), "project": _text(row.get("project")), "expense": _text(row.get("expense")), "cost_center": _text(row.get("cost_center")), "unit": _text(row.get("unit")), "transaction": _text(row.get("transaction")), "voucher_type": _text(row.get("voucher_type"))}
+        grouped.setdefault(key, []).append({"lines": lines, **context})
+    result = []
+    for (unit, business_date, voucher, book), rows in grouped.items():
+        lines = [line for row in rows for line in row["lines"]]; debit, credit = sum(int(row["debit"]) for row in lines), sum(int(row["credit"]) for row in lines)
+        if debit != credit or not debit: continue
+        first = rows[0]
+        pick = lambda name: next((entry[name] for entry in rows if entry.get(name)), "")
+        row = {"kind": "JOURNAL", "business_date": business_date, "currency": "VND", "amount": "0", "book": book, "fiscal_year": business_date[:4], "voucher_type": pick("voucher_type") or "JUNSKY", "voucher_number": voucher, "source_status": "POSTED", "posting_status": "POSTED", "complete_voucher": True, "bank_transaction_number": pick("docs") or None, "invoice_reference": normalized_invoice_number(pick("invoice")) if pick("invoice") else None, "description": pick("description") or None, "counterparty": pick("party") or None, "project": pick("project") or None, "expense": pick("expense") or None, "cost_center": pick("cost_center") or None, "unit_code": unit or None, "transaction_code": pick("transaction") or None, "lines": [{"line_id": str(index), "account": line["account"], "debit": line["debit"], "credit": line["credit"]} for index, line in enumerate(lines, 1)]}
+        result.append({key: value for key, value in row.items() if value is not None})
+    return result
+
+
+def parse_invoice_xml(raw: bytes, entity_tax_id: str, non_taxable_in_total: bool = False, *, index: int = 0) -> tuple[dict | None, list[Issue]]:
+    """One e-invoice XML (Tổng cục Thuế 2.1.0) → an INVOICE record of the own entity, or None.
+
+    Shared by the source adapter and the invoice history (V12).  A row
+    carrying ``__quarantine_issue`` is returned for unreadable money values.
+    """
+    issues: list[Issue] = []
+    try:
+        root = ET.fromstring(raw)
+    except ET.ParseError:
+        return None, [Issue("INVALID_XML", "Không phân tích được một XML; bỏ qua tệp lỗi.", "$.source", "WARNING")]
+    for element in root.iter():
+        if isinstance(element.tag, str) and "}" in element.tag:
+            element.tag = element.tag.split("}", 1)[1]
+    invoice = root.find(".//HDon")
+    if invoice is None: invoice = root
+    common = invoice.find(".//TTChung")
+    if common is None: common = invoice
+    seller, buyer, total = invoice.find(".//NBan"), invoice.find(".//NMua"), invoice.find(".//TToan")
+    def value(element, *names, default=""):
+        if element is not None:
+            for tag in names:
+                node = element.find(".//" + tag)
+                if node is not None and _text(node.text): return _text(node.text)
+        return default
+    seller_tax, buyer_tax = value(seller, "MST"), value(buyer, "MST")
+    if seller_tax != entity_tax_id and buyer_tax != entity_tax_id: return None, issues
+    model = _text(value(common, "KHMSHDon")); model = _text(int(float(model))) if re.fullmatch(r"\d+(?:\.0+)?", model) else model
+    try:
+        series, number = _text(value(common, "KHHDon")), normalized_invoice_number(_text(value(common, "SHDon")))
+        total_minor, total_fraction = _invoice_minor(value(total, "TgTTTBSo"))
+        if model == "2": net_minor, net_fraction, tax_minor, tax_fraction, tax_status = total_minor, False, "0", False, "NO_VAT_MODEL_2"
+        else: net_minor, net_fraction = _invoice_minor(value(total, "TgTCThue")); tax_minor, tax_fraction, tax_status = (*_invoice_minor(value(total, "TgTThue")), "VAT_DECLARED")
+        other_minor, other_fraction = _invoice_minor(value(total, "TGTKhac")); non_taxable_minor, non_fraction = _invoice_minor(value(total, "TGTKCThue"))
+    except DataError as exc:
+        return {"__quarantine_issue": {"code": exc.code, "message": str(exc)}}, issues
+    expected = int(net_minor) + int(tax_minor) + int(other_minor) + (0 if non_taxable_in_total else int(non_taxable_minor))
+    row: dict[str, Any] = {"business_date": _date(value(common, "NLap", "NgayLap")), "currency": value(common, "DVTTe", default="VND") or "VND", "amount": total_minor, "net_amount": net_minor, "tax_amount": tax_minor, "total_amount": total_minor, "other_amount": other_minor, "non_taxable_amount": non_taxable_minor, "seller_tax_id": seller_tax, "buyer_tax_id": buyer_tax, "model": model, "series": series, "number": number, "invoice_type": "GTGT" if model == "1" else "BAN_HANG" if model == "2" else model, "tax_status": tax_status, "direction": "MUA_VAO" if buyer_tax == entity_tax_id else "BAN_RA", "source_status": "XML_RECEIVED", "lines": []}
+    # V12: names identify a counterparty whose tax code is not in the catalogue.
+    seller_name, buyer_name = value(seller, "Ten"), value(buyer, "Ten", "HVTNMHang")
+    if seller_name: row["seller_name"] = seller_name
+    if buyer_name: row["buyer_name"] = buyer_name
+    if abs(expected - int(total_minor)) > 1:
+        row["total_mismatch_warning"] = True; issues.append(Issue("INVOICE_TOTAL_MISMATCH", "Tổng hóa đơn XML lệch các thành phần nguồn; giữ để đối chiếu.", f"$.records[{index}]", "WARNING"))
+    if any((total_fraction, net_fraction, tax_fraction, other_fraction, non_fraction)):
+        issues.append(Issue("INVOICE_FRACTION_MINOR", "Tiền XML có phần lẻ; đã làm tròn VND theo cấu hình.", f"$.records[{index}]", "WARNING"))
+    relation = invoice.find(".//TTHDLQuan")
+    if relation is not None:
+        related = {"relation_type": value(relation, "TCHDon"), "model": value(relation, "KHMSHDCLQuan"), "series": value(relation, "KHHDCLQuan"), "number": value(relation, "SHDCLQuan"), "date": value(relation, "NLHDCLQuan")}
+        row["related_invoice"] = {key: item for key, item in related.items() if item}
+    for line_index, line in enumerate(invoice.findall(".//HHDVu"), 1):
+        line_net, line_net_fraction = _invoice_minor(value(line, "ThTien")); line_tax, line_tax_fraction = _invoice_minor(value(line, "TThue"))
+        if line_net_fraction or line_tax_fraction: issues.append(Issue("INVOICE_FRACTION_MINOR", "Dòng XML có phần lẻ; đã làm tròn VND theo cấu hình.", f"$.records[{index}].lines[{line_index - 1}]", "WARNING"))
+        row["lines"].append({"line_id": value(line, "STT") or str(line_index), "description": value(line, "THHDVu", "TenHang") or "(không mô tả)", "net_amount": line_net, "tax_amount": line_tax, "total_amount": str(int(line_net) + int(line_tax)), "tax_rate": value(line, "TSuat").replace("%", "") or None, "line_nature": "GOODS"})
+    if not row["lines"]: row.pop("lines")
+    elif abs(sum(int(line["net_amount"]) for line in row["lines"]) - int(net_minor)) > len(row["lines"]):
+        row["detail_total_warning"] = True
+        issues.append(Issue("DETAIL_TOTAL_MISMATCH", "Tổng dòng XML lệch header nguồn; giữ để đối chiếu.", f"$.records[{index}]", "WARNING"))
+    return row, issues
+
+
+def invoice_months(root: Path) -> list[dict]:
+    """Month folders written by the invoice download tool: ``<root>/yyyy-mm/{mua_vao,ban_ra}/*.xml``."""
+    result = []
+    if not root.is_dir():
         return result
+    for folder in sorted(root.iterdir(), reverse=True):
+        if not folder.is_dir() or not re.fullmatch(r"\d{4}-\d{2}", folder.name):
+            continue
+        counts = {side: sum(1 for item in (folder / side).glob("*.xml")) if (folder / side).is_dir() else 0 for side in ("mua_vao", "ban_ra")}
+        if counts["mua_vao"] or counts["ban_ra"]:
+            result.append({"month": folder.name, **counts})
+    return result
+
+
+def invoice_month_files(root: Path, month: str, sides: tuple[str, ...] = ("mua_vao", "ban_ra")) -> list[Path]:
+    if not re.fullmatch(r"\d{4}-\d{2}", str(month or "")):
+        raise DataError("INVOICE_MONTH", "Tháng hóa đơn phải có dạng yyyy-mm.")
+    folder = root / month
+    files = []
+    for side in sides:
+        if (folder / side).is_dir():
+            files.extend(sorted((folder / side).glob("*.xml")))
+    return files

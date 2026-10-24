@@ -1,0 +1,17 @@
+{
+  "summary_kind": "EXPLICIT_EMPTY",
+  "authority_ref": "urn:demo:m5:authority:aa4355fb14c2d2b8c8c9c3a3",
+  "logical_source_identity": {
+    "source_instance": "DEMO_KHO_A",
+    "SoPhieu": "NK20260814001"
+  },
+  "scope_ref": "urn:demo:m5:scope:f08b4a9bf0c11f07cee2f2fc",
+  "profile_ref": "urn:demo:m5:source-profile:f05eee570c7c8861b219ca97",
+  "receipts_seen": [],
+  "seen_content_references": [],
+  "seen_content_digests": [],
+  "accepted_source": null,
+  "old_line_unit_basis_refs": [],
+  "digest_binding_state": "INDEPENDENT_DEMO_PRIOR_BINDING_NOT_PRODUCT_RESULT",
+  "actual_repository_state": "NOT_VERIFIED_NOT_CREATED"
+}

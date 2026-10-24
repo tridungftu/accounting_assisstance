@@ -1,0 +1,199 @@
+{
+  "status": "ROOT_REVIEWED_DTO_OUTLINE_AUTHORIZED_FOR_CODE_ONLY01_NO_RUNTIME",
+  "module": "kho_tri_thuc.nguon.hoa_don_xml",
+  "entrypoints": [
+    "doc_hoa_don_xml(raw: bytes, context: InvoiceReadContext | None = None, *, artifact_name: str | None = None) -> InvoiceReadResult",
+    "doc_goi_hoa_don_zip(raw_zip: bytes, contexts: tuple[InvoiceReadContext, ...] = (), *, archive_name: str | None = None) -> InvoiceZipReadResult"
+  ],
+  "types": {
+    "FieldValue": {
+      "frozen": true,
+      "state": "ABSENT | EMPTY | TEXT",
+      "lexeme": "str | None",
+      "lexeme_basis": "XML_DECODED_CHARACTER_DATA_NO_TRIM",
+      "invariant": "ABSENT=>None; EMPTY=>empty string; TEXT=>nonempty decoded string, no trim"
+    },
+    "InvoiceField": {
+      "frozen": true,
+      "name": "str",
+      "occurrences": "tuple[FieldValue, ...]",
+      "invariant": "missing=(ABSENT,); duplicate keeps every occurrence and raises issue; no first/last winner"
+    },
+    "InvoiceIssue": {
+      "frozen": true,
+      "code": "str",
+      "message": "str",
+      "locator": "str",
+      "severity": "ERROR | WARNING",
+      "legacy_interop": "as_issue() returns new fixture.Issue; never shared mutable output"
+    },
+    "XmlRawRef": {
+      "frozen": true,
+      "native_sha256": "str",
+      "byte_length": "int",
+      "media_type": "application/xml",
+      "container_sha256": "str | None",
+      "entry_ordinal": "int | None",
+      "entry_name": "str | None",
+      "invariant": "ZIP triple all present and match computed bytes; ordinal1based, bool is not int"
+    },
+    "CompanyFact": {
+      "frozen": true,
+      "source_company_key": "str",
+      "pn_alias": "str",
+      "mapping_ref": "str",
+      "mapping_revision": "int",
+      "scope_ref": "str",
+      "authority": "DECLARED_DEMO or separately trusted caller fact; not browser"
+    },
+    "LineCrosswalkFact": {
+      "frozen": true,
+      "mapping_ref": "str",
+      "revision": "int",
+      "invoice_identity_binding": "tuple[str, str, str, str, str, str]",
+      "content_artifact_sha256": "str",
+      "source_locator": "str",
+      "source_ordinal": "int",
+      "logical_line_ref": "str",
+      "continuity_ref": "str",
+      "row_raw_sha256": null,
+      "invariant": "exact artifact+locator+ordinal+independently-derived identity binding; tuple is compared only, never replaces parsed identity; no item/STT inference"
+    },
+    "InvoiceMeasurementFacts": {
+      "frozen": true,
+      "encoding_ref": "str",
+      "unit_definition_ref": "str",
+      "profile_document_sha256": "str",
+      "declared_encoding_kind": "EXACT_TEXT_DECIMAL",
+      "raw_unit": "str",
+      "canonical_unit": "str",
+      "numerator_text": "str",
+      "denominator_text": "str",
+      "max_lexical_digits": "int",
+      "max_scale": "int",
+      "authority": "DECLARED_DEMO",
+      "supported_rule": "explicit same-CAI ratio1/1 plus21digits/6scale only; mismatch =>normalizedNULL+issue, never alters source content hash"
+    },
+    "InvoiceReadContext": {
+      "frozen_deep_snapshot": true,
+      "source_instance": "str | None",
+      "source_profile_ref": "str | None",
+      "profile_document_sha256": "str | None",
+      "profile_payload_sha256": "str | None",
+      "profile_payload_binding": "NOT_BOUND allowed",
+      "company": "CompanyFact | None",
+      "identity_profile_ref": "str | None",
+      "expected_raw_ref": "XmlRawRef | None",
+      "line_crosswalk": "tuple[LineCrosswalkFact, ...]",
+      "resolved_invoice_measurement_facts": "InvoiceMeasurementFacts | None",
+      "forbidden_inputs": [
+        "case_id",
+        "expected_output",
+        "expected_semantic_digest",
+        "canonical_invoice_tuple_as_authority",
+        "identity_alias",
+        "content_alias",
+        "observation_alias",
+        "actor",
+        "route",
+        "L11_proven_boolean"
+      ]
+    },
+    "DecimalFact": {
+      "frozen": true,
+      "exact_value": "Decimal | None",
+      "exact_text": "str | None",
+      "lexical_digits": "int | None",
+      "scale": "int | None",
+      "state": "EXACT | ABSENT | EMPTY | INVALID | OVER_DOMAIN | PRECISION_UNDECLARED",
+      "invariant": "No float/minor/round/default0; negative and zero do not grant business eligibility"
+    },
+    "InvoiceLine": {
+      "frozen": true,
+      "source_ordinal": "int (1based)",
+      "source_locator": "str",
+      "fields": "tuple[InvoiceField, ...]",
+      "nature": "GOODS | PROMOTION | DISCOUNT | NOTE | SPECIAL_GOODS | UNKNOWN",
+      "quantity": "DecimalFact",
+      "unit_price": "DecimalFact",
+      "source_amount": "DecimalFact",
+      "normalized_quantity_text": "str | None",
+      "unit_definition_ref": "str | None",
+      "logical_line_ref": "str | None",
+      "crosswalk_ref": "str | None",
+      "row_raw_sha256": null,
+      "issues": "tuple[InvoiceIssue, ...]"
+    },
+    "InvoiceContentEnvelope": {
+      "frozen": true,
+      "contract": "M2_XML_CONTENT_V1",
+      "canonical_invoice_tuple": "tuple[str, str, str, str, str, str]",
+      "header": "tuple[InvoiceField, ...]",
+      "lines": "tuple[tuple[int, tuple[InvoiceField, ...]], ...]",
+      "header_total_section": "FieldValue",
+      "canonical_serialization": "exact generated golden envelope keys; scalar fields require exactly1occurrence; ordered lines keep source_ordinal"
+    },
+    "InvoiceReadResult": {
+      "frozen": true,
+      "raw_xml": "bytes",
+      "raw_ref": "XmlRawRef",
+      "profile_document_sha256": "str | None",
+      "profile_payload_sha256": "str | None",
+      "header_fields": "tuple[InvoiceField, ...]",
+      "lines": "tuple[InvoiceLine, ...]",
+      "canonical_identity": "tuple[str, str, str, str, str, str] | None",
+      "semantic_envelope": "InvoiceContentEnvelope | None",
+      "semantic_digest": "str | None",
+      "issues": "tuple[InvoiceIssue, ...]",
+      "candidate_reasons": "tuple[str, ...]",
+      "native_fiscal_status": "UNKNOWN",
+      "business_promotion": "NOT_PERFORMED",
+      "current_DB_basis_sha256": null,
+      "L11_eligibility": "NOT_EVALUATED",
+      "request_digest": "NOT_DEFINED_IN_THIS_SLICE"
+    },
+    "ZipEntryResult": {
+      "frozen": true,
+      "entry_ordinal": "int (1based)",
+      "entry_name": "str",
+      "byte_length": "int | None",
+      "raw_sha256": "str | None",
+      "result": "InvoiceReadResult | None",
+      "issues": "tuple[InvoiceIssue, ...]",
+      "state": "PARSED | CANDIDATE | READ_ERROR | IGNORED_NON_XML"
+    },
+    "InvoiceZipReadResult": {
+      "frozen": true,
+      "raw_zip": "bytes",
+      "container_sha256": "str",
+      "byte_length": "int",
+      "entries": "tuple[ZipEntryResult, ...]",
+      "artifact_coverage": "COMPLETE | PARTIAL",
+      "issues": "tuple[InvoiceIssue, ...]",
+      "period_completeness": "UNKNOWN",
+      "source_revocation": "NOT_INFERRED"
+    }
+  },
+  "hash_separation": {
+    "raw_xml_sha": "actual member/XML bytes",
+    "container_sha": "actual ZIP bytes",
+    "content_sha": "root-pinned M2_XML_CONTENT_V1 canonical manual field-state envelope",
+    "registry_payload_sha": "NULL/NOT_BOUND, distinct from document SHA",
+    "row_raw_sha": "NULL without exact source span",
+    "DB_request_or_current_basis_sha": "NOT_BOUND",
+    "field_state_fingerprint": "NOT_DEFINED_SEPARATELY_IN_THIS_SLICE"
+  },
+  "constructor_policy": {
+    "None_unresolved_business_context": "allowed and retained candidate",
+    "invalid_caller_container_or_type": "DataError with code/locator; no I/O",
+    "source_defect": "raw retained + issues/candidate, not discarded",
+    "serialization": "new JSON-compatible copies; Decimal stays exact text, no float"
+  },
+  "allowed_writes_after_root_dispatch_only": [
+    "src/kho_tri_thuc/nguon/hoa_don_xml.py",
+    "tests/test_hoa_don_xml.py",
+    "docs/BAO-CAO-M2-XML-PURE-01.md"
+  ],
+  "payload_registry_proposal": "NOT_NEEDED_FOR_PURE; retain NULL until separately reviewed DB registry phase",
+  "implementation_and_execution": "Implementation only after root controller precheck; exact3newtargets. No execution/import/test/SQL/HTTP/GUI by coder in this phase."
+}

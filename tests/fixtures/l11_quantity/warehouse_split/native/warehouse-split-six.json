@@ -1,0 +1,31 @@
+{
+  "phieu": {
+    "SoPhieu": "NK20261019006",
+    "LoaiPhieu": "Nhập",
+    "NgayChungTu": "2026-10-19",
+    "MaKho": "KHO_DEMO",
+    "MaDoiTac": "DT_DEMO",
+    "DienGiai": "DECLARED_DEMO_NOT_ACTUAL_SOURCE_R16_SPLIT6",
+    "TrangThai": "Đã duyệt",
+    "NguoiLap": "DEMO_PRODUCER_AUTHOR@example.invalid",
+    "NguoiDuyet": "DEMO_PRODUCER_REVIEWER@example.invalid",
+    "ThoiDiemDuyet": "2026-10-19T01:00:00.000Z",
+    "SoPhieu_Goc": ""
+  },
+  "lines": [
+    {
+      "ID_Dong": "ID_1792382400001",
+      "SoPhieu": "NK20261019006",
+      "MaHang": "HH_DEMO_A",
+      "SoLuong": "6",
+      "GhiChu": "DECLARED_DEMO_NOT_ACTUAL_SPLIT_LINE_A"
+    },
+    {
+      "ID_Dong": "ID_1792382400002",
+      "SoPhieu": "NK20261019006",
+      "MaHang": "HH_DEMO_A",
+      "SoLuong": "6",
+      "GhiChu": "DECLARED_DEMO_NOT_ACTUAL_SPLIT_LINE_B"
+    }
+  ]
+}

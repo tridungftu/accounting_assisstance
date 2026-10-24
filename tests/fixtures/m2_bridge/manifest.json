@@ -1,0 +1,33 @@
+{
+  "kind": "M2_BRIDGE_R15_DEMO_FIXTURE_MANIFEST",
+  "status": "DATA_ONLY_STAGED_NOT_INSTALLED_NOT_RUNTIME_ACCEPTANCE",
+  "files": [
+    {
+      "path": "declarations.json",
+      "sha256": "4fe4cffd7dca1ecca619fda5a637a41a95d5a22f9fce6536eaf9dc335e9e44f9",
+      "bytes": 11173
+    },
+    {
+      "path": "line-facts.json",
+      "sha256": "2195792bef97a1c94773f7fbe3391192e0ed24e872dfd904ac90ed54ba3b41fd",
+      "bytes": 10963
+    },
+    {
+      "path": "workflow.json",
+      "sha256": "d559f07890608407834ff653124605d0bd6a9ce399e3f57ac0365a1f641d2ae0",
+      "bytes": 11119
+    }
+  ],
+  "upstream_hashes": {
+    "var/codex-dieu-phoi/m2-xml-pure02-handoff-20261019-195359-021-edec5397/source-hashes.json": "c4cfcb6bab62c0a6ed89523584e19ec3bb43d4d26e22cd0f1285cf2a4914094e",
+    "var/codex-dieu-phoi/m2-bridge01-draft-20261019-01/DEMO-DECLARATIONS-v3.json": "fa2946b2079efebb7278d9e53c5d6049ecaeaed1404c74be1d4513c1bc7433bf",
+    "var/codex-dieu-phoi/m2-bridge01-literal-facts-20261019-01/literal-line-facts.json": "2195792bef97a1c94773f7fbe3391192e0ed24e872dfd904ac90ed54ba3b41fd",
+    "var/codex-dieu-phoi/m2-bridge01-literal-facts-20261019-01/WORKFLOW-DB-EXPECTATIONS.json": "0cb47c02f4ce52115581cbf5fe1231af1db3b025cf1c9cb58ae303204854ef03",
+    "var/codex-dieu-phoi/m2-bridge01-literal-facts-20261019-01/PREPARATION-RECEIPT.json": "da91d11946162da4a9ed89d65d02ccd3356d0980ec03946d2483ac29ff9c7ed3",
+    "tests/fixtures/m2_invoice_xml/manifest.json": "43ad28257ca646b9d43f45ed34a8c441131328cca1b576cf247b378224e2b177"
+  },
+  "profile_payload_sha256": "7e17794151a7711317da3d9ab00d96427d2b1e1c688b132feb78ce540bb2188d",
+  "unit_definition_payload_sha256": "923a98f25aaf80b5762d97c1f183e8432aa347c74ce4525c8ef82f1633c73f89",
+  "literal_facts_copy_exact": true,
+  "source_inputs_immutable": true
+}

@@ -22,3 +22,14 @@ dist/
 *.jpeg
 *.pdf
 source-settings.json
+
+# V13 (16/10/2026): mật khẩu PostgreSQL — không bao giờ đưa lên git
+.env
+.env.*
+!.env.example
+
+# Local business knowledge and machine-specific test configuration
+/TRI-THUC-CFO.json
+/cau_hinh.*.toml
+/evidence/
+/graphify-out/

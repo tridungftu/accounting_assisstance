@@ -35,8 +35,12 @@ def transaction(store):
 
 
 def log(store, module, action, subject, actor, at, details=None):
+    actor_id, event_at, payload = text_id(actor, "actor"), instant_utc(at), details or {}
     store.conn.execute("INSERT INTO activity_log(module,action,subject_id,actor,event_at,recorded_at,details_json) VALUES (?,?,?,?,?,?,?)",
-                       (module, action, subject, text_id(actor, "actor"), instant_utc(at), now_utc(), canonical_json(details or {})))
+                       (module, action, subject, actor_id, event_at, now_utc(), canonical_json(payload)))
+    # V13 (phương án C): engine = postgres → ghi thêm vào nhật ký K2 (nhat_ky.su_kien, chỉ thêm), cùng giao dịch
+    from .ket_noi import ghi_su_kien
+    ghi_su_kien(store.conn, store.config.entity_id, module, action, subject, actor_id, event_at, payload)
 
 
 def artifact(store, content):
@@ -76,6 +80,44 @@ def document(store, doc_id, cutoff=None):
     if cutoff is not None:
         result["lines"] = [line for line in result["lines"] if store.conn.execute("SELECT 1 FROM evidence WHERE document_id=? AND scope_key=? AND known_at<=? LIMIT 1", (doc_id, "line:" + line["line_key"], instant_utc(cutoff))).fetchone()]
     return result
+
+
+def documents_bulk(store, kinds, cutoff):
+    """Cùng kết quả với ``[document(store, id, cutoff) for id in SELECT id FROM documents WHERE kind IN kinds]``
+    nhưng bằng 4 câu SQL thay cho 4 câu mỗi chứng từ + 1 câu mỗi dòng (V13: PostgreSQL trả giá theo số câu).
+
+    Thứ tự chứng từ = thứ tự SQLite V12 thực sự trả về (chỉ mục open_item_candidate_lookup: kind, currency,
+    business_date, rồi rowid) để kết quả đề xuất giống hệt trên cả hai engine; dòng theo line_key.
+    Chứng từ chưa có bằng chứng tại cutoff → cùng lỗi FUTURE_OR_UNKNOWN_SOURCE như ``document``.
+    """
+    kinds = tuple(kinds)
+    if not kinds:
+        return []
+    cutoff = instant_utc(cutoff)
+    marks = ",".join("?" * len(kinds))
+    rows = store.conn.execute(f"SELECT * FROM documents WHERE kind IN ({marks}) ORDER BY kind, currency NULLS FIRST, business_date, rowid", kinds).fetchall()
+    visible = {r[0] for r in store.conn.execute(
+        f"SELECT DISTINCT e.document_id FROM evidence e JOIN documents d ON d.id=e.document_id WHERE d.kind IN ({marks}) AND e.scope_key='header' AND e.known_at<=?",
+        (*kinds, cutoff))}
+    line_rows = store.conn.execute(
+        f"SELECT l.document_id,l.line_key,l.core_json FROM document_lines l JOIN documents d ON d.id=l.document_id WHERE d.kind IN ({marks}) ORDER BY l.document_id,l.line_key",
+        kinds).fetchall()
+    line_visible = {(r[0], r[1]) for r in store.conn.execute(
+        f"SELECT e.document_id,e.scope_key FROM evidence e JOIN documents d ON d.id=e.document_id WHERE d.kind IN ({marks}) AND e.scope_key LIKE 'line:%' AND e.known_at<=?",
+        (*kinds, cutoff))}
+    lines_by_doc = {}
+    for doc_id, line_key, core_json in line_rows:
+        if (doc_id, "line:" + line_key) in line_visible:
+            lines_by_doc.setdefault(doc_id, []).append(json.loads(core_json))
+    results = []
+    for row in rows:
+        if row["id"] not in visible:
+            raise DataError("FUTURE_OR_UNKNOWN_SOURCE", "Chứng từ chưa có bằng chứng đã biết tại cutoff.")
+        result = {**dict(row), **json.loads(row["core_json"])}
+        result["id"] = row["id"]
+        result["lines"] = lines_by_doc.get(row["id"], [])
+        results.append(result)
+    return results
 
 
 def source_bundle(store, attempt_id, cutoff):

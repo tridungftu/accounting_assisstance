@@ -1,0 +1,54 @@
+{
+  "status": "RAW_SYNTHETIC_DEMO_UNIT_DECLARATION_NOT_INSTALLED_NOT_APPROVED",
+  "source_instance": "DEMO_KHO_A",
+  "profile_ref": "urn:demo:m5:source-profile:f05eee570c7c8861b219ca97",
+  "profile_payload_sha256": "b8735806b72701dc6a4a54c3b3772e70326efbc812543b1c5969576be3eedb41",
+  "source_origin": {
+    "reference": "shared-unit-definitions-v2.json",
+    "raw_sha256": "2a3c5b3323c1bf46020aba8807640070c12b32b20344da55badc587319cd4504",
+    "byte_length": 3942,
+    "definition_locator": "/definitions/0",
+    "payload_locator": "/definitions/0/payload",
+    "role": "EXACT_EXISTING_DECLARED_PAYLOAD_WRAPPER_NO_REINTERPRETATION"
+  },
+  "unit": {
+    "reference_id": "DEMO_UNIT_CAI_A",
+    "definition_payload_sha256": "206b26eac399c240adf71f26c8daec5de13f8be45b4badc64523c7ae76b3977f",
+    "source_basis_ref": "urn:demo:l11:sourcebasis:m5cai:3a806526917dac322ee9ba4c6f7ea5ed88e02b780ea282c0300465e980e16801",
+    "payload": {
+      "authority": "DECLARED_DEMO_ROOT_TECHNICAL_NOT_PRODUCTION",
+      "definition_kind": "COUNT_PIECE",
+      "label": "CAI",
+      "meaning": "ONE_EXISTING_M5_DECLARED_PIECE_NO_PACK_FACTOR",
+      "native_unit_code": "CAI",
+      "reference_id": "DEMO_UNIT_CAI_A",
+      "scope": "DEMO_KHO_A_PROFILE_CAI_V1",
+      "source_basis": {
+        "master_raw_sha256": "3a806526917dac322ee9ba4c6f7ea5ed88e02b780ea282c0300465e980e16801",
+        "measurement_declaration_payload_sha256": "4ef4dcf27d5044a76729d6f617b4381c6fff0fcced4bdf9f9315c638ffd515f1",
+        "measurement_declaration_ref": "ROOT_DEMO_CAI_EXACT_TEXT_38_12_V1",
+        "source_instance": "DEMO_KHO_A",
+        "source_profile_ref": "urn:demo:m5:source-profile:f05eee570c7c8861b219ca97",
+        "source_profile_sha256": "b8735806b72701dc6a4a54c3b3772e70326efbc812543b1c5969576be3eedb41"
+      },
+      "version": 1
+    }
+  },
+  "supporting_artifact": {
+    "kind": "M5_MASTER_RAW",
+    "reference": "tests/fixtures/m0_m5/masterraw/K01.json",
+    "raw_sha256": "3a806526917dac322ee9ba4c6f7ea5ed88e02b780ea282c0300465e980e16801",
+    "byte_length": 548,
+    "locator": "/DM_HangHoa/0/DVT_Goc",
+    "native_unit_code": "CAI",
+    "item_locator": "/DM_HangHoa/0/MaHang",
+    "item_code": "HH_DEMO_A",
+    "selector_provenance": "/DM_HangHoa/MaHang=HH_DEMO_A/DVT_Goc",
+    "role": "SUPPORTING_OBSERVED_UNIT_NOT_DECLARATION_DOCUMENT_SHA"
+  },
+  "actual_CFO_approval": null,
+  "DB_unit_id": null,
+  "known_at_server": null,
+  "created_by": null,
+  "conversion_approval": false
+}

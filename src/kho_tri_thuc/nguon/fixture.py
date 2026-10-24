@@ -210,7 +210,12 @@ def _record(raw: Any, ordinal: int, source: str, manifest: dict, config: Config)
         if raw.get("buyer_tax_id") is not None:
             core["buyer_tax_id"] = str(raw["buyer_tax_id"]).strip()
         fields("source_status")
-        allowed.update({"related_invoice_key", "related_invoice", "lines", "net_amount", "tax_amount", "total_amount", "tax_currency", "rounding_tolerance", "invoice_relation", "ttxly", "ttxly_meaning", "model", "tax_status", "direction", "other_amount", "non_taxable_amount", "total_mismatch_warning", "detail_total_warning"})
+        allowed.update({"related_invoice_key", "related_invoice", "lines", "net_amount", "tax_amount", "total_amount", "tax_currency", "rounding_tolerance", "invoice_relation", "ttxly", "ttxly_meaning", "model", "tax_status", "direction", "other_amount", "non_taxable_amount", "total_mismatch_warning", "detail_total_warning",
+                        "seller_name", "buyer_name"})
+        # V12: party names (identification when the tax code is not catalogued).
+        for name in ("seller_name", "buyer_name"):
+            if raw.get(name) not in (None, ""):
+                core[name] = str(raw[name]).strip()[:300]
         if raw.get("related_invoice_key") is not None:
             related = raw["related_invoice_key"]
             if not isinstance(related, list) or len(related) != 4:

@@ -1,0 +1,40 @@
+{
+  "status": "PROPOSAL_ONLY_NOT_CONFIGURED_NO_GRANTS_OR_APPROVALS",
+  "reuse_source_instance": "DEMO_KHO_A",
+  "new_configured_scope": "configuration/source-scope.json",
+  "new_master_catalog": {
+    "reference_id": "urn:demo:m5:master:r16-split-six-v1",
+    "raw_sha256": "3c67491146ef8025aa6b07a8092000fe400be6f3ed7f51671e4c06c35e1c7665",
+    "raw_path": "master/master-raw.json",
+    "byte_length": 441
+  },
+  "warehouse_mapping": {
+    "reference_id": "DEMO_MAP_A_V1",
+    "source_instance": "DEMO_KHO_A",
+    "MaKho": "KHO_DEMO",
+    "fixture_pn_alias": "DEMO_PN_A",
+    "existing_phap_nhan_ma": "PN_DEMO_A",
+    "requires_current_authorized_mapping": true,
+    "never_regrant_or_reapprove_on_seed": true
+  },
+  "measurement_declaration": "declarations/measurement-declaration.json",
+  "service_context": "SERVER_REBUILT_FROM_CURRENT_CONFIG_ARTIFACT_GRAPH_AND_REPOSITORY_HISTORY_NOT_FIXTURE_CONTEXT_OR_RECEIPT",
+  "actor_proposal": {
+    "capture": "USE_EXISTING_M0_KHO_A_ONLY_IF_CURRENT_INTAKE_READ_SOURCE_VALID_NO_REGRANT",
+    "source_review": "CURRENT_SCOPED_M5_SOURCE_REVIEW_PERMISSION_ACTUAL_ACTION_NOT_HISTORY_SEED",
+    "proof": "R16_DEDICATED_CFO_V4_RELEVANT_EVIDENCE_SCOPE_NOT_GRANTED_HERE",
+    "link": "R16_DEDICATED_BOTH_M2_M5_V2_NOT_GRANTED_HERE",
+    "scope_caveat": "EXISTING_SOURCE_CAP_IS_INSTANCE_PROFILE_SCOPED_NOT_A_FABRICATED_PER_PHIEU_CAP",
+    "existing_actor_grants_and_revocations": "UNCHANGED"
+  },
+  "later_required": [
+    "ROOT_REVIEW_AND_EXCLUSIVE_FIXTURE_STAGE",
+    "CONFIGURE_EXACT_SCOPE_MASTER_CATALOG_AND_DECLARATION_ADDITIVELY",
+    "CURRENT_AUTHORIZED_M5_INTAKE_AND_SOURCE_ACCEPTANCE",
+    "CURRENT_GOODS_NATIVE_ENCODING_AND_CROSS_UNIT_PROOF_ADMISSION_FOR_THESE_NEW_ARTIFACT_ROWS",
+    "R16_LINK_CONFIRMATION_USING_CURRENT_ROUTE_BOTH_POOLS_AND_CAPACITIES"
+  ],
+  "proofs_from_K01_not_automatically_cover_new_artifact": true,
+  "actual_DB_UUIDs": null,
+  "actual_grants": false
+}

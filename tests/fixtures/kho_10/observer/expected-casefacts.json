@@ -1,0 +1,202 @@
+{
+  "format": "INDEPENDENT_SYNTHETIC_M5_EXPECTED_FACTS_V1",
+  "case_count": 10,
+  "product_execution_status": "NOT_RUN",
+  "product_runner": null,
+  "product_API_binding": null,
+  "source_code_unchanged": true,
+  "no_runtime_acceptance_claim": true,
+  "semantics": {
+    "fixture_context": "synthetic setup claims only; not native source API fields or actual capture/approval evidence",
+    "server_known_at": "not supplied/backdated by fixtures; real ingest time must be assigned by reviewed product",
+    "source_authority": "none beyond explicit DEMO preconditions",
+    "scenarios": "isolated by named scenario; K01 L11 consumes8 while K04/K05 status branch independently establishes matched6",
+    "native_precision": "text in K01-K07/K09-K10 is synthetic exact-text profile only; current Code.gs/UI Numbers remain unproven",
+    "money_and_stock_value": "none; remaining2 is documentary quantity matching only"
+  },
+  "cases": [
+    {
+      "case_id": "K01",
+      "fixture": "K01_APPROVED_A",
+      "scenario": "ISOLATED_POSITIVE_L11",
+      "expected": {
+        "raw_shape": "actual_getPhieuDetail_shape",
+        "header_count": 1,
+        "line_count": 2,
+        "source_native_line_quantity_text": "8",
+        "native_line_id": "ID_1786672800001",
+        "eligible_with_fixture_proof": true,
+        "counterpart_fixture": {
+          "kind": "M2_INVOICE_LINE_ONLY_FUTURE_BINDING",
+          "phap_nhan": "DEMO_PN_A",
+          "quantity_text": "10",
+          "unit_definition": "DEMO_UNIT_CAI_A",
+          "precision": "EXPLICIT_SYNTHETIC_EXACT_TEXT"
+        },
+        "link_quantity_native_invoice_text": "8",
+        "link_quantity_native_phieu_text": "8",
+        "remaining_invoice_quantity_text": "2",
+        "remaining_source_line_quantity_text": "0",
+        "new_invoice_primary_claim_payable_bank_count": 0
+      }
+    },
+    {
+      "case_id": "K02",
+      "fixture": "K02_APPROVED_B_SAME_NATIVE_KEYS",
+      "scenario": "ISOLATED_TWO_PN_NAMESPACE",
+      "precondition_fixture": "K01_APPROVED_A",
+      "expected": {
+        "source_native_keys_equal_to_K01": true,
+        "source_instance_and_PN_different": true,
+        "logical_header_identity_shared": false,
+        "logical_line_identity_shared": false,
+        "cross_PN_link_to_K01_invoice": "DENIED",
+        "same_PN_B_counterpart_control": "REQUIRED_FUTURE_POSITIVE_NOT_RUN"
+      }
+    },
+    {
+      "case_id": "K03",
+      "fixture": "K03_REPLAY_A",
+      "scenario": "RECEIPT_REPLAY",
+      "precondition_fixture": "K01_APPROVED_A",
+      "expected": {
+        "same_receipt_and_same_source_payload": true,
+        "new_content_versions": 0,
+        "new_observations_for_same_receipt": 0,
+        "new_logical_headers": 0,
+        "new_logical_lines": 0,
+        "quantity_consumption_delta_text": "0",
+        "fresh_capture_new_receipt_distinction": "new_observation_allowed_same_content_only"
+      }
+    },
+    {
+      "case_id": "K04",
+      "fixture": "K04_REVERSED_SAME_KEY",
+      "scenario": "ISOLATED_STATUS_HISTORY_BASELINE_MATCHED6",
+      "preconditions": {
+        "approved_source_fixture": "K01_APPROVED_A",
+        "existing_link_quantity_text": "6",
+        "existing_link_ids": "MUST_BE_CREATED_BY_FUTURE_REVIEWED_API_SETUP_NOT_PRESENT_IN_CORPUS"
+      },
+      "expected": {
+        "same_logical_header": true,
+        "new_content_status": "Đã đảo",
+        "eligible_source_content": null,
+        "old_links_validity": "HELD_REVIEW_REQUIRED",
+        "held_quantity_text": "6",
+        "old_link_ids_preserved": true,
+        "new_negative_or_offset_stock_document": false,
+        "new_invoice_claim_payable_bank_count": 0
+      }
+    },
+    {
+      "case_id": "K05",
+      "fixture": "K05_OLD_A_REAPPEARANCE",
+      "scenario": "STATUS_A_B_OLD_A_REAPPEARANCE",
+      "preconditions": {
+        "sequence": [
+          "K01_APPROVED_A",
+          "K04_REVERSED_SAME_KEY",
+          "K05_OLD_A_REAPPEARANCE"
+        ],
+        "existing_link_quantity_text": "6"
+      },
+      "expected": {
+        "source_detail_and_master_equal_to_K01": true,
+        "logical_header_total": 1,
+        "distinct_content_versions_total": 2,
+        "observation_source_states": [
+          "A_APPROVED",
+          "B_REVERSED",
+          "A_OLD_REAPPEARANCE"
+        ],
+        "accepted_state_remains": "B_REVERSED",
+        "eligible_source_content": null,
+        "new_source_reapproval_evidence": false,
+        "old_link_ids_preserved": true,
+        "held_quantity_text": "6",
+        "auto_reopen_old_links": false
+      }
+    },
+    {
+      "case_id": "K06",
+      "fixture": "K06_DUPLICATE_LINE_ID_CONFLICT",
+      "scenario": "CONFLICTING_DUPLICATE_ID",
+      "expected": {
+        "duplicate_ID_Dong": true,
+        "distinct_goods_and_quantity_under_same_ID": true,
+        "quarantine_or_hold": true,
+        "pick_last_row": false,
+        "replace_ID_with_STT_or_hash": false,
+        "new_confirmed_matching_capacity_from_conflict": false,
+        "previous_accepted_source_unchanged": true
+      }
+    },
+    {
+      "case_id": "K07",
+      "fixture": "K07_PARTIAL_MISSING_LINE",
+      "scenario": "PARTIAL_NOT_REVOCATION",
+      "precondition_fixture": "K01_APPROVED_A",
+      "expected": {
+        "explicit_partial": true,
+        "missing_native_line_id": "ID_1786672800002",
+        "missing_line_proves_deletion": false,
+        "old_logical_line_tombstone_or_cancel": false,
+        "old_matching_reservation_freed": false,
+        "partial_snapshot_promoted_as_complete": false
+      }
+    },
+    {
+      "case_id": "K08",
+      "fixture": "K08_NULL_ZERO_FRACTION_NUMBER_BOUNDARY",
+      "scenario": "QUANTITY_NOT_REPAIRED",
+      "expected": {
+        "source_line_count": 4,
+        "null_is_zero": false,
+        "null_quantity_match": "BLOCKED_UNKNOWN",
+        "zero_positive_match": "BLOCKED_NO_POSITIVE_CAPACITY",
+        "fractional_number_observed": "2.5",
+        "fraction_truncated_or_abs": false,
+        "number_literal_observed": "9007199254740992",
+        "number_exceeds_max_safe_integer": true,
+        "intended_original_integer_known": false,
+        "receiver_decimal_restores_source_precision": false,
+        "proof_missing_auto_match": false,
+        "amount_claims_generated": 0
+      }
+    },
+    {
+      "case_id": "K09",
+      "fixture": "K09_UOM_CHANGED_UNPROVEN_FACTOR",
+      "scenario": "UOM_HISTORY_NO_CONVERSION_PROOF",
+      "preconditions": {
+        "old_source_fixture": "K01_APPROVED_A",
+        "old_link_quantity_text": "6",
+        "old_link_proof_unit": "DEMO_UNIT_CAI_A"
+      },
+      "expected": {
+        "master_label_change": "CAI_TO_THUNG",
+        "DVT_QuyDoi_number_observed": "12",
+        "factor12_is_approved_conversion": false,
+        "ratio12_inferred_from_label_or_field": false,
+        "current_match_eligibility": "HOLD_CONTINUITY_UNPROVEN",
+        "old_link_quantity_and_proof_unchanged": true,
+        "old_reservation_automatically_freed": false,
+        "new_pool_per_UOM_or_master_revision": false
+      }
+    },
+    {
+      "case_id": "K10",
+      "fixture": "K10_UOM_MISSING",
+      "scenario": "UNKNOWN_UOM_NO_FACTOR_DEFAULT",
+      "expected": {
+        "empty_unit_is_known_unit": false,
+        "default_ratio_one": false,
+        "default_unit_from_goods_name": false,
+        "auto_match_eligible": false,
+        "state": "HOLD_UOM_UNKNOWN",
+        "source_quantity_text_still": "8"
+      }
+    }
+  ]
+}

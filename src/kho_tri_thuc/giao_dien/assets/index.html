@@ -3,22 +3,31 @@
 <head>
   <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="ktt-token" content="__KTT_TOKEN__">
-  <title>Kho tri thức · Nhập dữ liệu</title>
+  <title>Hỗ trợ kế toán · Nhập dữ liệu</title>
   <link rel="icon" href="/mark.svg" type="image/svg+xml"><link rel="stylesheet" href="/style.css">
   <script src="/app.js" defer></script>
+  <link rel="stylesheet" href="/m4.css"><script src="/m4.js" defer></script>
+  <script src="/crm_g.js" defer></script>
 </head>
 <body>
 <aside class="sidebar">
-  <a class="brand" href="#nhap"><img src="/mark.svg" alt="" width="38" height="38"><span>Kho tri thức<small>TRỢ LÝ NGHIỆP VỤ KẾ TOÁN</small></span></a>
+  <a class="brand" href="#nhap"><img src="/mark.svg" alt="" width="38" height="38"><span>Hỗ trợ kế toán<small>TRỢ LÝ NGHIỆP VỤ KẾ TOÁN</small></span></a>
   <div class="workspace"><span class="workspace-icon">P</span><div>Không gian PLHN<small>Dữ liệu trên máy của Anh</small></div><span class="tiny-dot"></span></div>
   <div class="nav-label">KHÔNG GIAN LÀM VIỆC</div>
   <nav aria-label="Chức năng chính">
     <a href="#nhap" data-page="nhap" class="nav-item active"><span class="nav-icon">↥</span>Nhập dữ liệu</a>
     <a href="#hoso" data-page="hoso" class="nav-item"><span class="nav-icon">▤</span>Hồ sơ đã nhận <span id="nav-count" class="nav-count">0</span></a>
+    <a href="#hopdong" data-page="hopdong" class="nav-item"><span class="nav-icon">§</span>Hợp đồng &amp; lịch thu</a>
+    <a href="#khoanvay" data-page="khoanvay" class="nav-item"><span class="nav-icon">₫</span>Khoản vay</a>
+    <a href="#phieukho" data-page="phieukho" class="nav-item"><span class="nav-icon">▦</span>Phiếu kho (số lượng)</a>
+    <a href="#hoadonmua" data-page="hoadonmua" class="nav-item"><span class="nav-icon">⧉</span>Hóa đơn mua XML</a>
+    <a href="#lienketsoluong" data-page="lienketsoluong" class="nav-item"><span class="nav-icon">⇄</span>Liên kết số lượng</a>
+    <a href="#nghiemthu" data-page="nghiemthu" class="nav-item"><span class="nav-icon">⚒</span>Hồ sơ nghiệm thu <span id="nt-count" class="nav-count">0</span></a>
+    <a href="#m4" data-page="m4" class="nav-item"><span class="nav-icon">▥</span>Hồ sơ xây dựng (M4)</a>
     <a href="#khanang" data-page="khanang" class="nav-item"><span class="nav-icon">◫</span>Khả năng xử lý</a>
     <a href="#huongdan" data-page="huongdan" class="nav-item"><span class="nav-icon">ⓘ</span>Hướng dẫn sử dụng</a>
   </nav>
-  <div class="sidebar-bottom"><span class="local-icon">⌂</span><strong>Ứng dụng cục bộ</strong><p>Không gửi tệp qua chat.<br>Không cần kết nối AI.</p><div class="sidebar-version">PYTHON · SQLITE · EXCEL <span id="version">v0.3</span></div></div>
+  <div class="sidebar-bottom"><span class="local-icon">⌂</span><strong>Ứng dụng cục bộ</strong><p>Không gửi tệp qua chat.<br>Không cần kết nối AI.</p><div class="sidebar-version">CHẠY TRÊN MÁY NÀY <span id="version">v0.3</span></div></div>
 </aside>
 <div class="shell">
   <header class="topbar"><div class="breadcrumb">Không gian làm việc <span>/</span> <strong id="breadcrumb">Nhập dữ liệu</strong></div><div class="top-actions"><span class="connection"><i></i><span id="connection-label">Đang kết nối</span></span><button id="stop-app" class="button text-button small">Dừng ứng dụng</button></div></header>
@@ -61,6 +70,129 @@
       <div class="page-heading"><div><p class="eyebrow">KHO HỒ SƠ</p><h1>Hồ sơ đã nhận</h1><p class="subtitle">Tìm lại tệp gốc và kiểm tra thông tin từng lần tiếp nhận.</p></div><button id="refresh-files" class="button secondary">↻ Làm mới</button></div>
       <article class="card"><div class="filters"><div class="search-wrap"><span>⌕</span><input id="search-files" type="search" placeholder="Tìm tên tệp, pháp nhân, kỳ dữ liệu…" aria-label="Tìm hồ sơ"></div><select id="filter-source" aria-label="Lọc theo nguồn"><option value="">Tất cả loại dữ liệu</option><option value="sao_ke">Sao kê ngân hàng</option><option value="hoa_don_xml">Hóa đơn XML</option><option value="hoa_don_bang_ke">Bảng kê hóa đơn</option><option value="base">Chứng từ Base</option><option value="junsky_xuat">Dữ liệu Junsky</option></select></div><div id="all-files"></div><div class="pagination"><span id="page-info"></span><div><button id="previous-page" class="button secondary small">← Trước</button><button id="next-page" class="button secondary small">Sau →</button></div></div></article>
     </section>
+    <section id="page-hopdong" class="page hidden">
+      <div class="page-heading"><div><p class="eyebrow">HỖ TRỢ KẾ TOÁN · CRM KẾ TOÁN DEMO</p><h1>Hợp đồng &amp; lịch thu</h1><p class="subtitle">Nhận kết quả trích tham số hợp đồng, kế toán kiểm trước, CFO mô phỏng duyệt, sinh lịch thu, nhận phụ lục và nối tiền về.</p></div><button id="crm-refresh" class="button secondary">↻ Làm mới</button></div>
+      <div class="notice demo-notice"><span class="notice-icon">i</span><div><strong>Dữ liệu DEMO, danh tính mô phỏng</strong><p>Chọn vai mô phỏng chỉ để thử quyền; đây không phải đăng nhập thật. Duyệt hợp đồng không tạo bút toán doanh thu/VAT, không tạo file nhập Junsky. Nguồn thật chưa được kết nối.</p></div><span class="pill neutral">2 pháp nhân DEMO</span></div>
+      <p id="crm-status" class="upload-status" role="status" aria-live="polite"></p>
+      <article class="card"><div class="section-heading"><div><h2>Vai mô phỏng</h2><p id="crm-nguoi">Đang tải…</p></div></div>
+        <div class="demo-actions"><label for="crm-danh-tinh">Đổi vai</label><select id="crm-danh-tinh"></select><button id="crm-doi-vai" class="button secondary">Dùng vai này</button></div></article>
+      <article class="card"><div class="section-heading"><div><h2>1 · Nhận hồ sơ hợp đồng</h2><p>Mẫu DEMO đúng định dạng kết quả trích #6 (kèm văn bản đối chiếu trích dẫn), và khoản thu DEMO.</p></div></div>
+        <div id="crm-mau" class="demo-actions"></div><div id="crm-tien-mau" class="demo-actions"></div><div id="crm-ho-so"></div></article>
+      <article class="card"><div class="section-heading"><div><h2>2 · Hợp đồng</h2><p>Phiên bản, tham số và căn cứ, lịch thu, liên kết tiền.</p></div></div><div id="crm-hop-dong"></div></article>
+      <article id="crm-chi-tiet" class="card hidden"></article>
+      <article class="card"><div class="section-heading"><div><h2>3 · Khoản thu</h2><p>Tiền về qua M1 hiện có (sao kê → đề xuất M1 → bộ chiếu sang K2). Nối liên kết với đợt không tạo thêm khoản thu hay đề xuất hạch toán.</p></div></div><div id="crm-tien"></div></article>
+      <article class="card"><div class="section-heading"><div><h2>4 · File soát CRM</h2><p>Hồ sơ hợp đồng và lịch nghĩa vụ — không phải phiếu thu/chi, không phải file nhập Junsky.</p></div></div><div id="crm-file-soat"></div></article>
+      <article id="crm-g" class="card" aria-labelledby="crm-g-title"><div class="section-heading"><div><h2 id="crm-g-title">5 · Mẫu hợp đồng &amp; bộ chuẩn dự án</h2><p>Đang tải… (dùng vai đang chọn ở mục Vai mô phỏng phía trên)</p></div></div></article>
+      <article id="crm-gk" class="card" aria-labelledby="crm-gk-title"><div class="section-heading"><div><h2 id="crm-gk-title">6 · Báo giá → Soạn hợp đồng từ mẫu</h2><p>Đang tải… (dùng vai đang chọn ở mục Vai mô phỏng phía trên)</p></div></div></article>
+    </section>
+    <section id="page-khoanvay" class="page hidden">
+      <div class="page-heading"><div><p class="eyebrow">HỖ TRỢ KẾ TOÁN · M9 KHOẢN VAY DEMO</p><h1>Khoản vay</h1><p class="subtitle">Nhận nguồn theo dõi khoản vay (#9) theo profile đã pin, CFO duyệt mapping, kế toán lập và kiểm hồ sơ, CFO duyệt, lịch trả nợ, nối tiền đi/về từ M1, file soát.</p></div><button id="m9-refresh" class="button secondary">↻ Làm mới</button></div>
+      <div class="notice demo-notice"><span class="notice-icon">i</span><div><strong>Dữ liệu DEMO, danh tính mô phỏng</strong><p>Nguồn #9 là tệp DEMO đúng contract (không gọi Google/app nguồn). Không tính lãi từ lãi suất; lãi/phí chỉ từ bảng lãi đã xác nhận DEMO. Không tạo bút toán, không file nhập Junsky.</p></div><span class="pill neutral">2 pháp nhân DEMO</span></div>
+      <p id="m9-status" class="upload-status" role="status" aria-live="polite"></p>
+      <article class="card"><div class="section-heading"><div><h2>Vai mô phỏng</h2><p id="m9-nguoi">Đang tải…</p></div></div>
+        <div class="demo-actions"><label for="m9-danh-tinh">Đổi vai</label><select id="m9-danh-tinh"></select><button id="m9-doi-vai" class="button secondary">Dùng vai này</button>
+          <label for="m9-ngay">Xem theo ngày</label><input id="m9-ngay" type="date"><button id="m9-xem-ngay" class="button secondary">Xem</button></div></article>
+      <article class="card"><div class="section-heading"><div><h2>1 · Nguồn khoản vay</h2><p>Mỗi lần nhận giữ nguyên tệp gốc và tạo ảnh chụp nguồn; công ty chưa map giữ chờ, không gán pháp nhân giả.</p></div></div>
+        <div id="m9-mau" class="demo-actions"></div><div id="m9-snapshot"></div></article>
+      <article class="card"><div class="section-heading"><div><h2>2 · Mapping nguồn</h2><p>CFO (quyền V4) duyệt công ty nguồn → pháp nhân, ngân hàng → ObjectID, dự án → mã dự án. Đóng mapping cho xem ảnh hưởng trước.</p></div></div><div id="m9-anh-xa"></div></article>
+      <article class="card"><div class="section-heading"><div><h2>3 · Khoản vay</h2><p>Phiên bản theo nguồn, điều kiện chặn, kiểm/duyệt, khế ước, lãi suất, lịch trả nợ, phát sinh, liên kết tiền.</p></div></div><div id="m9-khoan-vay"></div></article>
+      <article id="m9-chi-tiet" class="card hidden"></article>
+      <article class="card"><div class="section-heading"><div><h2>4 · Tiền đi/về (M1)</h2><p>Tiền qua M1 hiện có (sao kê → bộ chiếu → proof số tiền). Nối: gợi ý theo bằng chứng → xem trước → xác nhận; gỡ cả liên kết.</p></div></div>
+        <div id="m9-tien-mau" class="demo-actions"></div><div id="m9-tien"></div><div id="m9-noi"></div></article>
+      <article class="card"><div class="section-heading"><div><h2>5 · Việc chờ, file soát, khoảng trống</h2><p>Việc K5 đang mở; file soát hồ sơ vay; phần M9 còn thiếu nguồn/chính sách (giữ việc, không làm giả).</p></div></div><div id="m9-viec"></div><div id="m9-file-soat"></div><div id="m9-khoang-trong"></div></article>
+    </section>
+    <section id="page-phieukho" class="page hidden">
+      <div class="page-heading"><div><p class="eyebrow">HỖ TRỢ KẾ TOÁN · M5 PHIẾU KHO DEMO</p><h1>Phiếu kho (số lượng)</h1><p class="subtitle">Nhận phiếu nguồn #10 trước pháp nhân, đọc nguyên văn header/dòng/số lượng, đưa vào pháp nhân theo mapping kho đã duyệt, xem lịch sử nguồn, CFO soát nguồn, xuất file soát.</p></div><button id="m5-refresh" class="button secondary">↻ Làm mới</button></div>
+      <div class="notice demo-notice"><span class="notice-icon">i</span><div><strong>Dữ liệu DEMO, danh tính mô phỏng</strong><p>Nguồn #10 là tệp DEMO đã pin (không gọi Google/app nguồn). Chỉ số lượng và chứng từ: không tồn kho, không giá trị/giá vốn, không bút toán, không file nhập Junsky. Số lượng giữ nguyên văn bản nguồn; chuẩn hóa chỉ khi đo lường đã có căn cứ DEMO.</p></div><span class="pill neutral">2 nguồn · 2 pháp nhân DEMO</span></div>
+      <p id="m5-status" class="upload-status" role="status" aria-live="polite"></p>
+      <article class="card"><div class="section-heading"><div><h2>Vai mô phỏng</h2><p id="m5-nguoi">Đang tải…</p></div></div>
+        <div class="demo-actions"><label for="m5-danh-tinh">Đổi vai</label><select id="m5-danh-tinh"></select><button id="m5-doi-vai" class="button secondary">Dùng vai này</button></div>
+        <div id="m5-nang-luc"></div></article>
+      <article class="card"><div class="section-heading"><div><h2>1 · Nhận phiếu nguồn</h2><p>Người nhận nguồn (năng lực INTAKE) nhận mẫu; mỗi lần nhận có khóa riêng. Nhận lại cùng khóa trả biên nhận cũ; khóa mới cùng nội dung tạo lần quan sát mới.</p></div></div>
+        <div id="m5-mau" class="demo-actions"></div>
+        <form id="m5-tai-len" class="hidden" autocomplete="off">
+          <h4>Nhận tệp nguồn thật (giữ nguyên bytes)</h4>
+          <div class="demo-actions"><label for="m5-tl-nguon">Nguồn / phạm vi</label><select id="m5-tl-nguon"></select>
+            <label for="m5-tl-coverage">Coverage nguồn báo</label><select id="m5-tl-coverage"></select></div>
+          <div class="demo-actions"><label for="m5-tl-native">Tệp chi tiết phiếu (native JSON)</label><input id="m5-tl-native" type="file" accept=".json,application/json">
+            <label for="m5-tl-master">Tệp danh mục (master JSON)</label><input id="m5-tl-master" type="file" accept=".json,application/json"></div>
+          <div class="demo-actions"><label for="m5-tl-loi">Mã lỗi nguồn báo (mỗi dòng một mã, để trống nếu không có)</label><textarea id="m5-tl-loi" rows="2"></textarea>
+            <label for="m5-tl-khoa">Khóa lần nhận (giữ nguyên để nhận lại)</label><input id="m5-tl-khoa"><button id="m5-tl-khoa-moi" type="button" class="link-button">Khóa mới</button></div>
+          <p class="upload-status">Đổi vai hoặc nguồn/phạm vi sẽ xóa tệp, mã lỗi và khóa đã chọn; sửa form trong lúc đọc tệp thì lần gửi đó bị hủy.</p>
+          <button id="m5-tl-gui" type="submit" class="button primary">Nhận tệp nguồn</button>
+        </form>
+        <div id="m5-nguon"></div></article>
+      <article class="card"><div class="section-heading"><div><h2>2 · Phiếu kho theo pháp nhân</h2><p>Lọc theo pháp nhân, kho, kỳ và trạng thái nguồn. Quan sát mới nhất, nguồn đã chấp nhận và nội dung đủ điều kiện là ba việc khác nhau.</p></div></div>
+        <div class="demo-actions"><label for="m5-loc-pn">Pháp nhân</label><input id="m5-loc-pn" autocomplete="off"><label for="m5-loc-kho">Kho</label><input id="m5-loc-kho" autocomplete="off">
+          <label for="m5-loc-ky">Kỳ</label><input id="m5-loc-ky" type="month"><label for="m5-loc-tt">Trạng thái nguồn</label><select id="m5-loc-tt"><option value="">Tất cả</option><option value="NHAP">Nháp</option><option value="DA_DUYET">Đã duyệt</option><option value="DA_DAO">Đã đảo</option><option value="CHUA_MAP">Chưa map</option></select>
+          <button id="m5-loc" class="button secondary">Lọc</button></div>
+        <div id="m5-phieu"></div></article>
+      <article id="m5-chi-tiet" class="card hidden"></article>
+      <article class="card"><div class="section-heading"><div><h2>3 · Mapping kho nguồn → pháp nhân</h2><p>CFO có cả năng lực SOURCE_MAP đúng pháp nhân đích và quyền V4 tạo revision mới; đổi đích sau khi đã đưa vào pháp nhân chỉ mở việc ảnh hưởng, không chuyển phiếu.</p></div></div><div id="m5-mapping"></div></article>
+      <article class="card"><div class="section-heading"><div><h2>4 · Tồn nguồn, kiểm kê, liên kết hóa đơn</h2><p>Chỉ hiển thị snapshot của producer nguồn thật; chưa có thì báo chưa biết. Liên kết số lượng với hóa đơn (L11) là gói kế tiếp.</p></div></div><div id="m5-gioi-han"></div></article>
+      <article class="card"><div class="section-heading"><div><h2>5 · Việc chờ và file soát</h2><p>Việc K5 (V8 soát nguồn, V4 ảnh hưởng mapping); file soát số lượng/nguồn — không phải file nhập Junsky.</p></div></div><div id="m5-viec"></div><div id="m5-file-soat"></div></article>
+    </section>
+    <section id="page-hoadonmua" class="page hidden">
+      <div class="page-heading"><div><p class="eyebrow">HỖ TRỢ KẾ TOÁN · M2 HÓA ĐƠN MUA DEMO (R15)</p><h1>Hóa đơn mua XML</h1><p class="subtitle">Nhận XML/ZIP hóa đơn trước pháp nhân, đọc nguyên văn header/dòng, đưa hóa đơn MUA_VAO vào pháp nhân theo mapping công ty đã duyệt; CFO map dòng rồi chọn tuyến dòng.</p></div><button id="m2-refresh" class="button secondary">↻ Làm mới</button></div>
+      <div class="notice demo-notice"><span class="notice-icon">i</span><div><strong>Dữ liệu DEMO, danh tính mô phỏng</strong><p>Tệp DEMO đã pin (không tải từ cơ quan thuế/app nguồn). Chưa ghi nhận tiền/thuế/công nợ, chưa bút toán; tiền và Nợ/Có để trống (không phải 0). Tuyến KHO chỉ là bằng chứng định tuyến, chưa phải duyệt tồn kho/tài chính; số lượng còn lại/liên kết phiếu kho (L11) là gói kế tiếp.</p></div><span class="pill neutral">1 nguồn · 2 công ty DEMO</span></div>
+      <p id="m2-status" class="upload-status" role="status" aria-live="polite"></p>
+      <article class="card"><div class="section-heading"><div><h2>Vai mô phỏng</h2><p id="m2-nguoi">Đang tải…</p></div></div>
+        <div class="demo-actions"><label for="m2-danh-tinh">Đổi vai</label><select id="m2-danh-tinh"></select><button id="m2-doi-vai" class="button secondary">Dùng vai này</button></div>
+        <div id="m2-nang-luc"></div></article>
+      <article class="card"><div class="section-heading"><div><h2>1 · Nhận XML/ZIP hóa đơn</h2><p>Người nhận nguồn (INTAKE) nhận tệp; mỗi lần nhận có khóa riêng. Nhận lại cùng khóa trả biên nhận cũ; khóa mới cùng nội dung chỉ thêm lần quan sát.</p></div></div>
+        <form id="m2-tai-len" class="hidden" autocomplete="off">
+          <div class="demo-actions"><label for="m2-tl-nguon">Nguồn / phạm vi</label><select id="m2-tl-nguon"></select>
+            <label for="m2-tl-coverage">Coverage nguồn báo</label><select id="m2-tl-coverage"></select></div>
+          <div class="demo-actions"><label for="m2-tl-mau">Hoặc chọn tệp mẫu DEMO</label><select id="m2-tl-mau"></select><button id="m2-tl-gui-mau" type="button" class="button secondary">Nhận mẫu</button></div>
+          <div class="demo-actions"><label for="m2-tl-native">Tệp hóa đơn (XML hoặc ZIP)</label><input id="m2-tl-native" type="file" accept=".xml,.zip,application/xml,application/zip">
+            <label for="m2-tl-crosswalk">Tệp crosswalk (JSON, tùy chọn — chỉ là bằng chứng)</label><input id="m2-tl-crosswalk" type="file" accept=".json,application/json"></div>
+          <div class="demo-actions"><label for="m2-tl-loi">Mã lỗi nguồn báo (mỗi dòng một mã)</label><textarea id="m2-tl-loi" rows="2"></textarea>
+            <label for="m2-tl-khoa">Khóa lần nhận (giữ nguyên để nhận lại)</label><input id="m2-tl-khoa"><button id="m2-tl-khoa-moi" type="button" class="link-button">Khóa mới</button></div>
+          <p class="upload-status">Đổi vai hoặc nguồn/phạm vi sẽ xóa tệp, mã lỗi và khóa đã chọn; sửa form trong lúc đọc tệp thì lần gửi đó bị hủy.</p>
+          <p id="m2-tl-gioi-han" class="upload-status">Giới hạn mỗi lần nhận: tổng tệp hóa đơn + crosswalk tối đa 700000 byte (bản DEMO chưa hỗ trợ tệp lớn hơn; tệp vượt giới hạn bị từ chối trước khi gửi).</p>
+          <button id="m2-tl-gui" type="submit" class="button primary">Nhận tệp hóa đơn</button>
+        </form>
+        <div id="m2-nguon"></div></article>
+      <article class="card"><div class="section-heading"><div><h2>2 · Hóa đơn mua theo pháp nhân</h2><p>Quan sát mới nhất, nguồn đã chọn và nội dung đủ căn cứ là ba việc khác nhau; hóa đơn bán (BAN_RA) chỉ là ứng viên nguồn, không vào M2.</p></div></div>
+        <div class="demo-actions"><label for="m2-loc-pn">Pháp nhân</label><input id="m2-loc-pn" autocomplete="off"><label for="m2-loc-ky">Kỳ</label><input id="m2-loc-ky" type="month">
+          <button id="m2-loc" class="button secondary">Lọc</button></div>
+        <div id="m2-hoa-don"></div></article>
+      <article id="m2-chi-tiet" class="card hidden"></article>
+      <article class="card"><div class="section-heading"><div><h2>3 · Mapping công ty nguồn → pháp nhân</h2><p>CFO có SOURCE_MAP đúng pháp nhân đích và quyền V4; hóa đơn đã đưa vào pháp nhân giữ pháp nhân cũ khi đổi mapping.</p></div></div><div id="m2-mapping"></div></article>
+    </section>
+    <section id="page-lienketsoluong" class="page hidden">
+      <div class="page-heading"><div><p class="eyebrow">HỖ TRỢ KẾ TOÁN · L11 LIÊN KẾT SỐ LƯỢNG DEMO (R16)</p><h1>Liên kết số lượng hóa đơn ↔ phiếu kho</h1><p class="subtitle">Hai lượng gốc, hai pool ổn định: bằng chứng thô → CFO xác nhận → mã hóa nguồn → xem trước bốn lượng → xác nhận / hủy. Chỉ số lượng — không tiền, không tồn kho, không bút toán.</p></div><button id="l11-refresh" class="button secondary">↻ Làm mới</button></div>
+      <p id="l11-status" class="upload-status" role="status" aria-live="polite"></p>
+      <article class="card"><div class="section-heading"><div><h2>Vai mô phỏng</h2><p id="l11-nguoi">Đang tải…</p></div></div>
+        <div class="demo-actions"><label for="l11-danh-tinh">Đổi vai</label><select id="l11-danh-tinh"></select><button id="l11-doi-vai" class="button secondary">Dùng vai này</button></div></article>
+      <article class="card"><div class="section-heading"><div><h2>1 · Nhận bằng chứng (bytes thô, chưa phải duyệt)</h2><p>Một tệp JSON mỗi lần nhận; loại/tham chiếu/pháp nhân do máy chủ suy từ cấu hình đã pin. Coverage khác COMPLETE_INPUT hoặc có lỗi báo → GIỮ (HOLD), không duyệt được. CFO xem H/độ dài raw và facts (miền, binding, đơn vị native/pool, tỷ lệ) trước khi xác nhận.</p></div></div>
+        <form id="l11-tai-len" class="hidden" autocomplete="off">
+          <div class="demo-actions"><label for="l11-tl-nguon">Nguồn / phạm vi</label><select id="l11-tl-nguon"></select>
+            <label for="l11-tl-coverage">Coverage</label><select id="l11-tl-coverage"></select></div>
+          <div class="demo-actions"><label for="l11-tl-mau">Hoặc mẫu bằng chứng DEMO</label><select id="l11-tl-mau"></select><button id="l11-tl-gui-mau" type="button" class="button secondary">Nhận mẫu</button></div>
+          <div class="demo-actions"><label for="l11-tl-tep">Tệp bằng chứng (JSON)</label><input id="l11-tl-tep" type="file" accept=".json,application/json">
+            <label for="l11-tl-khoa">Khóa lần nhận</label><input id="l11-tl-khoa"><button id="l11-tl-khoa-moi" type="button" class="link-button">Khóa mới</button></div>
+          <button id="l11-tl-gui" type="submit" class="button primary">Nhận tệp bằng chứng</button>
+        </form>
+        <div id="l11-ung-vien"></div></article>
+      <article class="card"><div class="section-heading"><div><h2>2 · Bằng chứng đã xác nhận</h2><p>Hàng hóa / tỷ lệ giữa hai định nghĩa đơn vị / mã hóa native. Thu hồi đưa liên kết đang dùng về CẦN SOÁT (giữ lượng).</p></div></div><div id="l11-bang-chung"></div></article>
+      <article class="card"><div class="section-heading"><div><h2>3 · Mã hóa nguồn (dòng → pool số lượng ổn định)</h2><p>Dòng hóa đơn (cầu nối đã duyệt) và dòng phiếu (nội dung đủ điều kiện).</p></div></div><div id="l11-dong-hoa-don"></div><div id="l11-dong-phieu"></div></article>
+      <article class="card"><div class="section-heading"><div><h2>4 · Chọn cặp → xem trước bốn lượng → xác nhận</h2><p>Nhập đúng hai số lượng gốc; máy chủ kiểm tỷ lệ cross-native trên hai lượng GỐC, tính riêng lượng pool mỗi phía qua mã hóa của phía đó và kiểm ngân sách hai phía.</p></div></div><div id="l11-cap"></div><div id="l11-xem-truoc"></div></article>
+      <article class="card"><div class="section-heading"><div><h2>5 · Liên kết đã ghi / hủy / file soát số lượng</h2></div></div><div id="l11-lien-ket"></div></article>
+    </section>
+    <section id="page-nghiemthu" class="page hidden">
+      <div class="page-heading"><div><p class="eyebrow">HỖ TRỢ KẾ TOÁN · M4 BRIDGE DEMO</p><h1>Hồ sơ nghiệm thu</h1><p class="subtitle">Nhận kết quả kiểm đợt từ phần mềm Review hồ sơ xây dựng, xác nhận số kế toán và mã danh mục, tạo đề xuất bút toán nghiệm thu (không phát sinh thu/chi tiền).</p></div><button id="nt-refresh" class="button secondary">↻ Làm mới</button></div>
+      <div class="notice demo-notice"><span class="notice-icon">i</span><div><strong>Kho mô phỏng — dữ liệu DEMO</strong><p>Không review lại hồ sơ xây dựng; chỉ nhận kết quả đã có. Số đề nghị và số của review không tự thành số hạch toán. Chỉ xuất file soát; chưa tạo file nhập Junsky. Nguồn thật từ phần mềm review chưa được kết nối.</p></div><span class="pill neutral">PLHN_FIXTURE</span></div>
+      <article class="card"><div class="section-heading"><div><h2>1 · Nhận kết quả review</h2><p>Nạp danh mục DEMO trước, rồi nhận mẫu hoặc tệp JSON đúng định dạng kết quả kiểm đợt.</p></div></div>
+        <div class="demo-actions"><button id="nt-seed-catalog" class="button secondary">Nạp danh mục DEMO</button><button id="nt-seed-review" class="button primary">Nhận review mẫu</button><button id="nt-seed-pending" class="button secondary">Nhận review chưa nạp</button><button id="nt-seed-revision" class="button secondary">Nhận bản thay</button></div>
+        <div class="demo-actions"><input id="nt-input" type="file" accept=".json" aria-label="Chọn tệp JSON kết quả review"><button id="nt-receive" class="button secondary" disabled>Nhận tệp JSON</button></div>
+        <p id="nt-status" class="upload-status" role="status" aria-live="polite"></p>
+      </article>
+      <article class="card"><div class="section-heading"><div><h2>2 · Danh sách hồ sơ</h2><p>Trạng thái nguồn (đã nạp vào phần mềm review) và trạng thái kế toán là hai việc khác nhau.</p></div></div><div id="nt-list"></div></article>
+      <article id="nt-detail" class="card hidden"></article>
+      <article class="card"><div class="section-heading"><div><h2>3 · File soát</h2><p>Chỉ hồ sơ Đã đồng ý; không ghi vế tiền, không phải file nhập Junsky.</p></div><button id="nt-export" class="button primary">Xuất file soát</button></div><div id="nt-exports"></div></article>
+    </section>
+    <section id="page-m4" class="page hidden m4" aria-labelledby="m4-title"><div class="m4-wrap"><h1 id="m4-title">Hồ sơ xây dựng</h1><p class="m4-sub">Đang tải Cổng hồ sơ M4… Nếu trang không đổi, mở lại bằng tệp MỞ BẢN DEMO.cmd.</p></div></section>
     <section id="page-khanang" class="page hidden">
       <div class="page-heading"><div><p class="eyebrow">PHẠM VI HIỆN TẠI</p><h1>Khả năng xử lý</h1><p class="subtitle">Phân biệt hồ sơ đã lưu với dữ liệu đã được đọc và kiểm chứng.</p></div></div>
       <div class="capability-grid"><article class="card"><span class="pill green">Dùng được ngay</span><h2>Nhận và quản lý tệp gốc</h2><p>Chọn tệp, gắn pháp nhân và kỳ, lưu trên máy, kiểm tra tệp trùng, tìm kiếm và tải lại bản gốc.</p></article><article class="card"><span class="pill amber">Chờ mẫu xác nhận</span><h2>Đọc dữ liệu &amp; xuất Junsky thật</h2><p>Cần bộ đọc đúng định dạng nguồn và mẫu Entry1/2 được xác nhận. Tệp đã nhận chưa tự trở thành chứng từ kế toán.</p></article></div>
@@ -78,7 +210,7 @@
       <article class="card demo-custom"><div><h2>Kiểm tra tệp fixture của Anh</h2><p>Chỉ nhận JSON được khai báo là dữ liệu mô phỏng. Kiểm tra không tự nạp vào kho.</p></div><input id="demo-input" type="file" accept=".json" aria-label="Chọn tệp JSON mô phỏng"><div class="demo-actions"><button id="validate-demo" class="button secondary" disabled>Kiểm tra tệp mẫu</button><button id="ingest-demo" class="button primary" disabled>Nạp vào kho mô phỏng</button></div></article>
       <div id="demo-result" class="card hidden" role="status" aria-live="polite"></div><article class="card"><div class="section-heading"><h2>Lịch sử nạp mẫu</h2><span class="pill neutral" id="demo-count">0 chứng từ</span></div><div id="demo-history"></div></article>
     </section>
-    <footer class="page-footer"><span>Kho tri thức PLHN</span><span>Tiếp nhận → Kiểm tra → Duyệt → Đối soát</span><span>Chỉ trên máy này <i class="footer-dot"></i></span></footer>
+    <footer class="page-footer"><span>Hỗ trợ kế toán PLHN</span><span>Tiếp nhận → Kiểm tra → Duyệt → Đối soát</span><span>Chỉ trên máy này <i class="footer-dot"></i></span></footer>
   </main>
 </div>
 <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>

@@ -1,0 +1,31 @@
+{"source_detail":{
+    "phieu": {
+      "SoPhieu": "NK20260814001",
+      "LoaiPhieu": "Nhập",
+      "NgayChungTu": "2026-08-14",
+      "MaKho": "KHO_DEMO",
+      "MaDoiTac": "DT_DEMO",
+      "DienGiai": "DEMO synthetic fixture",
+      "TrangThai": "Đã duyệt",
+      "NguoiLap": "MO_PHONG_LAP@example.invalid",
+      "NguoiDuyet": "MO_PHONG_DUYET@example.invalid",
+      "ThoiDiemDuyet": "2026-08-14T02:00:00.000Z",
+      "SoPhieu_Goc": ""
+    },
+    "lines": [
+      {
+        "ID_Dong": "ID_1786672800001",
+        "SoPhieu": "NK20260814001",
+        "MaHang": "HH_DEMO_A",
+        "SoLuong": "8",
+        "GhiChu": "DEMO"
+      },
+      {
+        "ID_Dong": "ID_1786672800002",
+        "SoPhieu": "NK20260814001",
+        "MaHang": "HH_DEMO_B",
+        "SoLuong": "2",
+        "GhiChu": "DEMO"
+      }
+    ]
+  }}

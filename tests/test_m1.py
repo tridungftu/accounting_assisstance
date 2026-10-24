@@ -344,6 +344,43 @@ s.ingest(Path(sys.argv[3]))
             self.assertEqual(restored.conn.execute("SELECT contents FROM config_history").fetchone()[0], self.config.source_bytes)
         self.assertEqual(len(list((restore / "raw").glob("*.bin"))), 1)
 
+    def test_restore_postgres_schema_dich_kiem_truoc_khi_chep(self):
+        """V13 A3: cấu hình postgres schema cố định đã nạp → từ chối trước khi chép; schema trống/auto → phục hồi, dữ liệu snapshot giữ đủ."""
+        from kho_tri_thuc.ha_tang import ket_noi
+        backup = self.root / "backup"
+        with Store(self.config) as store:
+            store.ingest(FIXTURES / "sao_ke.json")
+            create_backup(store, backup)
+            store.ingest(FIXTURES / "base.json")  # sau mốc backup: không được xuất hiện trong bản phục hồi
+        env = {k: v for k, v in os.environ.items() if not k.startswith("KHO_STORAGE_")}
+        fixed = replace(self.config, storage_engine="postgres", storage_schema="v12_demo_a3")
+        seen = []
+
+        def trang_thai(state):
+            return lambda dsn, schema: (seen.append(schema), state)[1]
+
+        with patch.dict(os.environ, env, clear=True), patch("kho_tri_thuc.ha_tang.postgres.dsn_from_env", return_value="postgresql://demo/khong_ket_noi"):
+            for state, code in (((True, True), "PG_KHO_SQLITE_CON"), ((False, True), "PG_NAP_DO")):
+                target = self.root / f"restore-{code}"
+                with self.subTest(code=code), patch.object(ket_noi, "_trang_thai_schema", trang_thai(state)):
+                    with self.assertRaises(DataError) as ctx:
+                        restore_backup(backup, target, fixed)
+                    self.assertEqual(ctx.exception.code, code)
+                    self.assertFalse(target.exists())
+                    self.assertEqual(list(self.root.glob(f"restore-{code}*")), [])  # không để lại thư mục .partial
+            self.assertEqual(seen, ["v12_demo_a3", "v12_demo_a3"])
+            with patch.object(ket_noi, "_trang_thai_schema", trang_thai((False, False))):
+                fresh = restore_backup(backup, self.root / "restore-fresh", fixed)
+                auto = restore_backup(backup, self.root / "restore-auto", replace(fixed, storage_schema="auto"))
+            self.assertEqual(fresh["schema_dich"], "v12_demo_a3")
+            self.assertRegex(auto["schema_dich"], r"^v12_[0-9a-f]{12}$")
+            self.assertNotEqual(auto["schema_dich"], ket_noi.ten_schema(replace(fixed, storage_schema="auto"), self.config.data_dir / "kho.sqlite"))
+            plain = restore_backup(backup, self.root / "restore-sqlite", replace(self.config, storage_engine="sqlite"))  # đường lùi như cũ
+            self.assertNotIn("schema_dich", plain)
+        for name in ("restore-fresh", "restore-auto", "restore-sqlite"):
+                with Store(replace(self.config, data_dir=self.root / name)) as restored:
+                    self.assertEqual(restored.status()["documents_by_kind"], {"BANK": 2})
+
     def test_backup_rejects_missing_raw_tampering_unsafe_paths_and_overwrite(self):
         backup = self.root / "backup"
         with Store(self.config) as store:

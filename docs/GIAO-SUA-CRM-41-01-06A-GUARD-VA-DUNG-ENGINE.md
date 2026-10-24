@@ -1,0 +1,29 @@
+# CRM-41-01-06A — Giữ guard và xác nhận dừng owned engine
+
+**21/10/2026 · CODE_ONLY sau Root release · SAME session · EXACT 3 existing, NEW0.** Quyết định engine chung đã chốt, không đổi kiến trúc. Chỉ sửa `src/kho_tri_thuc/nguon/trich6_host.py`, `tests/test_trich6_host.py`, `docs/BAO-CAO-CRM-41-01.md`. Không sửa core/catalog/client/callers/server/launcher/SQL/source staged hoặc source thật, không thêm module/framework.
+
+## Baseline và bằng chứng
+- ONECLICK06 đã terminal exec3946/bf363e, exit0/Jobempty, đúng10existing+2NEW; actual source37 F11 giữ nguyên. Freeze `crm-41-01-oneclick06-frozen-d126872da069`: source372 `dd55bb0a8d8945d73f333f03d9ca7f2ca41d04e72f683bdb7f506e66319f2e1f`; runtime440 `9f2dd5ebef8d225309c7d13852cd5adbc5ac09ce9c84248143b73d52474f7480`. Root đã FULL-read host430/test312/diffs; review độc lập đồng ý hai lỗi hữu hạn dưới đây.
+- Root pure kiểm32/32 PASS,0skip (IO-mock/projection/wiring/caller UNIT), không phải owned host/GUI. Native source24 và actual M4/CRM HTTP→PG8 trước ONECLICK06 là lịch sử hữu hạn; slot regex staged mới chưa áp, source25 chưa chạy.
+- Actual source37 manifest vẫn `50c507258878b4b5c49f12deb5b9dfc8704bb97d53ed86e5dcc5ae54f13556a4`; chỉ Root áp staged sau review có backup. Không can thiệp app nguồn/user64900/8600. Một engine #6 thật/common/v1/RULE_ONLY duy nhất.
+
+## 1. Guard theo runtime hiện hành, kiểm trước I/O nguồn
+- `env_con()` hiện làm rơi `PYTHONUSERBASE` và `CODEX_NO_DELETE_FILES`. Runtime kiểm của Root nạp A517 qua USERBASE nên child có thể mất guard. Runtime nút DEMO đã có sitecustomize qua PYTHONPATH tự đặt flag/nạp A517, vì vậy **không tuyên bố mọi DEMO hiện mất guard**. Cần giữ đúng cả hai đường startup, không buộc chọn một đường hoặc sửa selector/runtime/guard.
+- Giữ hai biến không bí mật trên trong env whitelist bên cạnh PYTHONPATH/runtime đã có; tiếp tục loại PG/DSN/token/API/cloud/source HD_* từ parent. Không đưa token owned vào env/argv/file. Không copy/disable/modify guard.
+- Parent và child kiểm thực A517: module `codex_no_delete_guard` đã nạp từ startup, SHA256 file gốc `a517c5359ceada062900edd34280d4dc7daa2a001d5e05c84a9eae174813a229`, flag1, hooks không xóa thực đã gắn và bytecode tắt. Được đọc provenance kỹ thuật; không import/đổi guard sau đó để che startup thiếu. Child phải fail closed **trước mkdir/HD_* source data I/O và import source** nếu thiếu/sai guard/hook. Không chỉ tin env hoặc chuỗi hash trong handshake.
+- Ready handshake có chứng cứ guard không bí mật để parent kiểm, gắn cùng instance/implementation của child; không rò path/token. Giữ Job-before-stdin, actual factory, common-only/sealedraw/auth/managed-mode hiện có. Missing guard trả mã lỗi ngắn/NOT_READY, chưa mở source; không fallback legacy/default endpoint.
+- Unit đối chiếu whitelist phải thêm hai biến này, vẫn chứng minh bí mật bị lọc. Negative child bootstrap có thiếu/sai guard phải chứng minh zero source import/mkdir/server (sentinel/counter phù hợp), không cố chạy extraction unguarded. Positive qua USERBASE-only và configured PYTHONPATH/sitecustomize đều giữ hook; test phân loại thực/mocked rõ.
+
+## 2. Stop xác nhận hữu hạn, không báo đã dừng khi chưa rõ
+- `_don()` hiện bỏ qua TimeoutExpired cuối, đóng Job rồi `stop()` đã xóa handle/đánh DA_DUNG dù chưa xác nhận. Giữ cơ chế EOF→grace→terminate exact owned Job, nhưng chỉ công bố dừng thành công sau xác nhận exact process terminal và Job không còn active processes bằng query hữu hạn khi handle còn hợp lệ.
+- Khi child đã thoát nhưng worker còn sống, chốt owned Job để worker dừng và kiểm active count; không bỏ qua chỉ vì `proc.poll()!=None`. Nếu kill/wait/query thất bại hoặc quá hạn cuối, trả `LoiHost`/trạng thái chưa xác nhận rõ; giữ witness exact proc/PID/phase để đối soát, không nói DA_DUNG thành công. Finally vẫn đóng handle đúng owned Job; không process-name scan/kill, không đụng foreign PID/source app.
+- Không xây process framework mới: bổ sung hẹp _JobWindows và lifecycle đang có. Tests fault injection cho wait cuối/query chưa empty/kill failure phải kiểm không false-success và cleanup hữu hạn. Force-stop test finally phải kill nếu cần **và wait** đúng Popen; bảo đảm cả hai own hosts được cleanup dù một nhánh lỗi.
+
+## 3. Bổ sung positive thật qua owned endpoint, không chỉ health
+- Hai actual Windows tests hiện chỉ capability/lifecycle; mock HTTP download không thay actual upload/run/sealed download. Thêm một ca DOCX DEMO thật qua `h.client(...)`: dùng fixture `kiem_chung.fixtures_m4.hop_dong_docx` đã có, có thể truyền tuple literal `('HỢP ĐỒNG THI CÔNG XÂY DỰNG (DEMO)', 'Số: 0001/2026', 'Điều 1. Công việc DEMO')` để ghim một đáp án hữu hạn.
+- Trích ALL37 rồi subset `['TC-01','TT-02']` bằng ID riêng trên **cùng owned host**, check exact tập mã, catalog H, cùng implementation boot, TC-01 = `0001/2026` và dẫn chứng gốc chứa số này thuộc input. Raw JSON nhận qua facade phải có bytes/hash/length đúng seal; exact same-intent replay giữ raw/lượt cũ, không thêm lượt. Không gọi đây là độ chính xác toàn37/type hay actual central two-consumer/GUI.
+- Trong ca thật, thiếu/sai token, `{}` create/chay, `/api/tat`, UI/settings/AI/list và download ngoài sealedref tiếp tục bị từ chối; engine còn sống. Stop bằng lifecycle xác nhận terminal/Jobempty; foreign instance B vẫn sống và không đổi. Không dữ liệu/config/key thật của người dùng, không cloud/Office/SQL.
+- Giữ mọi assertion cũ; không sửa đáp án theo output hoặc loại ca khó. Missing provider/Windows skip ghi riêng, không cộng PASS; không thay source factory bằng giả để gọi actual-positive.
+
+## Đầu ra lượt code
+Chỉ Read/Glob/Grep/Edit/Write trong exact3existing; không shell/import/AST/test/runtime/SQL/network/Agent/MCP/cloud, không xóa file. Cập nhật report actual code/pending và self-test NOT_RUN. Root tự review và chạy finite tests sau terminal. Không thêm catalog/lõi; xong launcher chuyển sang CRM G2/G3 và full M4 theo hàng đợi, không mở vòng sửa plumbing giả định mới.

@@ -1,0 +1,60 @@
+{
+  "status": "DECLARED_DEMO_MANUAL_EXPECTATIONS_GENERATOR_NOT_RUN",
+  "contract": "M2_NEUTRAL_BRIDGE_DEMO_V1",
+  "identity_profile": {"ref": "DEMO_M2_ID_DIGITS_V1", "number_rule": "NONEMPTY_ASCII_DIGITS_STRING_STRIP_LEADING_ZERO_OR_0", "other_identity_fields": "EXACT_NONEMPTY_ASCII_NO_TRIM_NO_CASEFOLD", "tuple_order": ["PN", "chieu", "mst_ban", "mau_so", "ky_hieu", "so_chuan"], "production_equivalence": "NOT_BOUND"},
+  "content_contract": {"ref": "M2_XML_CONTENT_V1", "encoding": "UTF8_NO_BOM_NO_TRAILING_NEWLINE", "canonical_json": "SORT_KEYS_RECURSIVELY_ENSURE_ASCII_FALSE_SEPARATORS_COMMA_COLON_ALLOW_NAN_FALSE", "array_order": "PRESERVE_SOURCE_ORDER", "includes": ["canonical_invoice_tuple", "exact_raw_header_field_states", "ordered_line_field_states", "header_total_section_state"], "excludes": ["delivery", "actor", "receipt", "known_at", "route", "proof", "receiver_UUID"], "scope": "PRIVATE_DEMO_GOLDEN_NOT_EXISTING_PRODUCT_HASH"},
+  "source": {"instance": "DEMO_M2_XML_INSTANCE_A", "profile_ref": "DEMO_M2_XML_QD1271_FIELDS_V1", "profile_verification": "DECLARED_DEMO_SUBSET_NOT_ACTUAL_PRODUCER_VERIFIED", "capture_contract": "m0-capture/v1_UNCHANGED", "source_API_UUIDs": "NOT_BOUND", "native_fiscal_approval": "UNKNOWN"},
+  "companies": [
+    {"key": "DEMO_M2_COMPANY_A", "pn": "PN_DEMO_A", "mapping_kind": "COMPANY", "mapping_ref": "DEMO_M2_COMPANY_MAP_A", "revision": 1, "scope_ref": "DEMO_M2_COMPANY_SCOPE_A"},
+    {"key": "DEMO_M2_COMPANY_B", "pn": "PN_DEMO_B", "mapping_kind": "COMPANY", "mapping_ref": "DEMO_M2_COMPANY_MAP_B", "revision": 1, "scope_ref": "DEMO_M2_COMPANY_SCOPE_B"}
+  ],
+  "direction_rule": {"buyer_exact_company": "MUA_VAO", "seller_exact_company": "BAN_RA", "neither_or_both_or_conflict": "CANDIDATE_HOLD", "company_tokens_are_valid_tax_ids": false},
+  "identities": [
+    {"ref": "I_G01_A", "tuple": ["PN_DEMO_A", "MUA_VAO", "DEMO_M2_SUPPLIER", "1", "DEMO_SERIES_A", "1"]},
+    {"ref": "I_G04_A_7", "tuple": ["PN_DEMO_A", "MUA_VAO", "DEMO_M2_SUPPLIER", "1", "DEMO_SERIES_A", "7"]},
+    {"ref": "I_G04_B_7", "tuple": ["PN_DEMO_B", "MUA_VAO", "DEMO_M2_SUPPLIER", "1", "DEMO_SERIES_A", "7"]},
+    {"ref": "I_G04_SALE_A_7", "tuple": ["PN_DEMO_A", "BAN_RA", "DEMO_M2_COMPANY_A", "1", "DEMO_SERIES_A", "7"], "M2_owner_or_route": false},
+    {"ref": "I_G05_A_6", "tuple": ["PN_DEMO_A", "MUA_VAO", "DEMO_M2_SUPPLIER", "1", "DEMO_SERIES_A", "6"]},
+    {"ref": "I_G05_AMBIG_A_5", "tuple": ["PN_DEMO_A", "MUA_VAO", "DEMO_M2_SUPPLIER", "1", "DEMO_SERIES_A", "5"], "line_bridge": "HOLD_WITHOUT_CROSSWALK"}
+  ],
+  "observations": [
+    {"ref": "O_G01", "artifact": "inputs/G01-wrapped-positive.xml", "company": "DEMO_M2_COMPANY_A", "identity": "I_G01_A", "content": "C_G01", "raw_number": "000001"},
+    {"ref": "O_G03_RAW", "artifact": "inputs/G03-identical-raw.xml", "company": "DEMO_M2_COMPANY_A", "identity": "I_G01_A", "content": "C_G01", "raw_number": "000001"},
+    {"ref": "O_G03_ZIP_1", "artifact": "inputs/G03-identical-members.zip", "entry_ordinal": 1, "company": "DEMO_M2_COMPANY_A", "identity": "I_G01_A", "content": "C_G01", "raw_number": "000001"},
+    {"ref": "O_G03_ZIP_2", "artifact": "inputs/G03-identical-members.zip", "entry_ordinal": 2, "company": "DEMO_M2_COMPANY_A", "identity": "I_G01_A", "content": "C_G01", "raw_number": "000001"},
+    {"ref": "O_G04_A_PAD", "artifact": "inputs/G04-purchase-a-padded.xml", "company": "DEMO_M2_COMPANY_A", "identity": "I_G04_A_7", "content": "C_G04_A_PAD", "raw_number": "0007"},
+    {"ref": "O_G04_A_UNPAD", "artifact": "inputs/G04-purchase-a-unpadded.xml", "company": "DEMO_M2_COMPANY_A", "identity": "I_G04_A_7", "content": "C_G04_A_UNPAD", "raw_number": "7"},
+    {"ref": "O_G04_B_PAD", "artifact": "inputs/G04-purchase-b-padded.xml", "company": "DEMO_M2_COMPANY_B", "identity": "I_G04_B_7", "content": "C_G04_B_PAD", "raw_number": "0007"},
+    {"ref": "O_G04_SALE_A", "artifact": "inputs/G04-sale-a.xml", "company": "DEMO_M2_COMPANY_A", "identity": "I_G04_SALE_A_7", "content": "C_G04_SALE_A", "raw_number": "7"},
+    {"ref": "O_G05_A", "artifact": "inputs/G05-order-a.xml", "company": "DEMO_M2_COMPANY_A", "identity": "I_G05_A_6", "content": "C_G05_A", "raw_number": "000006"},
+    {"ref": "O_G05_B", "artifact": "inputs/G05-order-b.xml", "company": "DEMO_M2_COMPANY_A", "identity": "I_G05_A_6", "content": "C_G05_B", "raw_number": "000006"},
+    {"ref": "O_G05_AMBIG", "artifact": "inputs/G05-stt-ambiguity.xml", "company": "DEMO_M2_COMPANY_A", "identity": "I_G05_AMBIG_A_5", "content": "C_G05_AMBIG", "raw_number": "000005", "line_bridge": "HOLD_NO_AUTOMATIC_LOGICAL_KEYS"}
+  ],
+  "crosswalk": {"revision": 1, "authority": "DECLARED_DEMO_ROOT_EXPLICIT_NOT_ITEM_MATCH", "row_raw_sha256": null, "exact_row_span": "NOT_AVAILABLE", "field_state_fingerprint": "NOT_BOUND_SEPARATE_FROM_RAW_SHA", "rows": [
+    {"mapping_ref": "CW_G01_R1", "observation": "O_G01", "ordinal": 1, "logical_line_ref": "DEMO_LINE_G01_A", "continuity_ref": "DEMO_CONTINUITY_G01_SAME_CONTENT"},
+    {"mapping_ref": "CW_G01_R1", "observation": "O_G03_RAW", "ordinal": 1, "logical_line_ref": "DEMO_LINE_G01_A", "continuity_ref": "DEMO_CONTINUITY_G01_SAME_CONTENT"},
+    {"mapping_ref": "CW_G01_R1", "observation": "O_G03_ZIP_1", "ordinal": 1, "logical_line_ref": "DEMO_LINE_G01_A", "continuity_ref": "DEMO_CONTINUITY_G01_SAME_CONTENT"},
+    {"mapping_ref": "CW_G01_R1", "observation": "O_G03_ZIP_2", "ordinal": 1, "logical_line_ref": "DEMO_LINE_G01_A", "continuity_ref": "DEMO_CONTINUITY_G01_SAME_CONTENT"},
+    {"mapping_ref": "CW_G05_R1", "observation": "O_G05_A", "ordinal": 1, "logical_line_ref": "DEMO_LINE_G05_A", "continuity_ref": "DEMO_CONTINUITY_G05_A_R1"},
+    {"mapping_ref": "CW_G05_R1", "observation": "O_G05_A", "ordinal": 2, "logical_line_ref": "DEMO_LINE_G05_B", "continuity_ref": "DEMO_CONTINUITY_G05_B_R1"},
+    {"mapping_ref": "CW_G05_R1", "observation": "O_G05_B", "ordinal": 1, "logical_line_ref": "DEMO_LINE_G05_B", "continuity_ref": "DEMO_CONTINUITY_G05_B_R1"},
+    {"mapping_ref": "CW_G05_R1", "observation": "O_G05_B", "ordinal": 2, "logical_line_ref": "DEMO_LINE_G05_A", "continuity_ref": "DEMO_CONTINUITY_G05_A_R1"}
+  ]},
+  "route_decisions": {"status": "DECLARED_DEMO_NOT_INSTALLED_NOT_RUN", "positive": {"ref": "DEMO_ROUTE_G01_KHO_R1", "version": 1, "actor": "MO_PHONG_CFO_MUA_A", "pn": "PN_DEMO_A", "identity": "I_G01_A", "content": "C_G01", "logical_line": "DEMO_LINE_G01_A", "crosswalk": "CW_G01_R1", "route": "KHO", "route_state": "NHAP", "expected_current_route": null, "current_basis_sha256": null, "current_basis_state": "NOT_BOUND_SERVER_MUST_RESOLVE", "client_key": "DEMO_M2_ROUTE_G01_KHO_01", "reason": "Explicit synthetic neutral-route decision; no financial approval", "mutation_effect": "VERSIONED_ROUTE_PROJECTION_ONLY_SOURCE_IMMUTABLE"}, "negative": [
+    {"case": "NO_CROSSWALK", "expected": "HOLD_NO_CONFIRMED_LOGICAL_PAIR", "business_route_delta": 0},
+    {"case": "STALE_ROUTE_OR_BASIS", "expected": "CONFLICT_BEFORE_REPLAY", "business_route_delta": 0},
+    {"case": "CROSS_PN", "expected": "DENY_SAME_PN_COMPOSITE_GRAPH", "business_route_delta": 0},
+    {"case": "OLD_CONTENT_PB", "expected": "CONFLICT_CURRENT_SOURCE_BASIS", "business_route_delta": 0}
+  ], "financial_V1_approval": false, "L11_confirmation": false, "M5_cross_unit_proof": null, "cross_unit_proof_state": "NOT_BOUND", "runtime_receiver_UUIDs": "NOT_BOUND"},
+  "actors": [
+    {"login": "MO_PHONG_M0_HD_INTAKE", "role": "KE_TOAN", "source_actions": ["INTAKE", "READ_SOURCE"], "source_scope": "INSTANCE_PROFILE_WIDE_BOTH_CONFIGURED_COMPANIES", "business": []},
+    {"login": "MO_PHONG_HD_NO_SOURCE", "role": "KE_TOAN", "source_actions": [], "business": []},
+    {"login": "MO_PHONG_KT_MUA_A", "role": "KE_TOAN", "source_actions": [], "business": [{"pn": "PN_DEMO_A", "modules": ["M2"], "actions": ["M2_READ"], "duyet_loai_viec": []}], "neutral_FILE_SOAT": "NOT_GRANTED_UNTIL_SEPARATE_RELEASE"},
+    {"login": "MO_PHONG_KT_MUA_B", "role": "KE_TOAN", "source_actions": [], "business": [{"pn": "PN_DEMO_B", "modules": ["M2"], "actions": ["M2_READ"], "duyet_loai_viec": []}], "neutral_FILE_SOAT": "NOT_GRANTED_UNTIL_SEPARATE_RELEASE"},
+    {"login": "MO_PHONG_CFO_MUA_A", "role": "CFO", "source_actions": ["SOURCE_MAP"], "source_target_pn": "PN_DEMO_A", "business": [{"pn": "PN_DEMO_A", "modules": ["M2"], "actions": ["M2_READ", "M2_MAP", "M2_ROUTE"], "duyet_loai_viec": ["V4"]}]},
+    {"login": "MO_PHONG_CFO_MUA_B", "role": "CFO", "source_actions": ["SOURCE_MAP"], "source_target_pn": "PN_DEMO_B", "business": [{"pn": "PN_DEMO_B", "modules": ["M2"], "actions": ["M2_READ", "M2_MAP", "M2_ROUTE"], "duyet_loai_viec": ["V4"]}]},
+    {"login": "MO_PHONG_VIEW_MUA_A", "role": "XEM", "source_actions": [], "business": [{"pn": "PN_DEMO_A", "modules": ["M2"], "actions": ["M2_READ"], "duyet_loai_viec": []}]},
+    {"login": "MO_PHONG_M1_ONLY_MUA_A", "role": "KE_TOAN", "source_actions": [], "business": [{"pn": "PN_DEMO_A", "modules": ["M1"], "actions": [], "duyet_loai_viec": []}], "purpose": "NEGATIVE_NEW_M2_ACCESS_NO_OLD_M1_RETAG"}
+  ],
+  "manual_relations": {"G01_G03": {"identity_count": 1, "content_count": 1, "observation_count": 4, "logical_line_count": 1, "exact_same_capture_key_repeat_new_observations": 0, "capture_bundle_count": "NOT_BOUND"}, "G04": {"identity_count": 3, "content_count": 4, "observation_count": 4, "padded_unpadded_A_same_identity": true, "padded_unpadded_A_different_raw_content": true, "cross_PN_or_direction_merge": false, "BAN_RA_M2_route_allowed": false}, "G05_reorder": {"identity_count": 1, "content_count": 2, "observation_count": 2, "logical_line_count": 2, "version_line_bridge_count": 4, "automatic_STT_or_item_match": false}, "G05_ambiguity": {"retained_raw_row_count": 4, "confirmed_logical_line_bridge_count": 0, "enumeration_as_logical_key": false}, "production_tax_account_currency_rounding_policy": "NOT_BOUND", "M5_actors_grants_revocations": "UNCHANGED", "other_corpus_groups": "OLD_ORACLE_UNCHANGED"}
+}

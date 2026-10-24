@@ -1,0 +1,35 @@
+{
+  "status": "EXISTING_DECLARED_DEMO_PROFILE_REUSED_UNCHANGED_NOT_NEW_PRODUCER_VERIFICATION",
+  "reference_id": "urn:demo:m5:source-profile:f05eee570c7c8861b219ca97",
+  "sha256": "b8735806b72701dc6a4a54c3b3772e70326efbc812543b1c5969576be3eedb41",
+  "payload": {
+    "artifact_roles": [
+      {
+        "media_type": "application/json",
+        "required": true,
+        "role": "MASTER_RAW"
+      },
+      {
+        "media_type": "application/json",
+        "required": true,
+        "role": "NATIVE_DETAIL"
+      }
+    ],
+    "capture_contract": "m0-capture/v1",
+    "contract": "m0-source-profile/v1",
+    "coverage_values": [
+      "FULL_FOR_SINGLE_DETAIL_AND_REFERENCED_MASTER_ONLY",
+      "PARTIAL"
+    ],
+    "native_detail_shape": "kho10-detail/v1",
+    "precision_claim": "NONE_AT_SOURCE_PROFILE_LEVEL",
+    "quantity_json_kinds": [
+      "STRING",
+      "NUMBER",
+      "NULL"
+    ],
+    "source_code_sha256": "62f4658321ea6c6230a58cf850d49de43e2db826e5a66f807249de29af873e2c",
+    "transport": "ROOT_PINNED_LEXICAL_FILES_ONLY",
+    "verification": "SYNTHETIC_DEMO_ONLY_NOT_PRODUCTION_VERIFIED"
+  }
+}

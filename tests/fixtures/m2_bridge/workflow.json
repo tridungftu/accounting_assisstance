@@ -1,0 +1,295 @@
+{
+  "status": "ROOT_TECHNICAL_DEMO_APPROVED_EXPECTATIONS_NOT_RUNTIME_ACCEPTANCE",
+  "phase": "R15_M2_BRIDGE_ONLY",
+  "literal_line_facts_sha256": "2195792bef97a1c94773f7fbe3391192e0ed24e872dfd904ac90ed54ba3b41fd",
+  "count_grain": "DELTA_FROM_FRESH_R15_DEMO_BASELINE_WITH_CONFIGURED_COMPANIES_PROFILE_UNIT_BUT_ZERO_M2_BUSINESS_ROWS",
+  "minimal_workflow": {
+    "input_artifacts": [
+      "inputs/G01-wrapped-positive.xml",
+      "inputs/G03-identical-members.zip"
+    ],
+    "crosswalk_authority": "CONFIGURED_LITERAL_EVIDENCE_ONLY_ACTUAL_CFO_MAPPING_REQUIRED",
+    "steps": [
+      {
+        "step": 1,
+        "action": "SOURCE_ACTOR_CAPTURE_G01_NEW_KEY",
+        "common_capture_receipts": 1,
+        "m2_identities": 1,
+        "m2_content_versions": 1,
+        "core_headers_M2": 1,
+        "core_lines_M2": 1,
+        "typed_observations": 1,
+        "logical_lines": 0,
+        "approved_line_mappings": 0,
+        "version_line_bridges": 0,
+        "approved_routes": 0,
+        "business_receipts": 0,
+        "source_rows": 2,
+        "native_source_snapshots": 1
+      },
+      {
+        "step": 2,
+        "action": "ACTUAL_CFO_LINE_MAP_CURRENT_ARTIFACT_IDENTITY_ORDINAL_TO_DEMO_LINE_G01_A",
+        "common_capture_receipts": 1,
+        "m2_identities": 1,
+        "m2_content_versions": 1,
+        "core_headers_M2": 1,
+        "core_lines_M2": 1,
+        "typed_observations": 1,
+        "logical_lines": 1,
+        "approved_line_mappings": 1,
+        "version_line_bridges": 1,
+        "approved_routes": 0,
+        "business_receipts": 1,
+        "source_rows": 2,
+        "native_source_snapshots": 1
+      },
+      {
+        "step": 3,
+        "action": "ACTUAL_CFO_KHO_ROUTE_CREATE_APPROVE_ONE_OPERATION",
+        "common_capture_receipts": 1,
+        "m2_identities": 1,
+        "m2_content_versions": 1,
+        "core_headers_M2": 1,
+        "core_lines_M2": 1,
+        "typed_observations": 1,
+        "logical_lines": 1,
+        "approved_line_mappings": 1,
+        "version_line_bridges": 1,
+        "approved_routes": 1,
+        "business_receipts": 2,
+        "source_rows": 2,
+        "native_source_snapshots": 1
+      },
+      {
+        "step": 4,
+        "action": "SOURCE_ACTOR_CAPTURE_G03_ZIP_NEW_KEY_TWO_ACTUAL_ENTRIES",
+        "common_capture_receipts": 2,
+        "m2_identities": 1,
+        "m2_content_versions": 1,
+        "core_headers_M2": 1,
+        "core_lines_M2": 1,
+        "typed_observations": 3,
+        "logical_lines": 1,
+        "approved_line_mappings": 1,
+        "version_line_bridges": 1,
+        "approved_routes": 1,
+        "business_receipts": 2,
+        "source_rows": 8,
+        "native_source_snapshots": 2
+      }
+    ],
+    "stable_ids": [
+      "invoice",
+      "content_version",
+      "core_header",
+      "core_line",
+      "logical_line",
+      "version_line_bridge",
+      "approved_line_mapping",
+      "approved_route"
+    ],
+    "observation_delivery_grain": "ONE_NATIVE_G01_PLUS_TWO_ZIP_ENTRIES_NOT_DEDUPED_BY_SAME_NATIVE_HASH",
+    "mapping_reuse_grain": "SAME_ALREADY_APPROVED_CONTENT_CORE_LINE_NATIVE_ARTIFACT_IDENTITY_LOCATOR_AND_LOGICAL_TARGET_NOT_DECLARED_FACT_ROW_KEY",
+    "duplicate_fact_policy": "ALL_FOUR_EQUIVALENT_DELIVERY_FACT_ROWS_RETAINED_NOT_FOUR_AUTO_APPROVED_DATABASE_MAPPINGS",
+    "route_note": "ONE_ACTUAL_CFO_CREATE_AND_APPROVE_KHO_OPERATION_AFTER_ACTUAL_APPROVED_LINE_MAPPING; BUSINESS_RECEIPTS_TOTAL_TWO",
+    "source_row_counts": {
+      "grain": "ONE_XML_HEADER_PER_XML_RESULT_PLUS_ONE_XML_LINE_PER_NATIVE_LINE_PLUS_ONE_ZIP_ENTRY_PER_CONTAINER_MEMBER",
+      "G01": {
+        "delta": 2,
+        "cumulative": 2,
+        "XML_HEADER": 1,
+        "XML_LINE": 1,
+        "ZIP_ENTRY": 0
+      },
+      "G03_ZIP": {
+        "entries": 2,
+        "each_entry": {
+          "ZIP_ENTRY": 1,
+          "XML_HEADER": 1,
+          "XML_LINE": 1
+        },
+        "delta": 6,
+        "cumulative_after_G01": 8
+      },
+      "non_XML_or_unreadable_ZIP_member": "ZIP_ENTRY_INVENTORY_ONLY_NO_FAKE_XML_FIELDS",
+      "malformed_XML": "EXPLICIT_XML_HEADER_RESULT_ERROR_PLUS_ANY_ZIP_ENTRY_INVENTORY_NO_FAKE_EXTRACTED_FIELDS"
+    },
+    "source_snapshot_counts": {
+      "G01_native_role_bundle": 1,
+      "G03_ZIP_native_role_bundle": 1,
+      "total": 2,
+      "optional_CROSSWALK_upload": "SEPARATE_EVIDENCE_ROLE_NOT_ASSUMED_IN_THESE_COUNTS"
+    },
+    "source_money": "UNPROVEN_MINOR_FIELDS_AND_NO_CO_EXPLICIT_NULL_NOT_ZERO",
+    "new_financial_links_or_allocations": 0,
+    "new_L11_quantity_children_or_pools": 0,
+    "new_journal_approvals_or_331_postings": 0
+  },
+  "separate_G04_workflow": {
+    "count_grain": "SEPARATE_FRESH_BASELINE_NOT_ADDED_TO_MINIMAL_WORKFLOW",
+    "steps": [
+      {
+        "artifact": "inputs/G04-purchase-a-padded.xml",
+        "common_capture_receipts": 1,
+        "m2_identities": 1,
+        "m2_content_versions": 1,
+        "core_headers_M2": 1,
+        "core_lines_M2": 1,
+        "typed_observations": 1,
+        "source_only_candidate_receipt_items": 0
+      },
+      {
+        "artifact": "inputs/G04-purchase-a-unpadded.xml",
+        "common_capture_receipts": 2,
+        "m2_identities": 1,
+        "m2_content_versions": 2,
+        "core_headers_M2": 2,
+        "core_lines_M2": 2,
+        "typed_observations": 2,
+        "source_only_candidate_receipt_items": 0
+      },
+      {
+        "artifact": "inputs/G04-purchase-b-padded.xml",
+        "common_capture_receipts": 3,
+        "m2_identities": 2,
+        "m2_content_versions": 3,
+        "core_headers_M2": 3,
+        "core_lines_M2": 3,
+        "typed_observations": 3,
+        "source_only_candidate_receipt_items": 0
+      },
+      {
+        "artifact": "inputs/G04-sale-a.xml",
+        "common_capture_receipts": 4,
+        "m2_identities": 2,
+        "m2_content_versions": 3,
+        "core_headers_M2": 3,
+        "core_lines_M2": 3,
+        "typed_observations": 3,
+        "source_only_candidate_receipt_items": 1
+      }
+    ],
+    "identity_assertions": [
+      "PADDED_AND_UNPADDED_A_CANONICAL_NUMBER_7_SAME_PN_DIRECTION_SELLER_MODEL_SERIES_IDENTITY",
+      "RAW_NUMBER_FIELD_STATE_CHANGE_HAS_DISTINCT_CONTENT",
+      "B_SAME_NUMBER_SELLER_MODEL_SERIES_IS_SEPARATE_PN_IDENTITY",
+      "SALE_A_BAN_RA_RETAINED_SOURCE_CANDIDATE_NO_NEW_M2_OR_M3_CORE"
+    ],
+    "source_selection": "A_CHANGED_CONTENT_LATEST_CANDIDATE_DOES_NOT_AUTO_REPLACE_ACCEPTED_FIRST_CONTENT_OR_REACTIVATE_ANCESTOR",
+    "logical_lines": 0,
+    "version_line_bridges": 0,
+    "approved_line_mappings": 0,
+    "approved_routes": 0,
+    "true_intercompany_buyer_and_seller_both_configured": {
+      "fixture": null,
+      "status": "TECHNICAL_EXPECTATION_NEW_SYNTHETIC_BYTES_REQUIRED_NOT_EXISTING_G04",
+      "native_seller": "DEMO_M2_COMPANY_A",
+      "native_buyer": "DEMO_M2_COMPANY_B",
+      "company_B": {
+        "direction": "MUA_VAO",
+        "pn_ma": "PN_DEMO_B",
+        "M2_business_promotions": 1,
+        "condition": "EXACTLY_ONE_CURRENT_APPROVED_BUYER_COMPANY_TO_PN_MAPPING"
+      },
+      "company_A": {
+        "direction": "BAN_RA",
+        "state": "SOURCE_CANDIDATE",
+        "M2_business_promotions": 0,
+        "M3_business_promotions": 0
+      },
+      "never_global_XOR_across_all_configured_companies": true
+    },
+    "cross_PN_controls": "CURRENT_A_ONLY_ACTOR_CANNOT_READ_OR_MUTATE_B; B_CONTEXT_CANNOT_RETARGET_NATIVE_A_IDENTITY"
+  },
+  "shared_assertions": [
+    "CURRENT_RIGHTS_BEFORE_LOOKUP_AND_REPLAY",
+    "SAME_KEY_SAME_H_RETURNS_ORIGINAL_FINAL_RESULT_WITH_ZERO_EXTRA_DELTA",
+    "SAME_KEY_CHANGED_H_409_BEFORE_NEW_FILE_STAGE_DB_DELTA",
+    "SOURCE_CAPTURE_NOT_PN_BUSINESS_RECEIPT",
+    "M5_OLD_ACTORS_REVOKED_CAPABILITIES_AND_SENTINEL_ROWS_UNCHANGED",
+    "OLD_M1_HD_MUA_OWNER_AND_VALUES_UNCHANGED",
+    "NATIVE_FISCAL_STATUS_UNKNOWN_NOT_TECHNICAL_SOURCE_SELECTION",
+    "NO_M9_DEFAULT_SCHEMA_SERVICE_OR_SOURCEAPP_EXECUTION"
+  ],
+  "runtime_acceptance": false,
+  "fixture_stage": true,
+  "same_company_on_both_sides": {
+    "condition": "SAME_CONFIGURED_COMPANY_KEY_EQUALS_NATIVE_SELLER_AND_BUYER",
+    "state": "HOLD",
+    "M2_business_promotions": 0,
+    "M3_business_promotions": 0
+  },
+  "PN_mapping_conflict": {
+    "condition": "BUYER_COMPANY_HAS_ZERO_OR_MULTIPLE_CONFLICTING_CURRENT_APPROVED_PN_MAPS",
+    "state": "HOLD",
+    "M2_business_promotions": 0,
+    "never_choose_arbitrary_PN": true
+  },
+  "derived_source_row_evidence": {
+    "M2_all_derived_rows": {
+      "row_raw_sha256": null,
+      "row_byte_span": null,
+      "native_artifact_SHA_retained": true
+    },
+    "XML_HEADER_and_XML_LINE": {
+      "derived_fingerprint_sha256": "COMPUTED_FROM_ACTUAL_PURE_DECODED_FIELD_STATES_AT_CAPTURE_NOT_PRESEEDED",
+      "derived_fingerprint_basis": "XML_DECODED_CHARACTER_DATA_NO_TRIM_FIELD_STATES_NOT_BYTE_SPAN"
+    },
+    "ZIP_ENTRY": {
+      "derived_fingerprint_sha256": "COMPUTED_FROM_ACTUAL_MEMBER_INVENTORY_AT_CAPTURE_NOT_PRESEEDED",
+      "derived_fingerprint_basis": "ZIP_CONTAINER_MEMBER_ORDINAL_NAME_SHA_LENGTH_READ_STATE_INVENTORY_NOT_XML_FIELD_STATES"
+    },
+    "generic_metadata": "EXPLICIT_DERIVED_FINGERPRINT_PLUS_BASIS_NO_NATIVE_RAW_ROW_SHA_RELABEL",
+    "existing_M5_JSON_row_fingerprint_and_raw_evidence_semantics": "UNCHANGED"
+  },
+  "source_lifecycle": {
+    "repeated_A": {
+      "sequence": [
+        "A",
+        "A"
+      ],
+      "same_invoice_and_PB": true,
+      "accepted_eligible_and_proofs": "UNCHANGED_FROM_BEFORE_REPEAT",
+      "extra_effect": "NEW_DELIVERY_OBSERVATION_ONLY",
+      "auto_new_proof": false
+    },
+    "changed_B": {
+      "sequence": [
+        "A",
+        "B"
+      ],
+      "latest_content": "B",
+      "accepted_content": "A_PRESERVED",
+      "eligible_content": null,
+      "state": "HOLD_PENDING_ACTUAL_CURRENT_SOURCE_SELECTION",
+      "auto_replace_accepted": false
+    },
+    "ancestor_A_reappears": {
+      "sequence": [
+        "A",
+        "B",
+        "A"
+      ],
+      "previous_latest": "B",
+      "observed_content": "A",
+      "accepted_content": "A_PRESERVED",
+      "eligible_content": null,
+      "state": "ANCESTOR_REAPPEARANCE_HOLD",
+      "accepted_A_does_not_bypass_reappearance_hold": true
+    }
+  },
+  "CAS_basis_separation": {
+    "operation_graph_CAS": "INCLUDES_CURRENT_DELIVERY_OBSERVATIONS_AND_WHOLE_SOURCE_GRAPH; STALE_DELIVERY_OBSERVATION_CAN_CHANGE_OPERATION_H",
+    "route_semantic_basis": "EXCLUDES_PURE_DELIVERY_OBSERVATIONS_WHEN_IDENTITY_CONTENT_APPROVED_BRIDGE_PROOFS_AND_ROUTE_FACTS_UNCHANGED",
+    "unchanged_delivery_does_not_change": "EXISTING_APPROVED_ROUTE_SEMANTIC_BASIS_OR_ELIGIBILITY_OR_PROOFS",
+    "actual_hash_values_and_receiver_UUIDs": "SERVER_RESOLVED_NOT_BOUND"
+  },
+  "optional_crosswalk_upload": {
+    "authority": "RAW_EVIDENCE_ONLY_NOT_CFO_APPROVAL",
+    "literal_rows_retained": 8,
+    "first_four_equivalent_deliveries": 4,
+    "auto_approved_mappings": 0,
+    "actual_CFO_action_required": true
+  }
+}

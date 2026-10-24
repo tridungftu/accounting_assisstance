@@ -1,0 +1,49 @@
+{
+  "status": "DECLARED_DEMO_CANDIDATE_EVIDENCE_NOT_APPROVED_NOT_INSTALLED",
+  "record_count": 1,
+  "additive_to_old_eight_facts_only": true,
+  "old_R15_facts_sha256": "2195792bef97a1c94773f7fbe3391192e0ed24e872dfd904ac90ed54ba3b41fd",
+  "rows": [
+    {
+      "mapping_ref": "DEMO_M2_LITERAL_LINE_FACT_R16_THUNG_A_V1",
+      "revision": 1,
+      "authority": "RAW_DEMO_EVIDENCE_REQUIRES_ACTUAL_CFO_MAPPING",
+      "source_instance": "DEMO_M2_XML_INSTANCE_A",
+      "profile_ref": "DEMO_M2_XML_QD1271_FIELDS_V1",
+      "profile_document_sha256": "37d57c38138e7b76f916cb20ef72d92306967d1cce572820b15b135246c32fcf",
+      "profile_payload_sha256": "7e17794151a7711317da3d9ab00d96427d2b1e1c688b132feb78ce540bb2188d",
+      "scope_ref": "DEMO_M2_SCOPE_BOTH_COMPANIES_V1",
+      "company_key": "DEMO_M2_COMPANY_A",
+      "existing_phap_nhan_ma": "PN_DEMO_A",
+      "company_mapping_ref": "DEMO_M2_COMPANY_MAP_A",
+      "company_mapping_revision": 1,
+      "native_xml_sha256": "65ce193e68053e59d5b18e4a7fa6879fa31499fbc2cd1ca5d138a95a30883a7a",
+      "native_byte_length": 480,
+      "source_artifact_relative_path": "native/new-thung-one.xml",
+      "container_sha256": null,
+      "container_byte_length": null,
+      "entry_name": null,
+      "entry_ordinal": null,
+      "identity_tuple": [
+        "PN_DEMO_A",
+        "MUA_VAO",
+        "DEMO_M2_SUPPLIER",
+        "1",
+        "DEMO_SERIES_R16",
+        "9001"
+      ],
+      "source_locator": "/HDon/DLHDon/NDHDon/DSHHDVu/HHDVu[1]",
+      "source_ordinal": 1,
+      "logical_line_key": "DEMO_LINE_R16_THUNG_A",
+      "continuity_ref": "DEMO_CONTINUITY_R16_THUNG_A_V1",
+      "row_raw_sha256": null,
+      "row_byte_span": null,
+      "decoded_field_state_fingerprint_sha256": null,
+      "decoded_field_state_basis": "ACTUAL_CAPTURE_DERIVES_NO_PRESEEDED_FINGERPRINT_OR_SPAN",
+      "approved_mapping_id": null,
+      "route_approval_id": null,
+      "required_workflow": "ACTUAL_CAPTURE_THEN_CURRENT_CFO_MAPPING_LINE_THEN_KHO_ROUTE",
+      "l11_demo_admission": "ADDITIVE_CANDIDATE_ONLY_NOT_APPROVED_MAPPING_OR_ROUTE"
+    }
+  ]
+}

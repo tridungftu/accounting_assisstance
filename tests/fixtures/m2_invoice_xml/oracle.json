@@ -1,0 +1,2275 @@
+{
+  "status": "INDEPENDENT_MANUAL_EXPECTATIONS_NOT_RUN_AGAINST_PRODUCT",
+  "profile_ref": "DEMO_M2_XML_QD1271_FIELDS_V1",
+  "profile_sha256": "37d57c38138e7b76f916cb20ef72d92306967d1cce572820b15b135246c32fcf",
+  "all_cases": {
+    "raw_bytes_retained": true,
+    "PBan_not_invented": true,
+    "canonical_identity_profile": null,
+    "source_api_uuids": "NOT_BOUND",
+    "business_promotion": "NOT_BOUND",
+    "native_tax_lifecycle": "UNKNOWN",
+    "l11_confirmation": false,
+    "full_xsd_validity_claim": false,
+    "issue_codes_are_semantic_labels_not_existing_product_enum": true
+  },
+  "trusted_demo_facts": {
+    "source_instance": "DEMO_M2_XML_INSTANCE_A",
+    "company_mapping": [
+      {
+        "source_company_key": "DEMO_M2_COMPANY_A",
+        "pn_alias": "PN_DEMO_A"
+      },
+      {
+        "source_company_key": "DEMO_M2_COMPANY_B",
+        "pn_alias": "PN_DEMO_B"
+      }
+    ],
+    "company_tokens_are_not_valid_tax_number_claims": true,
+    "quantity_encoding": {
+      "ref": "DEMO_XML_EXACT_DECIMAL_21_6_V1",
+      "source_kind": "XML_TEXT",
+      "pattern": "^-?[0-9]+(?:\\.[0-9]+)?$",
+      "max_lexical_digits": 21,
+      "max_scale": 6,
+      "float_allowed": false
+    },
+    "unit_fact": {
+      "ref": "DEMO_EXACT_CAI_V1",
+      "raw_unit": "CAI",
+      "canonical_unit": "CAI",
+      "conversion_numerator": "1",
+      "conversion_denominator": "1",
+      "origin": "EXPLICIT_SYNTHETIC_ROOT_APPROVED_FACT_ONLY"
+    },
+    "line_continuity": null,
+    "cross_side_quantity_proof": null
+  },
+  "groups": [
+    {
+      "case": "G01",
+      "artifacts": [
+        "inputs/G01-wrapped-positive.xml"
+      ],
+      "expected": {
+        "shape": "SUPPORTED_SUBSET",
+        "header": {
+          "PBan": {
+            "state": "ABSENT",
+            "lexeme": null
+          },
+          "KHMSHDon": {
+            "state": "TEXT",
+            "lexeme": "1"
+          },
+          "KHHDon": {
+            "state": "TEXT",
+            "lexeme": "DEMO_SERIES_A"
+          },
+          "SHDon": {
+            "state": "TEXT",
+            "lexeme": "000001"
+          },
+          "NLap": {
+            "state": "TEXT",
+            "lexeme": "2026-10-01"
+          },
+          "DVTTe": {
+            "state": "TEXT",
+            "lexeme": "VND"
+          },
+          "NBan/MST": {
+            "state": "TEXT",
+            "lexeme": "DEMO_M2_SUPPLIER"
+          },
+          "NMua/MST": {
+            "state": "TEXT",
+            "lexeme": "DEMO_M2_COMPANY_A"
+          }
+        },
+        "lines": [
+          {
+            "ordinal": 1,
+            "fields": {
+              "STT": {
+                "state": "TEXT",
+                "lexeme": "1"
+              },
+              "TChat": {
+                "state": "TEXT",
+                "lexeme": "1"
+              },
+              "MHHDVu": {
+                "state": "TEXT",
+                "lexeme": "DEMO_ITEM_A"
+              },
+              "THHDVu": {
+                "state": "TEXT",
+                "lexeme": "DEMO hang A"
+              },
+              "DVTinh": {
+                "state": "TEXT",
+                "lexeme": "CAI"
+              },
+              "SLuong": {
+                "state": "TEXT",
+                "lexeme": "10"
+              },
+              "DGia": {
+                "state": "TEXT",
+                "lexeme": "12.500000"
+              },
+              "ThTien": {
+                "state": "TEXT",
+                "lexeme": "125.000000"
+              },
+              "TSuat": {
+                "state": "TEXT",
+                "lexeme": "0"
+              }
+            },
+            "quantity": {
+              "exact_decimal": "10",
+              "lexical_digits": 2,
+              "scale": 0,
+              "normalized_decimal": "10",
+              "unit_fact_ref": "DEMO_EXACT_CAI_V1"
+            },
+            "nature": "GOODS",
+            "issues": [],
+            "logical_line_key": null,
+            "continuity_ref": null,
+            "l11_eligible": false
+          }
+        ],
+        "declared_pn": "PN_DEMO_A",
+        "direction": "MUA_VAO",
+        "quantity_extraction_positive": true,
+        "fiscal_status": "UNKNOWN"
+      }
+    },
+    {
+      "case": "G02",
+      "artifacts": [
+        "inputs/G02-direct-legacy.xml"
+      ],
+      "expected": {
+        "shape": "UNSUPPORTED_DIRECT_LEGACY",
+        "candidate_retained": true,
+        "strict_rows": [],
+        "issues": [
+          "UNSUPPORTED_PATH"
+        ],
+        "normalized_quantity": null
+      }
+    },
+    {
+      "case": "G03",
+      "artifacts": [
+        "inputs/G03-identical-raw.xml",
+        "inputs/G03-identical-members.zip"
+      ],
+      "expected": {
+        "same_raw_bytes_as": "inputs/G01-wrapped-positive.xml",
+        "zip_entry_ordinals": [
+          1,
+          2
+        ],
+        "raw_observation_count": 3,
+        "distinct_raw_payload_count": 1,
+        "strict_line_per_observation": {
+          "ordinal": 1,
+          "fields": {
+            "STT": {
+              "state": "TEXT",
+              "lexeme": "1"
+            },
+            "TChat": {
+              "state": "TEXT",
+              "lexeme": "1"
+            },
+            "MHHDVu": {
+              "state": "TEXT",
+              "lexeme": "DEMO_ITEM_A"
+            },
+            "THHDVu": {
+              "state": "TEXT",
+              "lexeme": "DEMO hang A"
+            },
+            "DVTinh": {
+              "state": "TEXT",
+              "lexeme": "CAI"
+            },
+            "SLuong": {
+              "state": "TEXT",
+              "lexeme": "10"
+            },
+            "DGia": {
+              "state": "TEXT",
+              "lexeme": "12.500000"
+            },
+            "ThTien": {
+              "state": "TEXT",
+              "lexeme": "125.000000"
+            },
+            "TSuat": {
+              "state": "TEXT",
+              "lexeme": "0"
+            }
+          },
+          "quantity": {
+            "exact_decimal": "10",
+            "lexical_digits": 2,
+            "scale": 0,
+            "normalized_decimal": "10",
+            "unit_fact_ref": "DEMO_EXACT_CAI_V1"
+          },
+          "nature": "GOODS",
+          "issues": [],
+          "logical_line_key": null,
+          "continuity_ref": null,
+          "l11_eligible": false
+        },
+        "canonical_identity_count": "NOT_BOUND",
+        "business_snapshot_count": "NOT_BOUND",
+        "all_observations_retained": true
+      }
+    },
+    {
+      "case": "G04",
+      "artifacts": [
+        "inputs/G04-purchase-a-padded.xml",
+        "inputs/G04-purchase-b-padded.xml",
+        "inputs/G04-sale-a.xml",
+        "inputs/G04-purchase-a-unpadded.xml"
+      ],
+      "expected": {
+        "observations": [
+          {
+            "artifact": "inputs/G04-purchase-a-padded.xml",
+            "header": {
+              "PBan": {
+                "state": "ABSENT",
+                "lexeme": null
+              },
+              "KHMSHDon": {
+                "state": "TEXT",
+                "lexeme": "1"
+              },
+              "KHHDon": {
+                "state": "TEXT",
+                "lexeme": "DEMO_SERIES_A"
+              },
+              "SHDon": {
+                "state": "TEXT",
+                "lexeme": "0007"
+              },
+              "NLap": {
+                "state": "TEXT",
+                "lexeme": "2026-10-01"
+              },
+              "DVTTe": {
+                "state": "TEXT",
+                "lexeme": "VND"
+              },
+              "NBan/MST": {
+                "state": "TEXT",
+                "lexeme": "DEMO_M2_SUPPLIER"
+              },
+              "NMua/MST": {
+                "state": "TEXT",
+                "lexeme": "DEMO_M2_COMPANY_A"
+              }
+            },
+            "pn": "PN_DEMO_A",
+            "direction": "MUA_VAO"
+          },
+          {
+            "artifact": "inputs/G04-purchase-b-padded.xml",
+            "header": {
+              "PBan": {
+                "state": "ABSENT",
+                "lexeme": null
+              },
+              "KHMSHDon": {
+                "state": "TEXT",
+                "lexeme": "1"
+              },
+              "KHHDon": {
+                "state": "TEXT",
+                "lexeme": "DEMO_SERIES_A"
+              },
+              "SHDon": {
+                "state": "TEXT",
+                "lexeme": "0007"
+              },
+              "NLap": {
+                "state": "TEXT",
+                "lexeme": "2026-10-01"
+              },
+              "DVTTe": {
+                "state": "TEXT",
+                "lexeme": "VND"
+              },
+              "NBan/MST": {
+                "state": "TEXT",
+                "lexeme": "DEMO_M2_SUPPLIER"
+              },
+              "NMua/MST": {
+                "state": "TEXT",
+                "lexeme": "DEMO_M2_COMPANY_B"
+              }
+            },
+            "pn": "PN_DEMO_B",
+            "direction": "MUA_VAO"
+          },
+          {
+            "artifact": "inputs/G04-sale-a.xml",
+            "header": {
+              "PBan": {
+                "state": "ABSENT",
+                "lexeme": null
+              },
+              "KHMSHDon": {
+                "state": "TEXT",
+                "lexeme": "1"
+              },
+              "KHHDon": {
+                "state": "TEXT",
+                "lexeme": "DEMO_SERIES_A"
+              },
+              "SHDon": {
+                "state": "TEXT",
+                "lexeme": "7"
+              },
+              "NLap": {
+                "state": "TEXT",
+                "lexeme": "2026-10-01"
+              },
+              "DVTTe": {
+                "state": "TEXT",
+                "lexeme": "VND"
+              },
+              "NBan/MST": {
+                "state": "TEXT",
+                "lexeme": "DEMO_M2_COMPANY_A"
+              },
+              "NMua/MST": {
+                "state": "TEXT",
+                "lexeme": "DEMO_M2_CUSTOMER"
+              }
+            },
+            "pn": "PN_DEMO_A",
+            "direction": "BAN_RA"
+          },
+          {
+            "artifact": "inputs/G04-purchase-a-unpadded.xml",
+            "header": {
+              "PBan": {
+                "state": "ABSENT",
+                "lexeme": null
+              },
+              "KHMSHDon": {
+                "state": "TEXT",
+                "lexeme": "1"
+              },
+              "KHHDon": {
+                "state": "TEXT",
+                "lexeme": "DEMO_SERIES_A"
+              },
+              "SHDon": {
+                "state": "TEXT",
+                "lexeme": "7"
+              },
+              "NLap": {
+                "state": "TEXT",
+                "lexeme": "2026-10-01"
+              },
+              "DVTTe": {
+                "state": "TEXT",
+                "lexeme": "VND"
+              },
+              "NBan/MST": {
+                "state": "TEXT",
+                "lexeme": "DEMO_M2_SUPPLIER"
+              },
+              "NMua/MST": {
+                "state": "TEXT",
+                "lexeme": "DEMO_M2_COMPANY_A"
+              }
+            },
+            "pn": "PN_DEMO_A",
+            "direction": "MUA_VAO"
+          }
+        ],
+        "line_per_observation": {
+          "ordinal": 1,
+          "fields": {
+            "STT": {
+              "state": "TEXT",
+              "lexeme": "1"
+            },
+            "TChat": {
+              "state": "TEXT",
+              "lexeme": "1"
+            },
+            "MHHDVu": {
+              "state": "TEXT",
+              "lexeme": "DEMO_ITEM_A"
+            },
+            "THHDVu": {
+              "state": "TEXT",
+              "lexeme": "DEMO hang A"
+            },
+            "DVTinh": {
+              "state": "TEXT",
+              "lexeme": "CAI"
+            },
+            "SLuong": {
+              "state": "TEXT",
+              "lexeme": "10"
+            },
+            "DGia": {
+              "state": "TEXT",
+              "lexeme": "12.500000"
+            },
+            "ThTien": {
+              "state": "TEXT",
+              "lexeme": "125.000000"
+            },
+            "TSuat": {
+              "state": "TEXT",
+              "lexeme": "0"
+            }
+          },
+          "quantity": {
+            "exact_decimal": "10",
+            "lexical_digits": 2,
+            "scale": 0,
+            "normalized_decimal": "10",
+            "unit_fact_ref": "DEMO_EXACT_CAI_V1"
+          },
+          "nature": "GOODS",
+          "issues": [],
+          "logical_line_key": null,
+          "continuity_ref": null,
+          "l11_eligible": false
+        },
+        "raw_number_distinct": [
+          "0007",
+          "7"
+        ],
+        "padded_vs_unpadded_identity_equality": "UNRESOLVED_NO_IDENTITY_PROFILE",
+        "cross_pn_merge": false
+      }
+    },
+    {
+      "case": "G05",
+      "artifacts": [
+        "inputs/G05-stt-ambiguity.xml",
+        "inputs/G05-order-a.xml",
+        "inputs/G05-order-b.xml"
+      ],
+      "expected": {
+        "ambiguity_lines": [
+          {
+            "ordinal": 1,
+            "fields": {
+              "STT": {
+                "state": "ABSENT",
+                "lexeme": null
+              },
+              "TChat": {
+                "state": "TEXT",
+                "lexeme": "1"
+              },
+              "MHHDVu": {
+                "state": "TEXT",
+                "lexeme": "DEMO_ITEM_A"
+              },
+              "THHDVu": {
+                "state": "TEXT",
+                "lexeme": "DEMO hang A"
+              },
+              "DVTinh": {
+                "state": "TEXT",
+                "lexeme": "CAI"
+              },
+              "SLuong": {
+                "state": "TEXT",
+                "lexeme": "10"
+              },
+              "DGia": {
+                "state": "TEXT",
+                "lexeme": "12.500000"
+              },
+              "ThTien": {
+                "state": "TEXT",
+                "lexeme": "125.000000"
+              },
+              "TSuat": {
+                "state": "TEXT",
+                "lexeme": "0"
+              }
+            },
+            "quantity": {
+              "exact_decimal": "10",
+              "lexical_digits": 2,
+              "scale": 0,
+              "normalized_decimal": "10",
+              "unit_fact_ref": "DEMO_EXACT_CAI_V1"
+            },
+            "nature": "GOODS",
+            "issues": [
+              "STT_ABSENT",
+              "LINE_IDENTITY_UNRESOLVED"
+            ],
+            "logical_line_key": null,
+            "continuity_ref": null,
+            "l11_eligible": false
+          },
+          {
+            "ordinal": 2,
+            "fields": {
+              "STT": {
+                "state": "EMPTY",
+                "lexeme": ""
+              },
+              "TChat": {
+                "state": "TEXT",
+                "lexeme": "1"
+              },
+              "MHHDVu": {
+                "state": "TEXT",
+                "lexeme": "DEMO_ITEM_A"
+              },
+              "THHDVu": {
+                "state": "TEXT",
+                "lexeme": "DEMO hang A"
+              },
+              "DVTinh": {
+                "state": "TEXT",
+                "lexeme": "CAI"
+              },
+              "SLuong": {
+                "state": "TEXT",
+                "lexeme": "10"
+              },
+              "DGia": {
+                "state": "TEXT",
+                "lexeme": "12.500000"
+              },
+              "ThTien": {
+                "state": "TEXT",
+                "lexeme": "125.000000"
+              },
+              "TSuat": {
+                "state": "TEXT",
+                "lexeme": "0"
+              }
+            },
+            "quantity": {
+              "exact_decimal": "10",
+              "lexical_digits": 2,
+              "scale": 0,
+              "normalized_decimal": "10",
+              "unit_fact_ref": "DEMO_EXACT_CAI_V1"
+            },
+            "nature": "GOODS",
+            "issues": [
+              "STT_EMPTY",
+              "LINE_IDENTITY_UNRESOLVED"
+            ],
+            "logical_line_key": null,
+            "continuity_ref": null,
+            "l11_eligible": false
+          },
+          {
+            "ordinal": 3,
+            "fields": {
+              "STT": {
+                "state": "TEXT",
+                "lexeme": "2"
+              },
+              "TChat": {
+                "state": "TEXT",
+                "lexeme": "1"
+              },
+              "MHHDVu": {
+                "state": "TEXT",
+                "lexeme": "DEMO_ITEM_A"
+              },
+              "THHDVu": {
+                "state": "TEXT",
+                "lexeme": "DEMO hang A"
+              },
+              "DVTinh": {
+                "state": "TEXT",
+                "lexeme": "CAI"
+              },
+              "SLuong": {
+                "state": "TEXT",
+                "lexeme": "10"
+              },
+              "DGia": {
+                "state": "TEXT",
+                "lexeme": "12.500000"
+              },
+              "ThTien": {
+                "state": "TEXT",
+                "lexeme": "125.000000"
+              },
+              "TSuat": {
+                "state": "TEXT",
+                "lexeme": "0"
+              }
+            },
+            "quantity": {
+              "exact_decimal": "10",
+              "lexical_digits": 2,
+              "scale": 0,
+              "normalized_decimal": "10",
+              "unit_fact_ref": "DEMO_EXACT_CAI_V1"
+            },
+            "nature": "GOODS",
+            "issues": [
+              "STT_DUPLICATE",
+              "LINE_IDENTITY_UNRESOLVED"
+            ],
+            "logical_line_key": null,
+            "continuity_ref": null,
+            "l11_eligible": false
+          },
+          {
+            "ordinal": 4,
+            "fields": {
+              "STT": {
+                "state": "TEXT",
+                "lexeme": "2"
+              },
+              "TChat": {
+                "state": "TEXT",
+                "lexeme": "1"
+              },
+              "MHHDVu": {
+                "state": "TEXT",
+                "lexeme": "DEMO_ITEM_A"
+              },
+              "THHDVu": {
+                "state": "TEXT",
+                "lexeme": "DEMO hang A"
+              },
+              "DVTinh": {
+                "state": "TEXT",
+                "lexeme": "CAI"
+              },
+              "SLuong": {
+                "state": "TEXT",
+                "lexeme": "10"
+              },
+              "DGia": {
+                "state": "TEXT",
+                "lexeme": "12.500000"
+              },
+              "ThTien": {
+                "state": "TEXT",
+                "lexeme": "125.000000"
+              },
+              "TSuat": {
+                "state": "TEXT",
+                "lexeme": "0"
+              }
+            },
+            "quantity": {
+              "exact_decimal": "10",
+              "lexical_digits": 2,
+              "scale": 0,
+              "normalized_decimal": "10",
+              "unit_fact_ref": "DEMO_EXACT_CAI_V1"
+            },
+            "nature": "GOODS",
+            "issues": [
+              "STT_DUPLICATE",
+              "LINE_IDENTITY_UNRESOLVED"
+            ],
+            "logical_line_key": null,
+            "continuity_ref": null,
+            "l11_eligible": false
+          }
+        ],
+        "order_a": [
+          {
+            "ordinal": 1,
+            "STT": "1",
+            "MHHDVu": "DEMO_ITEM_A"
+          },
+          {
+            "ordinal": 2,
+            "STT": "2",
+            "MHHDVu": "DEMO_ITEM_B"
+          }
+        ],
+        "order_b": [
+          {
+            "ordinal": 1,
+            "STT": "1",
+            "MHHDVu": "DEMO_ITEM_B"
+          },
+          {
+            "ordinal": 2,
+            "STT": "2",
+            "MHHDVu": "DEMO_ITEM_A"
+          }
+        ],
+        "logical_keys": null,
+        "automatic_crosswalk": false,
+        "row_count": [
+          4,
+          2,
+          2
+        ],
+        "raw_quantity_stays_exact": "10"
+      }
+    },
+    {
+      "case": "G06",
+      "artifacts": [
+        "inputs/G06-quantity-boundaries.xml"
+      ],
+      "expected": {
+        "lines": [
+          {
+            "ordinal": 1,
+            "fields": {
+              "STT": {
+                "state": "TEXT",
+                "lexeme": "1"
+              },
+              "TChat": {
+                "state": "TEXT",
+                "lexeme": "1"
+              },
+              "MHHDVu": {
+                "state": "TEXT",
+                "lexeme": "DEMO_ITEM_A"
+              },
+              "THHDVu": {
+                "state": "TEXT",
+                "lexeme": "DEMO hang A"
+              },
+              "DVTinh": {
+                "state": "TEXT",
+                "lexeme": "CAI"
+              },
+              "SLuong": {
+                "state": "TEXT",
+                "lexeme": "10"
+              },
+              "DGia": {
+                "state": "ABSENT",
+                "lexeme": null
+              },
+              "ThTien": {
+                "state": "ABSENT",
+                "lexeme": null
+              },
+              "TSuat": {
+                "state": "ABSENT",
+                "lexeme": null
+              }
+            },
+            "quantity": {
+              "exact_decimal": "10",
+              "lexical_digits": 2,
+              "scale": 0,
+              "normalized_decimal": "10",
+              "unit_fact_ref": "DEMO_EXACT_CAI_V1"
+            },
+            "nature": "GOODS",
+            "issues": [],
+            "logical_line_key": null,
+            "continuity_ref": null,
+            "l11_eligible": false
+          },
+          {
+            "ordinal": 2,
+            "fields": {
+              "STT": {
+                "state": "TEXT",
+                "lexeme": "2"
+              },
+              "TChat": {
+                "state": "TEXT",
+                "lexeme": "1"
+              },
+              "MHHDVu": {
+                "state": "TEXT",
+                "lexeme": "DEMO_ITEM_A"
+              },
+              "THHDVu": {
+                "state": "TEXT",
+                "lexeme": "DEMO hang A"
+              },
+              "DVTinh": {
+                "state": "TEXT",
+                "lexeme": "CAI"
+              },
+              "SLuong": {
+                "state": "TEXT",
+                "lexeme": "0"
+              },
+              "DGia": {
+                "state": "ABSENT",
+                "lexeme": null
+              },
+              "ThTien": {
+                "state": "ABSENT",
+                "lexeme": null
+              },
+              "TSuat": {
+                "state": "ABSENT",
+                "lexeme": null
+              }
+            },
+            "quantity": {
+              "exact_decimal": "0",
+              "lexical_digits": 1,
+              "scale": 0,
+              "normalized_decimal": "0",
+              "unit_fact_ref": "DEMO_EXACT_CAI_V1"
+            },
+            "nature": "GOODS",
+            "issues": [],
+            "logical_line_key": null,
+            "continuity_ref": null,
+            "l11_eligible": false
+          },
+          {
+            "ordinal": 3,
+            "fields": {
+              "STT": {
+                "state": "TEXT",
+                "lexeme": "3"
+              },
+              "TChat": {
+                "state": "TEXT",
+                "lexeme": "1"
+              },
+              "MHHDVu": {
+                "state": "TEXT",
+                "lexeme": "DEMO_ITEM_A"
+              },
+              "THHDVu": {
+                "state": "TEXT",
+                "lexeme": "DEMO hang A"
+              },
+              "DVTinh": {
+                "state": "TEXT",
+                "lexeme": "CAI"
+              },
+              "SLuong": {
+                "state": "TEXT",
+                "lexeme": "0.125000"
+              },
+              "DGia": {
+                "state": "ABSENT",
+                "lexeme": null
+              },
+              "ThTien": {
+                "state": "ABSENT",
+                "lexeme": null
+              },
+              "TSuat": {
+                "state": "ABSENT",
+                "lexeme": null
+              }
+            },
+            "quantity": {
+              "exact_decimal": "0.125000",
+              "lexical_digits": 7,
+              "scale": 6,
+              "normalized_decimal": "0.125000",
+              "unit_fact_ref": "DEMO_EXACT_CAI_V1"
+            },
+            "nature": "GOODS",
+            "issues": [],
+            "logical_line_key": null,
+            "continuity_ref": null,
+            "l11_eligible": false
+          },
+          {
+            "ordinal": 4,
+            "fields": {
+              "STT": {
+                "state": "TEXT",
+                "lexeme": "4"
+              },
+              "TChat": {
+                "state": "TEXT",
+                "lexeme": "1"
+              },
+              "MHHDVu": {
+                "state": "TEXT",
+                "lexeme": "DEMO_ITEM_A"
+              },
+              "THHDVu": {
+                "state": "TEXT",
+                "lexeme": "DEMO hang A"
+              },
+              "DVTinh": {
+                "state": "TEXT",
+                "lexeme": "CAI"
+              },
+              "SLuong": {
+                "state": "TEXT",
+                "lexeme": "9007199254740993"
+              },
+              "DGia": {
+                "state": "ABSENT",
+                "lexeme": null
+              },
+              "ThTien": {
+                "state": "ABSENT",
+                "lexeme": null
+              },
+              "TSuat": {
+                "state": "ABSENT",
+                "lexeme": null
+              }
+            },
+            "quantity": {
+              "exact_decimal": "9007199254740993",
+              "lexical_digits": 16,
+              "scale": 0,
+              "normalized_decimal": "9007199254740993",
+              "unit_fact_ref": "DEMO_EXACT_CAI_V1"
+            },
+            "nature": "GOODS",
+            "issues": [],
+            "logical_line_key": null,
+            "continuity_ref": null,
+            "l11_eligible": false
+          },
+          {
+            "ordinal": 5,
+            "fields": {
+              "STT": {
+                "state": "TEXT",
+                "lexeme": "5"
+              },
+              "TChat": {
+                "state": "TEXT",
+                "lexeme": "1"
+              },
+              "MHHDVu": {
+                "state": "TEXT",
+                "lexeme": "DEMO_ITEM_A"
+              },
+              "THHDVu": {
+                "state": "TEXT",
+                "lexeme": "DEMO hang A"
+              },
+              "DVTinh": {
+                "state": "TEXT",
+                "lexeme": "CAI"
+              },
+              "SLuong": {
+                "state": "TEXT",
+                "lexeme": "1.0000000"
+              },
+              "DGia": {
+                "state": "ABSENT",
+                "lexeme": null
+              },
+              "ThTien": {
+                "state": "ABSENT",
+                "lexeme": null
+              },
+              "TSuat": {
+                "state": "ABSENT",
+                "lexeme": null
+              }
+            },
+            "quantity": {
+              "exact_decimal": null,
+              "lexical_digits": 8,
+              "scale": 7,
+              "normalized_decimal": null,
+              "unit_fact_ref": "DEMO_EXACT_CAI_V1"
+            },
+            "nature": "GOODS",
+            "issues": [
+              "QUANTITY_SCALE_EXCEEDED"
+            ],
+            "logical_line_key": null,
+            "continuity_ref": null,
+            "l11_eligible": false
+          },
+          {
+            "ordinal": 6,
+            "fields": {
+              "STT": {
+                "state": "TEXT",
+                "lexeme": "6"
+              },
+              "TChat": {
+                "state": "TEXT",
+                "lexeme": "1"
+              },
+              "MHHDVu": {
+                "state": "TEXT",
+                "lexeme": "DEMO_ITEM_A"
+              },
+              "THHDVu": {
+                "state": "TEXT",
+                "lexeme": "DEMO hang A"
+              },
+              "DVTinh": {
+                "state": "TEXT",
+                "lexeme": "CAI"
+              },
+              "SLuong": {
+                "state": "EMPTY",
+                "lexeme": ""
+              },
+              "DGia": {
+                "state": "ABSENT",
+                "lexeme": null
+              },
+              "ThTien": {
+                "state": "ABSENT",
+                "lexeme": null
+              },
+              "TSuat": {
+                "state": "ABSENT",
+                "lexeme": null
+              }
+            },
+            "quantity": {
+              "exact_decimal": null,
+              "lexical_digits": null,
+              "scale": null,
+              "normalized_decimal": null,
+              "unit_fact_ref": "DEMO_EXACT_CAI_V1"
+            },
+            "nature": "GOODS",
+            "issues": [
+              "QUANTITY_EMPTY"
+            ],
+            "logical_line_key": null,
+            "continuity_ref": null,
+            "l11_eligible": false
+          },
+          {
+            "ordinal": 7,
+            "fields": {
+              "STT": {
+                "state": "TEXT",
+                "lexeme": "7"
+              },
+              "TChat": {
+                "state": "TEXT",
+                "lexeme": "1"
+              },
+              "MHHDVu": {
+                "state": "TEXT",
+                "lexeme": "DEMO_ITEM_A"
+              },
+              "THHDVu": {
+                "state": "TEXT",
+                "lexeme": "DEMO hang A"
+              },
+              "DVTinh": {
+                "state": "TEXT",
+                "lexeme": "CAI"
+              },
+              "SLuong": {
+                "state": "ABSENT",
+                "lexeme": null
+              },
+              "DGia": {
+                "state": "ABSENT",
+                "lexeme": null
+              },
+              "ThTien": {
+                "state": "ABSENT",
+                "lexeme": null
+              },
+              "TSuat": {
+                "state": "ABSENT",
+                "lexeme": null
+              }
+            },
+            "quantity": {
+              "exact_decimal": null,
+              "lexical_digits": null,
+              "scale": null,
+              "normalized_decimal": null,
+              "unit_fact_ref": "DEMO_EXACT_CAI_V1"
+            },
+            "nature": "GOODS",
+            "issues": [
+              "QUANTITY_ABSENT"
+            ],
+            "logical_line_key": null,
+            "continuity_ref": null,
+            "l11_eligible": false
+          },
+          {
+            "ordinal": 8,
+            "fields": {
+              "STT": {
+                "state": "TEXT",
+                "lexeme": "8"
+              },
+              "TChat": {
+                "state": "TEXT",
+                "lexeme": "1"
+              },
+              "MHHDVu": {
+                "state": "TEXT",
+                "lexeme": "DEMO_ITEM_A"
+              },
+              "THHDVu": {
+                "state": "TEXT",
+                "lexeme": "DEMO hang A"
+              },
+              "DVTinh": {
+                "state": "TEXT",
+                "lexeme": "CAI"
+              },
+              "SLuong": {
+                "state": "TEXT",
+                "lexeme": "999999999999999999999"
+              },
+              "DGia": {
+                "state": "ABSENT",
+                "lexeme": null
+              },
+              "ThTien": {
+                "state": "ABSENT",
+                "lexeme": null
+              },
+              "TSuat": {
+                "state": "ABSENT",
+                "lexeme": null
+              }
+            },
+            "quantity": {
+              "exact_decimal": "999999999999999999999",
+              "lexical_digits": 21,
+              "scale": 0,
+              "normalized_decimal": "999999999999999999999",
+              "unit_fact_ref": "DEMO_EXACT_CAI_V1"
+            },
+            "nature": "GOODS",
+            "issues": [],
+            "logical_line_key": null,
+            "continuity_ref": null,
+            "l11_eligible": false
+          },
+          {
+            "ordinal": 9,
+            "fields": {
+              "STT": {
+                "state": "TEXT",
+                "lexeme": "9"
+              },
+              "TChat": {
+                "state": "TEXT",
+                "lexeme": "1"
+              },
+              "MHHDVu": {
+                "state": "TEXT",
+                "lexeme": "DEMO_ITEM_A"
+              },
+              "THHDVu": {
+                "state": "TEXT",
+                "lexeme": "DEMO hang A"
+              },
+              "DVTinh": {
+                "state": "TEXT",
+                "lexeme": "CAI"
+              },
+              "SLuong": {
+                "state": "TEXT",
+                "lexeme": "9999999999999999999999"
+              },
+              "DGia": {
+                "state": "ABSENT",
+                "lexeme": null
+              },
+              "ThTien": {
+                "state": "ABSENT",
+                "lexeme": null
+              },
+              "TSuat": {
+                "state": "ABSENT",
+                "lexeme": null
+              }
+            },
+            "quantity": {
+              "exact_decimal": null,
+              "lexical_digits": 22,
+              "scale": 0,
+              "normalized_decimal": null,
+              "unit_fact_ref": "DEMO_EXACT_CAI_V1"
+            },
+            "nature": "GOODS",
+            "issues": [
+              "QUANTITY_DIGITS_EXCEEDED"
+            ],
+            "logical_line_key": null,
+            "continuity_ref": null,
+            "l11_eligible": false
+          },
+          {
+            "ordinal": 10,
+            "fields": {
+              "STT": {
+                "state": "TEXT",
+                "lexeme": "10"
+              },
+              "TChat": {
+                "state": "TEXT",
+                "lexeme": "1"
+              },
+              "MHHDVu": {
+                "state": "TEXT",
+                "lexeme": "DEMO_ITEM_A"
+              },
+              "THHDVu": {
+                "state": "TEXT",
+                "lexeme": "DEMO hang A"
+              },
+              "DVTinh": {
+                "state": "TEXT",
+                "lexeme": "CAI"
+              },
+              "SLuong": {
+                "state": "TEXT",
+                "lexeme": "1e3"
+              },
+              "DGia": {
+                "state": "ABSENT",
+                "lexeme": null
+              },
+              "ThTien": {
+                "state": "ABSENT",
+                "lexeme": null
+              },
+              "TSuat": {
+                "state": "ABSENT",
+                "lexeme": null
+              }
+            },
+            "quantity": {
+              "exact_decimal": null,
+              "lexical_digits": null,
+              "scale": null,
+              "normalized_decimal": null,
+              "unit_fact_ref": "DEMO_EXACT_CAI_V1"
+            },
+            "nature": "GOODS",
+            "issues": [
+              "QUANTITY_LEXEME_INVALID"
+            ],
+            "logical_line_key": null,
+            "continuity_ref": null,
+            "l11_eligible": false
+          },
+          {
+            "ordinal": 11,
+            "fields": {
+              "STT": {
+                "state": "TEXT",
+                "lexeme": "11"
+              },
+              "TChat": {
+                "state": "TEXT",
+                "lexeme": "1"
+              },
+              "MHHDVu": {
+                "state": "TEXT",
+                "lexeme": "DEMO_ITEM_A"
+              },
+              "THHDVu": {
+                "state": "TEXT",
+                "lexeme": "DEMO hang A"
+              },
+              "DVTinh": {
+                "state": "TEXT",
+                "lexeme": "CAI"
+              },
+              "SLuong": {
+                "state": "TEXT",
+                "lexeme": "1,5"
+              },
+              "DGia": {
+                "state": "ABSENT",
+                "lexeme": null
+              },
+              "ThTien": {
+                "state": "ABSENT",
+                "lexeme": null
+              },
+              "TSuat": {
+                "state": "ABSENT",
+                "lexeme": null
+              }
+            },
+            "quantity": {
+              "exact_decimal": null,
+              "lexical_digits": null,
+              "scale": null,
+              "normalized_decimal": null,
+              "unit_fact_ref": "DEMO_EXACT_CAI_V1"
+            },
+            "nature": "GOODS",
+            "issues": [
+              "QUANTITY_LEXEME_INVALID"
+            ],
+            "logical_line_key": null,
+            "continuity_ref": null,
+            "l11_eligible": false
+          },
+          {
+            "ordinal": 12,
+            "fields": {
+              "STT": {
+                "state": "TEXT",
+                "lexeme": "12"
+              },
+              "TChat": {
+                "state": "TEXT",
+                "lexeme": "1"
+              },
+              "MHHDVu": {
+                "state": "TEXT",
+                "lexeme": "DEMO_ITEM_A"
+              },
+              "THHDVu": {
+                "state": "TEXT",
+                "lexeme": "DEMO hang A"
+              },
+              "DVTinh": {
+                "state": "TEXT",
+                "lexeme": "CAI"
+              },
+              "SLuong": {
+                "state": "TEXT",
+                "lexeme": " 10 "
+              },
+              "DGia": {
+                "state": "ABSENT",
+                "lexeme": null
+              },
+              "ThTien": {
+                "state": "ABSENT",
+                "lexeme": null
+              },
+              "TSuat": {
+                "state": "ABSENT",
+                "lexeme": null
+              }
+            },
+            "quantity": {
+              "exact_decimal": null,
+              "lexical_digits": null,
+              "scale": null,
+              "normalized_decimal": null,
+              "unit_fact_ref": "DEMO_EXACT_CAI_V1"
+            },
+            "nature": "GOODS",
+            "issues": [
+              "QUANTITY_LEXEME_INVALID"
+            ],
+            "logical_line_key": null,
+            "continuity_ref": null,
+            "l11_eligible": false
+          },
+          {
+            "ordinal": 13,
+            "fields": {
+              "STT": {
+                "state": "TEXT",
+                "lexeme": "13"
+              },
+              "TChat": {
+                "state": "TEXT",
+                "lexeme": "1"
+              },
+              "MHHDVu": {
+                "state": "TEXT",
+                "lexeme": "DEMO_ITEM_A"
+              },
+              "THHDVu": {
+                "state": "TEXT",
+                "lexeme": "DEMO hang A"
+              },
+              "DVTinh": {
+                "state": "TEXT",
+                "lexeme": "CAI"
+              },
+              "SLuong": {
+                "state": "TEXT",
+                "lexeme": "+10"
+              },
+              "DGia": {
+                "state": "ABSENT",
+                "lexeme": null
+              },
+              "ThTien": {
+                "state": "ABSENT",
+                "lexeme": null
+              },
+              "TSuat": {
+                "state": "ABSENT",
+                "lexeme": null
+              }
+            },
+            "quantity": {
+              "exact_decimal": null,
+              "lexical_digits": null,
+              "scale": null,
+              "normalized_decimal": null,
+              "unit_fact_ref": "DEMO_EXACT_CAI_V1"
+            },
+            "nature": "GOODS",
+            "issues": [
+              "QUANTITY_LEXEME_INVALID"
+            ],
+            "logical_line_key": null,
+            "continuity_ref": null,
+            "l11_eligible": false
+          },
+          {
+            "ordinal": 14,
+            "fields": {
+              "STT": {
+                "state": "TEXT",
+                "lexeme": "14"
+              },
+              "TChat": {
+                "state": "TEXT",
+                "lexeme": "1"
+              },
+              "MHHDVu": {
+                "state": "TEXT",
+                "lexeme": "DEMO_ITEM_A"
+              },
+              "THHDVu": {
+                "state": "TEXT",
+                "lexeme": "DEMO hang A"
+              },
+              "DVTinh": {
+                "state": "TEXT",
+                "lexeme": "CAI"
+              },
+              "SLuong": {
+                "state": "TEXT",
+                "lexeme": "-1.250000"
+              },
+              "DGia": {
+                "state": "ABSENT",
+                "lexeme": null
+              },
+              "ThTien": {
+                "state": "ABSENT",
+                "lexeme": null
+              },
+              "TSuat": {
+                "state": "ABSENT",
+                "lexeme": null
+              }
+            },
+            "quantity": {
+              "exact_decimal": "-1.250000",
+              "lexical_digits": 7,
+              "scale": 6,
+              "normalized_decimal": "-1.250000",
+              "unit_fact_ref": "DEMO_EXACT_CAI_V1"
+            },
+            "nature": "GOODS",
+            "issues": [],
+            "logical_line_key": null,
+            "continuity_ref": null,
+            "l11_eligible": false
+          },
+          {
+            "ordinal": 15,
+            "fields": {
+              "STT": {
+                "state": "TEXT",
+                "lexeme": "15"
+              },
+              "TChat": {
+                "state": "TEXT",
+                "lexeme": "1"
+              },
+              "MHHDVu": {
+                "state": "TEXT",
+                "lexeme": "DEMO_ITEM_A"
+              },
+              "THHDVu": {
+                "state": "TEXT",
+                "lexeme": "DEMO hang A"
+              },
+              "DVTinh": {
+                "state": "TEXT",
+                "lexeme": "CAI"
+              },
+              "SLuong": {
+                "state": "TEXT",
+                "lexeme": "00010.000000"
+              },
+              "DGia": {
+                "state": "ABSENT",
+                "lexeme": null
+              },
+              "ThTien": {
+                "state": "ABSENT",
+                "lexeme": null
+              },
+              "TSuat": {
+                "state": "ABSENT",
+                "lexeme": null
+              }
+            },
+            "quantity": {
+              "exact_decimal": "10.000000",
+              "lexical_digits": 11,
+              "scale": 6,
+              "normalized_decimal": "10.000000",
+              "unit_fact_ref": "DEMO_EXACT_CAI_V1"
+            },
+            "nature": "GOODS",
+            "issues": [],
+            "logical_line_key": null,
+            "continuity_ref": null,
+            "l11_eligible": false
+          }
+        ],
+        "zero_is_not_missing": true,
+        "large_integer_must_not_use_float": true,
+        "negative_value_business_eligibility": "NOT_DECIDED_BY_EXTRACTION",
+        "missing_money_not_filled": true
+      }
+    },
+    {
+      "case": "G07",
+      "artifacts": [
+        "inputs/G07-missing-basis-and-natures.xml",
+        "inputs/G07-unsupported-namespace.xml",
+        "inputs/G07-wrong-path-decoy.xml",
+        "inputs/G07-malformed.xml",
+        "inputs/G07-unit-no-fact.xml"
+      ],
+      "expected": {
+        "missing_basis": {
+          "header": {
+            "PBan": {
+              "state": "ABSENT",
+              "lexeme": null
+            },
+            "KHMSHDon": {
+              "state": "ABSENT",
+              "lexeme": null
+            },
+            "KHHDon": {
+              "state": "TEXT",
+              "lexeme": "DEMO_SERIES_A"
+            },
+            "SHDon": {
+              "state": "TEXT",
+              "lexeme": "000008"
+            },
+            "NLap": {
+              "state": "ABSENT",
+              "lexeme": null
+            },
+            "DVTTe": {
+              "state": "ABSENT",
+              "lexeme": null
+            },
+            "NBan/MST": {
+              "state": "TEXT",
+              "lexeme": "DEMO_M2_SUPPLIER"
+            },
+            "NMua/MST": {
+              "state": "TEXT",
+              "lexeme": "DEMO_M2_COMPANY_A"
+            }
+          },
+          "issues": [
+            "MODEL_ABSENT",
+            "CURRENCY_ABSENT",
+            "DATE_ABSENT"
+          ],
+          "business_core_count": 0,
+          "candidate_retained": true
+        },
+        "nature_lines": [
+          {
+            "ordinal": 1,
+            "fields": {
+              "STT": {
+                "state": "TEXT",
+                "lexeme": "1"
+              },
+              "TChat": {
+                "state": "TEXT",
+                "lexeme": "2"
+              },
+              "MHHDVu": {
+                "state": "TEXT",
+                "lexeme": "DEMO_ITEM_A"
+              },
+              "THHDVu": {
+                "state": "TEXT",
+                "lexeme": "DEMO hang A"
+              },
+              "DVTinh": {
+                "state": "TEXT",
+                "lexeme": "CAI"
+              },
+              "SLuong": {
+                "state": "TEXT",
+                "lexeme": "10"
+              },
+              "DGia": {
+                "state": "TEXT",
+                "lexeme": "12.500000"
+              },
+              "ThTien": {
+                "state": "TEXT",
+                "lexeme": "125.000000"
+              },
+              "TSuat": {
+                "state": "TEXT",
+                "lexeme": "0"
+              }
+            },
+            "quantity": {
+              "exact_decimal": "10",
+              "lexical_digits": 2,
+              "scale": 0,
+              "normalized_decimal": "10",
+              "unit_fact_ref": "DEMO_EXACT_CAI_V1"
+            },
+            "nature": "PROMOTION",
+            "issues": [],
+            "logical_line_key": null,
+            "continuity_ref": null,
+            "l11_eligible": false
+          },
+          {
+            "ordinal": 2,
+            "fields": {
+              "STT": {
+                "state": "TEXT",
+                "lexeme": "2"
+              },
+              "TChat": {
+                "state": "TEXT",
+                "lexeme": "3"
+              },
+              "MHHDVu": {
+                "state": "TEXT",
+                "lexeme": "DEMO_ITEM_A"
+              },
+              "THHDVu": {
+                "state": "TEXT",
+                "lexeme": "DEMO hang A"
+              },
+              "DVTinh": {
+                "state": "TEXT",
+                "lexeme": "CAI"
+              },
+              "SLuong": {
+                "state": "TEXT",
+                "lexeme": "10"
+              },
+              "DGia": {
+                "state": "TEXT",
+                "lexeme": "12.500000"
+              },
+              "ThTien": {
+                "state": "TEXT",
+                "lexeme": "125.000000"
+              },
+              "TSuat": {
+                "state": "TEXT",
+                "lexeme": "0"
+              }
+            },
+            "quantity": {
+              "exact_decimal": "10",
+              "lexical_digits": 2,
+              "scale": 0,
+              "normalized_decimal": "10",
+              "unit_fact_ref": "DEMO_EXACT_CAI_V1"
+            },
+            "nature": "DISCOUNT",
+            "issues": [],
+            "logical_line_key": null,
+            "continuity_ref": null,
+            "l11_eligible": false
+          },
+          {
+            "ordinal": 3,
+            "fields": {
+              "STT": {
+                "state": "TEXT",
+                "lexeme": "3"
+              },
+              "TChat": {
+                "state": "TEXT",
+                "lexeme": "4"
+              },
+              "MHHDVu": {
+                "state": "TEXT",
+                "lexeme": "DEMO_ITEM_A"
+              },
+              "THHDVu": {
+                "state": "TEXT",
+                "lexeme": "DEMO hang A"
+              },
+              "DVTinh": {
+                "state": "TEXT",
+                "lexeme": "CAI"
+              },
+              "SLuong": {
+                "state": "TEXT",
+                "lexeme": "10"
+              },
+              "DGia": {
+                "state": "TEXT",
+                "lexeme": "12.500000"
+              },
+              "ThTien": {
+                "state": "TEXT",
+                "lexeme": "125.000000"
+              },
+              "TSuat": {
+                "state": "TEXT",
+                "lexeme": "0"
+              }
+            },
+            "quantity": {
+              "exact_decimal": "10",
+              "lexical_digits": 2,
+              "scale": 0,
+              "normalized_decimal": "10",
+              "unit_fact_ref": "DEMO_EXACT_CAI_V1"
+            },
+            "nature": "NOTE",
+            "issues": [],
+            "logical_line_key": null,
+            "continuity_ref": null,
+            "l11_eligible": false
+          },
+          {
+            "ordinal": 4,
+            "fields": {
+              "STT": {
+                "state": "TEXT",
+                "lexeme": "4"
+              },
+              "TChat": {
+                "state": "TEXT",
+                "lexeme": "5"
+              },
+              "MHHDVu": {
+                "state": "TEXT",
+                "lexeme": "DEMO_ITEM_A"
+              },
+              "THHDVu": {
+                "state": "TEXT",
+                "lexeme": "DEMO hang A"
+              },
+              "DVTinh": {
+                "state": "TEXT",
+                "lexeme": "CAI"
+              },
+              "SLuong": {
+                "state": "TEXT",
+                "lexeme": "10"
+              },
+              "DGia": {
+                "state": "TEXT",
+                "lexeme": "12.500000"
+              },
+              "ThTien": {
+                "state": "TEXT",
+                "lexeme": "125.000000"
+              },
+              "TSuat": {
+                "state": "TEXT",
+                "lexeme": "0"
+              }
+            },
+            "quantity": {
+              "exact_decimal": "10",
+              "lexical_digits": 2,
+              "scale": 0,
+              "normalized_decimal": "10",
+              "unit_fact_ref": "DEMO_EXACT_CAI_V1"
+            },
+            "nature": "SPECIAL_GOODS",
+            "issues": [
+              "SPECIAL_GOODS_HOLD"
+            ],
+            "logical_line_key": null,
+            "continuity_ref": null,
+            "l11_eligible": false
+          },
+          {
+            "ordinal": 5,
+            "fields": {
+              "STT": {
+                "state": "TEXT",
+                "lexeme": "5"
+              },
+              "TChat": {
+                "state": "TEXT",
+                "lexeme": "9"
+              },
+              "MHHDVu": {
+                "state": "TEXT",
+                "lexeme": "DEMO_ITEM_A"
+              },
+              "THHDVu": {
+                "state": "TEXT",
+                "lexeme": "DEMO hang A"
+              },
+              "DVTinh": {
+                "state": "TEXT",
+                "lexeme": "CAI"
+              },
+              "SLuong": {
+                "state": "TEXT",
+                "lexeme": "10"
+              },
+              "DGia": {
+                "state": "TEXT",
+                "lexeme": "12.500000"
+              },
+              "ThTien": {
+                "state": "TEXT",
+                "lexeme": "125.000000"
+              },
+              "TSuat": {
+                "state": "TEXT",
+                "lexeme": "0"
+              }
+            },
+            "quantity": {
+              "exact_decimal": "10",
+              "lexical_digits": 2,
+              "scale": 0,
+              "normalized_decimal": "10",
+              "unit_fact_ref": "DEMO_EXACT_CAI_V1"
+            },
+            "nature": "UNKNOWN",
+            "issues": [
+              "NATURE_UNKNOWN"
+            ],
+            "logical_line_key": null,
+            "continuity_ref": null,
+            "l11_eligible": false
+          },
+          {
+            "ordinal": 6,
+            "fields": {
+              "STT": {
+                "state": "TEXT",
+                "lexeme": "6"
+              },
+              "TChat": {
+                "state": "EMPTY",
+                "lexeme": ""
+              },
+              "MHHDVu": {
+                "state": "TEXT",
+                "lexeme": "DEMO_ITEM_A"
+              },
+              "THHDVu": {
+                "state": "TEXT",
+                "lexeme": "DEMO hang A"
+              },
+              "DVTinh": {
+                "state": "TEXT",
+                "lexeme": "CAI"
+              },
+              "SLuong": {
+                "state": "TEXT",
+                "lexeme": "10"
+              },
+              "DGia": {
+                "state": "TEXT",
+                "lexeme": "12.500000"
+              },
+              "ThTien": {
+                "state": "TEXT",
+                "lexeme": "125.000000"
+              },
+              "TSuat": {
+                "state": "TEXT",
+                "lexeme": "0"
+              }
+            },
+            "quantity": {
+              "exact_decimal": "10",
+              "lexical_digits": 2,
+              "scale": 0,
+              "normalized_decimal": "10",
+              "unit_fact_ref": "DEMO_EXACT_CAI_V1"
+            },
+            "nature": "UNKNOWN",
+            "issues": [
+              "NATURE_EMPTY"
+            ],
+            "logical_line_key": null,
+            "continuity_ref": null,
+            "l11_eligible": false
+          },
+          {
+            "ordinal": 7,
+            "fields": {
+              "STT": {
+                "state": "TEXT",
+                "lexeme": "7"
+              },
+              "TChat": {
+                "state": "ABSENT",
+                "lexeme": null
+              },
+              "MHHDVu": {
+                "state": "TEXT",
+                "lexeme": "DEMO_ITEM_A"
+              },
+              "THHDVu": {
+                "state": "TEXT",
+                "lexeme": "DEMO hang A"
+              },
+              "DVTinh": {
+                "state": "TEXT",
+                "lexeme": "CAI"
+              },
+              "SLuong": {
+                "state": "TEXT",
+                "lexeme": "10"
+              },
+              "DGia": {
+                "state": "TEXT",
+                "lexeme": "12.500000"
+              },
+              "ThTien": {
+                "state": "TEXT",
+                "lexeme": "125.000000"
+              },
+              "TSuat": {
+                "state": "TEXT",
+                "lexeme": "0"
+              }
+            },
+            "quantity": {
+              "exact_decimal": "10",
+              "lexical_digits": 2,
+              "scale": 0,
+              "normalized_decimal": "10",
+              "unit_fact_ref": "DEMO_EXACT_CAI_V1"
+            },
+            "nature": "UNKNOWN",
+            "issues": [
+              "NATURE_ABSENT"
+            ],
+            "logical_line_key": null,
+            "continuity_ref": null,
+            "l11_eligible": false
+          }
+        ],
+        "DChat_alias_accepted": false,
+        "namespace": {
+          "strict_rows": [],
+          "issues": [
+            "UNSUPPORTED_NAMESPACE"
+          ],
+          "candidate_retained": true
+        },
+        "wrong_path": {
+          "strict_rows": [],
+          "issues": [
+            "UNSUPPORTED_PATH"
+          ],
+          "currency_from_decoy": null
+        },
+        "malformed": {
+          "strict_rows": [],
+          "issues": [
+            "XML_MALFORMED"
+          ],
+          "raw_retained": true
+        },
+        "native_fiscal_approval": null,
+        "unproven_unit_lines": [
+          {
+            "ordinal": 1,
+            "fields": {
+              "STT": {
+                "state": "TEXT",
+                "lexeme": "1"
+              },
+              "TChat": {
+                "state": "TEXT",
+                "lexeme": "1"
+              },
+              "MHHDVu": {
+                "state": "TEXT",
+                "lexeme": "DEMO_ITEM_A"
+              },
+              "THHDVu": {
+                "state": "TEXT",
+                "lexeme": "DEMO hang A"
+              },
+              "DVTinh": {
+                "state": "ABSENT",
+                "lexeme": null
+              },
+              "SLuong": {
+                "state": "TEXT",
+                "lexeme": "10"
+              },
+              "DGia": {
+                "state": "TEXT",
+                "lexeme": "12.500000"
+              },
+              "ThTien": {
+                "state": "TEXT",
+                "lexeme": "125.000000"
+              },
+              "TSuat": {
+                "state": "TEXT",
+                "lexeme": "0"
+              }
+            },
+            "quantity": {
+              "exact_decimal": "10",
+              "lexical_digits": 2,
+              "scale": 0,
+              "normalized_decimal": null,
+              "unit_fact_ref": null
+            },
+            "nature": "GOODS",
+            "issues": [
+              "UNIT_ABSENT"
+            ],
+            "logical_line_key": null,
+            "continuity_ref": null,
+            "l11_eligible": false
+          },
+          {
+            "ordinal": 2,
+            "fields": {
+              "STT": {
+                "state": "TEXT",
+                "lexeme": "2"
+              },
+              "TChat": {
+                "state": "TEXT",
+                "lexeme": "1"
+              },
+              "MHHDVu": {
+                "state": "TEXT",
+                "lexeme": "DEMO_ITEM_A"
+              },
+              "THHDVu": {
+                "state": "TEXT",
+                "lexeme": "DEMO hang A"
+              },
+              "DVTinh": {
+                "state": "TEXT",
+                "lexeme": "DEMO_UNKNOWN_UNIT"
+              },
+              "SLuong": {
+                "state": "TEXT",
+                "lexeme": "10"
+              },
+              "DGia": {
+                "state": "TEXT",
+                "lexeme": "12.500000"
+              },
+              "ThTien": {
+                "state": "TEXT",
+                "lexeme": "125.000000"
+              },
+              "TSuat": {
+                "state": "TEXT",
+                "lexeme": "0"
+              }
+            },
+            "quantity": {
+              "exact_decimal": "10",
+              "lexical_digits": 2,
+              "scale": 0,
+              "normalized_decimal": null,
+              "unit_fact_ref": null
+            },
+            "nature": "GOODS",
+            "issues": [
+              "UNIT_UNPROVEN"
+            ],
+            "logical_line_key": null,
+            "continuity_ref": null,
+            "l11_eligible": false
+          }
+        ]
+      }
+    },
+    {
+      "case": "G08",
+      "artifacts": [
+        "inputs/G08-duplicate-name-partial.zip"
+      ],
+      "expected": {
+        "members": [
+          {
+            "ordinal": 1,
+            "name": "same.xml",
+            "lines": [
+              {
+                "ordinal": 1,
+                "fields": {
+                  "STT": {
+                    "state": "TEXT",
+                    "lexeme": "1"
+                  },
+                  "TChat": {
+                    "state": "TEXT",
+                    "lexeme": "1"
+                  },
+                  "MHHDVu": {
+                    "state": "TEXT",
+                    "lexeme": "DEMO_ITEM_A"
+                  },
+                  "THHDVu": {
+                    "state": "TEXT",
+                    "lexeme": "DEMO hang A"
+                  },
+                  "DVTinh": {
+                    "state": "TEXT",
+                    "lexeme": "CAI"
+                  },
+                  "SLuong": {
+                    "state": "TEXT",
+                    "lexeme": "10"
+                  },
+                  "DGia": {
+                    "state": "TEXT",
+                    "lexeme": "12.500000"
+                  },
+                  "ThTien": {
+                    "state": "TEXT",
+                    "lexeme": "125.000000"
+                  },
+                  "TSuat": {
+                    "state": "TEXT",
+                    "lexeme": "0"
+                  }
+                },
+                "quantity": {
+                  "exact_decimal": "10",
+                  "lexical_digits": 2,
+                  "scale": 0,
+                  "normalized_decimal": "10",
+                  "unit_fact_ref": "DEMO_EXACT_CAI_V1"
+                },
+                "nature": "GOODS",
+                "issues": [],
+                "logical_line_key": null,
+                "continuity_ref": null,
+                "l11_eligible": false
+              }
+            ],
+            "status": "PARSED_SUBSET"
+          },
+          {
+            "ordinal": 2,
+            "name": "same.xml",
+            "lines": [
+              {
+                "ordinal": 1,
+                "fields": {
+                  "STT": {
+                    "state": "TEXT",
+                    "lexeme": "1"
+                  },
+                  "TChat": {
+                    "state": "TEXT",
+                    "lexeme": "1"
+                  },
+                  "MHHDVu": {
+                    "state": "TEXT",
+                    "lexeme": "DEMO_ITEM_A"
+                  },
+                  "THHDVu": {
+                    "state": "TEXT",
+                    "lexeme": "DEMO hang A"
+                  },
+                  "DVTinh": {
+                    "state": "TEXT",
+                    "lexeme": "CAI"
+                  },
+                  "SLuong": {
+                    "state": "TEXT",
+                    "lexeme": "8"
+                  },
+                  "DGia": {
+                    "state": "TEXT",
+                    "lexeme": "12.500000"
+                  },
+                  "ThTien": {
+                    "state": "TEXT",
+                    "lexeme": "100.000000"
+                  },
+                  "TSuat": {
+                    "state": "TEXT",
+                    "lexeme": "0"
+                  }
+                },
+                "quantity": {
+                  "exact_decimal": "8",
+                  "lexical_digits": 1,
+                  "scale": 0,
+                  "normalized_decimal": "8",
+                  "unit_fact_ref": "DEMO_EXACT_CAI_V1"
+                },
+                "nature": "GOODS",
+                "issues": [],
+                "logical_line_key": null,
+                "continuity_ref": null,
+                "l11_eligible": false
+              }
+            ],
+            "status": "PARSED_SUBSET"
+          },
+          {
+            "ordinal": 3,
+            "name": "broken.xml",
+            "lines": [],
+            "status": "XML_MALFORMED"
+          }
+        ],
+        "zip_entry_count": 3,
+        "parsed_member_count": 2,
+        "failed_member_count": 1,
+        "duplicate_name_count": 1,
+        "coverage": "PARTIAL",
+        "source_revocation_from_missing": false,
+        "member_collapse_allowed": false,
+        "full_period_complete": false
+      }
+    }
+  ]
+}

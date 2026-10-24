@@ -1,0 +1,1092 @@
+{
+  "status": "EXPECTED_BINDING_DATA_ONLY_NOT_RUN",
+  "product_input": false,
+  "original_oracle_sha256": "8e260e2c2dd979c87b8f614ef084dd0e83d8c336aba5fcc4590602daff26aabb",
+  "original_oracle_case_ids": [
+    "K01",
+    "K02",
+    "K03",
+    "K04",
+    "K05",
+    "K06",
+    "K07",
+    "K08",
+    "K09",
+    "K10"
+  ],
+  "cases": {
+    "K01": {
+      "raw_sha256": "56037f2e8145d0ca57b947e7213e03a4586ba601dc741b5ef554858f89df1107",
+      "semantic_digest": "be78c67b5d6d81c160f0cd7c6023c6d1c9c15bb3d804bdfb9e5b9bc26428d032",
+      "request_digest": "ffdc829509dcbe0cdaae8cebec18ea9b2fec5682980ec596e8c4eb55ea26134f",
+      "graph_issues": [],
+      "request_issues": [],
+      "measurement_issues": [],
+      "semantic_envelope": {
+        "contract": "kho10-content/v1",
+        "logical_source": {
+          "source_instance": "DEMO_KHO_A",
+          "SoPhieu": "NK20260814001"
+        },
+        "native_header": {
+          "SoPhieu": "NK20260814001",
+          "LoaiPhieu": "Nhập",
+          "NgayChungTu": "2026-08-14",
+          "MaKho": "KHO_DEMO",
+          "MaDoiTac": "DT_DEMO",
+          "DienGiai": "DEMO synthetic fixture",
+          "TrangThai": "Đã duyệt",
+          "NguoiLap": "MO_PHONG_LAP@example.invalid",
+          "NguoiDuyet": "MO_PHONG_DUYET@example.invalid",
+          "ThoiDiemDuyet": "2026-08-14T02:00:00.000Z",
+          "SoPhieu_Goc": ""
+        },
+        "ordered_native_lines": [
+          {
+            "ID_Dong": "ID_1786672800001",
+            "SoPhieu": "NK20260814001",
+            "MaHang": "HH_DEMO_A",
+            "SoLuong": "8",
+            "GhiChu": "DEMO"
+          },
+          {
+            "ID_Dong": "ID_1786672800002",
+            "SoPhieu": "NK20260814001",
+            "MaHang": "HH_DEMO_B",
+            "SoLuong": "2",
+            "GhiChu": "DEMO"
+          }
+        ],
+        "related_master_facts": {
+          "DM_HangHoa": [
+            {
+              "MaHang": "HH_DEMO_A",
+              "DVT_Goc": "CAI",
+              "DVT_QuyDoi": null
+            },
+            {
+              "MaHang": "HH_DEMO_B",
+              "DVT_Goc": "CAI",
+              "DVT_QuyDoi": null
+            }
+          ],
+          "DM_Kho": [
+            {
+              "MaKho": "KHO_DEMO",
+              "TrangThai": "Hoạt động"
+            }
+          ],
+          "DM_DoiTac": [
+            {
+              "MaDoiTac": "DT_DEMO",
+              "MaDoiTuong_KT": "DTKT_DEMO"
+            }
+          ]
+        }
+      },
+      "request_envelope": {
+        "contract": "kho10-request/v1",
+        "logical_source": {
+          "source_instance": "DEMO_KHO_A",
+          "SoPhieu": "NK20260814001"
+        },
+        "native_raw_sha256": "56037f2e8145d0ca57b947e7213e03a4586ba601dc741b5ef554858f89df1107",
+        "semantic_digest": "be78c67b5d6d81c160f0cd7c6023c6d1c9c15bb3d804bdfb9e5b9bc26428d032",
+        "source_profile_ref": "urn:demo:m5:source-profile:f05eee570c7c8861b219ca97",
+        "source_scope": {
+          "source_instance": "DEMO_KHO_A",
+          "SoPhieu": "NK20260814001",
+          "MaKho": "KHO_DEMO",
+          "sections": [
+            "GD_Dong",
+            "GD_Phieu",
+            "MASTER_WHITELIST"
+          ],
+          "coverage": "FULL_FOR_SINGLE_DETAIL_AND_REFERENCED_MASTER_ONLY"
+        },
+        "capture_consistency": {
+          "claim": "SYNTHETIC_ATOMIC_CAPTURE_NOT_NATIVE_ENDPOINT_GUARANTEE",
+          "reported_errors": []
+        },
+        "mapping_revision": {
+          "reference_id": "DEMO_MAP_A_V1",
+          "version": 1,
+          "source_instance": "DEMO_KHO_A",
+          "MaKho": "KHO_DEMO",
+          "phap_nhan": "DEMO_PN_A"
+        },
+        "master_snapshot": {
+          "reference_id": "urn:demo:m5:master:7aea96355efd196e316f1ccc",
+          "raw_subtree_sha256": "3a806526917dac322ee9ba4c6f7ea5ed88e02b780ea282c0300465e980e16801"
+        },
+        "measurement_refs": {
+          "profile_ref": "DEMO_EXACT_TEXT_CAI_A_V1",
+          "native_encoding_kind": "EXACT_TEXT_SYNTHETIC_ONLY",
+          "conversion_kind": "SAME_VERIFIED_UNIT_ONLY",
+          "unit_definition_ref": "DEMO_UNIT_CAI_A",
+          "approved_conversion_proof_ref": null,
+          "prior_unit_definition_ref": null,
+          "master_revision_ref": null,
+          "ratio_numerator_text": "1",
+          "ratio_denominator_text": "1"
+        }
+      }
+    },
+    "K02": {
+      "raw_sha256": "56037f2e8145d0ca57b947e7213e03a4586ba601dc741b5ef554858f89df1107",
+      "semantic_digest": "0eefdd217b01ba7de446e69336a7ee32bef79c432badbeb53f4b5da8b973d27b",
+      "request_digest": "eb75968f62ec216c5f81b6dde2a368bc8bfc0f2095eb44ecb87a7df89d6668f7",
+      "graph_issues": [],
+      "request_issues": [],
+      "measurement_issues": [],
+      "semantic_envelope": {
+        "contract": "kho10-content/v1",
+        "logical_source": {
+          "source_instance": "DEMO_KHO_B",
+          "SoPhieu": "NK20260814001"
+        },
+        "native_header": {
+          "SoPhieu": "NK20260814001",
+          "LoaiPhieu": "Nhập",
+          "NgayChungTu": "2026-08-14",
+          "MaKho": "KHO_DEMO",
+          "MaDoiTac": "DT_DEMO",
+          "DienGiai": "DEMO synthetic fixture",
+          "TrangThai": "Đã duyệt",
+          "NguoiLap": "MO_PHONG_LAP@example.invalid",
+          "NguoiDuyet": "MO_PHONG_DUYET@example.invalid",
+          "ThoiDiemDuyet": "2026-08-14T02:00:00.000Z",
+          "SoPhieu_Goc": ""
+        },
+        "ordered_native_lines": [
+          {
+            "ID_Dong": "ID_1786672800001",
+            "SoPhieu": "NK20260814001",
+            "MaHang": "HH_DEMO_A",
+            "SoLuong": "8",
+            "GhiChu": "DEMO"
+          },
+          {
+            "ID_Dong": "ID_1786672800002",
+            "SoPhieu": "NK20260814001",
+            "MaHang": "HH_DEMO_B",
+            "SoLuong": "2",
+            "GhiChu": "DEMO"
+          }
+        ],
+        "related_master_facts": {
+          "DM_HangHoa": [
+            {
+              "MaHang": "HH_DEMO_A",
+              "DVT_Goc": "CAI",
+              "DVT_QuyDoi": null
+            },
+            {
+              "MaHang": "HH_DEMO_B",
+              "DVT_Goc": "CAI",
+              "DVT_QuyDoi": null
+            }
+          ],
+          "DM_Kho": [
+            {
+              "MaKho": "KHO_DEMO",
+              "TrangThai": "Hoạt động"
+            }
+          ],
+          "DM_DoiTac": [
+            {
+              "MaDoiTac": "DT_DEMO",
+              "MaDoiTuong_KT": "DTKT_DEMO"
+            }
+          ]
+        }
+      },
+      "request_envelope": {
+        "contract": "kho10-request/v1",
+        "logical_source": {
+          "source_instance": "DEMO_KHO_B",
+          "SoPhieu": "NK20260814001"
+        },
+        "native_raw_sha256": "56037f2e8145d0ca57b947e7213e03a4586ba601dc741b5ef554858f89df1107",
+        "semantic_digest": "0eefdd217b01ba7de446e69336a7ee32bef79c432badbeb53f4b5da8b973d27b",
+        "source_profile_ref": "urn:demo:m5:source-profile:f05eee570c7c8861b219ca97",
+        "source_scope": {
+          "source_instance": "DEMO_KHO_B",
+          "SoPhieu": "NK20260814001",
+          "MaKho": "KHO_DEMO",
+          "sections": [
+            "GD_Dong",
+            "GD_Phieu",
+            "MASTER_WHITELIST"
+          ],
+          "coverage": "FULL_FOR_SINGLE_DETAIL_AND_REFERENCED_MASTER_ONLY"
+        },
+        "capture_consistency": {
+          "claim": "SYNTHETIC_ATOMIC_CAPTURE_NOT_NATIVE_ENDPOINT_GUARANTEE",
+          "reported_errors": []
+        },
+        "mapping_revision": {
+          "reference_id": "DEMO_MAP_B_V1",
+          "version": 1,
+          "source_instance": "DEMO_KHO_B",
+          "MaKho": "KHO_DEMO",
+          "phap_nhan": "DEMO_PN_B"
+        },
+        "master_snapshot": {
+          "reference_id": "urn:demo:m5:master:7aea96355efd196e316f1ccc",
+          "raw_subtree_sha256": "3a806526917dac322ee9ba4c6f7ea5ed88e02b780ea282c0300465e980e16801"
+        },
+        "measurement_refs": {
+          "profile_ref": "DEMO_EXACT_TEXT_CAI_B_V1",
+          "native_encoding_kind": "EXACT_TEXT_SYNTHETIC_ONLY",
+          "conversion_kind": "SAME_VERIFIED_UNIT_ONLY",
+          "unit_definition_ref": "DEMO_UNIT_CAI_B",
+          "approved_conversion_proof_ref": null,
+          "prior_unit_definition_ref": null,
+          "master_revision_ref": null,
+          "ratio_numerator_text": "1",
+          "ratio_denominator_text": "1"
+        }
+      }
+    },
+    "K03": {
+      "raw_sha256": "56037f2e8145d0ca57b947e7213e03a4586ba601dc741b5ef554858f89df1107",
+      "semantic_digest": "be78c67b5d6d81c160f0cd7c6023c6d1c9c15bb3d804bdfb9e5b9bc26428d032",
+      "request_digest": "ffdc829509dcbe0cdaae8cebec18ea9b2fec5682980ec596e8c4eb55ea26134f",
+      "graph_issues": [],
+      "request_issues": [],
+      "measurement_issues": [],
+      "semantic_envelope": {
+        "contract": "kho10-content/v1",
+        "logical_source": {
+          "source_instance": "DEMO_KHO_A",
+          "SoPhieu": "NK20260814001"
+        },
+        "native_header": {
+          "SoPhieu": "NK20260814001",
+          "LoaiPhieu": "Nhập",
+          "NgayChungTu": "2026-08-14",
+          "MaKho": "KHO_DEMO",
+          "MaDoiTac": "DT_DEMO",
+          "DienGiai": "DEMO synthetic fixture",
+          "TrangThai": "Đã duyệt",
+          "NguoiLap": "MO_PHONG_LAP@example.invalid",
+          "NguoiDuyet": "MO_PHONG_DUYET@example.invalid",
+          "ThoiDiemDuyet": "2026-08-14T02:00:00.000Z",
+          "SoPhieu_Goc": ""
+        },
+        "ordered_native_lines": [
+          {
+            "ID_Dong": "ID_1786672800001",
+            "SoPhieu": "NK20260814001",
+            "MaHang": "HH_DEMO_A",
+            "SoLuong": "8",
+            "GhiChu": "DEMO"
+          },
+          {
+            "ID_Dong": "ID_1786672800002",
+            "SoPhieu": "NK20260814001",
+            "MaHang": "HH_DEMO_B",
+            "SoLuong": "2",
+            "GhiChu": "DEMO"
+          }
+        ],
+        "related_master_facts": {
+          "DM_HangHoa": [
+            {
+              "MaHang": "HH_DEMO_A",
+              "DVT_Goc": "CAI",
+              "DVT_QuyDoi": null
+            },
+            {
+              "MaHang": "HH_DEMO_B",
+              "DVT_Goc": "CAI",
+              "DVT_QuyDoi": null
+            }
+          ],
+          "DM_Kho": [
+            {
+              "MaKho": "KHO_DEMO",
+              "TrangThai": "Hoạt động"
+            }
+          ],
+          "DM_DoiTac": [
+            {
+              "MaDoiTac": "DT_DEMO",
+              "MaDoiTuong_KT": "DTKT_DEMO"
+            }
+          ]
+        }
+      },
+      "request_envelope": {
+        "contract": "kho10-request/v1",
+        "logical_source": {
+          "source_instance": "DEMO_KHO_A",
+          "SoPhieu": "NK20260814001"
+        },
+        "native_raw_sha256": "56037f2e8145d0ca57b947e7213e03a4586ba601dc741b5ef554858f89df1107",
+        "semantic_digest": "be78c67b5d6d81c160f0cd7c6023c6d1c9c15bb3d804bdfb9e5b9bc26428d032",
+        "source_profile_ref": "urn:demo:m5:source-profile:f05eee570c7c8861b219ca97",
+        "source_scope": {
+          "source_instance": "DEMO_KHO_A",
+          "SoPhieu": "NK20260814001",
+          "MaKho": "KHO_DEMO",
+          "sections": [
+            "GD_Dong",
+            "GD_Phieu",
+            "MASTER_WHITELIST"
+          ],
+          "coverage": "FULL_FOR_SINGLE_DETAIL_AND_REFERENCED_MASTER_ONLY"
+        },
+        "capture_consistency": {
+          "claim": "SYNTHETIC_ATOMIC_CAPTURE_NOT_NATIVE_ENDPOINT_GUARANTEE",
+          "reported_errors": []
+        },
+        "mapping_revision": {
+          "reference_id": "DEMO_MAP_A_V1",
+          "version": 1,
+          "source_instance": "DEMO_KHO_A",
+          "MaKho": "KHO_DEMO",
+          "phap_nhan": "DEMO_PN_A"
+        },
+        "master_snapshot": {
+          "reference_id": "urn:demo:m5:master:7aea96355efd196e316f1ccc",
+          "raw_subtree_sha256": "3a806526917dac322ee9ba4c6f7ea5ed88e02b780ea282c0300465e980e16801"
+        },
+        "measurement_refs": {
+          "profile_ref": "DEMO_EXACT_TEXT_CAI_A_V1",
+          "native_encoding_kind": "EXACT_TEXT_SYNTHETIC_ONLY",
+          "conversion_kind": "SAME_VERIFIED_UNIT_ONLY",
+          "unit_definition_ref": "DEMO_UNIT_CAI_A",
+          "approved_conversion_proof_ref": null,
+          "prior_unit_definition_ref": null,
+          "master_revision_ref": null,
+          "ratio_numerator_text": "1",
+          "ratio_denominator_text": "1"
+        }
+      }
+    },
+    "K04": {
+      "raw_sha256": "3d19195d8f044cf7716394db90fa51ffb99e8ecf8671ace410046c6fe20d4f40",
+      "semantic_digest": "96e40a19df5238494b2e6a1c0742ca36a332ddec9a9c5aa237acad9f657fd033",
+      "request_digest": "fdc64096a3ac2392b6d04fb6c9f0b9a91533f447a1e1dbd14f584c36ea7a8d6e",
+      "graph_issues": [],
+      "request_issues": [],
+      "measurement_issues": [],
+      "semantic_envelope": {
+        "contract": "kho10-content/v1",
+        "logical_source": {
+          "source_instance": "DEMO_KHO_A",
+          "SoPhieu": "NK20260814001"
+        },
+        "native_header": {
+          "SoPhieu": "NK20260814001",
+          "LoaiPhieu": "Nhập",
+          "NgayChungTu": "2026-08-14",
+          "MaKho": "KHO_DEMO",
+          "MaDoiTac": "DT_DEMO",
+          "DienGiai": "DEMO synthetic fixture",
+          "TrangThai": "Đã đảo",
+          "NguoiLap": "MO_PHONG_LAP@example.invalid",
+          "NguoiDuyet": "MO_PHONG_DUYET@example.invalid",
+          "ThoiDiemDuyet": "2026-08-14T02:00:00.000Z",
+          "SoPhieu_Goc": ""
+        },
+        "ordered_native_lines": [
+          {
+            "ID_Dong": "ID_1786672800001",
+            "SoPhieu": "NK20260814001",
+            "MaHang": "HH_DEMO_A",
+            "SoLuong": "8",
+            "GhiChu": "DEMO"
+          },
+          {
+            "ID_Dong": "ID_1786672800002",
+            "SoPhieu": "NK20260814001",
+            "MaHang": "HH_DEMO_B",
+            "SoLuong": "2",
+            "GhiChu": "DEMO"
+          }
+        ],
+        "related_master_facts": {
+          "DM_HangHoa": [
+            {
+              "MaHang": "HH_DEMO_A",
+              "DVT_Goc": "CAI",
+              "DVT_QuyDoi": null
+            },
+            {
+              "MaHang": "HH_DEMO_B",
+              "DVT_Goc": "CAI",
+              "DVT_QuyDoi": null
+            }
+          ],
+          "DM_Kho": [
+            {
+              "MaKho": "KHO_DEMO",
+              "TrangThai": "Hoạt động"
+            }
+          ],
+          "DM_DoiTac": [
+            {
+              "MaDoiTac": "DT_DEMO",
+              "MaDoiTuong_KT": "DTKT_DEMO"
+            }
+          ]
+        }
+      },
+      "request_envelope": {
+        "contract": "kho10-request/v1",
+        "logical_source": {
+          "source_instance": "DEMO_KHO_A",
+          "SoPhieu": "NK20260814001"
+        },
+        "native_raw_sha256": "3d19195d8f044cf7716394db90fa51ffb99e8ecf8671ace410046c6fe20d4f40",
+        "semantic_digest": "96e40a19df5238494b2e6a1c0742ca36a332ddec9a9c5aa237acad9f657fd033",
+        "source_profile_ref": "urn:demo:m5:source-profile:f05eee570c7c8861b219ca97",
+        "source_scope": {
+          "source_instance": "DEMO_KHO_A",
+          "SoPhieu": "NK20260814001",
+          "MaKho": "KHO_DEMO",
+          "sections": [
+            "GD_Dong",
+            "GD_Phieu",
+            "MASTER_WHITELIST"
+          ],
+          "coverage": "FULL_FOR_SINGLE_DETAIL_AND_REFERENCED_MASTER_ONLY"
+        },
+        "capture_consistency": {
+          "claim": "SYNTHETIC_ATOMIC_CAPTURE_NOT_NATIVE_ENDPOINT_GUARANTEE",
+          "reported_errors": []
+        },
+        "mapping_revision": {
+          "reference_id": "DEMO_MAP_A_V1",
+          "version": 1,
+          "source_instance": "DEMO_KHO_A",
+          "MaKho": "KHO_DEMO",
+          "phap_nhan": "DEMO_PN_A"
+        },
+        "master_snapshot": {
+          "reference_id": "urn:demo:m5:master:7aea96355efd196e316f1ccc",
+          "raw_subtree_sha256": "3a806526917dac322ee9ba4c6f7ea5ed88e02b780ea282c0300465e980e16801"
+        },
+        "measurement_refs": {
+          "profile_ref": "DEMO_EXACT_TEXT_CAI_A_V1",
+          "native_encoding_kind": "EXACT_TEXT_SYNTHETIC_ONLY",
+          "conversion_kind": "SAME_VERIFIED_UNIT_ONLY",
+          "unit_definition_ref": "DEMO_UNIT_CAI_A",
+          "approved_conversion_proof_ref": null,
+          "prior_unit_definition_ref": null,
+          "master_revision_ref": null,
+          "ratio_numerator_text": "1",
+          "ratio_denominator_text": "1"
+        }
+      }
+    },
+    "K05": {
+      "raw_sha256": "56037f2e8145d0ca57b947e7213e03a4586ba601dc741b5ef554858f89df1107",
+      "semantic_digest": "be78c67b5d6d81c160f0cd7c6023c6d1c9c15bb3d804bdfb9e5b9bc26428d032",
+      "request_digest": "ffdc829509dcbe0cdaae8cebec18ea9b2fec5682980ec596e8c4eb55ea26134f",
+      "graph_issues": [],
+      "request_issues": [],
+      "measurement_issues": [],
+      "semantic_envelope": {
+        "contract": "kho10-content/v1",
+        "logical_source": {
+          "source_instance": "DEMO_KHO_A",
+          "SoPhieu": "NK20260814001"
+        },
+        "native_header": {
+          "SoPhieu": "NK20260814001",
+          "LoaiPhieu": "Nhập",
+          "NgayChungTu": "2026-08-14",
+          "MaKho": "KHO_DEMO",
+          "MaDoiTac": "DT_DEMO",
+          "DienGiai": "DEMO synthetic fixture",
+          "TrangThai": "Đã duyệt",
+          "NguoiLap": "MO_PHONG_LAP@example.invalid",
+          "NguoiDuyet": "MO_PHONG_DUYET@example.invalid",
+          "ThoiDiemDuyet": "2026-08-14T02:00:00.000Z",
+          "SoPhieu_Goc": ""
+        },
+        "ordered_native_lines": [
+          {
+            "ID_Dong": "ID_1786672800001",
+            "SoPhieu": "NK20260814001",
+            "MaHang": "HH_DEMO_A",
+            "SoLuong": "8",
+            "GhiChu": "DEMO"
+          },
+          {
+            "ID_Dong": "ID_1786672800002",
+            "SoPhieu": "NK20260814001",
+            "MaHang": "HH_DEMO_B",
+            "SoLuong": "2",
+            "GhiChu": "DEMO"
+          }
+        ],
+        "related_master_facts": {
+          "DM_HangHoa": [
+            {
+              "MaHang": "HH_DEMO_A",
+              "DVT_Goc": "CAI",
+              "DVT_QuyDoi": null
+            },
+            {
+              "MaHang": "HH_DEMO_B",
+              "DVT_Goc": "CAI",
+              "DVT_QuyDoi": null
+            }
+          ],
+          "DM_Kho": [
+            {
+              "MaKho": "KHO_DEMO",
+              "TrangThai": "Hoạt động"
+            }
+          ],
+          "DM_DoiTac": [
+            {
+              "MaDoiTac": "DT_DEMO",
+              "MaDoiTuong_KT": "DTKT_DEMO"
+            }
+          ]
+        }
+      },
+      "request_envelope": {
+        "contract": "kho10-request/v1",
+        "logical_source": {
+          "source_instance": "DEMO_KHO_A",
+          "SoPhieu": "NK20260814001"
+        },
+        "native_raw_sha256": "56037f2e8145d0ca57b947e7213e03a4586ba601dc741b5ef554858f89df1107",
+        "semantic_digest": "be78c67b5d6d81c160f0cd7c6023c6d1c9c15bb3d804bdfb9e5b9bc26428d032",
+        "source_profile_ref": "urn:demo:m5:source-profile:f05eee570c7c8861b219ca97",
+        "source_scope": {
+          "source_instance": "DEMO_KHO_A",
+          "SoPhieu": "NK20260814001",
+          "MaKho": "KHO_DEMO",
+          "sections": [
+            "GD_Dong",
+            "GD_Phieu",
+            "MASTER_WHITELIST"
+          ],
+          "coverage": "FULL_FOR_SINGLE_DETAIL_AND_REFERENCED_MASTER_ONLY"
+        },
+        "capture_consistency": {
+          "claim": "SYNTHETIC_ATOMIC_CAPTURE_NOT_NATIVE_ENDPOINT_GUARANTEE",
+          "reported_errors": []
+        },
+        "mapping_revision": {
+          "reference_id": "DEMO_MAP_A_V1",
+          "version": 1,
+          "source_instance": "DEMO_KHO_A",
+          "MaKho": "KHO_DEMO",
+          "phap_nhan": "DEMO_PN_A"
+        },
+        "master_snapshot": {
+          "reference_id": "urn:demo:m5:master:7aea96355efd196e316f1ccc",
+          "raw_subtree_sha256": "3a806526917dac322ee9ba4c6f7ea5ed88e02b780ea282c0300465e980e16801"
+        },
+        "measurement_refs": {
+          "profile_ref": "DEMO_EXACT_TEXT_CAI_A_V1",
+          "native_encoding_kind": "EXACT_TEXT_SYNTHETIC_ONLY",
+          "conversion_kind": "SAME_VERIFIED_UNIT_ONLY",
+          "unit_definition_ref": "DEMO_UNIT_CAI_A",
+          "approved_conversion_proof_ref": null,
+          "prior_unit_definition_ref": null,
+          "master_revision_ref": null,
+          "ratio_numerator_text": "1",
+          "ratio_denominator_text": "1"
+        }
+      }
+    },
+    "K06": {
+      "raw_sha256": "27d5114d3518d7d9e5e90328eceda96afe9d486d7ef48a91fb9d985a1192ec5e",
+      "semantic_digest": null,
+      "request_digest": null,
+      "graph_issues": [
+        "KHO_LINE_ID_CONFLICT"
+      ],
+      "request_issues": [],
+      "measurement_issues": [],
+      "semantic_envelope": null,
+      "request_envelope": null
+    },
+    "K07": {
+      "raw_sha256": "5bc09f4b400138c64e5634f010d511fc7dc11dafdf96fdb1b75d48401acb25b3",
+      "semantic_digest": "62986cd40c60c602e55b8442f522024e224e3b471393abd56ccf108ce17ac72e",
+      "request_digest": "411d016a5633c5920dfed65bffb109c52694d863f1065790cd56927bbd6ecfe5",
+      "graph_issues": [],
+      "request_issues": [],
+      "measurement_issues": [],
+      "semantic_envelope": {
+        "contract": "kho10-content/v1",
+        "logical_source": {
+          "source_instance": "DEMO_KHO_A",
+          "SoPhieu": "NK20260814001"
+        },
+        "native_header": {
+          "SoPhieu": "NK20260814001",
+          "LoaiPhieu": "Nhập",
+          "NgayChungTu": "2026-08-14",
+          "MaKho": "KHO_DEMO",
+          "MaDoiTac": "DT_DEMO",
+          "DienGiai": "DEMO synthetic fixture",
+          "TrangThai": "Đã duyệt",
+          "NguoiLap": "MO_PHONG_LAP@example.invalid",
+          "NguoiDuyet": "MO_PHONG_DUYET@example.invalid",
+          "ThoiDiemDuyet": "2026-08-14T02:00:00.000Z",
+          "SoPhieu_Goc": ""
+        },
+        "ordered_native_lines": [
+          {
+            "ID_Dong": "ID_1786672800001",
+            "SoPhieu": "NK20260814001",
+            "MaHang": "HH_DEMO_A",
+            "SoLuong": "8",
+            "GhiChu": "DEMO"
+          }
+        ],
+        "related_master_facts": {
+          "DM_HangHoa": [
+            {
+              "MaHang": "HH_DEMO_A",
+              "DVT_Goc": "CAI",
+              "DVT_QuyDoi": null
+            }
+          ],
+          "DM_Kho": [
+            {
+              "MaKho": "KHO_DEMO",
+              "TrangThai": "Hoạt động"
+            }
+          ],
+          "DM_DoiTac": [
+            {
+              "MaDoiTac": "DT_DEMO",
+              "MaDoiTuong_KT": "DTKT_DEMO"
+            }
+          ]
+        }
+      },
+      "request_envelope": {
+        "contract": "kho10-request/v1",
+        "logical_source": {
+          "source_instance": "DEMO_KHO_A",
+          "SoPhieu": "NK20260814001"
+        },
+        "native_raw_sha256": "5bc09f4b400138c64e5634f010d511fc7dc11dafdf96fdb1b75d48401acb25b3",
+        "semantic_digest": "62986cd40c60c602e55b8442f522024e224e3b471393abd56ccf108ce17ac72e",
+        "source_profile_ref": "urn:demo:m5:source-profile:f05eee570c7c8861b219ca97",
+        "source_scope": {
+          "source_instance": "DEMO_KHO_A",
+          "SoPhieu": "NK20260814001",
+          "MaKho": "KHO_DEMO",
+          "sections": [
+            "GD_Dong",
+            "GD_Phieu",
+            "MASTER_WHITELIST"
+          ],
+          "coverage": "PARTIAL"
+        },
+        "capture_consistency": {
+          "claim": "SYNTHETIC_PARTIAL_CAPTURE_NOT_FULL_OR_ATOMIC_GUARANTEE",
+          "reported_errors": [
+            "DETAIL_CAPTURE_INTERRUPTED_AFTER_FIRST_LINE"
+          ]
+        },
+        "mapping_revision": {
+          "reference_id": "DEMO_MAP_A_V1",
+          "version": 1,
+          "source_instance": "DEMO_KHO_A",
+          "MaKho": "KHO_DEMO",
+          "phap_nhan": "DEMO_PN_A"
+        },
+        "master_snapshot": {
+          "reference_id": "urn:demo:m5:master:7aea96355efd196e316f1ccc",
+          "raw_subtree_sha256": "3a806526917dac322ee9ba4c6f7ea5ed88e02b780ea282c0300465e980e16801"
+        },
+        "measurement_refs": {
+          "profile_ref": "DEMO_EXACT_TEXT_CAI_A_V1",
+          "native_encoding_kind": "EXACT_TEXT_SYNTHETIC_ONLY",
+          "conversion_kind": "SAME_VERIFIED_UNIT_ONLY",
+          "unit_definition_ref": "DEMO_UNIT_CAI_A",
+          "approved_conversion_proof_ref": null,
+          "prior_unit_definition_ref": null,
+          "master_revision_ref": null,
+          "ratio_numerator_text": "1",
+          "ratio_denominator_text": "1"
+        }
+      }
+    },
+    "K08": {
+      "raw_sha256": "8d74b6fd677ac58aa272ddd1165ec4bdc11e0f4707952e4a958b07c1f5aa343c",
+      "semantic_digest": "83187367ced546ebb04dcd1d041bfc13270fe2253ccfa1eb9985b6a75519849c",
+      "request_digest": "0532644cfd8916bf45059f1195f8a8e92ea5f500a53ad1d2cbd979f339d8c5af",
+      "graph_issues": [],
+      "request_issues": [],
+      "measurement_issues": [
+        "KHO_MEASUREMENT_UNRESOLVED"
+      ],
+      "semantic_envelope": {
+        "contract": "kho10-content/v1",
+        "logical_source": {
+          "source_instance": "DEMO_KHO_A",
+          "SoPhieu": "NK20260814001"
+        },
+        "native_header": {
+          "SoPhieu": "NK20260814001",
+          "LoaiPhieu": "Nhập",
+          "NgayChungTu": "2026-08-14",
+          "MaKho": "KHO_DEMO",
+          "MaDoiTac": "DT_DEMO",
+          "DienGiai": "DEMO synthetic fixture",
+          "TrangThai": "Đã duyệt",
+          "NguoiLap": "MO_PHONG_LAP@example.invalid",
+          "NguoiDuyet": "MO_PHONG_DUYET@example.invalid",
+          "ThoiDiemDuyet": "2026-08-14T02:00:00.000Z",
+          "SoPhieu_Goc": ""
+        },
+        "ordered_native_lines": [
+          {
+            "ID_Dong": "ID_DEMO_NULL",
+            "SoPhieu": "NK20260814001",
+            "MaHang": "HH_DEMO_A",
+            "SoLuong": null,
+            "GhiChu": "DEMO null"
+          },
+          {
+            "ID_Dong": "ID_DEMO_ZERO",
+            "SoPhieu": "NK20260814001",
+            "MaHang": "HH_DEMO_A",
+            "SoLuong": 0,
+            "GhiChu": "DEMO zero"
+          },
+          {
+            "ID_Dong": "ID_DEMO_FRACTION",
+            "SoPhieu": "NK20260814001",
+            "MaHang": "HH_DEMO_A",
+            "SoLuong": {
+              "$so_thap_phan": "2.5"
+            },
+            "GhiChu": "DEMO fractional Number"
+          },
+          {
+            "ID_Dong": "ID_DEMO_BOUNDARY",
+            "SoPhieu": "NK20260814001",
+            "MaHang": "HH_DEMO_A",
+            "SoLuong": 9007199254740992,
+            "GhiChu": "DEMO Number boundary"
+          }
+        ],
+        "related_master_facts": {
+          "DM_HangHoa": [
+            {
+              "MaHang": "HH_DEMO_A",
+              "DVT_Goc": "CAI",
+              "DVT_QuyDoi": null
+            }
+          ],
+          "DM_Kho": [
+            {
+              "MaKho": "KHO_DEMO",
+              "TrangThai": "Hoạt động"
+            }
+          ],
+          "DM_DoiTac": [
+            {
+              "MaDoiTac": "DT_DEMO",
+              "MaDoiTuong_KT": "DTKT_DEMO"
+            }
+          ]
+        }
+      },
+      "request_envelope": {
+        "contract": "kho10-request/v1",
+        "logical_source": {
+          "source_instance": "DEMO_KHO_A",
+          "SoPhieu": "NK20260814001"
+        },
+        "native_raw_sha256": "8d74b6fd677ac58aa272ddd1165ec4bdc11e0f4707952e4a958b07c1f5aa343c",
+        "semantic_digest": "83187367ced546ebb04dcd1d041bfc13270fe2253ccfa1eb9985b6a75519849c",
+        "source_profile_ref": "urn:demo:m5:source-profile:f05eee570c7c8861b219ca97",
+        "source_scope": {
+          "source_instance": "DEMO_KHO_A",
+          "SoPhieu": "NK20260814001",
+          "MaKho": "KHO_DEMO",
+          "sections": [
+            "GD_Dong",
+            "GD_Phieu",
+            "MASTER_WHITELIST"
+          ],
+          "coverage": "FULL_FOR_SINGLE_DETAIL_AND_REFERENCED_MASTER_ONLY"
+        },
+        "capture_consistency": {
+          "claim": "SYNTHETIC_ATOMIC_CAPTURE_NOT_NATIVE_ENDPOINT_GUARANTEE",
+          "reported_errors": []
+        },
+        "mapping_revision": {
+          "reference_id": "DEMO_MAP_A_V1",
+          "version": 1,
+          "source_instance": "DEMO_KHO_A",
+          "MaKho": "KHO_DEMO",
+          "phap_nhan": "DEMO_PN_A"
+        },
+        "master_snapshot": {
+          "reference_id": "urn:demo:m5:master:7aea96355efd196e316f1ccc",
+          "raw_subtree_sha256": "3a806526917dac322ee9ba4c6f7ea5ed88e02b780ea282c0300465e980e16801"
+        },
+        "measurement_refs": {
+          "profile_ref": "DEMO_NATIVE_NUMBER_PRECISION_UNPROVEN",
+          "native_encoding_kind": "JSON_NUMBER_OR_NULL",
+          "conversion_kind": "NO_NEW_PROOF",
+          "unit_definition_ref": "DEMO_UNIT_CAI_A",
+          "approved_conversion_proof_ref": null,
+          "prior_unit_definition_ref": null,
+          "master_revision_ref": null,
+          "ratio_numerator_text": null,
+          "ratio_denominator_text": null
+        }
+      }
+    },
+    "K09": {
+      "raw_sha256": "56037f2e8145d0ca57b947e7213e03a4586ba601dc741b5ef554858f89df1107",
+      "semantic_digest": "4a90122038be68e5dc9752184853b50ea0d19dd31156d3a2482ca856b9ab1261",
+      "request_digest": "c65932ec28152e2dc647db0cab632d8555cb4168823b9666a88ee9dfeb301b05",
+      "graph_issues": [],
+      "request_issues": [],
+      "measurement_issues": [
+        "KHO_MEASUREMENT_UNRESOLVED"
+      ],
+      "semantic_envelope": {
+        "contract": "kho10-content/v1",
+        "logical_source": {
+          "source_instance": "DEMO_KHO_A",
+          "SoPhieu": "NK20260814001"
+        },
+        "native_header": {
+          "SoPhieu": "NK20260814001",
+          "LoaiPhieu": "Nhập",
+          "NgayChungTu": "2026-08-14",
+          "MaKho": "KHO_DEMO",
+          "MaDoiTac": "DT_DEMO",
+          "DienGiai": "DEMO synthetic fixture",
+          "TrangThai": "Đã duyệt",
+          "NguoiLap": "MO_PHONG_LAP@example.invalid",
+          "NguoiDuyet": "MO_PHONG_DUYET@example.invalid",
+          "ThoiDiemDuyet": "2026-08-14T02:00:00.000Z",
+          "SoPhieu_Goc": ""
+        },
+        "ordered_native_lines": [
+          {
+            "ID_Dong": "ID_1786672800001",
+            "SoPhieu": "NK20260814001",
+            "MaHang": "HH_DEMO_A",
+            "SoLuong": "8",
+            "GhiChu": "DEMO"
+          },
+          {
+            "ID_Dong": "ID_1786672800002",
+            "SoPhieu": "NK20260814001",
+            "MaHang": "HH_DEMO_B",
+            "SoLuong": "2",
+            "GhiChu": "DEMO"
+          }
+        ],
+        "related_master_facts": {
+          "DM_HangHoa": [
+            {
+              "MaHang": "HH_DEMO_A",
+              "DVT_Goc": "THUNG",
+              "DVT_QuyDoi": 12
+            },
+            {
+              "MaHang": "HH_DEMO_B",
+              "DVT_Goc": "CAI",
+              "DVT_QuyDoi": null
+            }
+          ],
+          "DM_Kho": [
+            {
+              "MaKho": "KHO_DEMO",
+              "TrangThai": "Hoạt động"
+            }
+          ],
+          "DM_DoiTac": [
+            {
+              "MaDoiTac": "DT_DEMO",
+              "MaDoiTuong_KT": "DTKT_DEMO"
+            }
+          ]
+        }
+      },
+      "request_envelope": {
+        "contract": "kho10-request/v1",
+        "logical_source": {
+          "source_instance": "DEMO_KHO_A",
+          "SoPhieu": "NK20260814001"
+        },
+        "native_raw_sha256": "56037f2e8145d0ca57b947e7213e03a4586ba601dc741b5ef554858f89df1107",
+        "semantic_digest": "4a90122038be68e5dc9752184853b50ea0d19dd31156d3a2482ca856b9ab1261",
+        "source_profile_ref": "urn:demo:m5:source-profile:f05eee570c7c8861b219ca97",
+        "source_scope": {
+          "source_instance": "DEMO_KHO_A",
+          "SoPhieu": "NK20260814001",
+          "MaKho": "KHO_DEMO",
+          "sections": [
+            "GD_Dong",
+            "GD_Phieu",
+            "MASTER_WHITELIST"
+          ],
+          "coverage": "FULL_FOR_SINGLE_DETAIL_AND_REFERENCED_MASTER_ONLY"
+        },
+        "capture_consistency": {
+          "claim": "SYNTHETIC_ATOMIC_CAPTURE_NOT_NATIVE_ENDPOINT_GUARANTEE",
+          "reported_errors": []
+        },
+        "mapping_revision": {
+          "reference_id": "DEMO_MAP_A_V1",
+          "version": 1,
+          "source_instance": "DEMO_KHO_A",
+          "MaKho": "KHO_DEMO",
+          "phap_nhan": "DEMO_PN_A"
+        },
+        "master_snapshot": {
+          "reference_id": "urn:demo:m5:master:4bc13845117c9bfad17bbb2f",
+          "raw_subtree_sha256": "a232e15b51faf6423e94f935bc6ecd082d8730f0b9983b11b9cb3d7700dc1123"
+        },
+        "measurement_refs": {
+          "profile_ref": "DEMO_UOM_CHANGED_NO_CONVERSION_PROOF",
+          "native_encoding_kind": "EXACT_TEXT_SYNTHETIC_ONLY",
+          "conversion_kind": "UNKNOWN",
+          "unit_definition_ref": null,
+          "approved_conversion_proof_ref": null,
+          "prior_unit_definition_ref": "DEMO_UNIT_CAI_A",
+          "master_revision_ref": "DEMO_MASTER_B",
+          "ratio_numerator_text": null,
+          "ratio_denominator_text": null
+        }
+      }
+    },
+    "K10": {
+      "raw_sha256": "56037f2e8145d0ca57b947e7213e03a4586ba601dc741b5ef554858f89df1107",
+      "semantic_digest": "db210169a60d87d6740346b74496b2359db40c8cf3cdea0db24e7d5b02587e4d",
+      "request_digest": "bcf23d87ef16013ebe93ce30808d87b1a852de9bdb11f7cced57655e0d42dbb2",
+      "graph_issues": [],
+      "request_issues": [],
+      "measurement_issues": [
+        "KHO_MEASUREMENT_UNRESOLVED"
+      ],
+      "semantic_envelope": {
+        "contract": "kho10-content/v1",
+        "logical_source": {
+          "source_instance": "DEMO_KHO_A",
+          "SoPhieu": "NK20260814001"
+        },
+        "native_header": {
+          "SoPhieu": "NK20260814001",
+          "LoaiPhieu": "Nhập",
+          "NgayChungTu": "2026-08-14",
+          "MaKho": "KHO_DEMO",
+          "MaDoiTac": "DT_DEMO",
+          "DienGiai": "DEMO synthetic fixture",
+          "TrangThai": "Đã duyệt",
+          "NguoiLap": "MO_PHONG_LAP@example.invalid",
+          "NguoiDuyet": "MO_PHONG_DUYET@example.invalid",
+          "ThoiDiemDuyet": "2026-08-14T02:00:00.000Z",
+          "SoPhieu_Goc": ""
+        },
+        "ordered_native_lines": [
+          {
+            "ID_Dong": "ID_1786672800001",
+            "SoPhieu": "NK20260814001",
+            "MaHang": "HH_DEMO_A",
+            "SoLuong": "8",
+            "GhiChu": "DEMO"
+          },
+          {
+            "ID_Dong": "ID_1786672800002",
+            "SoPhieu": "NK20260814001",
+            "MaHang": "HH_DEMO_B",
+            "SoLuong": "2",
+            "GhiChu": "DEMO"
+          }
+        ],
+        "related_master_facts": {
+          "DM_HangHoa": [
+            {
+              "MaHang": "HH_DEMO_A",
+              "DVT_Goc": "",
+              "DVT_QuyDoi": null
+            },
+            {
+              "MaHang": "HH_DEMO_B",
+              "DVT_Goc": "CAI",
+              "DVT_QuyDoi": null
+            }
+          ],
+          "DM_Kho": [
+            {
+              "MaKho": "KHO_DEMO",
+              "TrangThai": "Hoạt động"
+            }
+          ],
+          "DM_DoiTac": [
+            {
+              "MaDoiTac": "DT_DEMO",
+              "MaDoiTuong_KT": "DTKT_DEMO"
+            }
+          ]
+        }
+      },
+      "request_envelope": {
+        "contract": "kho10-request/v1",
+        "logical_source": {
+          "source_instance": "DEMO_KHO_A",
+          "SoPhieu": "NK20260814001"
+        },
+        "native_raw_sha256": "56037f2e8145d0ca57b947e7213e03a4586ba601dc741b5ef554858f89df1107",
+        "semantic_digest": "db210169a60d87d6740346b74496b2359db40c8cf3cdea0db24e7d5b02587e4d",
+        "source_profile_ref": "urn:demo:m5:source-profile:f05eee570c7c8861b219ca97",
+        "source_scope": {
+          "source_instance": "DEMO_KHO_A",
+          "SoPhieu": "NK20260814001",
+          "MaKho": "KHO_DEMO",
+          "sections": [
+            "GD_Dong",
+            "GD_Phieu",
+            "MASTER_WHITELIST"
+          ],
+          "coverage": "FULL_FOR_SINGLE_DETAIL_AND_REFERENCED_MASTER_ONLY"
+        },
+        "capture_consistency": {
+          "claim": "SYNTHETIC_ATOMIC_CAPTURE_NOT_NATIVE_ENDPOINT_GUARANTEE",
+          "reported_errors": []
+        },
+        "mapping_revision": {
+          "reference_id": "DEMO_MAP_A_V1",
+          "version": 1,
+          "source_instance": "DEMO_KHO_A",
+          "MaKho": "KHO_DEMO",
+          "phap_nhan": "DEMO_PN_A"
+        },
+        "master_snapshot": {
+          "reference_id": "urn:demo:m5:master:d1d891226e6ea7605a8e6d96",
+          "raw_subtree_sha256": "be8849306a58e04c94ae1d5dc44ab9d5074c1541fac36669c1e12b55bd88bdd5"
+        },
+        "measurement_refs": {
+          "profile_ref": "DEMO_UOM_MISSING",
+          "native_encoding_kind": "EXACT_TEXT_SYNTHETIC_ONLY",
+          "conversion_kind": "UNKNOWN",
+          "unit_definition_ref": null,
+          "approved_conversion_proof_ref": null,
+          "prior_unit_definition_ref": null,
+          "master_revision_ref": null,
+          "ratio_numerator_text": null,
+          "ratio_denominator_text": null
+        }
+      }
+    }
+  },
+  "classification": "NOT_RUN_ORIGINAL_ORACLE_PRECONDITIONS_ONLY"
+}

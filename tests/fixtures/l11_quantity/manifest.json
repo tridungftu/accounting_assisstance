@@ -1,0 +1,122 @@
+{
+  "kind": "L11_QUANTITY_SYNTHETIC_SOURCE_FIXTURE_MANIFEST",
+  "status": "SOURCE_RAW_PROPOSAL_ONLY_NOT_INSTALLED_NOT_APPROVED_NOT_RUNTIME_ACCEPTANCE",
+  "files": [
+    {
+      "path": "shared-unit-definitions-v2.json",
+      "sha256": "2a3c5b3323c1bf46020aba8807640070c12b32b20344da55badc587319cd4504",
+      "bytes": 3942
+    },
+    {
+      "path": "candidate-line-facts-r16-v2.json",
+      "sha256": "4836a42700057414c0ef031d45a466c0d18f59ee8399054fe37292e597b5b41d",
+      "bytes": 2130
+    },
+    {
+      "path": "proofs/goods-equivalence-A-v2.json",
+      "sha256": "aef5de224e04fd64ef67a272689f72a041097ae93c5160393ef2297640d2bb4f",
+      "bytes": 3927
+    },
+    {
+      "path": "proofs/cai-crossunit-1to1-v2.json",
+      "sha256": "bf4d47208740e16ad6cb59bdade9aae015bc8e5031fa797371eadf29e55cc319",
+      "bytes": 2968
+    },
+    {
+      "path": "proofs/thung-native-unit-and-encoding-v2.json",
+      "sha256": "a860439cf802e9b21ea1fabc24c1d9d6b79d8ca7a0402fba4bd62416a979b60f",
+      "bytes": 1722
+    },
+    {
+      "path": "proofs/thung-to-cai-12to1-v2.json",
+      "sha256": "c6e2fa840efd2644816192c8b753e68ebad241987cf69623f09022a665e4181b",
+      "bytes": 3038
+    },
+    {
+      "path": "native/new-thung-one.xml",
+      "sha256": "65ce193e68053e59d5b18e4a7fa6879fa31499fbc2cd1ca5d138a95a30883a7a",
+      "bytes": 480
+    },
+    {
+      "path": "warehouse_split/configuration/admission-proposal.json",
+      "sha256": "16801c21afff3709d1d6808d9ea95d358cbeeb4977c9169d186256c94d438afa",
+      "bytes": 1960
+    },
+    {
+      "path": "warehouse_split/configuration/source-profile.json",
+      "sha256": "bcba7b7dec284e6fe7bd94404d7eb98b37a5e9dd0490c750254d7434b27980e2",
+      "bytes": 1144
+    },
+    {
+      "path": "warehouse_split/configuration/source-scope.json",
+      "sha256": "955ab750cdd2d012ea21c408f44c021832a1f37fbfa201acae2c83905d2a6146",
+      "bytes": 557
+    },
+    {
+      "path": "warehouse_split/context/reader-context.json",
+      "sha256": "e4ec24f65eb7023d81a25b7aedebd295bd86052080b257a605bc3e582296ea3b",
+      "bytes": 3620
+    },
+    {
+      "path": "warehouse_split/declarations/measurement-declaration.json",
+      "sha256": "92fcaa1a2ac93ac2baec70e022f0bb2054229ed23c5499ed8eabf79aeda168de",
+      "bytes": 1806
+    },
+    {
+      "path": "warehouse_split/history/repository-history-empty.json",
+      "sha256": "197424f5f5b32fe3e3660b390da58db9644eac17b98730d94bfdd22b14796537",
+      "bytes": 696
+    },
+    {
+      "path": "warehouse_split/master/master-raw.json",
+      "sha256": "3c67491146ef8025aa6b07a8092000fe400be6f3ed7f51671e4c06c35e1c7665",
+      "bytes": 441
+    },
+    {
+      "path": "warehouse_split/native/warehouse-split-six.json",
+      "sha256": "adfd623e4f4432272646ef925a5db0d5d3fd209fb50e870549d28223b4af009b",
+      "bytes": 875
+    },
+    {
+      "path": "warehouse_split/upstream-manifest.json",
+      "sha256": "3cd9efef09ee8bb94e87829839f83701b5a91a8f3f981ee51baaa0e0becdab09",
+      "bytes": 14282
+    },
+    {
+      "path": "unit-declarations/m5-cai-unit-declaration.json",
+      "sha256": "4890796ad2d8799506e831e9256723a14c964a100add7f2dc4c206a2e4051d50",
+      "bytes": 2522
+    },
+    {
+      "path": "unit-declarations/thung-unit-declaration.json",
+      "sha256": "881992f011460e37b3eff58d0c9cadeb570b584ab1b7d4d21ee348e8730a8157",
+      "bytes": 2544
+    },
+    {
+      "path": "declarations.json",
+      "sha256": "bcea628773251dc714f8af5bb911c30afe1c37e675e26b962b8514845f53d92c",
+      "bytes": 10145
+    }
+  ],
+  "immutable_source_config_members": 17,
+  "opaque_upstream_manifest_members": 1,
+  "total_members_excluding_this_manifest": 19,
+  "total_files_including_this_manifest": 20,
+  "outer_source_sha256": "6d1e4abbe05c8bd5452988206615b60d35ee8ca2ed806b291a8cd65bb66e24db",
+  "outer_semantic_changes": [
+    "status",
+    "source_contexts.warehouse_split.package_path",
+    "source_contexts.warehouse_split.staged_subset_provenance",
+    "unit_declaration_documents"
+  ],
+  "upstream_manifest_path": "warehouse_split/upstream-manifest.json",
+  "upstream_manifest_usage": "OPAQUE_BYTE_HASH_PROVENANCE_NOT_RUNTIME_FILE_LOADER_OR_ADMISSION_AUTHORITY",
+  "excluded_source_files": [
+    "expected-source-facts.json",
+    "generate.ps1",
+    "PROVENANCE.md"
+  ],
+  "actual_source_acceptance_seeded": false,
+  "actual_CFO_approval_seeded": false,
+  "runtime_acceptance": false
+}

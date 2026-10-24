@@ -1,0 +1,93 @@
+/* M4-01 Cổng hồ sơ xây dựng — phong cách "Bàn kiểm soát" của phần mềm Review hồ sơ xây dựng. Mọi quy tắc nằm dưới .m4 để không ảnh hưởng CRM/M2/M5. */
+@import url("/m4/fonts/fonts.css");
+.m4 { --m4-navy: #19334d; --m4-bg: #f4f6f9; --m4-ink: #24364a; --m4-border: #dfe5ec; --m4-amber: #895a14; --m4-amber-bg: #fdf4e3;
+      --m4-green: #1f6b45; --m4-green-bg: #e8f4ee; --m4-red: #9b2c2c; --m4-red-bg: #fbeaea; --m4-muted: #5d6e80;
+      font-family: "Be Vietnam Pro", system-ui, sans-serif; color: var(--m4-ink); }
+.m4 .m4-wrap { background: var(--m4-bg); border: 1px solid var(--m4-border); border-radius: 10px; padding: 14px; }
+.m4 .m4-head { display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-end; justify-content: space-between; margin-bottom: 12px; }
+.m4 .m4-eyebrow { font-size: 11px; letter-spacing: .08em; color: var(--m4-muted); margin: 0 0 4px; font-weight: 600; }
+.m4 h1 { margin: 0; font-size: 22px; color: var(--m4-navy); }
+.m4 h2 { font-size: 15px; color: var(--m4-navy); margin: 0 0 8px; }
+.m4 h3 { font-size: 13px; color: var(--m4-navy); margin: 10px 0 6px; }
+.m4 .m4-sub { margin: 4px 0 0; color: var(--m4-muted); font-size: 13px; }
+.m4 .m4-role { display: flex; gap: 6px; align-items: center; font-size: 12px; }
+.m4 select, .m4 input, .m4 textarea { font: inherit; font-size: 13px; color: var(--m4-ink); border: 1px solid var(--m4-border); border-radius: 6px; padding: 5px 7px; background: #fff; }
+.m4 textarea { width: 100%; min-height: 56px; box-sizing: border-box; }
+.m4 button { font: inherit; font-size: 13px; border-radius: 6px; border: 1px solid var(--m4-navy); background: #fff; color: var(--m4-navy); padding: 5px 11px; cursor: pointer; }
+.m4 button.m4-chinh { background: var(--m4-navy); color: #fff; }
+.m4 button:disabled { opacity: .45; cursor: not-allowed; }
+.m4 .m4-notice { background: var(--m4-amber-bg); border: 1px solid #f0d9ae; color: var(--m4-amber); border-radius: 8px; padding: 8px 12px; font-size: 13px; margin-bottom: 12px; }
+.m4 .m4-grid { display: grid; grid-template-columns: 300px 1fr; gap: 12px; align-items: start; }
+@media (max-width: 1100px) { .m4 .m4-grid { grid-template-columns: minmax(0, 1fr); } }
+.m4 .m4-card { background: #fff; border: 1px solid var(--m4-border); border-radius: 8px; padding: 12px; margin-bottom: 12px; }
+.m4 .m4-list { list-style: none; margin: 0; padding: 0; }
+.m4 .m4-list li { border: 1px solid var(--m4-border); border-radius: 6px; padding: 7px 9px; margin-bottom: 6px; cursor: pointer; background: #fff; }
+.m4 .m4-list li.m4-chon { border-color: var(--m4-navy); box-shadow: inset 3px 0 0 var(--m4-navy); }
+.m4 .m4-list small, .m4 .m4-nho { color: var(--m4-muted); font-size: 12px; }
+.m4 .m4-tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--m4-border); margin-bottom: 10px; flex-wrap: wrap; }
+.m4 .m4-tabs button { border: none; border-bottom: 2px solid transparent; border-radius: 0; background: none; padding: 7px 10px; color: var(--m4-muted); }
+.m4 .m4-tabs button.m4-chon { color: var(--m4-navy); border-bottom-color: var(--m4-navy); font-weight: 600; }
+.m4 table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+.m4 th, .m4 td { border-bottom: 1px solid var(--m4-border); padding: 5px 6px; text-align: left; vertical-align: top; }
+.m4 th { background: #eef2f6; color: var(--m4-navy); font-weight: 600; position: sticky; top: 0; }
+.m4 .m4-bang { max-height: 460px; overflow: auto; border: 1px solid var(--m4-border); border-radius: 6px; }
+.m4 .m4-pill { display: inline-block; font-size: 11px; padding: 1px 7px; border-radius: 10px; border: 1px solid var(--m4-border); white-space: nowrap; }
+.m4 .m4-du { background: var(--m4-green-bg); color: var(--m4-green); border-color: #bfe0cd; }
+.m4 .m4-thieu { background: var(--m4-amber-bg); color: var(--m4-amber); border-color: #f0d9ae; }
+.m4 .m4-loi { background: var(--m4-red-bg); color: var(--m4-red); border-color: #efc4c4; }
+.m4 .m4-xam { background: #eef2f6; color: var(--m4-muted); }
+.m4 .m4-trich { font-size: 12px; color: var(--m4-muted); max-width: 360px; white-space: pre-wrap; }
+.m4 .m4-form { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 8px; align-items: end; margin: 8px 0; }
+.m4 .m4-form label { display: flex; flex-direction: column; gap: 3px; font-size: 12px; color: var(--m4-muted); }
+.m4 .m4-hang { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin: 6px 0; }
+.m4 .m4-trong { color: var(--m4-muted); font-style: italic; padding: 18px; text-align: center; }
+.m4 .m4-ma { font-family: ui-monospace, Consolas, monospace; font-size: 11.5px; }
+/* M4-01C — Cổng hồ sơ gói 1: trạng thái, lỗi, ô gốc BOQ, bảng rộng có cuộn chủ đích, khổ 1280/1440. Tất cả dưới .m4 (không rò sang CRM/M2/M5/L11). */
+.m4 .m4-status { min-height: 18px; font-size: 13px; margin: 0 0 8px; color: var(--m4-ink); }
+.m4 .m4-loi-chu { color: var(--m4-red); }
+.m4 .m4-du-chu { color: var(--m4-green); }
+.m4 .m4-notice-loi { background: var(--m4-red-bg); border-color: #efc4c4; color: var(--m4-red); }
+.m4 button.m4-lien-ket { border: none; background: none; padding: 2px 4px; text-decoration: underline; color: var(--m4-navy); }
+.m4 .m4-list li:focus, .m4 button:focus-visible, .m4 select:focus-visible, .m4 input:focus-visible, .m4 textarea:focus-visible { outline: 2px solid var(--m4-amber); outline-offset: 1px; }
+.m4 .m4-bang-rong table { min-width: 1180px; }
+.m4 .m4-bang-nho { max-height: 300px; }
+.m4 .m4-bang-nho td { white-space: nowrap; max-width: 240px; overflow: hidden; text-overflow: ellipsis; }
+.m4 .m4-o { font-variant-numeric: tabular-nums; }
+.m4 .m4-o-trong, .m4 .m4-o-khong_map { color: var(--m4-muted); font-style: italic; }
+.m4 .m4-o-chu { color: var(--m4-red); }
+.m4 .m4-card-dot { border-color: var(--m4-navy); }
+.m4 .m4-thieu-ds { margin: 6px 0; padding-left: 18px; font-size: 13px; }
+.m4 .m4-thieu-ds li { margin-bottom: 4px; }
+.m4 .m4-list { max-height: 420px; overflow: auto; }
+.m4 .m4-role label { color: var(--m4-muted); }
+.m4 #m4-loc { width: 100%; box-sizing: border-box; margin-bottom: 8px; }
+.m4 .m4-grid > div { min-width: 0; }
+@media (min-width: 1280px) { .m4 .m4-grid { grid-template-columns: 300px minmax(0, 1fr); } }
+@media (min-width: 1440px) { .m4 .m4-grid { grid-template-columns: 330px minmax(0, 1fr); } .m4 .m4-bang { max-height: 560px; } }
+/* M4-02A — vùng Review L1/L2 (bố cục màn Kiểm tra đợt của Review nguồn: stat-strip, panel, bảng kiểm, cây truy vết, bằng chứng). Chỉ dưới .m4 .m4-rv*. */
+.m4 .m4-rv { min-width: 0; }
+.m4 .m4-rv-hang { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.m4 .m4-rv-dau { justify-content: space-between; align-items: flex-start; margin-bottom: 8px; }
+.m4 .m4-rv-chedo { flex: 1; min-width: 260px; text-align: left; padding: 12px 14px; border: 1px solid var(--m4-border); background: #fff; color: var(--m4-ink); }
+.m4 .m4-rv-chedo.m4-chon { border: 2px solid var(--m4-navy); background: var(--m4-bg); }
+.m4 .m4-rv-chedo strong { display: block; margin-bottom: 4px; color: var(--m4-navy); }
+.m4 .m4-rv-stat { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.m4 .m4-rv-stat .m4-card { margin-bottom: 12px; }
+.m4 .m4-rv-so { font-size: 22px; font-weight: 600; color: var(--m4-navy); margin: 4px 0; }
+.m4 .m4-rv-o { flex: 1; min-width: 160px; }
+.m4 .m4-rv-mark { font-weight: 700; }
+.m4 .m4-rv-nhom td { background: #eef2f6; }
+.m4 .m4-rv-bang td .m4-nho { margin-top: 3px; }
+.m4 .m4-rv-tom { cursor: pointer; list-style: none; }
+.m4 .m4-rv-cay { font-size: 13px; }
+.m4 .m4-rv-cay summary { cursor: pointer; min-height: 32px; }
+.m4 .m4-rv-dong { display: inline-flex; justify-content: space-between; gap: 18px; align-items: center; width: calc(100% - 24px); min-height: 30px; }
+.m4 .m4-rv-nhanh { margin-left: 18px; border-left: 2px solid var(--m4-border); padding-left: 12px; }
+.m4 .m4-rv-ct { margin: 2px 0 6px 18px; overflow-wrap: anywhere; font-family: ui-monospace, Consolas, monospace; font-size: 11.5px; }
+.m4 .m4-rv-ct2 { padding: 10px; margin: 6px 0; background: var(--m4-bg); border: 1px solid var(--m4-border); border-radius: 6px; overflow-wrap: anywhere;
+                 font-variant-numeric: tabular-nums; font-family: ui-monospace, Consolas, monospace; font-size: 12px; }
+.m4 .m4-rv-ev { border-color: var(--m4-amber); box-shadow: inset 3px 0 0 var(--m4-amber); }
+.m4 .m4-rv-ev h4 { font-size: 12.5px; color: var(--m4-navy); margin: 12px 0 4px; }
+.m4 .m4-rv-bang select, .m4 .m4-rv-bang input { max-width: 260px; font-size: 12px; padding: 3px 5px; }
+@media (max-width: 1100px) { .m4 .m4-rv-stat { grid-template-columns: minmax(0, 1fr); } }
+@media (min-width: 1440px) { .m4 .m4-rv-ev { position: sticky; top: 8px; } }

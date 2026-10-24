@@ -4,13 +4,17 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "kho-tri-thuc"
-version = "0.3.0"
+version = "0.5.0"
 description = "Kho tri thuc offline: local HTML intake and M1-M6 fixture workflow"
 requires-python = ">=3.11"
 dependencies = ["openpyxl>=3.1,<4"]
 
 [project.optional-dependencies]
 source-xls = ["xlrd==2.0.2"]
+postgres = ["psycopg[binary]>=3.1,<4"]  # V13: engine PostgreSQL (tài liệu 38/39); SQLite vẫn chạy không cần
+# CRM-41-03 G2/G3: DOCX run-map (python-docx/lxml), Word COM (pywin32, chỉ Windows), kiểm PDF (PDFium + pdfplumber) — đúng bản đã ghim trong
+# docs/CRM-41-03-WORD-COM-BINDING.md; không pypdf/PyPDF2/PyMuPDF/LibreOffice. Khai báo ≠ đã cài/kiểm (NOT_RUN).
+crm-docgen = ["python-docx==1.2.0", "lxml==6.1.3", "pdfplumber==0.11.10", "pypdfium2==5.13.0", "pywin32==312; sys_platform == 'win32'"]
 
 [project.scripts]
 kho-tri-thuc = "kho_tri_thuc.cli:main"
@@ -20,3 +24,8 @@ where = ["src"]
 
 [tool.setuptools.package-data]
 "kho_tri_thuc.giao_dien" = ["assets/*.html", "assets/*.css", "assets/*.js", "assets/*.svg"]
+# M4-01C: UI Cổng hồ sơ + lõi Review đã vendor byte-exact (mã .py nạp qua bộ nạp ghim, danh mục XLSX, checklist CSV, font Be Vietnam Pro/OFL).
+# Chưa build wheel/smoke cài đặt — NOT_RUN; khai báo glob không đồng nghĩa đã đóng gói đạt.
+"kho_tri_thuc.m4" = ["giao_dien/*.js", "giao_dien/*.css", "review_goc/**/*.py", "review_goc/trich_xuat/DANH_MUC_THAM_SO.xlsx",
+                     "review_goc/app_kiem_tra_ho_so/danh_muc_tai_lieu.csv", "review_goc/giao_dien/fonts/*.css",
+                     "review_goc/giao_dien/fonts/*.woff2", "review_goc/giao_dien/fonts/OFL.txt"]

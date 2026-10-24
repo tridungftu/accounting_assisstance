@@ -14,30 +14,36 @@ from pathlib import Path
 from uuid import uuid4
 
 from .config import Config
-from .database import SCHEMA_VERSION, connect, integrity
+from .database import SCHEMA_VERSION
+from .ket_noi import engine_cua_ket_noi, integrity, mo_ket_noi
 from .primitives import DataError, canonical_json, instant_utc, now_utc, sha256
 from ..nguon.fixture import Adapter, Batch, FixtureAdapter, Issue, Record
 
 
+STAGING_DIR = ".ktt-staging"
+
+
 def write_immutable(path: Path, content: bytes) -> None:
+    """Atomic, no-overwrite promotion. Tệp staging được GIỮ LẠI (thành công/lỗi/retry) trong `<thư mục đích>/.ktt-staging/` — không unlink;
+    staging cùng filesystem nên os.link vẫn nguyên tử, đích không bị ghi đè."""
     path.parent.mkdir(parents=True, exist_ok=True)
     if path.is_symlink():
         raise DataError("UNSAFE_RAW_PATH", "Không ghi artifact qua symbolic link.")
-    temporary = None
+    staging = path.parent / STAGING_DIR
+    if staging.is_symlink() or (staging.exists() and not staging.is_dir()):
+        raise DataError("UNSAFE_RAW_PATH", "Thư mục staging không an toàn.")
+    staging.mkdir(exist_ok=True)
+    with tempfile.NamedTemporaryFile(dir=staging, prefix=".raw-", delete=False) as stream:
+        temporary = Path(stream.name)
+        stream.write(content)
+        stream.flush()
+        os.fsync(stream.fileno())
     try:
-        with tempfile.NamedTemporaryFile(dir=path.parent, prefix=".raw-", delete=False) as stream:
-            temporary = Path(stream.name)
-            stream.write(content)
-            stream.flush()
-            os.fsync(stream.fileno())
         # Atomic creation without overwriting an existing content-addressed artifact.
         os.link(temporary, path)
     except FileExistsError:
-        if path.read_bytes() != content:
+        if path.is_symlink() or path.read_bytes() != content:
             raise DataError("ARTIFACT_CHANGED", "Artifact đã tồn tại nhưng nội dung khác; không ghi đè.")
-    finally:
-        if temporary is not None:
-            temporary.unlink(missing_ok=True)
 
 
 def source_bytes(path: Path, extra_paths: tuple[Path, ...] = ()) -> bytes:
@@ -80,7 +86,8 @@ class Store:
         self.db_path = self.root / "kho.sqlite"
         if self.db_path.is_symlink() or not self.db_path.resolve().is_relative_to(self.root):
             raise DataError("UNSAFE_DATABASE_PATH", "DB không được trỏ ra ngoài kho đã cấu hình.")
-        self.conn = connect(self.db_path)
+        self.conn = mo_ket_noi(config, self.db_path)  # V13: sqlite (kho thật) hoặc postgres (kho thử) theo [storage]
+        self.engine = engine_cua_ket_noi(self.conn)
         try:
             self.conn.execute("BEGIN IMMEDIATE")
             existing = self.conn.execute("SELECT value FROM workspace_meta WHERE key='entity_id'").fetchone()
@@ -309,6 +316,7 @@ class Store:
             snapshot = json.loads(row[3]).get("snapshot_id")
             totals[(row[0], row[1], snapshot or "")] += row[2]
         return {"fixture_only": self.config.environment == "fixture", "environment": self.config.environment, "schema_version": SCHEMA_VERSION, "entity_id": self.config.entity_id,
+                "storage_engine": self.engine,
                 "documents_by_kind": dict(self.conn.execute("SELECT kind,COUNT(*) FROM documents GROUP BY kind")),
                 "document_amount_totals": [{"kind": kind, "currency": currency, "snapshot_id": snapshot or None, "amount_minor": amount} for (kind, currency, snapshot), amount in sorted(totals.items())],
                 "totals_meaning": "Thống kê dữ liệu đã lưu theo loại/tiền tệ/snapshot; không phải số dư công nợ hiện tại.",

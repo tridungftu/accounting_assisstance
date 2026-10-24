@@ -1,0 +1,14 @@
+# M0/M5 — sửa hẹp predicate của upload qua refresh
+
+19/10/2026. **PREPARED / CODE ONLY / CHƯA DISPATCH.** Tiếp đúng session52783bcd-6e1d-46d2-9e45-3c527aa43e5b. Baseline actual72850 terminal0 `7ee109`, frozen210 manifest `bb25b5d6d0b06403bce04d22a6c239b269d1b024f7b3a493d56f26b7512ec780`. Đọc REVIEW-M0-M5-ROOT-TEST-04.md và REVIEW-M0-M5-HTTP-UI-04.md; handoff04/DTO/bindings giữ nguyên. Root đã chạy04 migration17/service36/HTTP2 đạt,0skip, overlap không cộng tổng; không chuyển chúng thành GUI PASS.
+
+**Chỉ sửa phần còn thiếu của F1:** app.js m5Act nhận conHieuLuc nhưng gọi m5Load() không truyền vào. m5Load:877–884 chỉ actor-check rồi m5=s/m5Render hoặc ghi lỗi; render gọi m5Detail:809. Upload cũ vì vậy có thể refresh/assign/render/error vào form đã đổi trước khi m5Act xét predicate sau await. Giữ input/FileReader và actor guards đã đóng; không rewrite M5 UI hoặc backend.
+
+- Mang cùng form-current predicate của operation qua m5Load và mọi async completion detail do refresh đó kéo theo; kiểm **trước** assignment/cache/DOM-render/error, không chỉ sau await. Nếu predicate đã false trước refresh thì có thể bỏ refresh đó. Khi stale, kết quả capture đã commit giữ nguyên, người dùng xem qua refresh chủ động sau; không rollback/delete hoặc gửi lại mutation.
+- Ghi chú trung tính không khẳng định server đã commit khi chỉ nhận network error. Không show toast/summary/error của operationA như phản hồi cho claimsB. Giữ actor epoch xuyên mọi await.
+- Positive unchangedform vẫn POST→refresh→summary như cũ; manual refresh, đổi vai/filter/mở phiếu vẫn hoạt động với default guard phù hợp. Form đổi khi POST pending, GETrefresh pending, hoặc detail pending: response cũ không được mutation/render/error dưới form mới. Không disable vĩnh viễn form hoặc blanket chặn successful upload.
+- Giữ exact raw ArrayBuffer/base64, trusted8actors, current FILE key/token/basis và nút explicit new operation. Server/schema/service/permission/receipt/seed/fixture/reader/legacyM1/M9 không sửa.
+
+**Đúng2write targets:** `src/kho_tri_thuc/giao_dien/assets/app.js` và report mới `docs/BAO-CAO-M0-M5-UI-05.md`. Các file khác read-only, kể cả tests; không thêm test hooks vào product. Report ghi thật code-only/runtimeUNRUN và limitations. Root dùng private controlled-async JS unit, targeted HTTP/asset và actual GUI khi công cụ khả dụng; unit không được gọi browser PASS.
+
+CODE ONLY: chỉ Read/Glob/Grep/Edit/Write trong2targets/strict emptyMCP; không execute/import/compile/test/SQL/PG/HTTP/GUI/business/launcher/process/network/Bash. Không đọc var/.env/secret/sourceapps/real rows; không delete/move/drop/cleanup/reset bất kỳ file/DB/role/attempt. Kết thúc CLI để root freeze/review. Kho thật SQLite; M9 chỉ xác định cách lấy dữ liệu từ Code final, tracking/lãi/lịchtrả thuộc phần mềm hiện có, không sửa/resume/calls. M2/L11/new engines nằm ngoài sửa05.

@@ -1,0 +1,328 @@
+[
+  {
+    "path": "API.md",
+    "bytes": 22996,
+    "sha256": "d0a9b82e3e510d4e9b45dd0afd39744fa0a05172401d95e461f03009c1a025ef"
+  },
+  {
+    "path": "app_kiem_tra_ho_so/core.py",
+    "bytes": 15223,
+    "sha256": "9a450b4c5b40187a3aaa1dd20e522076b33d31e02db2e07f5109b0208d8b0793"
+  },
+  {
+    "path": "app_kiem_tra_ho_so/danh_muc_tai_lieu.csv",
+    "bytes": 4379,
+    "sha256": "77e604b1d8fbf255b2b1b776304b37000f4eb2a23494097596b7dd615cbfe6ed"
+  },
+  {
+    "path": "csdl_hop_dong.py",
+    "bytes": 105326,
+    "sha256": "ef4b7883b4e2f453a9ad5ac172a6f58647b324bd13101a818a6f78af95496ffd"
+  },
+  {
+    "path": "giao_dien/api.js",
+    "bytes": 3200,
+    "sha256": "ea20d7279e83927859b88bd491cbdb2bbb278113c1ff70666cf14ad480442ad2"
+  },
+  {
+    "path": "giao_dien/app.js",
+    "bytes": 55036,
+    "sha256": "c10e4e365cfdc3275f7271e45f8592a0fe83bf82846b15922ffd4878d0d648e3"
+  },
+  {
+    "path": "giao_dien/checks.js",
+    "bytes": 53848,
+    "sha256": "a0513d1f3f7790abaa6e82654b92e8b12142f042d9e34096296a033e0cfdecc9"
+  },
+  {
+    "path": "giao_dien/chon_hd.js",
+    "bytes": 3479,
+    "sha256": "553328d9935cb4fabb68c0b8f46a8c6a231f0c9e952135d904a7c352275e0b8a"
+  },
+  {
+    "path": "giao_dien/chung_tu.js",
+    "bytes": 18592,
+    "sha256": "95dff60652bc1bc00fe49dfedb9aca51fbd3d4102dc51937a6bc9a5ce0dc2410"
+  },
+  {
+    "path": "giao_dien/contracts.js",
+    "bytes": 95282,
+    "sha256": "be7a4adab1803d86145d6220cea094a764f15771822b943f1f0abeeebbc85e13"
+  },
+  {
+    "path": "giao_dien/extraction.js",
+    "bytes": 51673,
+    "sha256": "33170c91fcb9e42f92e533bf998f2ab3c157835c913907157fbbb4ce3d91b0f4"
+  },
+  {
+    "path": "giao_dien/fonts/be-vietnam-0.woff2",
+    "bytes": 11532,
+    "sha256": "dc085e2fba3414e5c5bf1e6172f921a9f81c5859946a4ed3d63c1e470d96a9e2"
+  },
+  {
+    "path": "giao_dien/fonts/be-vietnam-1.woff2",
+    "bytes": 13056,
+    "sha256": "f7a2811e471c2973a1179ce39da3ad6bb8082381aa8d1535ccfcbc3d6d78a052"
+  },
+  {
+    "path": "giao_dien/fonts/be-vietnam-10.woff2",
+    "bytes": 13852,
+    "sha256": "33d57e5bd840b03921568e08d2be1082d453e55f1ba55f421e41a1aa54e12601"
+  },
+  {
+    "path": "giao_dien/fonts/be-vietnam-11.woff2",
+    "bytes": 22152,
+    "sha256": "a193dd87699bd2e18ddf72dc271493ea82a23dad9f5c334d9f2a257b1e05fc30"
+  },
+  {
+    "path": "giao_dien/fonts/be-vietnam-2.woff2",
+    "bytes": 21168,
+    "sha256": "03d1b589cff172e1a670b3573e731d3380bc326f80cf83b0d3504e3188e2e074"
+  },
+  {
+    "path": "giao_dien/fonts/be-vietnam-3.woff2",
+    "bytes": 12172,
+    "sha256": "86341610cbe907eecf461c9159c168d5efb52bb1a33963813a08f520555d8e66"
+  },
+  {
+    "path": "giao_dien/fonts/be-vietnam-4.woff2",
+    "bytes": 13548,
+    "sha256": "947d592eb7676914507ff68fc11fcf2cfdecd6ebaf0fa2af6047f66a63ea7d0f"
+  },
+  {
+    "path": "giao_dien/fonts/be-vietnam-5.woff2",
+    "bytes": 21892,
+    "sha256": "b621f77d35f777023aa11ca524462d511b4b28a813adbc0e9d15a10fc61dfe4e"
+  },
+  {
+    "path": "giao_dien/fonts/be-vietnam-6.woff2",
+    "bytes": 12176,
+    "sha256": "97658c6f9a384f29a3005c3d96e2a0d1c810192cf68979071c290f5a377a9f99"
+  },
+  {
+    "path": "giao_dien/fonts/be-vietnam-7.woff2",
+    "bytes": 13608,
+    "sha256": "20cc75daeaaaa0fa8af2b616b2de2b2900f0ce14ae8e9faa47d272cedd93827f"
+  },
+  {
+    "path": "giao_dien/fonts/be-vietnam-8.woff2",
+    "bytes": 22032,
+    "sha256": "9503dec2a7c532c8331e9600bcafea287a4fd208573b8668d85ab8d8de1863c7"
+  },
+  {
+    "path": "giao_dien/fonts/be-vietnam-9.woff2",
+    "bytes": 12468,
+    "sha256": "4f58af2d1c3e28a9ba14c51c82db2751d78344b75bdcb34de24a1031ebe59da6"
+  },
+  {
+    "path": "giao_dien/fonts/fonts.css",
+    "bytes": 4526,
+    "sha256": "66eb5d024e66f85a7eee53f341008e1c9eb0318e181db5ccb775326f7d59e9c1"
+  },
+  {
+    "path": "giao_dien/fonts/OFL.txt",
+    "bytes": 4397,
+    "sha256": "6b7f8f73609a25ea78c891e34cf37b06f8a676b7ea986e941e43b009110f2a85"
+  },
+  {
+    "path": "giao_dien/index.html",
+    "bytes": 493,
+    "sha256": "7407a56649608bba2145f6b0f4bdb4cc5957941ccfc58a523e78fd0e337d1085"
+  },
+  {
+    "path": "giao_dien/phu_luc_ai.js",
+    "bytes": 23573,
+    "sha256": "c54409d3f7884610fbc3f9ab5308802057e8eaa533b4ade481aa16527c079af4"
+  },
+  {
+    "path": "giao_dien/styles.css",
+    "bytes": 24382,
+    "sha256": "35a94250fc332476c0f578b716c7c671534ef6dd3e6d3a7cc36ac7ac8da35aa5"
+  },
+  {
+    "path": "giao_dien/ui.js",
+    "bytes": 6384,
+    "sha256": "8a9e80aa448b78fd1c18f5170a2015a43b65e7b032962de0a876a95d1168b666"
+  },
+  {
+    "path": "hardcode_audit.py",
+    "bytes": 40776,
+    "sha256": "e9e2359ff3cbad038716b14a45119e3952555a2095c11162bcf64fdc48dbd328"
+  },
+  {
+    "path": "master_hd.py",
+    "bytes": 71366,
+    "sha256": "2a63289f5daa73a2500fff59c547395a56d823da7f0fdadd02ecfe8506429648"
+  },
+  {
+    "path": "may_chu/__init__.py",
+    "bytes": 154,
+    "sha256": "ceb33c212694f885b6ba3e7ac8fcc67cdb68ff6dcd3e905945a224cd8088aab0"
+  },
+  {
+    "path": "may_chu/chung_tu.py",
+    "bytes": 38003,
+    "sha256": "31a4d04a5af84e65d2bc3c9a44463ccf871a96f9aa053d0c79aaf5246e034cd0"
+  },
+  {
+    "path": "may_chu/dich_vu.py",
+    "bytes": 54248,
+    "sha256": "cb4c4b84052c142dd5be5a00d952239ffccdd01c19c4825c28f85a010d70d636"
+  },
+  {
+    "path": "may_chu/doi_xls.py",
+    "bytes": 9282,
+    "sha256": "09155de234fe9e837b4f561f69a14ac7668bbef0aafbcb38ece9a442f24cba89"
+  },
+  {
+    "path": "may_chu/nghiep_vu.py",
+    "bytes": 65688,
+    "sha256": "9bfdc45630470bb1b4a29d808912e63a45be3f8e061565badc58874f0a4b5f0b"
+  },
+  {
+    "path": "may_chu/phu_luc_ai.py",
+    "bytes": 41204,
+    "sha256": "743168a158bebeb6e3cda25fb4b0b31e1f9d1fc78c495a4adc5aff3b98321caf"
+  },
+  {
+    "path": "may_chu/server.py",
+    "bytes": 22966,
+    "sha256": "966dd8a92b4113c78431f2368913d390d58a9d318db2dc307ef8abc1fbab7d93"
+  },
+  {
+    "path": "may_chu/viec.py",
+    "bytes": 4474,
+    "sha256": "f62ed78084539c15be170323e7344237105c92c9dc197df9e4baea803b166ab6"
+  },
+  {
+    "path": "quy-trinh-review-ttkl.md",
+    "bytes": 50789,
+    "sha256": "94fb03339e3656e0c9af1a25224bb36cdc7e047aeab39938ec23f8c4ea93bb8e"
+  },
+  {
+    "path": "README.md",
+    "bytes": 8504,
+    "sha256": "89dfe9e92e8c87113386a4febab5240c81a004b4ae4ef0443b71c1674375fe06"
+  },
+  {
+    "path": "tests/__init__.py",
+    "bytes": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "path": "tests/mau_gia_lap.py",
+    "bytes": 13263,
+    "sha256": "77606e600e5620b85609b670f5bac48eb50328ee69c629a5c256f25d69a3d998"
+  },
+  {
+    "path": "tests/mock_cloud.py",
+    "bytes": 2431,
+    "sha256": "d26cfa3cca15f9dd8304165a911a7fbf4c2616575484b785ae5441b07f94afce"
+  },
+  {
+    "path": "tests/mock_ollama.py",
+    "bytes": 7182,
+    "sha256": "e7d7ae260432d5e31707c62e6308dc5fe663126e434b1c1b8a199fec9cf1750b"
+  },
+  {
+    "path": "tests/test_trich_xuat.py",
+    "bytes": 100611,
+    "sha256": "e3d378238d5e268350e5fd9153aeb53b288167aeaffaa60d235db73b720d82f4"
+  },
+  {
+    "path": "toan_ven.py",
+    "bytes": 51175,
+    "sha256": "a97396de2be4cecfb060cd52689f4eec648f7904a7fd132089e10e3c897f6023"
+  },
+  {
+    "path": "trich_xuat/__init__.py",
+    "bytes": 1257,
+    "sha256": "f200159d6de51d346ea40d0abc2efe3132ac679dc0c31e778c10aa266490be8b"
+  },
+  {
+    "path": "trich_xuat/__main__.py",
+    "bytes": 3912,
+    "sha256": "197b4f25bda2424b063643cebbe2b63513a5a904d6845c480f4f60ed6482874b"
+  },
+  {
+    "path": "trich_xuat/ai_cloud.py",
+    "bytes": 7691,
+    "sha256": "ac4218aa85c35b3b7a3dc462b6479ba605e92b7eb23e01c9d54453677f89ae54"
+  },
+  {
+    "path": "trich_xuat/ai_local.py",
+    "bytes": 8311,
+    "sha256": "5ee214ea442fc924bc60a871e1f4328cfc4ae74b859160904089430fdd7dba77"
+  },
+  {
+    "path": "trich_xuat/cau_hinh.py",
+    "bytes": 6878,
+    "sha256": "53defa8fc52859c2e14cc9a00701fbc055e8eb47e0bb69156ccd8cdcacc58d93"
+  },
+  {
+    "path": "trich_xuat/cau_truc.py",
+    "bytes": 7029,
+    "sha256": "2817a46ec2fc967d1e64eae1dd68e35047e687a7b654a9c8ce03f106b9aad5c6"
+  },
+  {
+    "path": "trich_xuat/cloud.py",
+    "bytes": 23641,
+    "sha256": "5a68080694e9878e9b374dba07254b19b3e14e866c1e4906fd61c80a7f7328c4"
+  },
+  {
+    "path": "trich_xuat/danh_muc.py",
+    "bytes": 17039,
+    "sha256": "f0796984f7b18a4d0d3389b557a6324f3ad59ca488c29ad3284e11ca97ca2ff2"
+  },
+  {
+    "path": "trich_xuat/doc_hop_dong.py",
+    "bytes": 24818,
+    "sha256": "bbe8d9579ad9cce2c4b50e77fa734e7fc9826cd7933abe1aad2e5bf8b3d8a98b"
+  },
+  {
+    "path": "trich_xuat/kiem_tra.py",
+    "bytes": 7606,
+    "sha256": "47ee35567cb7b864a6b3d6825bc90f93a7a26c0c6872a326e99ead9160467f12"
+  },
+  {
+    "path": "trich_xuat/lo.py",
+    "bytes": 13914,
+    "sha256": "ef948c86eec4376c05161214107b497b12481e50b98ebfc2890b0cc6857c9f05"
+  },
+  {
+    "path": "trich_xuat/logic.py",
+    "bytes": 6046,
+    "sha256": "f7cfcf37ff2293d8f8ea994f1ae0a69f57d1d1d9a844f0620f018a3d285a4452"
+  },
+  {
+    "path": "trich_xuat/may_ai.py",
+    "bytes": 5363,
+    "sha256": "62bb851df325b109079db9cbe1566eb38406a49866de27ca4336c14d4f919ffb"
+  },
+  {
+    "path": "trich_xuat/ocr_abbyy.py",
+    "bytes": 24631,
+    "sha256": "3bf9297f0d4a162cfe828d5a5946b24b9959f9f6c50149aa8efd23e2f31df95a"
+  },
+  {
+    "path": "trich_xuat/quy_trinh.py",
+    "bytes": 27033,
+    "sha256": "a76e95a55cb7253cc7446ead9e7fd495fb9c3ea457c612259bd062aa27b26264"
+  },
+  {
+    "path": "trich_xuat/xlsx_mini.py",
+    "bytes": 8512,
+    "sha256": "a29ed16811637daa756fcb2640557ec817734d3d2ee617c30deca51d3799857b"
+  },
+  {
+    "path": "trich_xuat/xuat.py",
+    "bytes": 16540,
+    "sha256": "d255b2d01b67283b3b5febfb6c3f5f937df80c5020531bd04862fc89ad969efb"
+  },
+  {
+    "path": "trich_xuat/DANH_MUC_THAM_SO.xlsx",
+    "bytes": 13309,
+    "sha256": "05846a2acd60f2cde708d13a163a137ee3fb0b4e08fd84f85a7e14e7ef861bcd",
+    "kind": "TECHNICAL_PARAMETER_CATALOG"
+  }
+]

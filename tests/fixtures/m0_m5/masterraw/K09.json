@@ -1,0 +1,29 @@
+{
+    "DM_HangHoa": [
+      {
+        "MaHang": "HH_DEMO_A",
+        "TenHang": "DEMO hàng A",
+        "DVT_Goc": "THUNG",
+        "DVT_QuyDoi": 12
+      },
+      {
+        "MaHang": "HH_DEMO_B",
+        "TenHang": "DEMO hàng B",
+        "DVT_Goc": "CAI",
+        "DVT_QuyDoi": null
+      }
+    ],
+    "DM_Kho": [
+      {
+        "MaKho": "KHO_DEMO",
+        "TenKho": "DEMO kho",
+        "TrangThai": "Hoạt động"
+      }
+    ],
+    "DM_DoiTac": [
+      {
+        "MaDoiTac": "DT_DEMO",
+        "MaDoiTuong_KT": "DTKT_DEMO"
+      }
+    ]
+  }

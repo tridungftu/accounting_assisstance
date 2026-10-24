@@ -1,0 +1,100 @@
+{
+  "status": "DRAFT_DECLARED_DEMO_DOMAIN_RAW_EVIDENCE_NOT_APPROVED_NOT_INSTALLED",
+  "reference_id": "DEMO_M2_M5_GOODS_EQ_A_V1",
+  "evidence_revision": 2,
+  "root_technical_declaration_date": "2026-10-19",
+  "pn_ma": "PN_DEMO_A",
+  "authority": "ROOT_EXPLICIT_DEMO_DOMAIN_NOT_ITEM_LABEL_INFERENCE_REQUIRES_ACTUAL_CFO_V4",
+  "domain": {
+    "invoice": {
+      "source_instance": "DEMO_M2_XML_INSTANCE_A",
+      "profile_ref": "DEMO_M2_XML_QD1271_FIELDS_V1",
+      "profile_payload_sha256": "7e17794151a7711317da3d9ab00d96427d2b1e1c688b132feb78ce540bb2188d",
+      "company_key": "DEMO_M2_COMPANY_A",
+      "company_mapping_ref": "DEMO_M2_COMPANY_MAP_A",
+      "item_code": "DEMO_ITEM_A",
+      "context": "DECLARED_DEMO_PN_A_INVOICE_ITEM_A_EXACT_CODE_NOT_NAME"
+    },
+    "warehouse": {
+      "source_instance": "DEMO_KHO_A",
+      "profile_ref": "urn:demo:m5:source-profile:f05eee570c7c8861b219ca97",
+      "profile_payload_sha256": "b8735806b72701dc6a4a54c3b3772e70326efbc812543b1c5969576be3eedb41",
+      "MaKho": "KHO_DEMO",
+      "warehouse_mapping_ref": "DEMO_MAP_A_V1",
+      "item_code": "HH_DEMO_A",
+      "context": "DECLARED_DEMO_PN_A_WAREHOUSE_HH_A_EXACT_CODE_NOT_NAME"
+    },
+    "unit_conversion_inferred": false,
+    "unlisted_artifact_auto_covered": false,
+    "current_domain_mapping_and_supporting_binding_required": true
+  },
+  "supporting_native_bindings": [
+    {
+      "side": "INVOICE",
+      "native_sha256": "863ce3c1330ce67e6a41e74699f2ac378dbb574d03afa5d8257ce0d23c15fe97",
+      "byte_length": 523,
+      "locator": "/HDon/DLHDon/NDHDon/DSHHDVu/HHDVu[1]",
+      "identity_tuple": [
+        "PN_DEMO_A",
+        "MUA_VAO",
+        "DEMO_M2_SUPPLIER",
+        "1",
+        "DEMO_SERIES_A",
+        "1"
+      ],
+      "item_code": "DEMO_ITEM_A"
+    },
+    {
+      "side": "INVOICE",
+      "native_sha256": "65ce193e68053e59d5b18e4a7fa6879fa31499fbc2cd1ca5d138a95a30883a7a",
+      "byte_length": 480,
+      "locator": "/HDon/DLHDon/NDHDon/DSHHDVu/HHDVu[1]",
+      "identity_tuple": [
+        "PN_DEMO_A",
+        "MUA_VAO",
+        "DEMO_M2_SUPPLIER",
+        "1",
+        "DEMO_SERIES_R16",
+        "9001"
+      ],
+      "item_code": "DEMO_ITEM_A"
+    },
+    {
+      "side": "WAREHOUSE",
+      "native_sha256": "56037f2e8145d0ca57b947e7213e03a4586ba601dc741b5ef554858f89df1107",
+      "byte_length": 803,
+      "SoPhieu": "NK20260814001",
+      "ID_Dong": "ID_1786672800001",
+      "source_ordinal": 1,
+      "master_sha256": "3a806526917dac322ee9ba4c6f7ea5ed88e02b780ea282c0300465e980e16801",
+      "measurement_payload_sha256": "4ef4dcf27d5044a76729d6f617b4381c6fff0fcced4bdf9f9315c638ffd515f1",
+      "item_code": "HH_DEMO_A"
+    },
+    {
+      "side": "WAREHOUSE",
+      "native_sha256": "adfd623e4f4432272646ef925a5db0d5d3fd209fb50e870549d28223b4af009b",
+      "byte_length": 875,
+      "SoPhieu": "NK20261019006",
+      "ID_Dong": "ID_1792382400001",
+      "source_ordinal": 1,
+      "master_sha256": "3c67491146ef8025aa6b07a8092000fe400be6f3ed7f51671e4c06c35e1c7665",
+      "measurement_payload_sha256": "c9eb6a3ca743a6d799d528a2c9d07f973fc58ddc808bfe3723890612f119dbac",
+      "item_code": "HH_DEMO_A"
+    },
+    {
+      "side": "WAREHOUSE",
+      "native_sha256": "adfd623e4f4432272646ef925a5db0d5d3fd209fb50e870549d28223b4af009b",
+      "byte_length": 875,
+      "SoPhieu": "NK20261019006",
+      "ID_Dong": "ID_1792382400002",
+      "source_ordinal": 2,
+      "master_sha256": "3c67491146ef8025aa6b07a8092000fe400be6f3ed7f51671e4c06c35e1c7665",
+      "measurement_payload_sha256": "c9eb6a3ca743a6d799d528a2c9d07f973fc58ddc808bfe3723890612f119dbac",
+      "item_code": "HH_DEMO_A"
+    }
+  ],
+  "supporting_warehouse_package_manifest_sha256": "3cd9efef09ee8bb94e87829839f83701b5a91a8f3f981ee51baaa0e0becdab09",
+  "actual_source_acceptance": null,
+  "approved": false,
+  "DB_mapping_id": null
+}

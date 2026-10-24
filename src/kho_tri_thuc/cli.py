@@ -122,7 +122,9 @@ def run(args: argparse.Namespace) -> tuple[dict, int]:
     if args.command == "verify-backup":
         return verify_backup(args.directory), 0
     if args.command == "restore":
-        return restore_backup(args.directory, args.destination), 0
+        # V13 A3: cấu hình engine postgres → kiểm schema đích trống trước khi chép (sqlite: như cũ)
+        restore_config = Config.load(args.config, args.destination) if args.config.is_file() else None
+        return restore_backup(args.directory, args.destination, restore_config), 0
     if args.command == "scan-base":
         report = scan_fixture_base(args.directory, args.index)
         return report, 0 if report["valid"] else 2
@@ -140,7 +142,8 @@ def run(args: argparse.Namespace) -> tuple[dict, int]:
                       "source": batch.source, "record_count": len(batch.raw_records), "totals_minor": batch.totals,
                       "issues": [asdict(issue) for issue in batch.issues]}
         return report, 0 if report["valid"] else 2
-    if args.command != "init" and not (config.data_dir / "kho.sqlite").is_file():
+    from .ha_tang.ket_noi import da_khoi_tao
+    if args.command != "init" and not da_khoi_tao(config, config.data_dir / "kho.sqlite"):
         raise DataError("NOT_INITIALIZED", "Kho chưa khởi tạo; chạy init trước.")
     with Store(config) as store:
         if args.command in ("init", "status"):

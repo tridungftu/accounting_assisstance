@@ -1,0 +1,140 @@
+{
+  "schema": "PRIVATE_CRM_41_02_TECHNICAL_DEMO_LITERALS_V1",
+  "status": "PREPARE_ONLY_ROOT_REVIEW_NOT_INSTALLED_NOT_APPROVED",
+  "created_on": "2026-10-21",
+  "dispatch_authorized": false,
+  "runtime_authorized": false,
+  "production_policy": false,
+  "scope": "G1_G7_MIN_S6_SYNTHETIC_ONLY",
+  "authority": {
+    "approved_private_draft04_sha256": "69337720c00291d0622b8b5c4c63e6284a71ab38f3c22a0e4b0bffdc9270d3da",
+    "A1_sha256": "68acd97632c2958f7f9908df630402b16cca2c3df4e28f99bc46f18ff2c6a34b",
+    "A2_sha256": "e21551eab629bca2a6f411390392a330bde2bf304bae4c484e9638d98dca2f68",
+    "candidate_sha256": "d664d5298af6aff5b239ef8117e5c7e58f0300218b90c9c3fe54d8219aafd19b",
+    "current_C3_bindings_sha256": "65dbabe37a63db8747aac67598140d31c67986506ad271aec1295f9f3fa0b6a2"
+  },
+  "source_basis": [
+    {"path": "src/kho_tri_thuc/k2/crm_demo.py", "sha256": "71f0f9567af04619d95d363aa7045a076162a690d8479e7465d87945cae01f90", "lines": "16-30,42-78"},
+    {"path": "src/kho_tri_thuc/k2/loai_hinh_demo.py", "sha256": "c6cc7f78299f41e3904c4789384f364519d468e724ca001f122064047fa802ad", "lines": "17-59"},
+    {"path": "src/kho_tri_thuc/k2/m4_demo.py", "sha256": "2e4c59710f2bc501693bbff3939c1b32d98a1a0106ac953dfef7b77b1eca3941", "lines": "25-35,75-119", "use": "existing master/retained seed pattern only; no M4 role or grant reuse"},
+    {"path": "src/kho_tri_thuc/k2/quyen.py", "sha256": "0e2c344bf58fc34a590542255a2ba18f3a6bb9d4ff91049453f6e3df37462bcb", "lines": "13-26,61-100"}
+  ],
+  "resolution": {
+    "connection": "configured table-owner only after current schema/endpoint validation",
+    "id_source": "resolve existing business keys; new entity IDs generated once by DB",
+    "missing_or_ambiguous": "CHUA_SAN_SANG; no invented UUID, no duplicate master insertion",
+    "existing_masters": [
+      {"ref": "PN_A", "table": "master.phap_nhan", "key": {"ma": "PN_DEMO_A"}},
+      {"ref": "PN_B", "table": "master.phap_nhan", "key": {"ma": "PN_DEMO_B"}},
+      {"ref": "TYPE_A_V2", "table": "master.loai_hinh_doanh_thu", "key": {"pn_ref": "PN_A", "ma": "DT-KCN-THUE-DAT-DEMO", "phien_ban": 2}},
+      {"ref": "TYPE_B_V2", "table": "master.loai_hinh_doanh_thu", "key": {"pn_ref": "PN_B", "ma": "DT-NHA-O-DEMO", "phien_ban": 2}},
+      {"ref": "PROJECT_A", "table": "master.du_an", "key": {"pn_ref": "PN_A", "ma_junsky": "DA_KCN_DEMO"}},
+      {"ref": "PROJECT_B", "table": "master.du_an", "key": {"pn_ref": "PN_B", "ma_junsky": "DA_NHA_DEMO"}}
+    ],
+    "preserve_masters": ["master.phap_nhan", "master.du_an", "master.loai_hinh_doanh_thu", "all old users/modules/type-of-work grants", "all M4 project assignments"],
+    "no_master_writes_to_fix_missing_reference": true
+  },
+  "catalog": {
+    "ref": "DEMO_CRM_G1_FIELDS_V1",
+    "revision": 1,
+    "target": "master.crm_danh_muc_truong (new G1 authority from approved A2, not an additional parallel catalog)",
+    "scope_type_refs": ["TYPE_A_V2", "TYPE_B_V2"],
+    "completeness": "FINITE_DEMO_SUBSET_NOT_COMPLETE_KCN_OR_NHA_O_POLICY",
+    "reuse": "Existing CRM-B profiles remain immutable; reuse their field keys/type metadata where present. The #6 tham_so array is not a G1 placeholder catalog or approval.",
+    "fields": [
+      {"key": "so_hop_dong", "label": "Số hợp đồng", "group": "HOP_DONG", "type": "text", "format": "TEXT", "source_kind": "HOP_DONG", "pii": false, "required_in_document": true, "reuse_profile_field": "so_hop_dong", "synthetic_preview": "HD-DEMO-G1-0001"},
+      {"key": "ten_hien_thi_demo", "label": "Họ tên hiển thị — DEMO", "group": "DOI_TUONG", "type": "text", "format": "TEXT_ESCAPED", "source_kind": "KHAC", "pii": true, "required_in_document": false, "reuse_profile_field": null, "synthetic_preview": "NGUOI DEMO <KHONG PHAI NGUOI THAT>", "real_PII_allowed_by_this_declaration": false},
+      {"key": "ngay_ky", "label": "Ngày ký", "group": "HOP_DONG", "type": "ngay", "format": "dd/MM/yyyy", "source_kind": "HOP_DONG", "pii": false, "required_in_document": true, "reuse_profile_field": "ngay_ky", "synthetic_preview": "2026-10-21", "canonical_preview_type": "ISO_DATE"},
+      {"key": "gia_tri_hop_dong", "label": "Giá trị hợp đồng — DEMO, không tính nghĩa vụ", "group": "GIA", "type": "tien", "format": "EXPLICIT_MINOR_AND_CURRENCY", "source_kind": "GIA", "pii": false, "required_in_document": true, "reuse_profile_field": "gia_tri_hop_dong", "synthetic_preview": {"amount_minor": "100000000", "currency": "VND"}, "no_FX_VAT_schedule_or_recognition": true}
+    ],
+    "placeholder_mapping_demo": [
+      {"placeholder": "so_hop_dong", "field_key": "so_hop_dong"},
+      {"placeholder": "ho_ten", "field_key": "ten_hien_thi_demo"},
+      {"placeholder": "ngay_ky", "field_key": "ngay_ky"}
+    ],
+    "mapping_rule": "placeholder name need not equal field key; each actual occurrence retains name/count/part/locator and references one typed current catalog field",
+    "required_absent_positive": {"field_key": "gia_tri_hop_dong", "absent_from_three_token_demo": true, "expected": "persist warning only; does not block KT/CFO template approval when all actual placeholders are mapped and parser complete"},
+    "approval_authority": "NONE; catalog seed is not template/standard/check/CFO approval"
+  },
+  "actions": [
+    {"code": "CRM_MAU_TAI", "module": "CRM", "gate": "current action assignment scoped PN/type plus active identity/module", "role_override": false},
+    {"code": "CRM_MAU_MAP", "module": "CRM", "gate": "current CRM_MAU_TAI assignment for target OR current KE_TOAN/KE_TOAN_TRUONG with CRM in target PN"},
+    {"code": "CRM_MAU_GUI_KIEM", "module": "CRM", "gate": "current CRM_MAU_TAI assignment for target OR current KE_TOAN/KE_TOAN_TRUONG with CRM in target PN"},
+    {"code": "CRM_MAU_KIEM", "module": "CRM", "roles": ["KE_TOAN", "KE_TOAN_TRUONG"], "assignment_does_not_replace_role": true},
+    {"code": "CRM_MAU_TRA_LAI", "module": "CRM", "roles": ["KE_TOAN", "KE_TOAN_TRUONG"], "assignment_does_not_replace_role": true, "requires_reason": true},
+    {"code": "CRM_MAU_DUYET_V4", "module": "CRM", "roles": ["CFO"], "type_of_work": "V4", "assignment_does_not_replace_role_or_V4": true},
+    {"code": "CRM_MAU_TU_CHOI", "module": "CRM", "roles": ["CFO"], "type_of_work": "V4", "requires_reason": true},
+    {"code": "CRM_CHUAN_LAP", "module": "CRM", "roles": ["KE_TOAN", "KE_TOAN_TRUONG"]},
+    {"code": "CRM_CHUAN_GUI_DUYET", "module": "CRM", "roles": ["KE_TOAN", "KE_TOAN_TRUONG"]},
+    {"code": "CRM_CHUAN_DUYET_V4", "module": "CRM", "roles": ["CFO"], "type_of_work": "V4"}
+  ],
+  "action_assignment_semantics": "Only CRM_MAU_TAI requires assignment records in this finite seed; MAP/GUI_KIEM reuse that assignment OR the approved KT role path. KT/CFO operations remain role/module/V4 gated, never unlocked by arbitrary action-assignment rows.",
+  "new_actors": [
+    {"login": "MO_PHONG_CRM_G_TAI_A", "role": "XEM", "mo_phong": true, "state": "HOAT_DONG", "grants": [{"pn_ref": "PN_A", "modules": ["CRM"], "type_of_work": []}], "purpose": "assigned upload/map/submit positive; not KT or CFO authority"},
+    {"login": "MO_PHONG_CRM_G_KT_A", "role": "KE_TOAN", "mo_phong": true, "state": "HOAT_DONG", "grants": [{"pn_ref": "PN_A", "modules": ["CRM"], "type_of_work": []}], "purpose": "KT map/check/return/G7 positive; no CFO approval even if later given V4"},
+    {"login": "MO_PHONG_CRM_G_CFO_A", "role": "CFO", "mo_phong": true, "state": "HOAT_DONG", "grants": [{"pn_ref": "PN_A", "modules": ["CRM"], "type_of_work": ["V4"]}], "purpose": "CFO template/standard approval positive; cannot pretend KT return"},
+    {"login": "MO_PHONG_CRM_G_BH_A", "role": "BAN_HANG", "mo_phong": true, "state": "HOAT_DONG", "grants": [{"pn_ref": "PN_A", "modules": ["CRM"], "type_of_work": []}], "purpose": "effective-only read positive; no draft/check/KT/CFO authority"},
+    {"login": "MO_PHONG_CRM_G_CFO_NO_V4_A", "role": "CFO", "mo_phong": true, "state": "HOAT_DONG", "grants": [{"pn_ref": "PN_A", "modules": ["CRM"], "type_of_work": []}], "purpose": "noV4 negative, actor/module remain active"},
+    {"login": "MO_PHONG_CRM_G_KT_NO_CRM_A", "role": "KE_TOAN", "mo_phong": true, "state": "HOAT_DONG", "grants": [{"pn_ref": "PN_A", "modules": ["M1"], "type_of_work": []}], "purpose": "noCRM negative, actor remains active; no M1 business mutation"},
+    {"login": "MO_PHONG_CRM_G_TAI_REVOKED_A", "role": "XEM", "mo_phong": true, "state": "HOAT_DONG", "grants": [{"pn_ref": "PN_A", "modules": ["CRM"], "type_of_work": []}], "purpose": "revoked assignment negative without inactive actor or removed module"},
+    {"login": "MO_PHONG_CRM_G_CFO_B", "role": "CFO", "mo_phong": true, "state": "HOAT_DONG", "grants": [{"pn_ref": "PN_B", "modules": ["CRM"], "type_of_work": ["V4"]}], "purpose": "separate PN_B positive/current PN_A negative"}
+  ],
+  "new_assignments": [
+    {"actor": "MO_PHONG_CRM_G_TAI_A", "pn_ref": "PN_A", "module": "CRM", "action": "CRM_MAU_TAI", "scope_type_ref": "TYPE_A_V2", "state": "ACTIVE"},
+    {"actor": "MO_PHONG_CRM_G_TAI_REVOKED_A", "pn_ref": "PN_A", "module": "CRM", "action": "CRM_MAU_TAI", "scope_type_ref": "TYPE_A_V2", "state": "REVOKED", "retained_row": true, "grant_and_revocation_time": "server transaction timestamps; not an invented historical approval"}
+  ],
+  "read_contract": {
+    "uploader": "current upload assignment grants only same PN/type draft/map/history/original needed by G1; no blanket all-CRM draft access",
+    "KT_CFO": "current CRM role/scope reads draft/check/history, active identity always required",
+    "BH": "current CRM scope reads only effective template at requested as_of, no draft/check/history/private file leakage",
+    "download_and_replay": "current scoped rights before registry/path/hash lookup or immutable receipt replay",
+    "revoked_current": "must deny; historical seed/grant/check/approval does not restore access"
+  },
+  "G7_demo_input_not_seeded_approval": {
+    "project_ref": "PROJECT_A", "stage_key": "DEMO_G7_STAGE_1", "stage_is_standard_scope_not_master_project_rewrite": true,
+    "columns": ["Lần", "Giá trị", "Mốc thời gian", "Ghi chú"],
+    "rows": [
+      {"order": 1, "lan": "1", "value": {"kind": "PERCENT", "decimal": "40"}, "milestone": {"kind": "NGAY", "date": "2026-11-01"}, "note": "DEMO ngày tường minh"},
+      {"order": 2, "lan": "2", "value": {"kind": "PERCENT", "decimal": "60"}, "milestone": {"kind": "SU_KIEN", "event": "DEMO_BAN_GIAO"}, "note": "DEMO sự kiện, không tự gán ngày"}
+    ],
+    "creates": "DRAFT only when actual KT submits this input; no standard/version/approval seeded by bootstrap",
+    "not_a_rule": "40+60 is fixture data only, not a new mandatory G7 total100 constraint",
+    "missing_other_project_stage": {"status": "CHUA_CO", "version": null, "rows": []}
+  },
+  "seed_contract": {
+    "new_marker": "demo_seed_crm_g1_g7_v1",
+    "owner_only": true,
+    "resolve_existing_masters_first": true,
+    "first_install": "all declared new actors absent; create only new MO_PHONG_CRM_G_* actors/grants and finite catalog/assignment rows in one transaction; no old actor changes",
+    "partial_preexisting_without_marker": "report THIEU or XUNG_DOT; do not silently grant/overwrite based on partial state",
+    "reopen": "marker OR any declared actor/history => validation-only for actor/grant/assignment; never fill a missing/revoked grant automatically",
+    "assignment_identity": "actor+PN+module+action+scopeType; any historical row including revoked means do not grant again",
+    "catalog_identity": "catalog ref+revision+scope type+field key; same version differing immutable content => refuse, not overwrite",
+    "statuses": ["DU", "THIEU", "DA_THU_HOI", "XUNG_DOT", "CHUA_SAN_SANG"],
+    "no_approval_rows": ["no template/version/mapping/check/CFO approval", "no G7 standard/version approval", "no K5 completed item", "no production grant"]
+  },
+  "M18_append_definition": {
+    "status": "PROPOSED_ROOT_MUST_BIND_PUBLIC_RELEASE_BEFORE_CODE",
+    "number": 18,
+    "constant_name": "M0018_CRM_G",
+    "registry_after": "unchanged active PG_MIGRATIONS prefix1-17 followed by M0018_CRM_G; PG_SCHEMA_VERSION=len(PG_MIGRATIONS)=18",
+    "new_entities_and_guards": ["crm_danh_muc_truong", "crm_mau/root/version/map/check/raw-facts", "crm_bo_chuan/root/version/rows", "phan_cong_hanh_dong", "owner-derived domain receipts", "typed K5 OLD-or-NEW guards/all-state read predicates"],
+    "do_not_redefine": ["M0001-M0012", "M0013_COMMON", "M0014_M5", "M0015_M2_BRIDGE", "M0016_L11_QUANTITY", "M0017_M4", "legacy full-M13/M9"],
+    "current_prefix_definition_files": [
+      {"path": "src/kho_tri_thuc/ha_tang/pg_migrations.py", "sha256": "36ed5ad1035f3cf85593cbfdc2e5ca84b3a73ecffd1df010aa4987d6826b3964"},
+      {"path": "src/kho_tri_thuc/m4/sql_m17.py", "sha256": "119cdb1ca9a15fe97312f8f76ffeffbae6726d5f9d22c75a86cd2454dc3ac6e0"}
+    ],
+    "prefix_statement_checksums_1_17": "ROOT_MUST_PIN_ACTUAL_CURRENT_VALUES; do not substitute whole-file SHA for SQL-statement checksum",
+    "new_M18_SQL_checksum": null,
+    "new_M18_SQL_checksum_reason": "new product definition does not exist yet; Root pins actual authored tuple after terminal; NULL is not a release bypass"
+  },
+  "finite_acceptance_inputs": [
+    "three actual placeholders map to four-field catalog: ho_ten->ten_hien_thi_demo proves different-name mapping; missing required gia_tri_hop_dong warning only",
+    "assigned uploader positive; unassigned BH upload negative; revoked uploader negative with actor active/module present",
+    "KT check/return positive; BH and CFO pretend KT negative; CFO V4 positive and CFO_NO_V4 negative",
+    "KT_NO_CRM negative and crossPN CFO_B->PN_A negative",
+    "revoke current assignment/grant in retained test history, exact old-key replay/download deny, bootstrap must not regrant",
+    "G7 actual KT input->CFO approval; CHUA_CO other scope; no seed approval, money/schedule/AP delta"
+  ],
+  "evidence_limits": "All values are synthetic technical declarations only. No code/SQL/seed/install/test/AI/HTTP/GUI execution or actual approval has occurred. Independent private DOCX/oracle remains Root-only and is not embedded here."
+}

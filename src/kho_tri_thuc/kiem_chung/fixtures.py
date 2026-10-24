@@ -72,6 +72,38 @@ def bundle_fixture(balance=-200, *, snapshot="SNAP_FIXTURE_0", exported="2026-09
     return envelope("junsky_xuat", records, snapshot=snapshot, exported=exported, as_of=as_of)
 
 
+def review_dot_fixture(*, ma="KTD-DEMO-0001", dot="3", luc="2026-09-20T09:15:00+07:00", da_nap=True, anh_huong=1_500_000, ma_hd="HD-DEMO-01"):
+    """Một kết quả `kiem_tra_dot` DEMO đúng shape #5 (docs/TAI-SU-DUNG-REVIEW-XAY-DUNG.md §3.1). Mọi giá trị là giả lập."""
+    def o(value, cell, label):
+        return {"gia_tri": value, "o": cell, "nhan": label}
+    return {
+        "ma": ma, "loai": "kiem_tra_dot", "luc": luc, "tep": "HSTT_DOT3_DEMO.xlsx",
+        "hop_dong": {"ma_hd": ma_hd, "so_hd": "SO-HD-DEMO/2026", "phan_loai": "DON_GIA_CO_DINH"},
+        "dot": dot, "dot_truoc": str(int(dot) - 1), "ngay_nghiem_thu": "2026-09-18",
+        "gt_hieu_luc": 1_000_000_000, "loai_gia": "DON_GIA_CO_DINH", "vat": 8,
+        "phu_luc_ap_dung": [{"so": "PL01-DEMO", "ngay_hieu_luc": "2026-07-01"}],
+        "de_nghi": 120_000_000, "o_de_nghi": "Tong!H40",
+        "tong_hop": {"gt_hd": o(1_000_000_000, "Tong!H10", "Giá trị hợp đồng"), "gt_lk_kt": o(300_000_000, "Tong!H12", "Lũy kế kỳ trước"),
+                     "gt_kn": o(125_000_000, "Tong!H14", "Giá trị kỳ này"), "gt_lk": o(425_000_000, "Tong!H16", "Lũy kế đến kỳ này"),
+                     "giu_lai": o(6_250_000, "Tong!H20", "Giữ lại đợt"), "thu_hoi_tu": o(10_000_000, "Tong!H22", "Thu hồi tạm ứng"),
+                     "tt_ky_nay": o("không đọc được", "Tong!H40", "Thanh toán kỳ này")},
+        "anh_huong": anh_huong, "phat_hien": [{"ma": "B1", "mo_ta": "KL vượt dự toán hạng mục DEMO", "anh_huong": anh_huong}],
+        "bang_k": [{"buoc": "K1", "ket_qua": "DAT"}], "cay": {"nut": "DEMO"}, "bang_lop2": [], "doi_chieu_hm": [],
+        "da_nap": {"luc": "2026-09-20T10:00:00", "dot": dot, "so_hang_muc": 12, "khong_khop": 1, "ghi_chu": "DEMO", "nap_lai": False} if da_nap else False,
+        "tai": {"lop1": "/bao_cao/KTD-DEMO-lop1.html", "lop2": "/bao_cao/KTD-DEMO-lop2.html"},
+    }
+
+
+def nghiem_thu_catalog_fixture():
+    """Danh mục DEMO cho mẫu bút toán nghiệm thu công khai (không phải mã Junsky thật)."""
+    records = []
+    for kind, code, name in (("ACCOUNT", "2412_DEMO", "Chi phí XDCB dở dang — DEMO"), ("ACCOUNT", "331_DEMO", "Phải trả nhà thầu — DEMO"),
+                             ("ACCOUNT", "3388_DEMO", "Giữ lại theo đợt — DEMO"), ("PROJECT", "DA_DEMO_01", "Dự án DEMO 01"),
+                             ("COUNTERPARTY", "NT_DEMO_01", "Nhà thầu DEMO 01")):
+        records.append({"kind": kind, "business_date": "2026-09-01", "code": code, "version": "v1", "name": name, "source_status": "ACTIVE", "valid_from": "2026-01-01", "valid_to": None})
+    return envelope("junsky_xuat", records, snapshot="SNAP_NT_DEMO")
+
+
 def knowledge_item(category, key, payload, *, known=KNOWN, start="2026-09-01", end=None):
     return {"category": category, "logical_key": key, "payload": payload, "known_at": known, "valid_from": start, "valid_to": end, "evidence": ["SYNTHETIC_FIXTURE_DEFINITION_NOT_REAL_APPROVAL"]}
 

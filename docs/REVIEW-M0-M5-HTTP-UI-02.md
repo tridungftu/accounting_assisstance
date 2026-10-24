@@ -1,0 +1,48 @@
+# M0–M5 final candidate02 — review HTTP/UI độc lập
+
+**FINAL_SOURCE_STATIC_REVIEW / RUNTIME_UNRUN / NOT_ACCEPTED — 19/10/2026.** Root báo actual Claude68305 terminal0 tool `5dc8f8`, freeze `2c578f`. Reviewer chỉ đọc frozen, so source/AST/hash và viết tài liệu; không product import/test/SQL/PG/HTTP/GUI/CUA/node/process, không sửa product. Tests/DB/service review của root và agents khác có scope riêng; không tính thành bằng chứng UI ở đây.
+
+## 1. Final pins và phạm vi
+
+F = `var/codex-dieu-phoi/kiem-chung-20261018-101441/m0-m5-intake-ui02-handoff-20261019-165145-481-cec6fac8/frozen/`; whole210 manifest SHA `3d5acde6e1327542aeca488c8d72599eef042c704dcf505b372165dead069906`, count210 đã kiểm metadata. Mọi line sau thuộc F, không live/interim.
+
+| File | SHA256 / range đọc liên quan |
+|---|---|
+| giao_dien/server.py | `9a72de1ec48dea051dbe1f4bd7065c232737881f17461f44c761f867a0c9435c` · 952lines; 1–285,420–716,720–952, toàn M5+token/session/handler |
+| giao_dien/assets/app.js | `9934aaa646776f3bbff4e50b81bb5c8df927892e2de77adf26069a7efe50cabe` · 877lines; 1–70,660–877, toàn M5 672–874 |
+| giao_dien/assets/index.html | `686b98bddcd8f6e9a8dc1711b27f62b3272cfe89044ee608249fa018b18cb135` · 164lines; 92–144, toàn M5 97–126 |
+| giao_dien/assets/style.css | `29a19358c8b3d87c5c88108eaeb0030f8697dceb1ffdf2422a16665c616631b0` · full8lines |
+| k2/kho_so_luong.py | `4017fe67121aaeb3957287b374196895169e24756cb4b6aeaa5742c2b9681f4c` · 654lines; scoped source/transaction/state/detail/mapping/file chain, không full service audit |
+| ha_tang/pg_migrations.py | `74319fd22db1cb0f0b68edd1e256f7b34fdb64679ac6fb6a9b41c9f1a52b6c4f` · selected FILE interface4372–4475, không full migration review |
+
+Handoff02 SHA `43902e6e3db1d61552b99a4070b2437eeb0c4189d709417e2e5267f2d06a7816` đã full-read81lines. Private interim report `m0-m5-ui-api-review02/INTERIM-FINDINGS-02.md` SHA `405e933ce16f391effd3d913aa39629b79d871e3395398774344a33ed57773b3` được giữ nguyên. Final server/app/index byte-identical interim; style byte-identical frozen01. Final service chỉ bỏ hai Python source-metadata checks trong mapping so bundle (chuyển kiểm source capability vào DB); FILE/UI findings không đổi vì diff đó. Không giả blanket closure từ tên hàm/comment.
+
+## 2. Findings final cần sửa/kiểm
+
+**R1 / P1 / IR1 / I1 — response cũ vẫn render sau await refresh.** JS687–696 kiểm epoch sau POST692, rồi693 `await m5Load(); return r` không recheck. Counterexample: SOURCE_A nhận nguồn→POST thành công/passes692→refresh A pending→đổi actorB/clear852→old refresh bị discard844→m5Act vẫn trả old `r`→caller747/793/870 ghi receipt summary/semantic/request/mapping A vào status B. Backend current rights và FileReader guard865 không chặn phần render sau await này. Recheck epoch/context sau awaitLoad và trước return/render ở callers; response/error thuộc actor/source/PN cũ không được phục hồi. Positive giữ current-epoch result; negative delay **refresh sau successful POST**, không chỉ delay chính POST. Đây là control-flow counterexample, chưa chạy browser.
+
+**R2 / P2 / IR2 / I1+I5 — selection và submit claims không cùng một context bất biến.** Clear679–684 hide upload form nhưng không xóa file inputs110–111, errors/key. SOURCE_A chọn filesA→đổi SOURCE_B→form hiện lại vẫn giữ files/key A; submit có đường dùng selection cũ dưới sourceB. Source/scope selector không có change handler tăng epoch; submit862–866 đọc inst/scope/errors trước awaitFileReader, coverage/key sau await. Người dùng đổi form trong lúc đọc có thể ghép claims hai trạng thái. Với current registry một scope/actor, không suy thành actual multi-scope exploit; stale selection qua A/B và mixed pre/post-await claims vẫn cụ thể. Clear pending selections khi đổi authority context, bind source/profile/scope/PN epoch; snapshot toàn bộ claims+File objects trước async và invalidate khi context đổi. Guard865 đã chặn **pending FileReader sau đổi vai**, là partial closure cần giữ. `m5GioiHan779–780` cũng chưa epoch-guard error/success; payload hiện chỉ thông báo unavailable nên không nâng thành data-leak finding riêng.
+
+**R3 / P2 / IR3 / I4 — retry key FILE bị thay sau refresh thành công.** Detail809 tạo `khoaFile=m5Khoa()`; click810–812 gửi key+3pointers. m5Act693 refresh→m5Render776 gọi detail→809 tạo key mới dù actor/phiếu/graph không đổi; lần bấm nút vừa dựng là operation mới, có thể tạo lo mới. Comment808 “giữ khóa ... cùng lô/file” chỉ đúng trước re-render. Service586–587 có replay path, không kết luận service hoàn toàn thiếu idempotency. Giữ operation key theo actor/PN/phiếu/expected graph hoặc explicit retry operation đã tạo; chỉ explicit new operation mới thay key. Ca dương phải bấm lại **sau automatic refresh**, kiểm same lo/download SHA/cells và0delta, không chỉ double-click một button cũ.
+
+**R4 / P1 / IR4 / I4 — expected whole basis thiếu và cached FILE replay đi trước stale guard.** UI810–812→server547–548→service578–585 chỉ truyền phieu_id+latest/accepted/eligible; chưa có selected content/source-bundle/mapping/master/measurement/proof/period token theo handoff58. SQL4393–4395 cũng hash chỉ operation+phiếu+3pointers; snapshot4415–4435 có thêm mapping/master/first_snapshot/profile nhưng các refs này không thuộc expected request/H, và chưa thấy explicit measurement/proof basis được pin ở interface. Không chỉ là nhãn thiếu trong UI.
+
+Đường stale đã xác định thêm từ final: export keyK/expectedA khi currentA→receipt có H_A; intake/reviewB đổi latest→retryK vẫn expectedA/H_A. `m5_file_bat_dau`4396–4402 tìm receipt/H và RETURN trước pointer check4404–4407/kỳ4412–4413; service586–587 trả cached result ngay. Consumer4457–4463 cũng RETURN receipt trước expected/kỳ4465–4472. Vì vậy retry không buộc current expected/period guard như handoff58; chưa chạy SQL reproducer. Cần current rights+expected whole-basis/period revalidation trước cached result, H/receipt bind exact immutable basis đã xem. Positive: sameK+same **current** basis→same lo/file; negative: sameK sau B/changed basis/period-closed→conflict/deny0newartifact/lo, không protected cached success. **Old file GET/download giữ immutable bytes là đường riêng vẫn phải giữ**, không chữa bằng xóa file cũ.
+
+Workbook service604–628 có source/3pointers/core/quantity/history/issues nhưng chưa đưa mapping/master/source-snapshot/proof/snapshot refs thành cells/manifest có thể so; DB snapshot có một số refs mà writer bỏ. Cần pin và xuất đủ basis/provenance theo handoff58–61, actual cell/text/NULL/formula controls, không chỉ PK/hash. Không yêu cầu dựng registry/engine hoặc policy mới.
+
+## 3. Static partial closures và callgraph đúng
+
+- **I1 một phần:** epoch+clear panels679–684; state843–845; detail801–804; download724–731; pending FileReader865 sau đổi vai đã có. R1/R2 chưa đóng toàn requirement “mọi await/context”.
+- **I2:** server523–524 phân absent bằng VANG, giữ present value nguyên đến service251 shape checker trước H/write; không còn HTTP `or []`. Sample whitelisting526–527 tách đường raw. Reviewer chưa full-read helper mới ở đây nên runtime null/false/0/scalar/list-members400 vẫn cần root kiểm, không gán PASS.
+- **I3:** server480–481 chỉ active users trong `dang_nhap_m5()`; role-change517–520 kiểm cùng registry; JS740 dùng list đó. Không broad all-active mo_phong như01. Source-only/KT_A/B/CFO_A/B/VIEW/M1 actual8-role counterpart/current revocation còn UNRUN.
+- **I5:** native/master HTML pickers106–115; FileReader707→ArrayBuffer/Uint8Array/base64699–702 giữ raw bytes, không JSON.parse/Number/reserialize native. Source/scope/coverage lấy từ scoped server490–491→JS750–755; strict base64 server537–540 và byte/H service248–265 tồn tại. I5 interface đã viết, actual native/master/big-Number9007199254740993/NULL hash **chưa chạy**; R2 cần sửa để claims/selection ổn định.
+- **Mapping BOTH:** legitimate target `phap_nhan` JS792→server543–544 không bị generic PN-body guard chặn; fake actor/phap_nhan_id/PN/facts vẫn bị435–468 reject. Final service551–556 giữ business V4, source-cap targetPN chuyển sang DB theo comment553; cần ordinary positive+negative của migration/service review, không coi Python guard alone là authority.
+- **FILE plumbing/purpose:** UI body→server548→service569(dict) signature khớp, không TypeError cũ. Owner connection445–463 qua existing endpoint/actual-owner validator; ordinary reads441+CRM lineage gate. Service579–601 same owner transaction→DB begin→snapshot→exclusive file→stage→consumer; download630–648 exact M5 purpose/path/hash/length và currentFILE guard có thật. R3/R4 không phủ nhận các controls này.
+- Cookie164–173/511 resolve current actor, không browser actor; shared mutation lock757–774/886–889, host/origin/token/body limits616–651/678 và M5 403/409 map562–566/918–920 được giữ. Đây là static wiring, không actual ordinary-role/privilegedDB/session test. Không kết luận full stage/RLS an toàn từ Python.
+
+## 4. M9 preservation và giới hạn
+
+So byte/text với frozen01 c367: sáu methods `m9`, `m9_state`, `m9_action`, `_m9_action`, `m9_file`, `m9_m1_sao_ke` identical; M9 GET/POST blocks identical. Toàn JS prefix trước M5 marker (gồm M9 functions/listeners/load), toàn HTML prefix trước M5 section (gồm M9) và toàn CSS file identical. Chỉ xác nhận các vùng đã so, không thay review SQL/seed của agent khác; **0 actual M9 calls** trong review, M9 STOP/read-method giữ nguyên.
+
+Root cần đóng R1–R4 rồi independent final tests/ordinary DB/HTTP/browser/file/race theo release riêng. Browser plan02 SHA `5040ea5bca2fbfb669c74801a319cfd410f11fd11cb60545df844e43328d1aed` còn UNRUN; UI-source/string assertions không thay browser proof, HTTP pass không thay RLS/cells/race. Không acceptance M0/M5/L11/full33, không resume M9 từ báo cáo này.

@@ -53,7 +53,19 @@ SETTING_DEFAULTS = {
     # Accounts that need a counterparty before approval (prefix match).
     # Awaiting the CFO's confirmation of the list.
     "debt_accounts": ["131", "331", "141", "344", "1388", "3388"],
+    # V11: scoring replay — rows are never marked "đã có trong Junsky" and the
+    # matched voucher is hidden from the proposal; "So với Junsky" grades it.
+    "scoring_mode": False,
+    # V11: optional local AI (OpenAI-compatible endpoint on this machine only).
+    "local_ai": {},
+    # V11.2: trial kho whose Junsky ledger was cut at the learning date — the
+    # full ledger workbook used only as the answer by "So với Junsky".
+    "answer_ledger": "",
 }
+
+
+# Rules Anh decided in conversation with Claude, kept next to the config file.
+CFO_RULES_FILE = "TRI-THUC-CFO.json"
 
 
 class Operations:
@@ -106,6 +118,10 @@ class Operations:
         if partner_file.is_file():
             with self._mutation_lock, Store(self.config) as store:
                 result["partners"] = self._import_partner_directory(store, partner_file, now)
+        cfo_file = self.config_path.parent / CFO_RULES_FILE
+        if cfo_file.is_file():
+            with self._mutation_lock, Store(self.config) as store:
+                result["cfo_rules"] = self._import_cfo_rules(store, cfo_file, now)
         result["cash_accounts"] = self._apply_file_cash_accounts()
         missing = [label for label, path in (("Danh mục Junsky", catalog), ("Sổ Junsky", journal_paths[1]), ("Danh sách chứng từ công nợ", journal_paths[0])) if not path.exists()]
         self.bootstrap_status = {"finished_at": now_utc(), "result": result, "missing": missing}
@@ -114,7 +130,9 @@ class Operations:
     def _sync_runtime_settings(self) -> None:
         """Make settings written in source-settings.json effective for the engine."""
         try:
-            settings = self.source_settings()["settings"]
+            current = self.source_settings()
+            # V12: the invoice folder (paths.invoice) is read by quick posting.
+            settings = {**current["settings"], "invoice_root": str(current["paths"].get("invoice") or "")}
             with self._mutation_lock, Store(self.config) as store:
                 store.conn.execute("INSERT INTO workspace_meta(key,value) VALUES ('v9b_runtime_settings',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value", (canonical_json(settings),))
                 store.conn.commit()
@@ -242,6 +260,18 @@ class Operations:
                 raise DataError("SOURCE_SETTINGS", "Mốc học phải là ngày hợp lệ.") from exc
         else:
             settings["learning_cutoff"] = ""
+        settings["scoring_mode"] = bool(settings.get("scoring_mode"))
+        answer = settings.get("answer_ledger") or ""
+        if not isinstance(answer, str) or len(answer) > 500:
+            raise DataError("SOURCE_SETTINGS", "Đường dẫn sổ Junsky đầy đủ (đáp án chấm điểm) không hợp lệ.")
+        settings["answer_ledger"] = answer.strip()
+        local_ai = settings.get("local_ai")
+        if local_ai is None:
+            local_ai = {}
+        if not isinstance(local_ai, dict):
+            raise DataError("SOURCE_SETTINGS", "Thiết lập AI cục bộ phải là một nhóm khóa/giá trị.")
+        from ..tri_thuc.ai_cuc_bo import local_ai_settings
+        settings["local_ai"] = local_ai_settings({"local_ai": local_ai})
         debt = settings.get("debt_accounts")
         if not isinstance(debt, list) or not all(isinstance(value, str) and re.fullmatch(r"\d{3,10}", value.strip()) for value in debt):
             raise DataError("SOURCE_SETTINGS", "Danh sách tài khoản công nợ phải là các số tài khoản.")
@@ -264,8 +294,10 @@ class Operations:
         if mappings is not None:
             file_settings["cash_accounts"] = [{"bank_account": self._bank_account(item.get("bank_account")), "cash_account": str(item.get("cash_account") or "").strip()} for item in mappings]
         target.write_text(canonical_json({"paths": clean, "settings": file_settings}), encoding="utf-8")
+        # V12: quick posting reads the invoice folder from the runtime settings.
+        runtime = {**settings, "invoice_root": str(clean.get("invoice") or "")}
         with self._mutation_lock, Store(self.config) as store:
-            store.conn.execute("INSERT INTO workspace_meta(key,value) VALUES ('v9b_runtime_settings',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value", (canonical_json(settings),))
+            store.conn.execute("INSERT INTO workspace_meta(key,value) VALUES ('v9b_runtime_settings',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value", (canonical_json(runtime),))
             if mappings is not None:
                 store.conn.execute("DELETE FROM cash_account_mappings WHERE source='MANUAL'")
                 quick = QuickPosting(store)
@@ -288,6 +320,160 @@ class Operations:
     @staticmethod
     def _cell(row: dict, name: str) -> str:
         return str(row.get(name) or "").strip()
+
+    @staticmethod
+    def _read_cfo_rules(path: Path) -> list[dict]:
+        try:
+            document_value = json.loads(path.read_text(encoding="utf-8"))
+            rules = document_value.get("rules") if isinstance(document_value, dict) else None
+            if not isinstance(rules, list) or not all(isinstance(rule, dict) for rule in rules):
+                raise ValueError("rules")
+        except (OSError, UnicodeError, ValueError, json.JSONDecodeError) as exc:
+            raise DataError("CFO_RULES", f"Tệp {path.name} không đọc được.") from exc
+        return rules
+
+    def _cfo_policy_payload(self, rule: dict, path: Path) -> tuple[str, dict]:
+        code, regex = str(rule.get("ma") or "").strip(), str(rule.get("mau_dien_giai") or "")
+        direction = {"CHI": "OUT", "THU": "IN"}.get(str(rule.get("chieu") or "").upper())
+        decided = str(rule.get("ngay_duyet") or "")[:10]
+        if not code or not regex or not direction or not decided:
+            raise DataError("CFO_RULES", f"Quy tắc {code or '?'} trong {path.name} thiếu mã, chiều, mẫu diễn giải hoặc ngày duyệt.")
+        fields = {}
+        for source_key, field in (("no", "debit_account"), ("co", "credit_account"), ("doi_tuong", "counterparty"), ("du_an", "project"), ("khoan_muc", "expense")):
+            if rule.get(source_key):
+                fields[field] = str(rule[source_key]).strip()
+        payload = {"contract_version": 2, "template_id": code, "partition": str(rule.get("phan_vung") or f"{self.config.entity_id}:PAYMENT"),
+                   "direction": direction, "tier": 1, "order": 1, "needs_open_item": False, "required_fields": [],
+                   "trigger": {"mode": "REGEX", "regex": regex}, "fields": fields, "source_status": "CFO_DUYET",
+                   "source_row": {"ma_quy_tac": f"{code} (Anh duyệt {decided[8:10]}/{decided[5:7]}/{decided[:4]})", "ghi_chu": str(rule.get("mo_ta") or ""),
+                                  "nguon": str(rule.get("nguon") or "")}}
+        prefix = str(rule.get("doi_tuong_bat_dau") or "").strip()
+        if prefix:
+            payload["confirms_counterparty_prefix"] = prefix
+        return decided, payload
+
+    @staticmethod
+    def _knowledge_state(store: Store, identifier: str) -> str:
+        actions = {row[0] for row in store.conn.execute("SELECT action FROM knowledge_events WHERE version_id=?", (identifier,))}
+        return "REVOKED" if "REVOKE" in actions else "APPROVED" if "APPROVE" in actions else "PENDING"
+
+    def _import_cfo_rules(self, store: Store, path: Path, at: str) -> int:
+        """Rules Anh decided in conversation (file next to the config), approved in his name.
+
+        * ``loai`` QUY_TAC (default): a POLICY knowledge row (contract v2,
+          regex trigger) with a fixed decision date.  An unchanged rule stages
+          nothing; a changed one supersedes its previous version; ``"tat": true``
+          revokes it, and switching it back on stages a fresh version.
+        * ``loai`` LUU_Y: a caution shown on the screen, never a posting.
+        A malformed file is reported, never half-applied.
+        """
+        rules = self._read_cfo_rules(path)
+        actor = self.config.knowledge_approval_actor or "CFO_NTD"
+        knowledge, applied, notes = Knowledge(store), 0, []
+        for rule in rules:
+            code = str(rule.get("ma") or "").strip()
+            off = rule.get("tat") is True
+            if str(rule.get("loai") or "QUY_TAC").upper() == "LUU_Y":
+                if code and not off and rule.get("lich_su_tk") and rule.get("de_xuat_tk") and rule.get("noi_dung"):
+                    notes.append({"ma": code, "lich_su_tk": str(rule["lich_su_tk"]).strip(), "de_xuat_tk": str(rule["de_xuat_tk"]).strip(),
+                                  "noi_dung": str(rule["noi_dung"]).strip()})
+                    applied += 1
+                continue
+            decided, payload = self._cfo_policy_payload(rule, path)
+            key = "CFO:" + code
+            prior = store.conn.execute("SELECT id,payload_json FROM knowledge_versions WHERE category='POLICY' AND logical_key=? ORDER BY revision DESC LIMIT 1", (key,)).fetchone()
+            state = self._knowledge_state(store, prior["id"]) if prior is not None else None
+            if off:
+                if state == "APPROVED":
+                    knowledge.revoke(prior["id"], actor, at, "Anh tắt quy tắc " + code)
+                continue
+            if prior is not None and state == "APPROVED" and json.loads(prior["payload_json"]) == payload:
+                applied += 1
+                continue  # unchanged and in use: nothing new to stage
+            item = {"category": "POLICY", "logical_key": key, "valid_from": str(rule.get("hieu_luc_tu") or "2024-01-01"), "valid_to": None,
+                    # A rule switched back on is known again from now on.
+                    "known_at": at if state == "REVOKED" else decided + "T00:00:00Z", "payload": payload,
+                    "evidence": ["CFO_RULES_FILE:" + path.name, "CFO_DECISION:" + decided]}
+            if prior is not None:
+                item["supersedes_id"] = prior["id"]
+            identifier = knowledge.stage_many([item], actor, at)[0]
+            knowledge.approve(identifier, actor, at)
+            applied += 1
+        store.conn.execute("INSERT INTO workspace_meta(key,value) VALUES ('cfo_notes',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value", (canonical_json(notes),))
+        store.conn.commit()
+        return applied
+
+    def cfo_rules(self) -> dict:
+        """Tri thức CFO screen: the rules, whether each is in use, and how it fared."""
+        path = self.config_path.parent / CFO_RULES_FILE
+        if not path.is_file():
+            return {"file": CFO_RULES_FILE, "rules": [], "missing": True}
+        rules = self._read_cfo_rules(path)
+        with Store(self.config) as store:
+            versions, states = {}, {}
+            for row in store.conn.execute("SELECT id,logical_key FROM knowledge_versions WHERE category='POLICY' AND logical_key LIKE 'CFO:%' ORDER BY revision"):
+                versions.setdefault(row["logical_key"][4:], set()).add(row["id"])
+                states[row["logical_key"][4:]] = self._knowledge_state(store, row["id"])
+            stats: dict[str, dict[str, Counter]] = {}
+            codes = [str(rule.get("ma") or "") for rule in rules]
+            for row in store.conn.execute("SELECT state,proposal_json,decision_json FROM quick_items"):
+                try:
+                    payload = json.loads(row["proposal_json"])
+                except (TypeError, json.JSONDecodeError):
+                    continue
+                why = str(payload.get("why") or "")
+                used = [code for code in codes if code and ((payload.get("policy") or {}).get("template_id") == code
+                                                           or payload.get("template_id") in versions.get(code, set())
+                                                           or f"— {code})" in why)]
+                if not used:
+                    continue
+                month = str(payload.get("business_date") or "")[:7]
+                offset = "credit_account" if int(payload.get("amount_minor", 0) or 0) > 0 else "debit_account"
+                if row["state"] in ("APPROVE", "EXPORTED"):
+                    decided = json.loads(row["decision_json"]) if row["decision_json"] else {}
+                    outcome = "giu_nguyen" if decided.get(offset, (payload.get("fields") or {}).get(offset)) == (payload.get("fields") or {}).get(offset) else "sua"
+                elif row["state"] == "SKIP":
+                    outcome = "bo_qua"
+                else:
+                    outcome = "cho"
+                for code in used:
+                    stats.setdefault(code, {}).setdefault(month, Counter())[outcome] += 1
+                    stats[code][month]["ap_dung"] += 1
+        result = []
+        for rule in rules:
+            code = str(rule.get("ma") or "")
+            note = str(rule.get("loai") or "QUY_TAC").upper() == "LUU_Y"
+            active = rule.get("tat") is not True and (note or states.get(code) == "APPROVED")
+            months = [{"thang": month, **dict(counter)} for month, counter in sorted((stats.get(code) or {}).items(), reverse=True)]
+            result.append({"ma": code, "loai": "LUU_Y" if note else "QUY_TAC", "dang_dung": active, "ngay_duyet": rule.get("ngay_duyet"),
+                           "dieu_kien": rule.get("dieu_kien") or rule.get("mo_ta") or "", "ket_qua": rule.get("ket_qua") or rule.get("noi_dung") or "",
+                           "mo_ta": rule.get("mo_ta") or "", "nguon": rule.get("nguon") or "", "thang": months})
+        return {"file": CFO_RULES_FILE, "rules": result}
+
+    def toggle_cfo_rule(self, code: object, enabled: object) -> dict:
+        """Switch one rule on/off: the file records it, the kho follows at once."""
+        code = text_id(code, "ma")
+        if not isinstance(enabled, bool):
+            raise DataError("CFO_RULES", "Trạng thái bật/tắt không hợp lệ.")
+        path = self.config_path.parent / CFO_RULES_FILE
+        if not path.is_file():
+            raise DataError("CFO_RULES", f"Không thấy tệp {CFO_RULES_FILE}.")
+        with self._mutation_lock:
+            document_value = json.loads(path.read_text(encoding="utf-8"))
+            found = [rule for rule in document_value.get("rules", []) if isinstance(rule, dict) and str(rule.get("ma") or "") == code]
+            if not found:
+                raise DataError("CFO_RULES", f"Không có quy tắc {code}.")
+            for rule in found:
+                if enabled:
+                    rule.pop("tat", None)
+                else:
+                    rule["tat"] = True
+            temporary = path.with_suffix(".json.tmp")
+            temporary.write_text(json.dumps(document_value, ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
+            temporary.replace(path)
+            with Store(self.config) as store:
+                self._import_cfo_rules(store, path, now_utc())
+        return self.cfo_rules()
 
     def _import_partner_directory(self, store: Store, path: Path, at: str) -> int:
         """Load the partner workbook as evidence, without creating catalog codes."""
@@ -359,9 +545,29 @@ class Operations:
                                                   "identifier_type": "TAX_ID", "value": tax_id, "counterparty": code,
                                                   "verified": True, "source_status": "JUNSKY_CATALOG", "reliability": "HIGH"},
                                       "evidence": ["JUNSKY_CATALOG"]})
-        if items:
+        # A reload ("Nạp lại" with a newer Junsky export) must not stage a
+        # second, overlapping version of every catalogue row: an unchanged row
+        # is kept, a changed one supersedes the current version.
+        latest = {}
+        for row in store.conn.execute("SELECT id,logical_key,payload_json,valid_from,valid_to FROM knowledge_versions WHERE category='CATALOG' ORDER BY logical_key,revision"):
+            latest[row["logical_key"]] = row
+        approved = {row[0] for row in store.conn.execute("""SELECT version_id FROM knowledge_events e WHERE action='APPROVE'
+                                                            AND NOT EXISTS (SELECT 1 FROM knowledge_events r WHERE r.version_id=e.version_id AND r.action='REVOKE')""")}
+        fresh = []
+        for item in items:
+            prior = latest.get(item["logical_key"])
+            if prior is not None:
+                try:
+                    same = json.loads(prior["payload_json"]) == item["payload"] and prior["valid_from"] == item["valid_from"] and prior["valid_to"] is None
+                except (TypeError, json.JSONDecodeError):
+                    same = False
+                if same and prior["id"] in approved:
+                    continue
+                item["supersedes_id"] = prior["id"]
+            fresh.append(item)
+        if fresh:
             knowledge = Knowledge(store)
-            identifiers = knowledge.stage_many(items, "HE_THONG_JUNSKY", at)
+            identifiers = knowledge.stage_many(fresh, "HE_THONG_JUNSKY", at)
             for identifier in identifiers: knowledge.approve(identifier, "HE_THONG_JUNSKY", at)
         self._derive_own_counterparty_codes(store)
 
@@ -448,6 +654,36 @@ class Operations:
                 return
             time.sleep(0.5)
 
+    def invoice_months(self) -> dict:
+        """V12: month folders of the invoice download tool, newest first."""
+        from ..nguon.that import invoice_months
+        root = Path(self.source_settings()["paths"].get("invoice") or "")
+        settings = self.source_settings()["settings"]
+        cutoff = str(settings.get("learning_cutoff") or "")
+        months = invoice_months(root) if str(root) else []
+        for item in months:
+            item["learning"] = bool(cutoff) and item["month"] <= cutoff[:7]
+        return {"root": str(root), "exists": root.is_dir(), "months": months, "learning_cutoff": cutoff}
+
+    def quick_invoice_month(self, month: str, progress=None) -> dict:
+        """V12: every XML of one month (mua vào + bán ra) as one run."""
+        import io
+        import zipfile
+        from ..nguon.that import invoice_month_files
+        root = Path(self.source_settings()["paths"].get("invoice") or "")
+        files = invoice_month_files(root, str(month or ""))
+        if not files:
+            raise DataError("INVOICE_MONTH_EMPTY", f"Không thấy hóa đơn XML của tháng {month} trong thư mục hóa đơn.")
+        buffer = io.BytesIO()
+        with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as archive:
+            for path in files:
+                # Fixed timestamps: the same month always yields the same file,
+                # so a second click reopens the earlier run.
+                info = zipfile.ZipInfo(path.parent.name + "/" + path.name, date_time=(1980, 1, 1, 0, 0, 0))
+                archive.writestr(info, path.read_bytes())
+        name = f"Hoa don {month}.zip"
+        return self.quick_upload(buffer.getvalue(), name, name, progress=progress)
+
     def quick_repropose(self, run_id: str, progress=None) -> dict:
         with self._mutation_lock, Store(self.config) as store:
             return QuickPosting(store).repropose(text_id(run_id, "run_id"), "NGUOI_VAN_HANH", progress=progress)
@@ -455,6 +691,35 @@ class Operations:
     def quick_rows(self, run_id: str) -> dict:
         with Store(self.config) as store:
             return QuickPosting(store).rows(run_id)
+
+    def quick_ai_note(self, run_id: str, item_id: str, note: str, actor: str = "CFO_NTD") -> dict:
+        with self._mutation_lock, Store(self.config) as store:
+            return QuickPosting(store).set_ai_note(run_id, item_id, note or "", actor)
+
+    def quick_ai_context(self, run_id: str, item_ids: list | None = None) -> dict:
+        """Write the Claude hand-off package next to the store and return it."""
+        run_id = text_id(run_id, "run_id")
+        with Store(self.config) as store:
+            result = QuickPosting(store).ai_context(run_id, item_ids)
+        folder = self.root / "ghi-chu-ai"
+        folder.mkdir(parents=True, exist_ok=True)
+        stamp = now_utc()[:19].replace(":", "").replace("-", "").replace("T", "-")
+        path = folder / f"{stamp}-{run_id[:8]}.md"
+        path.write_text(result["markdown"], encoding="utf-8")
+        latest = folder / "MOI-NHAT.md"
+        latest.write_text(result["markdown"], encoding="utf-8")
+        return {**result, "file": path.name, "folder_display": str(folder), "latest": latest.name}
+
+    def quick_score(self, run_id: str) -> dict:
+        """Grade a run against the Junsky vouchers and write the workbook."""
+        run_id = text_id(run_id, "run_id")
+        with Store(self.config) as store:
+            quick = QuickPosting(store)
+            scored = quick.score(run_id)
+            folder = self.root / "xuat-junsky" / run_id
+            path = quick.write_score_workbook(folder / "SO-VOI-JUNSKY.xlsx", scored)
+        return {"run_id": run_id, "summary": scored["summary"], "rows": scored["rows"], "names": scored["names"],
+                "answer_source": scored.get("answer_source", ""), "kind": scored.get("kind", "BANK"), "file": path.name, "folder_display": str(path.parent)}
 
     def quick_decide(self, run_id: str, items: list[dict], actor: str, at: str) -> dict:
         run_id = text_id(run_id, "run_id")
@@ -823,6 +1088,7 @@ class Operations:
             return datetime.fromtimestamp(max(stamps), timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z")
         partner_file = self.config_path.parent / "DANH MUC DOI TAC PLHN - BO SUNG STK VA DICH VU (nhap 24-09-2026).xlsx"
         return {"environment": self.config.environment, "entity_id": self.config.entity_id, "data_label": self.config.data_dir.name,
+                "storage_engine": store.engine, "storage_schema": getattr(store.conn, "schema", None),  # V13: thanh trên ghi "PostgreSQL · kho thử"
                 "ledger_to": until["ledger"], "open_item_to": until["open_item"], "journal_count": journals, "open_item_count": open_items,
                 "catalog_counts": catalog, "partner_accounts": partners, "partner_file": partner_file.name if partner_file.is_file() else "",
                 "junsky_loaded_at": junsky[0] if junsky else None, "anh_decisions": decisions,
@@ -831,6 +1097,8 @@ class Operations:
                 "paths": {key: paths[key] for key in ("junsky_catalog", "junsky_dgblist", "junsky_ledger")},
                 "learning_cutoff": settings["settings"].get("learning_cutoff") or "", "object_learning_from": settings["settings"].get("object_learning_from"),
                 "debt_accounts": settings["settings"].get("debt_accounts"), "cash_accounts": settings["cash_accounts"],
+                "scoring_mode": bool(settings["settings"].get("scoring_mode")), "local_ai": settings["settings"].get("local_ai") or {},
+                "answer_ledger_name": Path(settings["settings"]["answer_ledger"]).name if settings["settings"].get("answer_ledger") else "",
                 "bootstrap_job": job, "bootstrap_status": self.bootstrap_status, "junsky_import_enabled": False}
 
     def reload_sources(self) -> dict:
@@ -843,7 +1111,7 @@ class Operations:
         return {"job_id": self.bootstrap_job, "state": "RUNNING"}
 
     def save_learning_settings(self, values: dict) -> dict:
-        if not isinstance(values, dict) or set(values) - {"learning_cutoff", "object_learning_from", "debt_accounts"}:
+        if not isinstance(values, dict) or set(values) - {"learning_cutoff", "object_learning_from", "debt_accounts", "scoring_mode", "local_ai"}:
             raise DataError("SOURCE_SETTINGS", "Thiết lập mốc học không hợp lệ.")
         current = self.source_settings()
         return self.save_source_settings({"paths": current["paths"], "settings": {**{key: value for key, value in values.items()}}})
@@ -938,6 +1206,17 @@ class Operations:
     def runs(self) -> dict:
         with Store(self.config) as store:
             return {"rows": QuickPosting(store).runs()}
+
+    def open_ai_folder(self) -> dict:
+        """Open the folder holding the Claude hand-off packages (V11)."""
+        target = (self.root / "ghi-chu-ai").resolve()
+        target.mkdir(parents=True, exist_ok=True)
+        import os
+        opener = getattr(os, "startfile", None)
+        if opener is None:
+            return {"opened": False, "path": str(target)}
+        opener(str(target))
+        return {"opened": True, "path": str(target)}
 
     def open_export(self, run_id: str, name: str | None = None) -> dict:
         """Open the export folder (or one workbook) in Windows Explorer on this machine."""

@@ -421,7 +421,7 @@ class V9bQuickPostingTests(FeatureCase):
         self.assertEqual("PENDING_PATTERN_STRONG", strong["strength"])
         self.assertEqual("6427", strong["fields"]["debit_account"])
         self.assertEqual(["J1", "J2", "J3"], strong["source_ids"])
-        self.assertEqual([("6427", 90), ("1331", 10)], [(line["account"], line["amount_minor"]) for line in strong["pattern_lines"]])
+        self.assertEqual([("1331", 10), ("6427", 90)], sorted((line["account"], line["amount_minor"]) for line in strong["pattern_lines"]))  # V11: lines ordered by account
         divergent = list(history[:2]) + [self._learning_journal("J_DIFFERENT", "2026-08-03", lines=self._tax_split_lines("1332"))]
         weaker = journal_suggestion(bank, divergent, cutoff_day="2026-08-10", own_codes=set(), object_learning_from="2026-07-01")
         self.assertIsNotNone(weaker)

@@ -1,0 +1,190 @@
+{
+"contract": "m0-m5-trusted-demo-registry/v1",
+"status": "DRAFT_ROOT_REVIEW_REQUIRED_NOT_SEEDED",
+"authority": "ROOT_SANITIZED_SYNTHETIC_DEMO_ONLY",
+"actual_source_verification": "NOT_VERIFIED",
+"canonical_digest": "SHA256_UTF8_OF_canonical_json(payload):sort_keys=true;ensure_ascii=false;separators=comma_colon;allow_nan=false;no_trailing_newline",
+"provenance": {
+  "pure_fixture_manifest": {
+    "path": "../kho_10/manifest.json",
+    "sha256": "5d680a1cd4a691fba5d6eca7056bdc94f9fbf558b80e2415d97f9808215c8e66"
+  },
+  "raw_master_preparation_manifest_sha256": "3bfd70abb56ded266fa7fb48fd2049b96d4706e19f0e5f4ae5ed022b32db27a0",
+  "lineage_pins": {
+    "path": "lineage-pins.json",
+    "sha256": "418194019d14cb859f10ed2d545ace0e8c5e1c96b09f534a0a549d2d4f6e5f15"
+  }
+},
+"phap_nhan_aliases": [
+  {"fixture_alias":"DEMO_PN_A","existing_phap_nhan_ma":"PN_DEMO_A"},
+  {"fixture_alias":"DEMO_PN_B","existing_phap_nhan_ma":"PN_DEMO_B"}
+],
+"source_profiles": [
+  {
+    "reference_id": "urn:demo:m5:source-profile:f05eee570c7c8861b219ca97",
+    "sha256": "b8735806b72701dc6a4a54c3b3772e70326efbc812543b1c5969576be3eedb41",
+    "payload": {
+      "artifact_roles": [
+        {
+          "media_type": "application/json",
+          "required": true,
+          "role": "MASTER_RAW"
+        },
+        {
+          "media_type": "application/json",
+          "required": true,
+          "role": "NATIVE_DETAIL"
+        }
+      ],
+      "capture_contract": "m0-capture/v1",
+      "contract": "m0-source-profile/v1",
+      "coverage_values": [
+        "FULL_FOR_SINGLE_DETAIL_AND_REFERENCED_MASTER_ONLY",
+        "PARTIAL"
+      ],
+      "native_detail_shape": "kho10-detail/v1",
+      "precision_claim": "NONE_AT_SOURCE_PROFILE_LEVEL",
+      "quantity_json_kinds": [
+        "STRING",
+        "NUMBER",
+        "NULL"
+      ],
+      "source_code_sha256": "62f4658321ea6c6230a58cf850d49de43e2db826e5a66f807249de29af873e2c",
+      "transport": "ROOT_PINNED_LEXICAL_FILES_ONLY",
+      "verification": "SYNTHETIC_DEMO_ONLY_NOT_PRODUCTION_VERIFIED"
+    }
+  }
+],
+"source_instances": [
+  {"source_instance":"DEMO_KHO_A","profile_ref":"urn:demo:m5:source-profile:f05eee570c7c8861b219ca97","profile_sha256":"b8735806b72701dc6a4a54c3b3772e70326efbc812543b1c5969576be3eedb41"},
+  {"source_instance":"DEMO_KHO_B","profile_ref":"urn:demo:m5:source-profile:f05eee570c7c8861b219ca97","profile_sha256":"b8735806b72701dc6a4a54c3b3772e70326efbc812543b1c5969576be3eedb41"}
+],
+"configured_scopes": [
+  {"source_instance":"DEMO_KHO_A","profile_ref":"urn:demo:m5:source-profile:f05eee570c7c8861b219ca97","profile_sha256":"b8735806b72701dc6a4a54c3b3772e70326efbc812543b1c5969576be3eedb41","scope_ref":"urn:demo:m5:scope:f08b4a9bf0c11f07cee2f2fc","MaKho":"KHO_DEMO","SoPhieu":"NK20260814001","sections":["GD_Dong","GD_Phieu","MASTER_WHITELIST"],"coverage_binding":"REPORTED_PER_CAPTURE_NOT_IMMUTABLE_SCOPE_FACT"},
+  {"source_instance":"DEMO_KHO_B","profile_ref":"urn:demo:m5:source-profile:f05eee570c7c8861b219ca97","profile_sha256":"b8735806b72701dc6a4a54c3b3772e70326efbc812543b1c5969576be3eedb41","scope_ref":"urn:demo:m5:scope:90e1a693fba951fe386c0e16","MaKho":"KHO_DEMO","SoPhieu":"NK20260814001","sections":["GD_Dong","GD_Phieu","MASTER_WHITELIST"],"coverage_binding":"REPORTED_PER_CAPTURE_NOT_IMMUTABLE_SCOPE_FACT"}
+],
+"warehouse_mappings": [
+  {"source_instance":"DEMO_KHO_A","profile_ref":"urn:demo:m5:source-profile:f05eee570c7c8861b219ca97","profile_sha256":"b8735806b72701dc6a4a54c3b3772e70326efbc812543b1c5969576be3eedb41","reference_id":"DEMO_MAP_A_V1","revision":1,"subject_kind":"WAREHOUSE","MaKho":"KHO_DEMO","fixture_pn_alias":"DEMO_PN_A","phap_nhan_ma":"PN_DEMO_A","state":"ROOT_PREPARED_DEMO_APPROVED_ONLY","valid_from":"2026-01-01T00:00:00Z","valid_to":null,"actual_mapping_verification":"NOT_VERIFIED"},
+  {"source_instance":"DEMO_KHO_B","profile_ref":"urn:demo:m5:source-profile:f05eee570c7c8861b219ca97","profile_sha256":"b8735806b72701dc6a4a54c3b3772e70326efbc812543b1c5969576be3eedb41","reference_id":"DEMO_MAP_B_V1","revision":1,"subject_kind":"WAREHOUSE","MaKho":"KHO_DEMO","fixture_pn_alias":"DEMO_PN_B","phap_nhan_ma":"PN_DEMO_B","state":"ROOT_PREPARED_DEMO_APPROVED_ONLY","valid_from":"2026-01-01T00:00:00Z","valid_to":null,"actual_mapping_verification":"NOT_VERIFIED"}
+],
+"master_content_catalog": [
+  {"reference_id":"urn:demo:m5:master:7aea96355efd196e316f1ccc","raw_sha256":"3a806526917dac322ee9ba4c6f7ea5ed88e02b780ea282c0300465e980e16801","raw_path":"masterraw/K01.json","byte_length":548},
+  {"reference_id":"urn:demo:m5:master:4bc13845117c9bfad17bbb2f","raw_sha256":"a232e15b51faf6423e94f935bc6ecd082d8730f0b9983b11b9cb3d7700dc1123","raw_path":"masterraw/K09.json","byte_length":548},
+  {"reference_id":"urn:demo:m5:master:d1d891226e6ea7605a8e6d96","raw_sha256":"be8849306a58e04c94ae1d5dc44ab9d5074c1541fac36669c1e12b55bd88bdd5","raw_path":"masterraw/K10.json","byte_length":545}
+],
+"measurement_facts": [
+  {
+    "source_instance": "DEMO_KHO_A",
+    "profile_ref": "urn:demo:m5:source-profile:f05eee570c7c8861b219ca97",
+    "profile_sha256": "b8735806b72701dc6a4a54c3b3772e70326efbc812543b1c5969576be3eedb41",
+    "declaration_ref": "ROOT_DEMO_CAI_EXACT_TEXT_38_12_V1",
+    "payload_sha256": "4ef4dcf27d5044a76729d6f617b4381c6fff0fcced4bdf9f9315c638ffd515f1",
+    "payload": {
+      "authority_origin": "EXPLICIT_ROOT_SYNTHETIC_DEMO_ONLY",
+      "declaration_ref": "ROOT_DEMO_CAI_EXACT_TEXT_38_12_V1",
+      "declared_encoding_kind": "EXACT_TEXT_SYNTHETIC_ONLY",
+      "measurement_profile_ref": "DEMO_EXACT_TEXT_CAI_A_V1",
+      "quantity_domain": {
+        "precision": 38,
+        "scale": 12
+      },
+      "same_unit_ratio_evidence": {
+        "denominator_text": "1",
+        "measurement_profile_ref": "DEMO_EXACT_TEXT_CAI_A_V1",
+        "numerator_text": "1",
+        "unit_definition_ref": "DEMO_UNIT_CAI_A"
+      },
+      "source_instance": "DEMO_KHO_A",
+      "source_profile_ref": "urn:demo:m5:source-profile:f05eee570c7c8861b219ca97",
+      "unit_definition": {
+        "native_unit_code": "CAI",
+        "reference_id": "DEMO_UNIT_CAI_A"
+      }
+    },
+    "provenance_context": {
+      "path": "../kho_10/contexts/K01.json",
+      "sha256": "5bd119344d7c02e1340b8ef5c5407bbabec97e5e06a895bff070b74fa2fc9182",
+      "pointer": "/resolved_measurement_facts"
+    },
+    "resolution_preconditions": {
+      "actual_master_sha256": "3a806526917dac322ee9ba4c6f7ea5ed88e02b780ea282c0300465e980e16801",
+      "all_referenced_native_master_units": "CAI",
+      "all_present_nonnull_quantity_json_kinds": [
+        "STRING"
+      ],
+      "requires_at_least_one_quantity_string": true
+    },
+    "non_matching_resolution": "NULL_PLUS_ISSUES_HOLD_NO_DEFAULT_PROOF"
+  },
+  {
+    "source_instance": "DEMO_KHO_B",
+    "profile_ref": "urn:demo:m5:source-profile:f05eee570c7c8861b219ca97",
+    "profile_sha256": "b8735806b72701dc6a4a54c3b3772e70326efbc812543b1c5969576be3eedb41",
+    "declaration_ref": "ROOT_DEMO_CAI_EXACT_TEXT_38_12_V1",
+    "payload_sha256": "75c34bafb939b121c6837ec42102fdee51e3f60b2886e559d48690d216263548",
+    "payload": {
+      "authority_origin": "EXPLICIT_ROOT_SYNTHETIC_DEMO_ONLY",
+      "declaration_ref": "ROOT_DEMO_CAI_EXACT_TEXT_38_12_V1",
+      "declared_encoding_kind": "EXACT_TEXT_SYNTHETIC_ONLY",
+      "measurement_profile_ref": "DEMO_EXACT_TEXT_CAI_B_V1",
+      "quantity_domain": {
+        "precision": 38,
+        "scale": 12
+      },
+      "same_unit_ratio_evidence": {
+        "denominator_text": "1",
+        "measurement_profile_ref": "DEMO_EXACT_TEXT_CAI_B_V1",
+        "numerator_text": "1",
+        "unit_definition_ref": "DEMO_UNIT_CAI_B"
+      },
+      "source_instance": "DEMO_KHO_B",
+      "source_profile_ref": "urn:demo:m5:source-profile:f05eee570c7c8861b219ca97",
+      "unit_definition": {
+        "native_unit_code": "CAI",
+        "reference_id": "DEMO_UNIT_CAI_B"
+      }
+    },
+    "provenance_context": {
+      "path": "../kho_10/contexts/K02.json",
+      "sha256": "36a915875ba8611a0c34f575a380a5509c643463c2b92e06ff8956a6962e39a4",
+      "pointer": "/resolved_measurement_facts"
+    },
+    "resolution_preconditions": {
+      "actual_master_sha256": "3a806526917dac322ee9ba4c6f7ea5ed88e02b780ea282c0300465e980e16801",
+      "all_referenced_native_master_units": "CAI",
+      "all_present_nonnull_quantity_json_kinds": [
+        "STRING"
+      ],
+      "requires_at_least_one_quantity_string": true
+    },
+    "non_matching_resolution": "NULL_PLUS_ISSUES_HOLD_NO_DEFAULT_PROOF"
+  }
+],
+"actors": [
+  {"login":"MO_PHONG_M0_KHO_A","role":"KE_TOAN","source_capabilities":[{"source_instance":"DEMO_KHO_A","profile_ref":"urn:demo:m5:source-profile:f05eee570c7c8861b219ca97","profile_sha256":"b8735806b72701dc6a4a54c3b3772e70326efbc812543b1c5969576be3eedb41","actions":["INTAKE","READ_SOURCE"],"allowed_target_pn_ma":[]}],"business_grants":[]},
+  {"login":"MO_PHONG_M0_KHO_B","role":"KE_TOAN","source_capabilities":[{"source_instance":"DEMO_KHO_B","profile_ref":"urn:demo:m5:source-profile:f05eee570c7c8861b219ca97","profile_sha256":"b8735806b72701dc6a4a54c3b3772e70326efbc812543b1c5969576be3eedb41","actions":["INTAKE","READ_SOURCE"],"allowed_target_pn_ma":[]}],"business_grants":[]},
+  {"login":"MO_PHONG_KT_KHO_A","role":"KE_TOAN","source_capabilities":[],"business_grants":[{"fixture_pn_alias":"DEMO_PN_A","phap_nhan_ma":"PN_DEMO_A","module":"M5","actions":["M5_READ","M5_FILE_SOAT"],"duyet_loai_viec":[]}]},
+  {"login":"MO_PHONG_KT_KHO_B","role":"KE_TOAN","source_capabilities":[],"business_grants":[{"fixture_pn_alias":"DEMO_PN_B","phap_nhan_ma":"PN_DEMO_B","module":"M5","actions":["M5_READ","M5_FILE_SOAT"],"duyet_loai_viec":[]}]},
+  {"login":"MO_PHONG_CFO_KHO_A","role":"CFO","source_capabilities":[{"source_instance":"DEMO_KHO_A","profile_ref":"urn:demo:m5:source-profile:f05eee570c7c8861b219ca97","profile_sha256":"b8735806b72701dc6a4a54c3b3772e70326efbc812543b1c5969576be3eedb41","actions":["SOURCE_MAP"],"allowed_target_pn_ma":["PN_DEMO_A"]}],"business_grants":[{"fixture_pn_alias":"DEMO_PN_A","phap_nhan_ma":"PN_DEMO_A","module":"M5","actions":["M5_READ","M5_FILE_SOAT","M5_MAP_V4","M5_SOURCE_REVIEW_V8"],"duyet_loai_viec":["V4","V8"]}]},
+  {"login":"MO_PHONG_CFO_KHO_B","role":"CFO","source_capabilities":[{"source_instance":"DEMO_KHO_B","profile_ref":"urn:demo:m5:source-profile:f05eee570c7c8861b219ca97","profile_sha256":"b8735806b72701dc6a4a54c3b3772e70326efbc812543b1c5969576be3eedb41","actions":["SOURCE_MAP"],"allowed_target_pn_ma":["PN_DEMO_B"]}],"business_grants":[{"fixture_pn_alias":"DEMO_PN_B","phap_nhan_ma":"PN_DEMO_B","module":"M5","actions":["M5_READ","M5_FILE_SOAT","M5_MAP_V4","M5_SOURCE_REVIEW_V8"],"duyet_loai_viec":["V4","V8"]}]},
+  {"login":"MO_PHONG_VIEW_KHO_A","role":"XEM","source_capabilities":[],"business_grants":[{"fixture_pn_alias":"DEMO_PN_A","phap_nhan_ma":"PN_DEMO_A","module":"M5","actions":["M5_READ"],"duyet_loai_viec":[]}]},
+  {"login":"MO_PHONG_M1_ONLY_KHO_A","role":"KE_TOAN","source_capabilities":[],"business_grants":[{"fixture_pn_alias":"DEMO_PN_A","phap_nhan_ma":"PN_DEMO_A","module":"M1","actions":["M1_READ"],"duyet_loai_viec":[]}]}
+],
+"boundaries": {
+  "server_resolves": "SESSION_ACTOR_EXISTING_PN_UUID_PROFILE_SCOPE_MAPPING_MASTER_MEASUREMENT_FACTS",
+  "browser_may_not_supply": [
+    "trusted",
+    "PROVEN",
+    "actor",
+    "PN",
+    "resolved_measurement_facts",
+    "ratio",
+    "approval"
+  ],
+  "history": "NO_EXPECTED_K01_K10_HISTORY_OR_ACCEPTANCE_SEEDED;REPOSITORY_OBSERVATIONS_AND_AUTHORIZED_REVIEW_ONLY",
+  "master_content": "CONTENT_REUSE_NEVER_GRANTS_SOURCE_ACCESS;CAPTURE_ROLE_EDGE_IS_SOURCE_SCOPED",
+  "source_profile": "TEXT_NUMBER_NULL_CAPTURED;NO_INSTANCE_WIDE_EXACT_PRECISION_CLAIM",
+  "fixture_aliases": "PURE_KHO10_CONTEXT_LABELS_UNCHANGED;SERVICE_RESOLVES_TO_EXISTING_PN_MA_AND_UUID",
+  "seed": "ADDITIVE_ONLY;NO_CRM_USER_MODULE_RESET;NO_M9_GRANT;NO_PRODUCTION_POLICY"
+}
+}

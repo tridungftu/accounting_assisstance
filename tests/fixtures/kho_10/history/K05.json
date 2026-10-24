@@ -1,0 +1,83 @@
+{
+  "summary_kind": "SYNTHETIC_PRIOR_STATE",
+  "authority_ref": "urn:demo:m5:authority:aa4355fb14c2d2b8c8c9c3a3",
+  "logical_source_identity": {
+    "source_instance": "DEMO_KHO_A",
+    "SoPhieu": "NK20260814001"
+  },
+  "scope_ref": "urn:demo:m5:scope:f08b4a9bf0c11f07cee2f2fc",
+  "profile_ref": "urn:demo:m5:source-profile:f05eee570c7c8861b219ca97",
+  "receipts_seen": [
+    {
+      "receipt_id": "urn:demo:m5:receipt:58d56af01b415cdacb48f5bb",
+      "request_reference_id": "urn:demo:m5:request-ref:6afb00c7263fd3fe5e170a70",
+      "request_digest": "ffdc829509dcbe0cdaae8cebec18ea9b2fec5682980ec596e8c4eb55ea26134f",
+      "content_digest": "be78c67b5d6d81c160f0cd7c6023c6d1c9c15bb3d804bdfb9e5b9bc26428d032",
+      "content_reference_id": "urn:demo:m5:content-ref:a867955ff8bf4f760fcf8ca8",
+      "binding_state": "INDEPENDENT_ROOT_PRIOR_NATIVE_BOUND"
+    },
+    {
+      "receipt_id": "urn:demo:m5:receipt:66dc6b4cf3a4122f8e91bb0d",
+      "request_reference_id": "urn:demo:m5:request-ref:7bbdab2c2b0badda53d9f3df",
+      "request_digest": "fdc64096a3ac2392b6d04fb6c9f0b9a91533f447a1e1dbd14f584c36ea7a8d6e",
+      "content_digest": "96e40a19df5238494b2e6a1c0742ca36a332ddec9a9c5aa237acad9f657fd033",
+      "content_reference_id": "urn:demo:m5:content-ref:125ab0ed92baa38853912152",
+      "binding_state": "INDEPENDENT_ROOT_PRIOR_NATIVE_BOUND"
+    }
+  ],
+  "seen_content_references": [
+    {
+      "reference_id": "urn:demo:m5:content-ref:a867955ff8bf4f760fcf8ca8",
+      "logical_source_identity": {
+        "source_instance": "DEMO_KHO_A",
+        "SoPhieu": "NK20260814001"
+      },
+      "native_raw_sha256": "56037f2e8145d0ca57b947e7213e03a4586ba601dc741b5ef554858f89df1107",
+      "master_raw_subtree_sha256": "3a806526917dac322ee9ba4c6f7ea5ed88e02b780ea282c0300465e980e16801",
+      "semantic_digest": "be78c67b5d6d81c160f0cd7c6023c6d1c9c15bb3d804bdfb9e5b9bc26428d032",
+      "binding_state": "INDEPENDENT_ROOT_PRIOR_NATIVE_BOUND"
+    },
+    {
+      "reference_id": "urn:demo:m5:content-ref:125ab0ed92baa38853912152",
+      "logical_source_identity": {
+        "source_instance": "DEMO_KHO_A",
+        "SoPhieu": "NK20260814001"
+      },
+      "native_raw_sha256": "3d19195d8f044cf7716394db90fa51ffb99e8ecf8671ace410046c6fe20d4f40",
+      "master_raw_subtree_sha256": "3a806526917dac322ee9ba4c6f7ea5ed88e02b780ea282c0300465e980e16801",
+      "semantic_digest": "96e40a19df5238494b2e6a1c0742ca36a332ddec9a9c5aa237acad9f657fd033",
+      "binding_state": "INDEPENDENT_ROOT_PRIOR_NATIVE_BOUND"
+    }
+  ],
+  "seen_content_digests": [
+    "96e40a19df5238494b2e6a1c0742ca36a332ddec9a9c5aa237acad9f657fd033",
+    "be78c67b5d6d81c160f0cd7c6023c6d1c9c15bb3d804bdfb9e5b9bc26428d032"
+  ],
+  "accepted_source": {
+    "content_reference_id": "urn:demo:m5:content-ref:125ab0ed92baa38853912152",
+    "content_digest": "96e40a19df5238494b2e6a1c0742ca36a332ddec9a9c5aa237acad9f657fd033",
+    "observation_ref": "urn:demo:m5:observation:e0a898d41b1a3f6064a5d90b",
+    "source_state": "DA_DAO",
+    "actual_event_history_verification": "NOT_VERIFIED"
+  },
+  "old_line_unit_basis_refs": [
+    {
+      "native_line_id": "ID_1786672800001",
+      "unit_definition_ref": "DEMO_UNIT_CAI_A",
+      "basis_ref": "urn:demo:m5:basis:42eae32f2991f9041c0a0560",
+      "proof_ref": "urn:demo:m5:proof:1642e70d92d2c996ed300922",
+      "proof_authority": "ROOT_SYNTHETIC_PRIOR_BASIS_ONLY",
+      "actual_source_proof_verification": "NOT_VERIFIED"
+    },
+    {
+      "native_line_id": "ID_1786672800002",
+      "unit_definition_ref": "DEMO_UNIT_CAI_A",
+      "basis_ref": "urn:demo:m5:basis:214c7ecd558597702f58702f",
+      "proof_ref": "urn:demo:m5:proof:1642e70d92d2c996ed300922",
+      "proof_authority": "ROOT_SYNTHETIC_PRIOR_BASIS_ONLY",
+      "actual_source_proof_verification": "NOT_VERIFIED"
+    }
+  ],
+  "digest_binding_state": "INDEPENDENT_DEMO_PRIOR_BINDING_NOT_PRODUCT_RESULT",
+  "actual_repository_state": "NOT_VERIFIED_NOT_CREATED"
+}

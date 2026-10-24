@@ -1,0 +1,41 @@
+# Review L11 service/seed/test — frozen01
+
+**STATIC_REVIEW / RUNTIME_NOT_RUN / REPAIR_REQUIRED.** Review trên final273 manifest`22c58d26171217b869dca4e74d483feb7313f5e1f4883e4166ea15e900c2bccf`, không partial active code. Không execute/import/test/SQL/HTTP/GUI hoặc sửa product/fixtures. Căn cứ public handoff`ce65bd92`/cases`6ab9e660`, accepted R15 manifest`8002cbe3`. Findings dưới là code-proven gaps/counterexamples, không tuyên bố runtime exploit; shared SQL findings chỉ đếm một lần với migration review.
+
+## Pins và phạm vi đã đọc
+
+| File | SHA256 | Full read coverage |
+|---|---|---|
+| k2/lien_ket_chung.py | `9f256e3b622ded3a0ec10fb6ee471f358ae95173f7e7b7d2295d81805b074b8b` | Entire final diff vs R15, quantity extension68–124; old money functions không đổi |
+| k2/kho_so_luong.py | `306660bf1aaae103f60c63268fe8375e7292056cb94f181adf6a7c2dc9cfcf2a` | Entire diff, new L11744–1002; reused RR/owner TX78–127 rechecked |
+| k2/hoa_don.py | `552931867ffe4a9b43ead1d7f227da9e214a724691e33cd624414a23271cc160` | Entire diff; RLS child derivative inside existing RR snapshot |
+| k2/l11_demo.py | `522f05d9a7e35dafa3f684dabe6f41d83c7334e55c69827f29f6c33068ef6191` | FULL258 |
+| k2/quyen.py | `0e2c344bf58fc34a590542255a2ba18f3a6bb9d4ff91049453f6e3df37462bcb` | Entire diff + actual identity/role/module/work guards |
+| k2/nguon_chung.py | `c4772a84ae8b59688fbf5308d288944aff3beb0098f21b2e312cc7f5b84a3b97` | Entire diff; typed scopePN/old envelope branches preserved |
+| k2/crm_khoi_dong.py | `4016f3e4703446cd0e0a629c53c4b48a2ed0b83feb86fda45e7a209b335636f4` | Entire diff; additive l11 seed after crm/m5/m2 |
+| tests/test_l11_k2.py | `90d6156deeea3102f2aab67101ab6861c7818c750b3920ca1136bfa70ebbabee` | FULL548 |
+| ha_tang/pg_migrations.py | `92562517a53a233cf54090cd6b6f809c0d9419846f53be31833bb67c1ffbc057` | Selected SQL6509–6538,6552–6592,6620–6812,6813–6878,7020–7374,7812–7851,7940–8007; full SQL audit belongs migration review |
+
+## Material findings
+
+1. **P1 — preview can disclose an unauthorized peer PN.** `kho.l11_xem_truoc`7364–7373 checks BOTH READ only on invoice bridge PN_A; owner-definer evaluation7230–7253 loads arbitrary warehouse PB-line/PD/PB/encodings, only appends crossPN blocker. Response7350–7361 still includes peer latest/accepted/eligible/mapping graph, raw unit, PB/core/logical/pool refs; budget7301–7302 uses internal unscoped helper. A PN_A actor with previously known PN_B line ID can request A↔B and obtain B metadata (and B budget with known encoding). Reject unauthorized/mismatched peer before evaluation/response/locks; IDs are not authority. Testt04 uses wrong samePN line; no crossPN private sentinel control. Shared with migration reviewer.
+
+2. **P1 — exact source domain is not fully preserved/checked for goods and encoding.** GOODS approval6863–6873 stores item codes and `supporting_native_bindings` only, losing raw `domain` sourceinstance/profileSHA/company/warehouse mapping context. Pair7277–7286 matches hashes/identity/item/locator/master/line but not domain sourceinstance/profile/mapping tuple. M2 encoding7124–7125 checks support profile ref/SHA, omits `support_source_instance_id` against actual snapshot instance. Static counterexample: first admit same G01 bytes via configured instance B with same profile ref/SHA and PN_A company map; A-only unit/goods declaration can be reused despite explicit A domain. Keep/check the full authoritative source context under SQL; label/profile/hash alone does not prove context. Related missing M5 `measurement_payload_sha256` checks in goods/ratio7283–7298 and M5 encoding7155–7168 are already root-identified; group without double-counting. Supporting raw declaration locators must be validated against actual artifact bytes/current fields, not claimed catalog FK/self-H alone.
+
+3. **P1 shared — native cross proof is applied to pool quantities.** Pair7293 compares proof units to pool units and7325 uses `v_pa * ratio = v_pb * denominator`; public contract requires native A/B equality independently from own-pool conversions. Identity-only examples can pass while nonidentity native→pool encoding violates the contract. Root/coder report already identifies this; testt07 uses1:1 own encodings and cannot close it.
+
+4. **P1 shared — source/proof impact protocol remains incomplete.** Service delegates mutations to existing DB paths; coder report§5.1 admits AFTER triggers instead of precollecting all affected roots/pools before tuple mutation across old entrypoints. This cannot establish canonical whole-closure order or causal confirm/revoke/source guarantees. Keep raw intake authority distinct from human BOTH V2, but perform synchronous trusted-owner closure under the required shared gates; no policy decision from Anh is missing.
+
+5. **P1 shared — generic legacy parent UPDATE can retarget into typed source graph.** Parent trigger7812–7850 checks M2/M5 endpoints only inside INSERT7829. Existing genuine ownerNULL parent may keep typed owner/subject fieldsNULL yet UPDATE core endpoints to samePN M2/M5 IDs; legacy M1/NULL-owner UPDATE policy remains relevant. Preserve genuine legacy behavior but apply new-endpoint admission to UPDATE too, without broad revoke. Independently confirmed selected source; migration reviewer reported same finding first.
+
+6. **P2 — proof coverage/error intake does not affect admissibility.** Service770–835 retains coverage/errors in COMMON receipt; candidate SQL6685–6767 never includes coverage_hieu_luc/reported_errors in issues, confirm6813–6850 trusts UNG_VIEN. Exact configured proof bytes submitted PARTIAL_INPUT/UNKNOWN or with nonempty reported_errors can therefore reach CFO approval as ordinary complete input. Profile says COMPLETE_INPUT is one submitted proof complete; incomplete/unknown/conflicting capture needs an explicit HOLD/resolution guard, not equal implicit trust. Testt01 uses only COMPLETE_INPUT. This finding is distinct from byte/hash/parser validation; raw retention should remain allowed.
+
+## Structural closures and test safety
+
+- Pool grain is correct: SQL7940–7962 references exactly-one stable **LINE** ID (`hoa_don_dong_id` / `phieu_dong_id`) with samePN document composite FKs, UNIQUE per line+L11. Encoding selects by logical line7142/7169. Split two rows of one SoPhieu has two warehouse pools6/6 and one document-pair parent; the ambiguous handoff wording did not become document-wide capacity.
+- Service uses real current identity, DB definer checks and same configured owner TX for raw+stages/FILE; RR read-only snapshot wrapper is retained for picker/proof list/preview. Request shape rejects browser factor/kind/PN/owner/pool authority and nonstring/nonexact amounts. No money helper is called by L11 extension; unchanged old source FILE message/format branch remains deliberate.
+- Seed FULL258 reads pinned public fixture membership; profile literal canonical3cc2…, two declaration docs retain exact bytes and separate docbasis vs parent nativeURN; new actors only when neither marker nor login exists, old grants/revocations not rewritten. No approved proof/pool/encoding/child is seeded. Actual admissions/support-locator semantic gaps above remain separate.
+- Test safety CLOSED for root-reviewed fresh retained DEMO execution under original guard/watchdog: PG class gated by KHO_PG_DSN_TEST, creates new kho_test_l11_* DB/new app_web member and uses real services; no DROP/DELETE/cleanup/shell or source write. Pure three methods have no DB. Stateful t00–t11 can cascade after setup failure; errors/empty setup must not count as acceptance.
+- `raises`164–168 accepts broad substrings such as `L11_`/permission text; `dem`151–162 checks selected counts/states, not all rows/sequences/files. It is not an independent exact-denial/zero-delta oracle. Q02 multipool/Q03 K01fraction/Q04 comprehensive changes/Q05/Q07 period/inactive/Q09 are explicitly incomplete; no GUI/XLSX cell/causal-race claim. Independent probes must preserve positive controls and exact errors/full observer.
+
+**Conclusion:** source presence and safety review permit only separately authorized fresh-DEMO checks; these findings prevent L11 acceptance. Actual adapter signatures are documented privately from final source, without importing or executing product.

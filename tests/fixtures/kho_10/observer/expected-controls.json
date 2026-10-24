@@ -1,0 +1,167 @@
+{
+  "status": "PLANNED_NOT_RUN",
+  "product_input": false,
+  "original_oracle_reference": {
+    "path": "expected-casefacts.json",
+    "sha256": "8e260e2c2dd979c87b8f614ef084dd0e83d8c336aba5fcc4590602daff26aabb"
+  },
+  "classification_digest_gate": "ROOT_INDEPENDENT_BINDINGS_READY_EXPECTED_DATA_ONLY_PRODUCT_NOT_RUN",
+  "future_database_preconditions": {
+    "K04_K05_K09": "MATCHED6_IS_FUTURE_API_SETUP_NOT_ACTUAL_CREATED_LINKS"
+  },
+  "control_count": 19,
+  "controls": [
+    {
+      "id": "C01",
+      "raw_ref": "K03",
+      "context_ref": "FRESH_RECEIPT",
+      "history_ref": "K03",
+      "expected_relation": "SAME_CONTENT_FRESH_OBSERVATION_NOT_REPLAY",
+      "status": "NOT_RUN"
+    },
+    {
+      "id": "C02",
+      "raw_ref": "BOM",
+      "context_ref": "K01",
+      "history_ref": "K01",
+      "expected_relation": "READABLE_NATIVE_BOM_RAW_SHA_DIFF_SEMANTIC_EQUAL_AFTER_BIND",
+      "status": "NOT_RUN"
+    },
+    {
+      "id": "C03",
+      "raw_ref": "K04",
+      "context_ref": "K04",
+      "history_ref": "K04",
+      "expected_relation": "REVERSED_STATUS_CONTENT_DIFF_AFTER_BIND",
+      "status": "NOT_RUN"
+    },
+    {
+      "id": "C04",
+      "raw_ref": "K02",
+      "context_ref": "K02",
+      "history_ref": "K02",
+      "expected_relation": "INSTANCE_B_LOGICAL_IDENTITY_DISTINCT_FROM_A",
+      "status": "NOT_RUN"
+    },
+    {
+      "id": "C05",
+      "raw_ref": "K09",
+      "context_ref": "K09",
+      "history_ref": "K09",
+      "expected_relation": "HOLD_CONTINUITY_NO_NEW_FACTOR_OR_BASIS",
+      "status": "NOT_RUN"
+    },
+    {
+      "id": "C06",
+      "raw_ref": "K08",
+      "context_ref": "K08",
+      "history_ref": "K08",
+      "expected_relation": "NULL_NOT_ZERO_FRACTION_NUMBER_UNPROVEN_TOKEN_KINDS_PRESERVED",
+      "status": "NOT_RUN"
+    },
+    {
+      "id": "C07",
+      "raw_ref": "K03",
+      "context_ref": "K03",
+      "history_ref": "K03",
+      "expected_relation": "REPLAY_SAME_RECEIPT_REQUEST_CONTENT_AFTER_BIND",
+      "status": "NOT_RUN"
+    },
+    {
+      "id": "C08",
+      "raw_ref": "K05",
+      "context_ref": "K05",
+      "history_ref": "K05",
+      "expected_relation": "REAPPEARANCE_HOLD_ACCEPTED_B_NO_REOPEN",
+      "status": "NOT_RUN"
+    },
+    {
+      "id": "C09",
+      "raw_ref": "K01",
+      "context_ref": "K01",
+      "history_ref": null,
+      "expected_relation": "HISTORY_UNAVAILABLE_PENDING",
+      "status": "NOT_RUN"
+    },
+    {
+      "id": "C10",
+      "raw_ref": "K01",
+      "context_ref": "K01",
+      "history_ref": "K02",
+      "expected_relation": "SUMMARY_IDENTITY_SCOPE_MISMATCH_ISSUE_UNKNOWN",
+      "status": "NOT_RUN"
+    },
+    {
+      "id": "C11",
+      "raw_ref": "WRAPPER",
+      "context_ref": "K01",
+      "history_ref": "K01",
+      "expected_relation": "NATIVE_SHAPE_REJECT_NO_OBSERVER_METADATA_IN_BODY",
+      "status": "NOT_RUN"
+    },
+    {
+      "id": "C12",
+      "raw_ref": "DUPLICATE_KEY",
+      "context_ref": "K01",
+      "history_ref": "K01",
+      "expected_relation": "DUPLICATE_JSON_KEY_REJECT",
+      "status": "NOT_RUN"
+    },
+    {
+      "id": "C13",
+      "raw_ref": "NONFINITE",
+      "context_ref": "K01",
+      "history_ref": "K01",
+      "expected_relation": "NONFINITE_JSON_TOKEN_REJECT",
+      "status": "NOT_RUN"
+    },
+    {
+      "id": "C14",
+      "raw_ref": "ORPHAN",
+      "context_ref": "K01",
+      "history_ref": "K01",
+      "expected_relation": "ORPHAN_SO_PHIEU_ISSUE_NO_LAST_WINS",
+      "status": "NOT_RUN"
+    },
+    {
+      "id": "C15",
+      "raw_ref": "INVALID_DATE",
+      "context_ref": "K01",
+      "history_ref": "K01",
+      "expected_relation": "INVALID_DATE_ISSUE_NO_INVENTED_DATE",
+      "status": "NOT_RUN"
+    },
+    {
+      "id": "C16",
+      "raw_ref": "K01",
+      "context_ref": "MAPPING_MISMATCH",
+      "history_ref": "K01",
+      "expected_relation": "CONTEXT_MAPPING_SCOPE_MISMATCH_ISSUE",
+      "status": "NOT_RUN"
+    },
+    {
+      "id": "C17",
+      "raw_ref": "K10",
+      "context_ref": "K10",
+      "history_ref": "K10",
+      "expected_relation": "UNKNOWN_UOM_NO_DEFAULT1",
+      "status": "NOT_RUN"
+    },
+    {
+      "id": "C18",
+      "raw_ref": "K09",
+      "context_ref": "K09",
+      "history_ref": "K09",
+      "expected_relation": "DVT_QUY_DOI12_NOT_APPROVED_PROOF",
+      "status": "NOT_RUN"
+    },
+    {
+      "id": "C19",
+      "raw_ref": "K05",
+      "context_ref": "K05",
+      "history_ref": "K05",
+      "expected_relation": "INPUT_NATIVE_CONTEXT_HISTORY_BYTES_UNCHANGED",
+      "status": "NOT_RUN"
+    }
+  ]
+}
