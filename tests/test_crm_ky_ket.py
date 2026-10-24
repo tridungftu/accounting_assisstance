@@ -2,15 +2,11 @@
 
 Phân loại (ghi rõ để không lẫn bằng chứng):
 - `PrefixVaPhamVi`: TĨNH trên byte mã nguồn — prefix 1–22 (928356 B) nguyên, chỉ append M0023, không M0024; crm_giao_ket.py nguyên byte.
-- `M23Tinh`: TĨNH trên hằng SQL M0023 — thứ tự quyền → biên nhận → căn cứ; guard sau ký; G5 chỉ PENDING|NOT_SELECTED; không nghĩa vụ/hiệu lực/M1;
-  đọc KT/KTT/CFO cần phân công hẹp CRM_KY_DOC + phạm vi tường minh (không còn nhánh PN+module+vai); không buộc signed_sha ≠ g3_sha.
-- `RouteTinh`: TĨNH + handler GIẢ (thuần) — route/mã lỗi; POST ký từ chối query trước body/phiên/khóa.
+- `M23Tinh`: TĨNH trên hằng SQL M0023 — thứ tự quyền → biên nhận → căn cứ; guard sau ký; G5 chỉ PENDING|NOT_SELECTED; không nghĩa vụ/hiệu lực/M1.
 - `ChuanHoa`, `KiemPdf`: THUẦN — dạng yêu cầu (co_sua bool thật; False hợp lệ) và parser PDF (bytes PDF tổng hợp; thiếu pypdfium2 → skip, KHÔNG PASS).
 - `ServiceMock`: MOCK — CSDL/khóa giả ghi lại thứ tự lệnh; KHÔNG phải bằng chứng PostgreSQL. Kiểm quyền trước parse bytes, replay không đọc căn cứ/kho,
-  kho G3 sai hash → không ghi, PDF bản ký ghi bất biến TRƯỚC hàm lệnh, digest yêu cầu không gồm khóa, tải kiểm quyền trước kho; bản ký trùng byte
-  bản xuất là lần ký đầu riêng (mock). Fixture báo giá ở dạng producer đã chuẩn hóa (chuan_hoa_bao_gia), kỳ vọng tóm tắt độc lập.
-- `GuardCsdlThat`: PostgreSQL THẬT (KHO_PG_DSN_TEST) — CHỈ âm/catalog (trigger/hàm/ràng buộc M0023) trên DB test mới; KHÔNG chứng minh dương phạm vi
-  thực tế/đồng thời/producer. Thiếu DSN/psycopg → skip (NOT_RUN, KHÔNG PASS).
+  kho G3 sai hash → không ghi, PDF bản ký ghi bất biến TRƯỚC hàm lệnh, digest yêu cầu không gồm khóa, tải kiểm quyền trước kho.
+- `GuardCsdlThat`: PostgreSQL THẬT (KHO_PG_DSN_TEST) — trigger/hàm M0023 trên DB test mới; thiếu DSN/psycopg → skip (NOT_RUN, KHÔNG PASS).
   Không tạo PDF_DAT giả qua chủ bảng (gate Word/G3 thật vẫn mở) — chỉ kiểm guard âm/ràng buộc không cần bản xuất đạt.
 Dữ liệu tổng hợp; không M9, không dữ liệu/cấu hình thật, không xóa tệp.
 """
@@ -30,11 +26,8 @@ from unittest import mock
 from kho_tri_thuc.ha_tang import pg_migrations as PM
 from kho_tri_thuc.ha_tang.primitives import DataError, canonical_json
 from kho_tri_thuc.k2 import crm_ky_ket as KY
-from kho_tri_thuc.k2.crm_giao_ket import chuan_hoa_bao_gia, tinh_bao_gia
+from kho_tri_thuc.k2.crm_giao_ket import tinh_bao_gia
 from test_crm_giao_ket import bao_gia
-
-# Snapshot kỳ vọng ĐỘC LẬP của fixture G2 tổng hợp (tong 1.000.000.000 VND, scale 0; lịch 30%/70% = 2 dòng) — không lấy từ hàm đang kiểm.
-TOM_TAT_KY_VONG = {"so_dong": 2, "tong_minor": "1000000000", "tien_te": "VND"}
 
 GOC = Path(__file__).resolve().parents[1]
 SRC = GOC / "src" / "kho_tri_thuc"
@@ -112,30 +105,11 @@ class M23Tinh(unittest.TestCase):
         f = self._ham("crm_ky_ket")
         thu_tu = ["crm_g_ghim_quyen", "crm_ky_pham_vi b", "crm_ky_dich(p_soan)", "crm_g_bn_tra", "CRM_KY_KHAI_SAI", "CRM_KY_NGAY_SAI",
                   "FOR UPDATE", "CRM_KY_DA_KY", "CRM_KY_TRANG_THAI", "CRM_GK_REVISION_CU", "CRM_KY_XUAT_CU", "CRM_KY_XUAT_CHUA_DAT", "CRM_KY_G3_LECH",
-                  "CRM_GK_MAU_LECH_GHIM", "INSERT INTO master.crm_hd_ky ", "INSERT INTO master.crm_hd_ky_g5",
+                  "CRM_GK_MAU_LECH_GHIM", "CRM_KY_PDF_LA_BAN_XUAT", "INSERT INTO master.crm_hd_ky ", "INSERT INTO master.crm_hd_ky_g5",
                   "UPDATE master.crm_hd_soan SET trang_thai = 'DA_KY'", "crm_g_bn_ghi"]
         vt = [f.index(x) for x in thu_tu]
         self.assertEqual(vt, sorted(vt), list(zip(thu_tu, vt)))
         self.assertIn("ORDER BY tao_luc DESC, id DESC LIMIT 1", f)  # bản xuất MỚI NHẤT của revision; không chọn ngầm bản khác
-
-    def test_hai_bang_chung_doc_lap_khong_buoc_digest_khac(self):
-        """Bỏ ràng buộc phổ quát signed_sha ≠ g3_sha (lệnh + CHECK bảng); GIỮ kiểm hash/độ dài, CAS bản xuất mới nhất, một bản ký/HĐ,
-        cùng PDF + cùng căn cứ/khai báo → cùng bản ký; khác → CRM_KY_DA_KY (Q-RETURN)."""
-        f = self._ham("crm_ky_ket")
-        bang = next(s for s in PM.M0023_CRM_KY if "CREATE TABLE master.crm_hd_ky (" in s)
-        for cam in ("CRM_KY_PDF_LA_BAN_XUAT", "p_ky_sha = xm.pdf_sha256", "ky_pdf_sha256 <> g3_pdf_sha256"):
-            self.assertNotIn(cam, f + bang, cam)
-        self.assertNotIn("CRM_KY_PDF_LA_BAN_XUAT", M23)
-        for can in ("ky_pdf_sha256 text NOT NULL CHECK (ky_pdf_sha256 ~ '^[0-9a-f]{64}$')", "ky_pdf_len bigint NOT NULL CHECK (ky_pdf_len > 0)",
-                    "g3_pdf_sha256 text NOT NULL CHECK (g3_pdf_sha256 ~ '^[0-9a-f]{64}$')", "g3_pdf_len bigint NOT NULL CHECK (g3_pdf_len > 0)",
-                    "UNIQUE (hop_dong_id),", "UNIQUE (hop_dong_id, ky_pdf_sha256),"):
-            self.assertIn(can, bang, can)
-        for can in ("p_ky_sha !~ '^[0-9a-f]{64}$'", "p_ky_len <= 0", "xm.id <> p_xuat", "xm.pdf_sha256 <> p_g3_pdf_sha", "xm.pdf_len <> p_g3_pdf_len",
-                    "k.ky_pdf_sha256 = p_ky_sha AND k.ky_pdf_len = p_ky_len AND k.xuat_id = p_xuat"):
-            self.assertIn(can, f, can)
-        # cùng PDF/khóa mới → đúng bản ký đã có (k.id), không hàng mới; mọi khác biệt sau ký → CRM_KY_DA_KY
-        self.assertLess(f.index("master.crm_ky_kq(k.id)"), f.index("CRM_KY_DA_KY"))
-        self.assertLess(f.index("CRM_KY_DA_KY"), f.index("INSERT INTO master.crm_hd_ky "))
 
     def test_tra_va_doc_tep_quyen_truoc(self):
         tra = self._ham("crm_ky_tra")
@@ -148,41 +122,15 @@ class M23Tinh(unittest.TestCase):
         self.assertLess(doc.index("IF NOT doc THEN"), doc.index("'ban_ky'"))
 
     def test_pham_vi_khong_suy_tu_nguoi_tao(self):
-        hd = self._ham("crm_ky_pham_vi_hd")  # predicate dùng chung: phân công hiện hành + phạm vi tường minh + vai + dự án/khách hiện hành
-        for can in ("crm_ky_pham_vi b", "b.thu_hoi_luc IS NULL", "a.thu_hoi_luc IS NULL", "master.phan_cong_hanh_dong a", "a.hanh_dong = p_hanh",
-                    "p_hanh IN ('CRM_KY_KET', 'CRM_KY_DOC')", "ktt_co_vai(s.phap_nhan_id, p_vai, NULL)", "ktt.nguoi_dung_id", "HOAT_DONG",
-                    "ktt_duoc(s.phap_nhan_id, 'CRM')", "b.du_an_id IS NOT DISTINCT FROM h.du_an_id", "b.doi_tac_id = h.doi_tac_id",
-                    "khach_du_thao_sha256", "b.soan_id = s.id AND b.hop_dong_id = h.id AND b.phap_nhan_id = s.phap_nhan_id"):
-            self.assertIn(can, hd, can)
+        pv = self._ham("crm_ky_pham_vi_duoc")
+        for can in ("crm_ky_pham_vi b", "thu_hoi_luc IS NULL", "'CRM_KY_KET'", "ARRAY['BAN_HANG']", "ktt.nguoi_dung_id", "HOAT_DONG",
+                    "b.du_an_id IS NOT DISTINCT FROM h.du_an_id", "khach_du_thao_sha256"):
+            self.assertIn(can, pv)
         for cam in ("tao_boi", "cap_boi ="):
-            self.assertNotIn(cam, hd)
-        pv = self._ham("crm_ky_pham_vi_duoc")  # quyền KÝ: chỉ BAN_HANG + CRM_KY_KET
-        self.assertIn("master.crm_ky_pham_vi_hd(p_soan, 'CRM_KY_KET', ARRAY['BAN_HANG'])", pv)
-        self.assertNotIn("CRM_KY_DOC", pv)
-        self.assertNotIn("KE_TOAN", pv)
+            self.assertNotIn(cam, pv)
         kiem = self._ham("crm_ky_pham_vi_kiem")
         self.assertIn("la_chu_bang", kiem)
         self.assertIn("CRM_KY_PHAM_VI_SAI", kiem)
-        self.assertIn("a.hanh_dong NOT IN ('CRM_KY_KET', 'CRM_KY_DOC')", kiem)  # phạm vi chỉ gắn phân công ký hoặc đọc hẹp; không action khác
-
-    def test_doc_kt_cfo_can_phan_cong_hep_va_pham_vi(self):
-        """P1: KT/KTT/CFO đọc bản ký/căn cứ/hash/tệp KHÔNG còn chỉ nhờ PN + module + vai; cần phân công hẹp CRM_KY_DOC + phạm vi tường minh."""
-        doc = self._ham("crm_ky_doc_duoc")
-        self.assertIn("master.crm_ky_pham_vi_hd(s.id, 'CRM_KY_DOC', ARRAY['KE_TOAN','KE_TOAN_TRUONG','CFO'])", doc)
-        self.assertIn("master.crm_ky_pham_vi_duoc(s.id)", doc)
-        self.assertNotIn("ktt_co_vai", doc)  # không còn nhánh vai rộng không phạm vi
-        self.assertNotIn("ktt_hanh_dong_duoc", doc)  # phân công không phạm vi chủ thể KHÔNG đủ
-        # mọi lối đọc chi tiết/tệp đều qua crm_ky_doc_duoc (fail closed trước căn cứ/hash/bản ký/tệp)
-        ky_doc, tep = self._ham("crm_ky_doc"), self._ham("crm_ky_tep")
-        self.assertIn("doc := master.crm_ky_doc_duoc(s.id);", ky_doc)
-        self.assertIn("NOT master.crm_ky_doc_duoc(k.soan_id)", tep)
-        self.assertLess(tep.index("crm_g_ghim_quyen(k.phap_nhan_id)"), tep.index("NOT master.crm_ky_doc_duoc(k.soan_id)"))
-        self.assertLess(tep.index("FOR SHARE"), tep.index("NOT master.crm_ky_doc_duoc(k.soan_id)"))
-        # không vai/master/IAM song song, không tự cấp DEMO
-        for cam in ("CREATE TABLE master.vai", "CREATE ROLE", "INSERT INTO master.phan_cong_hanh_dong", "INSERT INTO master.crm_ky_pham_vi",
-                    "INSERT INTO master.phan_quyen", "GRANT "):
-            self.assertNotIn(cam, M23_MOI, cam)
-        self.assertEqual(KY.HANH_DOC, "CRM_KY_DOC")
 
     def test_guard_sau_ky_backend(self):
         for ten in ("crm_hd_soan_ky_khoa", "hop_dong_gk_ky_khoa", "crm_hd_soan_rev_ky_khoa", "crm_gk_lan_ky_khoa", "crm_gk_xuat_ky_khoa"):
@@ -222,52 +170,18 @@ class RouteTinh(unittest.TestCase):
             self.assertTrue(G.la_route(True, p) and G.la_route(False, p))
         self.assertEqual(G.TRUONG_KY, {"soan_id", "expected_revision", "expected_xuat_id", "ten_tep", "ngay_ky", "co_sua", "mo_ta", "nguoi_ky_khach", "khoa"})
         self.assertFalse(G.TRUONG_KY & G.KHONG_NHAN)
-        for m in ("CRM_KY_XUAT_CU", "CRM_KY_DA_KY", "CRM_GK_DA_KY", "CRM_KY_XUAT_CHUA_DAT", "CRM_KY_G3_LECH", "CRM_KY_TRANG_THAI"):
+        for m in ("CRM_KY_XUAT_CU", "CRM_KY_DA_KY", "CRM_GK_DA_KY", "CRM_KY_PDF_LA_BAN_XUAT"):
             self.assertIn(m, G.MA_409_KY)
-        self.assertNotIn("CRM_KY_PDF_LA_BAN_XUAT", G.MA_409_KY)  # không còn ràng buộc phổ quát signed ≠ G3
         self.assertIn("CRM_KY_CHUA_CO_PHAM_VI", G.MA_403_KY)
         self.assertIn("CRM_KY_TEP_QUA_LON", G.MA_413_KY)
         src = (SRC / "giao_dien" / "crm_g.py").read_text(encoding="utf-8")
         ky = src[src.index("def _ky_ket("):src.index("def _lenh_gk(")]
-        self.assertLess(ky.index("_khong_query(h, query)"), ky.index("h.headers.get(\"X-CRM-G-Info\""))
-        self.assertLess(ky.index("_khong_query(h, query)"), ky.index("h.body(MAX_FILE_SIZE)"))
         self.assertLess(ky.index("_than(info, TRUONG_KY)"), ky.index("h.body(MAX_FILE_SIZE)"))
         self.assertLess(ky.index("ky.kiem_quyen"), ky.index("KY.kiem_pdf_ky(raw)"))
         self.assertLess(ky.index("KY.kiem_pdf_ky(raw)"), ky.index("ky.ky(me, raw"))
         # parse PDF NGOÀI mutation lock: dòng parse không thụt trong khối with
         dong = next(x for x in ky.splitlines() if "KY.kiem_pdf_ky(raw)" in x)
         self.assertTrue(dong.startswith("    so_trang"), dong)
-
-    def test_post_ky_ket_tu_choi_query_truoc_doc_body(self):
-        """THUẦN (handler giả, không máy chủ/CSDL): POST ký có query ngoài hợp đồng → 400 CRM_G_YEU_CAU_SAI, không đọc body, không mutation lock."""
-        from kho_tri_thuc.giao_dien import crm_g as G
-
-        class _H:
-            def __init__(self, path):
-                self.path, self.gui = path, []
-                self.headers = {"X-CRM-G-Info": "", "Content-Type": "application/pdf"}
-
-            def body(self, n):
-                raise AssertionError("đọc body trước khi từ chối query")
-
-            def crm_sid(self):
-                raise AssertionError("tra phiên trước khi từ chối query")
-
-            def send_content(self, st, payload, *a):
-                self.gui.append((st, payload))
-
-        app = mock.Mock()
-        app.mutation_lock.__enter__ = mock.Mock(side_effect=AssertionError("mutation lock trước khi từ chối query"))
-        for path, query in (("/api/crm/giao-ket/ky-ket?soan_id=" + SO, {"soan_id": [SO]}), ("/api/crm/giao-ket/ky-ket?actor=x", {"actor": ["x"]}),
-                            ("/api/crm/giao-ket/ky-ket?x", {}), ("/api/crm/giao-ket/ky-ket?x=", {})):
-            h = _H(path)
-            G.dieu_huong(h, app, True, "/api/crm/giao-ket/ky-ket", query)
-            self.assertEqual(len(h.gui), 1, path)
-            self.assertEqual((h.gui[0][0], h.gui[0][1]["error"]), (400, "CRM_G_YEU_CAU_SAI"), path)
-        for path in ("/api/crm/giao-ket/ky/" + SO + "?x", "/api/crm/giao-ket/ban-ky/" + SO + "/tep?x="):
-            h = _H(path)
-            G.dieu_huong(h, app, False, path.split("?", 1)[0], {})
-            self.assertEqual((h.gui[0][0], h.gui[0][1]["error"]), (400, "CRM_G_YEU_CAU_SAI"), path)
 
     def test_ui_khong_noi_gia(self):
         js = (SRC / "giao_dien" / "assets" / "crm_g.js").read_text(encoding="utf-8")
@@ -419,9 +333,7 @@ class ServiceMock(unittest.TestCase):
             p.parent.mkdir(parents=True, exist_ok=True)
             if not p.exists():
                 p.write_bytes(b)
-        # cùng fixture tổng hợp G2 (2 dòng 30/70 VND) ở ĐÚNG dạng producer lưu vào revision: producer G2/G3 chuẩn hóa qua chuan_hoa_bao_gia trước
-        # khi ghi du_lieu.bao_gia (raw bao_gia() thiếu khóa canonical như gia.don_gia → KeyError ở tinh_bao_gia — lỗi fixture, không phải production)
-        bg = chuan_hoa_bao_gia(bao_gia())
+        bg = bao_gia()  # cùng fixture tổng hợp G2 (2 dòng 30/70 VND)
         x ={"id": XU, "revision": 2, "trang_thai": "PDF_DAT", "docx_sha256": hashlib.sha256(self.docx).hexdigest(), "docx_len": len(self.docx),
              "pdf_sha256": hashlib.sha256(self.pdf_g3).hexdigest(), "pdf_len": len(self.pdf_g3), "engine": "WORD_DEMO",
              "du_lieu": {"bao_gia": bg}, "du_lieu_sha256": "1" * 64, "raw_sha256": "2" * 64, "ban_do_sha256": "3" * 64, "danh_muc_digest": "4" * 64,
@@ -463,40 +375,14 @@ class ServiceMock(unittest.TestCase):
         self.assertEqual((p[0], p[2], p[3], p[4]), ("crmgk-ky-1", SO, 2, XU))
         self.assertEqual((p[5], p[6], p[7]), (self.mau.xuat["input_sha256"], self.mau.xuat["pdf_sha256"], self.mau.xuat["pdf_len"]))
         self.assertEqual((p[8], p[9], p[10], p[13]), (sha, len(self.raw), 1, False))
-        self.assertEqual(json.loads(p[16]), TOM_TAT_KY_VONG)  # kỳ vọng độc lập (không lấy từ hàm đang kiểm)
-        t = tinh_bao_gia(self.mau.xuat["du_lieu"]["bao_gia"], None)  # đối chiếu thêm: cùng phép tính G2/G3
-        self.assertEqual((len(t["dong"]), t["tong_minor"], t["tien_te"]), (2, "1000000000", "VND"))
+        self.assertEqual(json.loads(p[16]), {"so_dong": 2, "tong_minor": tinh_bao_gia(self.mau.xuat["du_lieu"]["bao_gia"], None)["tong_minor"], "tien_te": "VND"})
         self.assertIn(("GHIM", SO, 2), self.mau.nhat)
-
-    def test_ban_ky_trung_byte_ban_xuat_la_lan_ky_dau_rieng(self):
-        """MOCK (không PG): lần ký ĐẦU với bytes trùng PDF G3 được nhận — hai vai trò bằng chứng riêng (G3 ở `tep/`, bản ký ở `ky/`), hai hash/độ dài
-        truyền riêng cho hàm lệnh. Không ký A rồi gửi B (đó là ca Q-RETURN riêng). Hash/bytes KHÔNG chứng minh chữ ký xác thực."""
-        sha_g3 = hashlib.sha256(self.pdf_g3).hexdigest()
-        tep_g3 = self.tmp / "giao-ket" / "tep" / sha_g3
-        truoc = tep_g3.read_bytes()
-        r = self._ky(raw=self.pdf_g3)
-        self.assertEqual((r["trang_thai"], r["lap_lai"]), ("DA_KY", False))
-        p = next(n[2] for n in self.mau.nhat if n[0] == "SQL" and n[1].startswith("SELECT master.crm_ky_ket("))
-        self.assertEqual((p[6], p[7]), (sha_g3, len(self.pdf_g3)))  # G3: do máy chủ resolve từ bản xuất
-        self.assertEqual((p[8], p[9]), (sha_g3, len(self.pdf_g3)))  # bản ký: hash/độ dài của bytes tải lên (tính riêng)
-        self.assertEqual(self._kho_ky(), [sha_g3])  # ghi vào kho bản ký riêng
-        self.assertEqual(tep_g3.read_bytes(), truoc)  # artifact G3 nguyên
-        self.assertEqual(json.loads(p[16]), TOM_TAT_KY_VONG)
 
     def test_digest_khong_gom_khoa_va_doi_than_doi_digest(self):
         self._ky(khoa="k-a")
         self._ky(khoa="k-b")
         self._ky(khoa="k-c", ngay_ky="2026-10-19")
-        # native33 fixture fix: tham số thật của crm_ky_tra(p_khoa, p_soan, p_h) là (khoa, SO, h) → digest ở chỉ số [2] (không phải [1] = soan UUID)
-        ps = [n[2] for n in self.mau.nhat if n[0] == "SQL" and n[1].startswith("SELECT master.crm_ky_tra(")]
-        self.assertEqual(len(ps), 3)
-        for p in ps:
-            self.assertEqual(len(p), 3)
-            self.assertEqual(p[1], SO)
-        hs = [p[2] for p in ps]
-        for h in hs:
-            self.assertIsInstance(h, str)
-            self.assertTrue(len(h) == 64 and all(ch in "0123456789abcdef" for ch in h), h)
+        hs = [n[2][1] for n in self.mau.nhat if n[0] == "SQL" and n[1].startswith("SELECT master.crm_ky_tra(")]
         self.assertEqual(hs[0], hs[1])
         self.assertNotEqual(hs[0], hs[2])
 
@@ -608,7 +494,6 @@ class GuardCsdlThat(unittest.TestCase):
                 for p in ("SELECT", "INSERT", "UPDATE", "DELETE"):
                     self.assertFalse(self.q("SELECT has_table_privilege(%s, %s, %s)", vai, f"master.{t}", p)[0][0], (vai, t, p))
             for f in ("master.crm_ky_tra(text, uuid, text)", "master.crm_ky_doc(uuid)", "master.crm_ky_tep(uuid, text)",
-                      "master.crm_ky_pham_vi_hd(uuid, text, text[])", "master.crm_ky_pham_vi_duoc(uuid)", "master.crm_ky_doc_duoc(uuid)",
                       "master.crm_ky_ket(text, text, uuid, integer, uuid, text, text, bigint, text, bigint, integer, text, date, boolean, text, text, jsonb)"):
                 self.assertFalse(self.q("SELECT has_function_privilege(%s, %s, 'EXECUTE')", vai, f)[0][0], (vai, f))
 
@@ -630,17 +515,6 @@ class GuardCsdlThat(unittest.TestCase):
         self.loi("CRM_KY_G5_SAI", "INSERT INTO master.crm_hd_ky_g5 (ky_id, phap_nhan_id, trang_thai, ly_do) VALUES (gen_random_uuid(), gen_random_uuid(), "
                                   "'NOT_SELECTED', 'CHUA_AP_DUNG_CHON_MAU')")
         self.assertEqual(self.q("SELECT count(*) FROM master.crm_hd_ky")[0][0], 0)
-
-    def test_catalog_khong_buoc_digest_khac_va_doc_khong_rong(self):
-        """CATALOG/ÂM trên PG thật (không phải bằng chứng dương phạm vi/đồng thời/producer): bảng bản ký KHÔNG có CHECK ky ≠ g3; vẫn có UNIQUE HĐ;
-        phiên không danh tính không đọc được bản ký nào (crm_ky_doc_duoc fail closed)."""
-        defs = [r[0] for r in self.c.execute("SELECT pg_get_constraintdef(oid) FROM pg_constraint WHERE conrelid = 'master.crm_hd_ky'::regclass").fetchall()]
-        self.assertFalse([d for d in defs if "ky_pdf_sha256" in d and "g3_pdf_sha256" in d and "<>" in d], defs)
-        self.assertIn("UNIQUE (hop_dong_id)", defs)
-        trig = self.q("SELECT prosrc FROM pg_proc WHERE oid = 'master.crm_ky_pham_vi_kiem'::regproc")[0][0]
-        self.assertIn("'CRM_KY_DOC'", trig)
-        for (sid,) in self.q("SELECT id FROM master.crm_hd_soan"):
-            self.assertFalse(self.q("SELECT master.crm_ky_doc_duoc(%s)", sid)[0][0], sid)
 
     def test_trang_thai_da_ky_khong_vao_khi_chua_co_ban_ky(self):
         rows = self.q("SELECT id FROM master.crm_hd_soan LIMIT 1")

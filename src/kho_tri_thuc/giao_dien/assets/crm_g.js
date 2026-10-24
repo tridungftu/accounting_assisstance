@@ -621,9 +621,7 @@
   // CRM-41-04A G4: `kyCt` = điều kiện/căn cứ/bản ký của bản soạn đang mở (GET mới nhất theo `genKy`); `kyMo` = căn cứ dialog chụp lúc mở
   // ({soan, revision, xuat_id}); `kyTep` = File đã chọn. `kyYD` = ý định ký theo (vai, bản soạn, căn cứ, File, khai báo) — giữ ĐÚNG File + header +
   // khóa tới kết quả thật; chưa rõ → nút gửi lại y nguyên trong khối G4 của ĐÚNG bản soạn (không dùng nút gửi lại chung), đổi vai/HĐ không xóa.
-  // FIX04 U3: `genVao` = thế hệ hiển thị theo ĐIỀU HƯỚNG — mọi hashchange (rời #hopdong hoặc quay lại) tăng; callback G4 cũ (tải bản ký, ACK/lỗi
-  // ký) chụp giá trị lúc bắt đầu nên đi-rồi-về KHÔNG hồi hiệu lực.
-  let kyCt = null, genKy = 0, kyMo = null, kyTep = null, genVao = 0;
+  let kyCt = null, genKy = 0, kyMo = null, kyTep = null;
   const kyYD = new Map();
   // FIX02 #3: chọn mẫu khác/lý do đổi mẫu trong G3 (`so-doi-*`) là NỘI DUNG bản soạn → bẩn tới khi Lưu + nạp revision mới. `bg-mau-*` là tham số
   // của lệnh Chuyển, `bg-huy-*` là lý do hủy — không phải nội dung báo giá, không buộc lưu.
@@ -1224,8 +1222,7 @@
       ["Mẫu", `${cc.ma_mau || "—"} v${cc.phien_ban_mau ?? "—"}`], ["Revision bản soạn", String(cc.revision)], ["Bản xuất", `${cc.xuat_id} · ${K.date(cc.tao_luc)} · ${TT_XUAT[cc.trang_thai] || cc.trang_thai}`],
       ["SHA-256 PDF bản xuất", `${cc.pdf_sha256} (${cc.pdf_len} byte)`], ["Bộ render", cc.engine || "—"], ["Số dòng · tổng · tiền tệ", tomTatTxt(cc.tom_tat)]]));
     const fi = node("input"); fi.type = "file"; fi.accept = "application/pdf,.pdf"; fi.id = "gk-ky-tep";
-    // CRM-41-04A U2 (File-only): đổi File = ý định hiển thị MỚI → tăng genForm (cơ chế sẵn có) để ACK/lỗi cũ (ht() chụp gf0) không xóa File/đóng dialog mới
-    fi.addEventListener("change", () => { kyTep = (fi.files && fi.files[0]) || null; genForm += 1; ve(); });
+    fi.addEventListener("change", () => { kyTep = (fi.files && fi.files[0]) || null; ve(); });
     w.append(truong("PDF bản đã ký (scan/ký tay đều được)", fi, true),
       node("p", kyTep ? `Đã chọn: ${kyTep.name} (${K.size ? K.size(kyTep.size) : kyTep.size + " byte"})` : "Chưa chọn tệp."),
       truong("Ngày ký", nhap("ky-ngay", "", "date"), true), truong("Người ký phía khách (tùy chọn)", nhap("ky-nguoi", "")),
@@ -1243,7 +1240,7 @@
     if (!kyMo || kyMo.soan !== s.id) return loi("Mở hộp Ký kết trước.");
     const kc = kyCt && kyCt.soan_id === s.id ? kyCt : null, cc = kc && kc.can_cu;
     if (!kc || !kc.quyen || !kc.quyen.ky) return loi("Vai hiện hành không có quyền/phạm vi ký hợp đồng này — không gửi.");
-    if (!cc || cc.xuat_id !== kyMo.xuat_id || cc.revision !== kyMo.revision || cc.trang_thai !== "PDF_DAT" || !cc.pdf_sha256 || s.trang_thai !== "CHO_KY"
+    if (!cc || cc.xuat_id !== kyMo.xuat_id || cc.revision !== kyMo.revision || cc.trang_thai !== "PDF_DAT" || s.trang_thai !== "CHO_KY"
         || s.revision_hien_hanh !== kyMo.revision) return loi("Căn cứ đã đổi hoặc chưa có PDF đạt — Đóng, ↻ Làm mới rồi mở lại Ký kết.");
     const tep = kyTep, ngay = s0(gt("ky-ngay")), nguoi = s0(gt("ky-nguoi")), cs = gt("ky-co-sua"), mo = s0(gt("ky-mo-ta"));
     if (!tep) return loi("Chọn tệp PDF bản đã ký.");
@@ -1264,75 +1261,49 @@
     const enc = encodeURIComponent(JSON.stringify({soan_id: s.id, expected_revision: kyMo.revision, expected_xuat_id: kyMo.xuat_id, ten_tep: tep.name,
       ngay_ky: ngay, co_sua: co, mo_ta: moTa, nguoi_ky_khach: nguoi, khoa}));
     if (enc.length > 24000) return loi("Mô tả/tên quá dài.");
-    // FIX04 U1: ý định ghi kèm định danh mong đợi (HĐ, revision, bản xuất, hash PDF G3 đã chụp, ngày ký, co_sua) để kiểm ACK trước FINAL
-    y = {k, actor: a, soan: s.id, hd: typeof kc.hop_dong_id === "string" ? kc.hop_dong_id : null, revision: kyMo.revision, xuat_id: kyMo.xuat_id,
-      g3: cc.pdf_sha256, ngay, co, file: tep, enc, khoa, dangGui: false, chuaRo: false, het: false};
+    y = {k, actor: a, ep, soan: s.id, file: tep, enc, khoa, dangGui: false, chuaRo: false, het: false};
     kyYD.set(k, y);  // giữ chỗ đồng bộ trước mọi await
     return y;
   }
-  // FIX04 U1: ACK 2xx chỉ là FINAL khi đúng DTO typed của crm_ky_kq (ky_id UUID, soan/HĐ/revision/bản xuất/ngày ký/co_sua của ĐÚNG ý định gốc,
-  // DA_KY, độ dài PDF = File gốc, hash dạng SHA-256, hash PDF G3 = căn cứ đã chụp, lap_lai boolean, G5 khởi tạo đúng PENDING/NOT_SELECTED theo khai báo).
-  // Thiếu/sai bất kỳ trường nào → null (KẾT QUẢ CHƯA RÕ): không suy thành công từ HTTP 2xx, không dùng nhãn dự phòng.
-  const UUID_KY = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i, SHA_KY = /^[0-9a-f]{64}$/;
-  function ackKy(y, r) {
-    if (!r || typeof r !== "object" || Array.isArray(r)) return null;
-    const g5 = r.g5;
-    const dung = typeof r.ky_id === "string" && UUID_KY.test(r.ky_id) && r.soan_id === y.soan && r.trang_thai === "DA_KY"
-      && typeof y.hd === "string" && r.hop_dong_id === y.hd && r.revision === y.revision && r.xuat_id === y.xuat_id
-      && r.ngay_ky === y.ngay && r.co_sua === y.co && r.ky_pdf_len === y.file.size
-      && typeof r.ky_pdf_sha256 === "string" && SHA_KY.test(r.ky_pdf_sha256) && typeof y.g3 === "string" && r.g3_pdf_sha256 === y.g3
-      && typeof r.lap_lai === "boolean" && !!g5 && typeof g5 === "object" && g5.trang_thai === (y.co ? "PENDING" : "NOT_SELECTED");
-    return dung ? {ky_id: r.ky_id, lap_lai: r.lap_lai, g5: {trang_thai: g5.trang_thai}} : null;
-  }
   async function guiKy(y) {
     if (y.het || y.actor !== actor()) return;  // ý định của vai khác: không bao giờ gửi dưới vai hiện hành
-    if (y.soan !== soChon || cheDo !== "soan") return;  // gửi/gửi lại chỉ từ đúng bản soạn đang mở
-    if (y.dangGui) { trangThai("Bản ký đang gửi — chờ kết quả, không gửi lần thứ hai."); return; }
-    y.dangGui = true;
-    // FIX04 U2: VẬN CHUYỂN (y: File/header/khóa gốc, bền tới FINAL) tách khỏi HIỂN THỊ. `ht` = guard hiển thị CHỤP MỘT LẦN lúc gửi lần này
-    // (epoch + vai + bản soạn + chế độ + thế hệ form + thế hệ điều hướng) — không làm tươi sau await. Vai A→B→A, G3→G2→G3, nhập form mới, rời
-    // #hopdong ⇒ ht() sai vĩnh viễn: ACK/lỗi cũ chỉ nhả/giữ đúng bản ghi y, không toast/đóng dialog/xóa tệp/nháp, không mở GET làm mới.
-    // Gửi lại tường minh từ context mới chụp guard mới cho LẦN gửi lại đó (File/header/khóa vẫn gốc).
-    const e0 = ep, a0 = actor(), gf0 = genForm, gv0 = genVao;
-    const ht = () => e0 === ep && a0 === actor() && gf0 === genForm && gv0 === genVao && soChon === y.soan && cheDo === "soan" && location.hash === "#hopdong";
-    const vf = () => !y.het && ht();
+    if (y.dangGui) { if (y.soan === soChon) trangThai("Bản ký đang gửi — chờ kết quả, không gửi lần thứ hai."); return; }
+    y.dangGui = true; y.ep = ep;
+    const vf = () => !y.het && y.actor === actor() && y.ep === ep && soChon === y.soan && cheDo === "soan";
     trangThai(`Đang gửi bản ký ${y.file.name}…`);
-    const chuaRoKy = msg0 => {  // KẾT QUẢ CHƯA RÕ: GIỮ File/header/khóa gốc; đường đối soát chỉ hiện trên đúng bản soạn của đúng vai
-      y.chuaRo = true;
-      if (vf()) { const msg = `${msg0} — bản ký chưa xác nhận; bấm Gửi lại bản ký y nguyên (cùng khóa).`; K.toast(msg, true); trangThai(msg, true); ve(); }
-    };
     let r;
     try {
       r = await docJson(await goi("/api/crm/giao-ket/ky-ket", {method: "POST", headers: {"X-CRM-G-Info": y.enc, "Content-Type": "application/pdf"}, body: y.file}));
     } catch (e) {
       y.dangGui = false;
-      if (chuaRo(e) && !y.het) { chuaRoKy((e && e.message) || "Chưa rõ kết quả."); return; }
+      if (chuaRo(e) && !y.het) {  // chưa rõ: GIỮ File/header/khóa gốc; chỉ hiện đường đối soát trên đúng bản soạn của đúng vai
+        y.chuaRo = true;
+        if (vf()) { const msg = `${(e && e.message) || "Chưa rõ kết quả."} — bản ký chưa xác nhận; bấm Gửi lại bản ký y nguyên (cùng khóa).`; K.toast(msg, true); trangThai(msg, true); ve(); }
+        return;
+      }
       const hl = vf();
-      boKy(y);  // kết quả xác định (khóa không dùng lại) — chỉ nhả ĐÚNG bản ghi y
-      if (!hl) return;  // lỗi của ý định thuộc vai/HĐ/chế độ/form/điều hướng cũ: không toast/vẽ/làm mới
+      boKy(y);  // kết quả xác định (khóa không dùng lại)
+      if (!hl) return;  // lỗi của ý định thuộc vai/HĐ/chế độ cũ: không toast/vẽ/làm mới
       const msg = (e && e.message) || String(e);
       if (MA_KY_CAN_CU.has(e && e.code) || loiAnNinh(e)) {  // căn cứ/quyền đã đổi: đóng dialog, tải lại căn cứ hiện hành; không chọn ngầm bản khác
         kyMo = null; kyTep = null; xoaNhap("ky-");
         K.toast(msg, true); trangThai(`${msg} — đã tải lại căn cứ; mở lại Ký kết để kiểm căn cứ mới.`, true);
-        if (await napDs(ht) && ht()) await napSoCt(ht);  // GET làm mới theo guard CHỤP lúc gửi (không chụp mới ở completion)
+        const f2 = fenceForm(fence(() => soChon === y.soan && cheDo === "soan"));
+        if (await napDs(f2) && f2()) await napSoCt(f2);
         return;
       }
       K.toast(msg, true); trangThai(msg, true); ve();
       return;
     }
     y.dangGui = false;
-    const ack = ackKy(y, r);
-    if (!ack) {  // 2xx nhưng ACK thiếu/rỗng/null/lệch chủ thể-trạng thái-căn cứ: CHƯA RÕ, không FINAL
-      if (!y.het) chuaRoKy("Phản hồi ký không đúng biên nhận mong đợi (thiếu/lệch hợp đồng, căn cứ, ngày ký, khai báo hoặc G5)");
-      return;
-    }
     const hl = vf();
-    boKy(y);  // FINAL (ACK đã kiểm định danh)
-    if (!hl) return;  // ACK muộn của context cũ: không toast/vẽ; lần mở lại đọc trạng thái máy chủ
+    boKy(y);  // FINAL
+    if (!hl) return;  // ACK muộn của vai/HĐ/chế độ cũ: không toast/vẽ; lần mở lại đọc trạng thái máy chủ
     kyMo = null; kyTep = null; xoaNhap("ky-");
-    const msg = `${HIEN_THI_DA_KY}${ack.lap_lai ? " (biên nhận cũ của cùng bản ký — không ghi thêm)" : ""} · G5: ${g5Txt(ack.g5)}`;
+    const msg = `${r.hien_thi || HIEN_THI_DA_KY}${r.lap_lai ? " (biên nhận cũ của cùng bản ký — không ghi thêm)" : ""} · G5: ${g5Txt(r.g5)}`;
     K.toast(msg); trangThai(msg);
-    if (await napDs(ht) && ht()) await napSoCt(ht);
+    const f2 = fenceForm(fence(() => soChon === y.soan && cheDo === "soan"));
+    if (await napDs(f2) && f2()) await napSoCt(f2);
   }
   function veKyChuaRo(s) {
     const y = kyDangCho(s.id);
@@ -1342,10 +1313,7 @@
     return [w];
   }
   async function taiBanKy(sid, kyId) {  // fence trước request, sau phản hồi/blob và ngay trước click
-    // FIX04 U3: + thế hệ form (G3→G2→G3) + thế hệ điều hướng (rời #hopdong, kể cả đi-rồi-về) + đang ở #hopdong — shell chỉ ẩn trang, nên
-    // headers/blob về sau điều hướng không được tạo URL/click.
-    const e = ep, a = actor(), g = genKy, gf = genForm, gv = genVao;
-    const f = () => e === ep && a === actor() && soChon === sid && cheDo === "soan" && g === genKy && gf === genForm && gv === genVao && location.hash === "#hopdong";
+    const e = ep, a = actor(), g = genKy, f = () => e === ep && a === actor() && soChon === sid && cheDo === "soan" && g === genKy;
     if (!f()) return;
     try {
       const res = await goi(`/api/crm/giao-ket/ban-ky/${encodeURIComponent(kyId)}/tep`);
@@ -1353,7 +1321,6 @@
       const blob = await res.blob();
       if (!f()) return;
       if (!blob.size) { trangThai("Tệp tải về rỗng — không lưu.", true); return; }
-      if (!f()) return;  // ngay trước tạo URL/click
       const url = URL.createObjectURL(blob), el = node("a"); el.href = url; el.download = `ban-ky-${kyId}.pdf`; document.body.append(el); el.click(); el.remove();
       setTimeout(() => URL.revokeObjectURL(url), 60000);
       trangThai(`Đã tải PDF bản ký (${blob.size} byte).`);
@@ -1381,6 +1348,5 @@
 
   dungKhung(); ve();
   if (location.hash === "#hopdong") napDs();
-  // FIX04 U3: mọi đổi hash (rời hoặc quay lại #hopdong) đổi thế hệ hiển thị G4 TRƯỚC khi nạp lại — callback cũ không hồi hiệu lực
-  window.addEventListener("hashchange", () => { genVao += 1; if (location.hash === "#hopdong") napLai(); });
+  window.addEventListener("hashchange", () => { if (location.hash === "#hopdong") napLai(); });
 })();

@@ -11307,9 +11307,8 @@ M0023_CRM_KY = (
     """ALTER TABLE master.hop_dong ADD CONSTRAINT hop_dong_crm_giao_ket_check CHECK (crm_giao_ket IS NULL OR crm_giao_ket IN ('SOAN_THAO','CHO_KY','DA_KY'))""",
     "ALTER TABLE master.crm_hd_soan DROP CONSTRAINT crm_hd_soan_trang_thai_check",
     """ALTER TABLE master.crm_hd_soan ADD CONSTRAINT crm_hd_soan_trang_thai_check CHECK (trang_thai IN ('SOAN_THAO','CHO_KY','DA_KY'))""",
-    # --- phạm vi ký/đọc (thin scope binding): phân công hiện hành trên master.phan_cong_hanh_dong — CRM_KY_KET (Bán hàng ký) hoặc action hẹp
-    # CRM_KY_DOC (KT/KTT/CFO đọc bản ký) — × đúng HĐ CRM/bản soạn cùng PN × snapshot dự án + khách (mã đối tác hoặc digest tham chiếu khách dự
-    # thảo của báo giá nguồn). Chỉ quản trị (chủ CSDL) ghi; thu hồi bằng dấu một lần, không xóa/sửa. Không vai/master/IAM mới, không tự cấp.
+    # --- phạm vi ký (thin scope binding): phân công CRM_KY_KET hiện hành × đúng HĐ CRM/bản soạn cùng PN × snapshot dự án + khách (mã đối tác
+    # hoặc digest tham chiếu khách dự thảo của báo giá nguồn). Chỉ quản trị (chủ CSDL) ghi; thu hồi bằng dấu một lần, không xóa/sửa.
     """CREATE TABLE master.crm_ky_pham_vi (
         id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
         phan_cong_id uuid NOT NULL REFERENCES master.phan_cong_hanh_dong(id),
@@ -11354,10 +11353,8 @@ M0023_CRM_KY = (
                 RAISE EXCEPTION 'CRM_KY_PHAM_VI_BAT_BIEN: không chèn phạm vi đã thu hồi' USING ERRCODE = 'P0001';
             END IF;
             SELECT * INTO a FROM master.phan_cong_hanh_dong WHERE id = NEW.phan_cong_id;
-            IF a.id IS NULL OR a.thu_hoi_luc IS NOT NULL OR a.phap_nhan_id <> NEW.phap_nhan_id OR a.module <> 'CRM'
-               OR a.hanh_dong NOT IN ('CRM_KY_KET', 'CRM_KY_DOC') THEN
-                RAISE EXCEPTION 'CRM_KY_PHAM_VI_SAI: phạm vi phải gắn phân công CRM_KY_KET (ký) hoặc CRM_KY_DOC (đọc) còn hiệu lực cùng pháp nhân'
-                    USING ERRCODE = 'P0001';
+            IF a.id IS NULL OR a.thu_hoi_luc IS NOT NULL OR a.phap_nhan_id <> NEW.phap_nhan_id OR a.module <> 'CRM' OR a.hanh_dong <> 'CRM_KY_KET' THEN
+                RAISE EXCEPTION 'CRM_KY_PHAM_VI_SAI: phạm vi phải gắn phân công CRM_KY_KET còn hiệu lực cùng pháp nhân' USING ERRCODE = 'P0001';
             END IF;
             SELECT * INTO s FROM master.crm_hd_soan WHERE id = NEW.soan_id;
             SELECT * INTO h FROM master.hop_dong WHERE id = NEW.hop_dong_id;
@@ -11416,9 +11413,8 @@ M0023_CRM_KY = (
         UNIQUE (hop_dong_id),
         UNIQUE (hop_dong_id, ky_pdf_sha256),
         UNIQUE (id, phap_nhan_id),
-        CHECK (co_sua = (mo_ta_sua IS NOT NULL)))""",
-    # Hai bằng chứng (PDF G3 bản sinh / PDF bản ký) có vai trò, ID, hash, độ dài RIÊNG; không buộc hai digest khác nhau (bản ký trùng byte bản xuất
-    # vẫn là bằng chứng ký riêng — hash/bytes KHÔNG chứng minh chữ ký xác thực; G4 không OCR/so nội dung).
+        CHECK (co_sua = (mo_ta_sua IS NOT NULL)),
+        CHECK (ky_pdf_sha256 <> g3_pdf_sha256))""",
     "CREATE TRIGGER crm_hd_ky_bat_bien BEFORE INSERT OR UPDATE OR DELETE ON master.crm_hd_ky FOR EACH ROW EXECUTE FUNCTION master.crm_g_bat_bien()",
     # nhất quán lineage khi chèn (kể cả ordinary SQL chủ bảng bỏ qua hàm lệnh): đúng bản xuất HOP_DONG PDF_DAT của đúng bản soạn CHO_KY/revision hiện hành
     """CREATE OR REPLACE FUNCTION master.crm_hd_ky_kiem() RETURNS trigger
@@ -11534,25 +11530,24 @@ M0023_CRM_KY = (
     "CREATE TRIGGER crm_gk_xuat_ky_khoa BEFORE INSERT ON master.crm_gk_xuat FOR EACH ROW EXECUTE FUNCTION master.crm_gk_xuat_ky_khoa()",
     _KY_XG,
     # ======================================================================= quyền ký/đọc HIỆN HÀNH (không vai mới; không suy từ người tạo)
-    # phạm vi hiện hành dùng chung (một predicate, hai action hẹp cố định bởi hàm bọc bên dưới): người dùng hoạt động của phiên + module CRM trên PN
-    # + vai hiện hành + phân công p_hanh hiện hành (loại hình) + phạm vi còn hiệu lực khớp HĐ/bản soạn + dự án (HĐ và dữ liệu revision hiện hành)
-    # + khách (mã đối tác, hoặc digest khách dự thảo khi chưa có mã). Thiếu/cũ/thu hồi phân công hoặc phạm vi → false (fail closed).
-    """CREATE OR REPLACE FUNCTION master.crm_ky_pham_vi_hd(p_soan uuid, p_hanh text, p_vai text[]) RETURNS boolean
+    # người ký: người dùng hoạt động của phiên + module CRM trên PN + vai BAN_HANG + phân công CRM_KY_KET hiện hành (loại hình) + phạm vi còn hiệu lực
+    # khớp HĐ/bản soạn + dự án (HĐ và dữ liệu revision hiện hành) + khách (mã đối tác, hoặc digest khách dự thảo khi chưa có mã).
+    """CREATE OR REPLACE FUNCTION master.crm_ky_pham_vi_duoc(p_soan uuid) RETURNS boolean
         LANGUAGE sql STABLE SECURITY DEFINER SET search_path = master, pg_temp AS $$
-        SELECT p_hanh IN ('CRM_KY_KET', 'CRM_KY_DOC') AND EXISTS (
+        SELECT EXISTS (
             SELECT 1
             FROM master.crm_hd_soan s
             JOIN master.hop_dong h ON h.id = s.hop_dong_id AND h.phap_nhan_id = s.phap_nhan_id
             JOIN master.crm_hd_soan_rev r ON r.soan_id = s.id AND r.revision = s.revision_hien_hanh
             JOIN master.crm_ky_pham_vi b ON b.soan_id = s.id AND b.hop_dong_id = h.id AND b.phap_nhan_id = s.phap_nhan_id AND b.thu_hoi_luc IS NULL
             JOIN master.phan_cong_hanh_dong a ON a.id = b.phan_cong_id AND a.thu_hoi_luc IS NULL AND a.phap_nhan_id = s.phap_nhan_id
-                 AND a.module = 'CRM' AND a.hanh_dong = p_hanh AND (a.loai_hinh_id IS NULL OR a.loai_hinh_id = s.loai_hinh_id)
+                 AND a.module = 'CRM' AND a.hanh_dong = 'CRM_KY_KET' AND (a.loai_hinh_id IS NULL OR a.loai_hinh_id = s.loai_hinh_id)
             JOIN master.nguoi_dung n ON n.id = a.nguoi_dung_id AND n.trang_thai = 'HOAT_DONG'
             WHERE s.id = p_soan
               AND n.dang_nhap = master.ktt_danh_tinh()
               AND n.id::text = nullif(current_setting('ktt.nguoi_dung_id', true), '')
               AND master.ktt_duoc(s.phap_nhan_id, 'CRM')
-              AND master.ktt_co_vai(s.phap_nhan_id, p_vai, NULL)
+              AND master.ktt_co_vai(s.phap_nhan_id, ARRAY['BAN_HANG'], NULL)
               AND b.du_an_id IS NOT DISTINCT FROM h.du_an_id
               AND b.du_an_id::text IS NOT DISTINCT FROM nullif(r.du_lieu -> 'bao_gia' ->> 'du_an_id', '')
               AND ((b.doi_tac_id IS NOT NULL AND b.doi_tac_id = h.doi_tac_id
@@ -11562,18 +11557,11 @@ M0023_CRM_KY = (
                        AND jsonb_typeof(r.du_lieu -> 'bao_gia' -> 'khach' -> 'du_thao') = 'object'
                        AND b.khach_du_thao_sha256 = """ + _KY_DU_THAO_SHA + """)))
         $$""",
-    # người ký: vai BAN_HANG + phân công CRM_KY_KET + phạm vi hiện hành (quyền ký tách riêng quyền đọc)
-    """CREATE OR REPLACE FUNCTION master.crm_ky_pham_vi_duoc(p_soan uuid) RETURNS boolean
-        LANGUAGE sql STABLE SECURITY DEFINER SET search_path = master, pg_temp AS $$
-        SELECT master.crm_ky_pham_vi_hd(p_soan, 'CRM_KY_KET', ARRAY['BAN_HANG'])
-        $$""",
-    # đọc bản ký/căn cứ/hash/tải: người ký trong phạm vi, HOẶC KT/KTT/CFO có vai hiện hành + phân công hẹp CRM_KY_DOC + phạm vi tường minh còn
-    # hiệu lực đúng PN/dự án/khách/HĐ. Vai KT/KTT/CFO + PN + module KHÔNG đủ (không cấp rộng, không suy từ người tạo, không tự cấp DEMO).
+    # đọc bản ký/tải: người ký trong phạm vi, hoặc KT/KTT/CFO theo vai hiện có trên PN có module CRM (không cấp rộng mới)
     """CREATE OR REPLACE FUNCTION master.crm_ky_doc_duoc(p_soan uuid) RETURNS boolean
         LANGUAGE sql STABLE SECURITY DEFINER SET search_path = master, pg_temp AS $$
         SELECT EXISTS (SELECT 1 FROM master.crm_hd_soan s WHERE s.id = p_soan AND master.ktt_duoc(s.phap_nhan_id, 'CRM')
-                       AND (master.crm_ky_pham_vi_duoc(s.id)
-                            OR master.crm_ky_pham_vi_hd(s.id, 'CRM_KY_DOC', ARRAY['KE_TOAN','KE_TOAN_TRUONG','CFO'])))
+                       AND (master.crm_ky_pham_vi_duoc(s.id) OR master.ktt_co_vai(s.phap_nhan_id, ARRAY['KE_TOAN','KE_TOAN_TRUONG','CFO'], NULL)))
         $$""",
     # đích + quyền ký hiện hành: ngoài PN/module → 404 ẩn; thiếu vai/phân công → 403; thiếu/cũ/thu hồi phạm vi → 403 chưa cấu hình phạm vi
     """CREATE OR REPLACE FUNCTION master.crm_ky_dich(p_soan uuid, OUT pn uuid)
@@ -11671,6 +11659,9 @@ M0023_CRM_KY = (
             IF master.crm_g_danh_muc_digest(s.loai_hinh_id, r.danh_muc_ref, r.danh_muc_rev) IS DISTINCT FROM r.danh_muc_digest THEN
                 RAISE EXCEPTION 'CRM_GK_MAU_LECH_GHIM: danh mục đã ghim không còn khớp' USING ERRCODE = 'P0001';
             END IF;
+            IF p_ky_sha = xm.pdf_sha256 THEN
+                RAISE EXCEPTION 'CRM_KY_PDF_LA_BAN_XUAT: tệp tải lên trùng PDF bản xuất G3 — cần PDF bản đã ký' USING ERRCODE = 'P0001';
+            END IF;
             INSERT INTO master.crm_hd_ky (phap_nhan_id, hop_dong_id, soan_id, revision, soan_rev_id, xuat_id, g3_input_sha256, g3_docx_sha256, g3_docx_len,
                                           g3_pdf_sha256, g3_pdf_len, g3_engine, mau_phien_ban_id, anh_xa_id, kiem_id, raw_sha256, ban_do_sha256,
                                           danh_muc_ref, danh_muc_rev, danh_muc_digest, profile_phien_ban, profile_sha256, du_lieu_sha256, tom_tat,
@@ -11690,8 +11681,7 @@ M0023_CRM_KY = (
             kq := master.crm_ky_kq(kid);""" + _G_KET.format(a="'CRM_KY_KET'") + """
         END $$""",
     # đọc điều kiện/căn cứ dialog + bản ký + lịch sử: thấy bản soạn theo quyền CRM_SOAN hiện có (hoặc người đọc bản ký); hash/căn cứ/bản ký chỉ
-    # trả cho người ký trong phạm vi hoặc KT/KTT/CFO có phân công CRM_KY_DOC + phạm vi tường minh hiện hành (crm_ky_doc_duoc). Đã ký → căn cứ là
-    # snapshot của bản xuất đã ký (không đọc nháp hiện hành thay thế).
+    # trả cho người ký trong phạm vi hoặc KT/KTT/CFO. Đã ký → căn cứ là snapshot của bản xuất đã ký (không đọc nháp hiện hành thay thế).
     """CREATE OR REPLACE FUNCTION master.crm_ky_doc(p_soan uuid) RETURNS jsonb
         LANGUAGE plpgsql STABLE SET search_path = master, pg_temp AS $$
         DECLARE s record; h record; k record; g record; xm record; r record; v record; vai boolean; ky boolean; doc boolean; kq jsonb;
@@ -11752,10 +11742,6 @@ M0023_CRM_KY = (
         DECLARE ai text := master.ktt_danh_tinh(); k record;
         BEGIN""" + _G_CHU + """
             SELECT * INTO k FROM master.crm_hd_ky WHERE id = p_ky;
-            IF k.id IS NOT NULL THEN  -- ghim quyền + phạm vi hiện hành tới hết giao dịch (thu hồi đồng thời không lọt giữa kiểm và nhật ký/hash)
-                PERFORM master.crm_g_ghim_quyen(k.phap_nhan_id);
-                PERFORM 1 FROM master.crm_ky_pham_vi b WHERE b.soan_id = k.soan_id AND b.thu_hoi_luc IS NULL FOR SHARE;
-            END IF;
             IF k.id IS NULL OR ai IS NULL OR NOT master.crm_ky_doc_duoc(k.soan_id) THEN
                 RAISE EXCEPTION 'CRM_G_KHONG_THAY: không thấy bản ký (hoặc ngoài phạm vi)' USING ERRCODE = 'P0001';
             END IF;
@@ -11779,8 +11765,7 @@ M0023_CRM_KY = (
         END LOOP;
     END $$""",
     "REVOKE ALL ON master.crm_ky_pham_vi, master.crm_hd_ky, master.crm_hd_ky_g5 FROM PUBLIC",
-    """REVOKE EXECUTE ON FUNCTION master.crm_ky_pham_vi_hd(uuid, text, text[]), master.crm_ky_pham_vi_duoc(uuid), master.crm_ky_doc_duoc(uuid),
-        master.crm_ky_dich(uuid), master.crm_ky_tra(text, uuid, text),
+    """REVOKE EXECUTE ON FUNCTION master.crm_ky_pham_vi_duoc(uuid), master.crm_ky_doc_duoc(uuid), master.crm_ky_dich(uuid), master.crm_ky_tra(text, uuid, text),
         master.crm_ky_kq(uuid), master.crm_ky_ket(text, text, uuid, integer, uuid, text, text, bigint, text, bigint, integer, text, date, boolean, text, text, jsonb),
         master.crm_ky_doc(uuid), master.crm_ky_tep(uuid, text) FROM PUBLIC""",
 )
