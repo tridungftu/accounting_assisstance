@@ -7,7 +7,7 @@ Trạng thái lát: Đang code → Chờ kiểm → Chờ Anh (cổng A/B) → S
 | Lát | Việc | Worker | Nhánh · worktree | Giao lúc | Trạng thái |
 |---|---|---|---|---|---|
 | BG-1b | CRM · Báo giá gói 1 màn hình (BG-01…05) → cổng A | Claude Sonnet | `lat/bg-1b` (từ `lat/bg-1a`) · `.claude/worktrees/lat-bg-1b` · DEMO cổng 8784, CSDL riêng `p8784` | 24/10 | Đang code |
-| BG-1a | CRM · Báo giá gói 1 máy chủ | Codex (code) · Claude (review) | `lat/bg-1a` (56c46c9) | 24/10 | Chờ kiểm — review chéo vòng 1 đang chạy; Codex báo 74 test đạt (+24), không lỗi mới, không đổi schema |
+| BG-1a | CRM · Báo giá gói 1 máy chủ | Codex (code) · Claude (review) | `lat/bg-1a` (56c46c9) | 24/10 | Sửa vòng 2 — review Claude vòng 1: Đạt, 0 Chặn; lead chọn sửa 4 điểm theo TL 45 §3 (dòng nhập tiền không chặn vì % không tròn; chặn Chuyển ở máy chủ; định dạng tiền thống nhất; ô ghi đè nhận số kiểu Việt) |
 | L0-2c | M4 · Nghiệm thu & chi phí dự án: gộp backend duyệt/PDF (lượt 1: 5 file gộp 3 bên) rồi đăng ký migration 26–27 (lượt 2) | Codex | `lat/l0-2c` · `.claude/worktrees/lat-l0-2c` | 24/10 | Đang code (lượt 1) |
 
 ## Lát đã xong (24/10)

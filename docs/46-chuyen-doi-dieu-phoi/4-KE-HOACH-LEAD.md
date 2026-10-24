@@ -56,7 +56,7 @@ Căn cứ: lệnh của Anh 24/10 (mọi module đã chốt thiết kế; M9 d�
 | Mã | Module · việc | Worker | Phụ thuộc | Khóa file chung | Trạng thái |
 |---|---|---|---|---|---|
 | P0 | Nền · khôi phục file chưa vào git (theo L0-2i; L0-2d đã liệt kê 11 file G6A/G5-B + `m4\sql_duyet.py` + `crm_g.js` bản 27a0d3db — phải vào TRƯỚC BG-1) + gộp `m4-02c-backend`, `m4-04c-request-m27` (= L0-2c) + chuỗi migration import được: 24 duyệt · 25 G6A · 26 KT · 27 Request nháp · rồi master-reuse, 03B | Claude Opus | L0-2d, L0-2i | `crm_g.js`, `m4\*` (chỉ thêm file) | Xong 24/10 — gộp 1c5c67a; module lỗi nạp 29 → 1 |
-| BG-1a | CRM · Báo giá gói 1 phía máy chủ: parse ô thông minh (`%`, dấu chấm/phẩy VN), BG-04 ghi đè + nhật ký, nhãn tên thay mã, mốc chuẩn | Codex | P0 | `crm_g.py` | Chờ kiểm (review Claude vòng 1) |
+| BG-1a | CRM · Báo giá gói 1 phía máy chủ: parse ô thông minh (`%`, dấu chấm/phẩy VN), BG-04 ghi đè + nhật ký, nhãn tên thay mã, mốc chuẩn | Codex | P0 | `crm_g.py` | Sửa vòng 2 (4 điểm, Codex) |
 | BG-1b | CRM · Báo giá gói 1 màn hình: BG-01…05, đo số ô trước/sau → **cổng A** | Claude | BG-1a | `crm_g.js` | Đang code (24/10, từ lat/bg-1a) |
 | BG-2a | CRM · Báo giá gói 2 máy chủ: profile loại hình v3 (BG-06/11), tìm khách (BG-08) | Codex | BG-1a | `crm_g.py` | Chờ |
 | BG-2b | CRM · Báo giá gói 2 màn hình: BG-06, 07, 08, 10, 11, 12 | Claude | cổng A gói 1, BG-2a | `crm_g.js` | Chờ |
@@ -88,6 +88,7 @@ Căn cứ: lệnh của Anh 24/10 (mọi module đã chốt thiết kế; M9 d�
 | M4-7 | M4 · migration master-reuse + rà `m4b2`/`m4b3` (= L0-2h) | Codex | P0 | — | Chờ |
 
 **Chưa chốt thiết kế — lead soạn checklist, hỏi Anh bằng bảng chọn khi tới lượt (không hỏi dồn):**
+- **Báo giá → Ký (hỏi cùng phiếu cổng A gói 1):** bước kiểm lịch khi Ký (`k2/sql_crm_kiem_hd.py` `crm_kiem_lich_ky`) vẫn tính tổng = đơn giá × diện tích và đòi % hữu hạn → báo giá có tổng ghi đè, hoặc chia tiền không tròn %, qua được In/Chuyển nhưng bị chặn ở Ký. Phương án: (a) giữ chặn ở Ký (kế toán đối chiếu lại); (b) lát SQL + migration cho bước Ký đọc tổng ghi đè và kiểm Σ tiền. Ngoài phạm vi TL 45 (không đụng Ký).
 - M4 · ghi nhận công nợ nội bộ (kế toán xác nhận giá trị/thuế → công nợ): chưa có thiết kế gói; 03B chỉ là quan hệ căn cứ.
 - BG-09 nguồn danh mục lô/căn (bảng mới + dữ liệu DEMO, hay kế toán nhập).
 - CRM: Q-B (luồng B do CFO hay KT), Q-SAMPLE, Q-RETURN, Q-INPUT, Q-PII, Q-UI; quyền xem công nợ Junsky của Bán hàng.
