@@ -370,7 +370,7 @@ class HoaDonK2:
 
     # ------------------------------------------------------------------ POST /api/m2/nhan
     def nhan(self, actor: str, *, source_instance: str, scope_ref: str, coverage: str, reported_errors=nguon_chung.VANG, client_key: str,
-             native: bytes, artifact_name: str | None = None, crosswalk: bytes | None = None) -> dict:
+             native: bytes, artifact_name: str | None = None, crosswalk: bytes | None = None, _identity_manifest=None) -> dict:
         dt = self.danh_tinh(actor)
         nguon_chung.kiem_khoa(client_key)
         if not isinstance(source_instance, str) or not source_instance or not isinstance(scope_ref, str) or not scope_ref:
@@ -408,6 +408,10 @@ class HoaDonK2:
                 if a["co_mat"]:
                     nguon_chung.ghi_blob(self.root, a["raw"])
             rows, plans, cands, cov_hl, ket_qua = self._doc_nguon(c, source_instance, profile, scope, native, media, crosswalk, coverage)
+            if _identity_manifest is not None:
+                identities = [p["identity"] for p in plans] + [p["identity"] for p in cands if "identity" in p]
+                if any(list(i) != list(_identity_manifest) for i in identities):
+                    raise DataError("M2_MANIFEST_IDENTITY_KHAC", "Identity registry/XML khác manifest — giữ chờ kiểm.")
             ket_qua.update(coverage=coverage, artifact_name=artifact_name)
             receipt_id = nguon_chung.receipt_id_moi()
             du = nguon_chung.du_lieu_stage_capture(receipt_id=receipt_id, scope=scope, coverage=coverage, coverage_hl=cov_hl, envelope=env, arts=arts,
@@ -424,6 +428,19 @@ class HoaDonK2:
             c.execute("SELECT kho.m2_tieu_thu_quan_sat(%s::uuid, %s) AS v", (stage, h)).fetchone()
             cuoi = nguon_chung.chot_ket_qua(c, stage, h, bool(ghi["snapshot_moi"]), {"module": MODULE})
         return {**ket_qua, "lan_tiep_nhan_id": receipt_id, "capture_sha256": h, "lap_lai": False, **cuoi}
+
+    def nhan_theo_manifest(self, actor: str, *, identity, **capture) -> dict:
+        """M2c: chặn registry/XML dẫn xuất khác identity manifest trước khi ghi.
+
+        Hàm mỏng giữ nguyên nhan → stage → consumer hiện hữu, không thêm SQL.
+        Kiểm identity của đúng kế hoạch được stage, không preflight khác snapshot.
+        Không có kế hoạch promote (reader strict HOLD) vẫn được capture raw.
+        """
+        if not isinstance(identity, (list, tuple)) or len(identity) != 6 or any(
+            not isinstance(v, str) or not v for v in identity
+        ):
+            raise DataError("M2_MANIFEST_IDENTITY_SAI", "Cần identity manifest đủ sáu phần.")
+        return self.nhan(actor, _identity_manifest=tuple(identity), **capture)
 
     @staticmethod
     def _phat_lai(cu: dict, h: str) -> dict:
