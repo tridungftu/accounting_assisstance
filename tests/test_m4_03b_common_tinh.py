@@ -13,6 +13,8 @@ FIX01 (static/mock, KHÔNG phải bằng chứng native): đổi tập nguồn l
 không UNIQUE theo nguồn đơn lẻ, namespace biên nhận theo gốc, closure union trước khóa + kiểm revision đã đọc dưới khóa, gương `hop_refs`.
 FIX02 (`TenPlpgsql`, static — KHÔNG phải bằng chứng native): hồi quy 42702 AmbiguousColumn — `_REFS`/`_HIEN_HANH` alias tường minh `dc_ref(value)`;
 mọi hàm/khối plpgsql của hằng common không có alias quan hệ/cột SQL hay cột bảng mới trùng tham số/biến; bộ dò tự kiểm trên mẫu lỗi đã thấy.
+FIX03 (`ChungThucFix03`, static — KHÔNG phải bằng chứng native): khóa kỹ thuật không literal + ACL/RLS/bất biến; issuer/reader MAC HMAC-SHA256 có domain,
+tuple, actor, ngữ cảnh nguồn; không ký lại mục chưa xác minh; fail closed; stamp top transaction do trigger gán thay xmin, revision giao dịch khác bị chặn.
 """
 
 from __future__ import annotations
@@ -244,7 +246,7 @@ class SqlTinh(unittest.TestCase):
 # ================================================================================================== FIX02: tên PL/pgSQL ↔ SQL
 # PL/pgSQL (variable_conflict mặc định = error) báo 42702 khi một tên trong statement nhúng vừa là biến/tham số vừa là alias quan hệ/cột SQL.
 # Bộ dò tĩnh: với mỗi hàm/khối plpgsql, tập (tham số + biến DECLARE) phải rời tập (alias quan hệ + alias cột + cột bảng mới được FROM/JOIN).
-_SRF = ("jsonb_array_elements", "jsonb_array_elements_text", "_kt_tep_can_cu", "unnest")
+_SRF = ("jsonb_array_elements", "jsonb_array_elements_text", "_kt_tep_can_cu", "unnest", "jsonb_each")
 _ID = r"[a-z_][a-z_0-9]*"
 _TU_KHOA = frozenset(("as", "on", "where", "join", "left", "cross", "lateral", "order", "limit", "for", "loop", "then", "and", "or", "is", "in",
                       "into", "from", "group", "union", "all", "select", "using", "returning", "values", "not", "case", "when", "else", "end",
@@ -297,7 +299,7 @@ def _cot_bang_moi() -> dict:
     cot = {}
     for t in SG.BANG:
         s = next(x for x in SG.M4_03B_COMMON_SQL if x.startswith(f"CREATE TABLE kho.{t} ("))
-        cot[t] = set(re.findall(r"^\s+([a-z_0-9]+) (?:uuid|text|integer|jsonb|timestamptz)\b", s, re.M))
+        cot[t] = set(re.findall(r"^\s+([a-z_0-9]+) (?:uuid|text|integer|bigint|smallint|bytea|jsonb|timestamptz)\b", s, re.M))
     return cot
 
 
@@ -338,7 +340,10 @@ class TenPlpgsql(unittest.TestCase):
         for can in ("kho.dc_luu", "kho.dc_xac_nhan", "kho._dc_phien_ban_hoan_tat", "kho._dc_phien_ban_kiem", "kho._dc_nguon_cua",
                     "kho._dc_do_thi", "kho._dc_cap_nguon", "kho._dc_xem", "kho._dc_thieu"):
             self.assertIn(can, ham)
-        self.assertEqual(len([k for k in ham if k.startswith("DO@")]), 2)
+        self.assertEqual(len([k for k in ham if k.startswith("DO@")]), 3)  # FIX03 thêm khối kiểm pgcrypto
+        for can in ("kho._dc_nt_ghi", "kho._dc_nt_hien_hanh", "kho._dc_ck_khoa", "kho._dc_ck_ky", "kho._dc_ck_hop_le", "kho._dc_ck_json"):
+            self.assertIn(can, ham)
+        self.assertTrue({"dc_m", "key", "value"} <= _alias_sql(ham["kho._dc_nt_ghi"][1]))
         self.assertEqual(ham["DO@1"][0], {"r"})
         # bộ dò không rỗng trên hàm thật (không kiểm cho có)
         al = _alias_sql(ham["kho.dc_luu"][1])
@@ -376,6 +381,170 @@ class TenPlpgsql(unittest.TestCase):
             self.assertIn(f"RAISE EXCEPTION '{ma}: nguồn đã có phiên bản/phong bì mới hơn", b)
             self.assertIn("(ref->>'source_version_id') IS DISTINCT FROM (it->>'current')", b)
             self.assertIn("DC_CAN_KIEM_LAI: nguồn nghiệm thu không còn hiện hành", b)
+
+
+# ================================================================================================== FIX03: chứng thực có chữ ký + stamp top tx
+def _dau(ten: str) -> str:
+    return _ham(ten).split("$$")[0]
+
+
+def _than(ten: str) -> str:
+    return _ham(ten).split("$$")[1]
+
+
+class ChungThucFix03(unittest.TestCase):
+    KHOA = f"kho.{SG.BANG_NOI_BO[0]}"
+
+    def test_khoa_ky_thuat_khong_literal_singleton_bat_bien(self):
+        self.assertEqual(SG.BANG_NOI_BO, ("mua_doi_chieu_chung_thuc_khoa",))
+        self.assertNotIn(SG.BANG_NOI_BO[0], SG.BANG, "bảng khóa không thuộc BANG nghiệp vụ (không đổi ý nghĩa delta)")
+        tao = next(s for s in SG.M4_03B_COMMON_SQL if s.startswith(f"CREATE TABLE {self.KHOA} ("))
+        self.assertIn("id smallint PRIMARY KEY CHECK (id = 1)", tao)
+        self.assertIn(f"khoa bytea NOT NULL CHECK (octet_length(khoa) = {SG.DO_DAI_KHOA})", tao)
+        self.assertEqual(SG.DO_DAI_KHOA, 32)
+        ds = list(SG.M4_03B_COMMON_SQL)
+        i_kiem = next(i for i, s in enumerate(ds) if "DC_CHUNG_THUC_PGCRYPTO" in s and s.startswith("DO $$"))
+        i_bang = ds.index(tao)
+        i_seed = ds.index(f"INSERT INTO {self.KHOA} (id, khoa) VALUES (1, public.gen_random_bytes(32))")
+        i_trg = next(i for i, s in enumerate(ds) if s.startswith(f"CREATE TRIGGER {SG.BANG_NOI_BO[0]}_bat_bien BEFORE INSERT OR UPDATE OR DELETE"))
+        self.assertEqual([i_kiem, i_bang, i_seed, i_trg], sorted([i_kiem, i_bang, i_seed, i_trg]), "kiểm pgcrypto → bảng → seed → khóa bất biến")
+        self.assertEqual(sum(f"INSERT INTO {self.KHOA}" in s for s in ds), 1, "chỉ một hàng seed lúc migration")
+        # bí mật không là literal nguồn: không bytea/hex literal, không decode/digest hằng, không CREATE EXTENSION
+        self.assertNotRegex(NOI, r"'\\x[0-9a-fA-F]|decode\(|(?i:create\s+extension)")
+        bb = _than("kho._dc_ck_khoa_bat_bien")
+        self.assertIn("RAISE EXCEPTION 'DC_BAT_BIEN:", bb)
+        self.assertNotIn("IF ", bb, "trigger khóa từ chối VÔ ĐIỀU KIỆN (kể cả chủ bảng)")
+
+    def test_acl_khoa_va_helper_noi_bo(self):
+        self.assertIn(f"REVOKE ALL ON {self.KHOA} FROM PUBLIC", NOI)
+        self.assertIn(f"ALTER TABLE {self.KHOA} ENABLE ROW LEVEL SECURITY", NOI)
+        self.assertNotRegex(NOI, r"(?i)create\s+policy|force\s+row\s+level")
+        do = next(s for s in SG.M4_03B_COMMON_SQL if "TO app_web" in s)
+        self.assertIn(f"REVOKE ALL ON {self.KHOA} FROM app_web", do)
+        rv_app = do[do.index("REVOKE EXECUTE ON FUNCTION"):do.index("FROM app_web", do.index("REVOKE EXECUTE ON FUNCTION"))]
+        rv = next(s for s in SG.M4_03B_COMMON_SQL if s.startswith("REVOKE EXECUTE ON FUNCTION"))
+        for h in (*SG.HAM_CHUNG_THUC, "kho._dc_nt_ghi(uuid)", "kho._dc_nt_hien_hanh(uuid)"):
+            self.assertIn(h, SG.HAM_NOI_BO)
+            self.assertIn(h, rv)
+            self.assertIn(h, rv_app)
+            self.assertNotIn("SECURITY DEFINER", _dau(h.split("(")[0]), h)
+        grants = re.findall(r"GRANT ([^;]+?) TO app_web", NOI)
+        self.assertEqual(grants, ["EXECUTE ON FUNCTION kho.dc_doc_hoa_don(uuid)"])
+        # khóa chỉ được đọc trong _dc_ck_khoa, chỉ _dc_ck_ky gọi nó; không DTO/GUC/log nào chứa khóa
+        ten_ham = set(re.findall(r"CREATE OR REPLACE FUNCTION (kho\.\w+)\(", NOI))
+        self.assertEqual({t for t in ten_ham if "kho._dc_ck_khoa()" in _than(t)}, {"kho._dc_ck_ky"})
+        self.assertEqual({t for t in ten_ham if f"kho.{SG.BANG_NOI_BO[0]}" in _than(t)}, {"kho._dc_ck_khoa"})
+        self.assertNotRegex(NOI, rf"(INSERT INTO|UPDATE|DELETE FROM)\s+{re.escape(self.KHOA)}\s+(?!\(id, khoa\) VALUES \(1, public\.gen_random_bytes)")
+        for f in (SRC / "k2" / "ghi_nhan_chung.py", SRC / "m4" / "ghi_nhan_nghiem_thu.py"):
+            src = f.read_text(encoding="utf-8")
+            self.assertNotIn(SG.BANG_NOI_BO[0], src)
+            self.assertNotIn("_dc_ck_", src)
+
+    def test_fail_closed_pgcrypto_khoa(self):
+        do = next(s for s in SG.M4_03B_COMMON_SQL if "DC_CHUNG_THUC_PGCRYPTO" in s and s.startswith("DO $$"))
+        self.assertIn("to_regprocedure('public.gen_random_bytes(integer)') IS NULL", do)
+        self.assertIn("to_regprocedure('public.hmac(bytea,bytea,text)') IS NULL", do)
+        k = _than("kho._dc_ck_khoa")
+        thu_tu = [k.index("NOT m4._kt_phien_chu()"), k.index("to_regprocedure('public.hmac(bytea,bytea,text)') IS NULL"),
+                  k.index("SELECT count(*) INTO v_n"), k.index("v_n IS DISTINCT FROM 1 OR v_k IS NULL OR octet_length(v_k) <> 32")]
+        self.assertEqual(thu_tu, sorted(thu_tu))
+        self.assertIn("DC_KHOA_CHUNG_THUC", k)
+        self.assertNotRegex(k, r"(?i)coalesce\(v_k|RETURN\s+'")
+        j = _than("kho._dc_ck_json")
+        self.assertIn("EXCEPTION WHEN invalid_text_representation", j)
+        self.assertNotRegex(j, r"(?i)when\s+others")
+        self.assertIn("length(p_t) > 1000000", j)
+
+    def test_mac_hmac_domain_payload(self):
+        self.assertEqual(SG.DOMAIN_CHUNG_THUC, "m4-03b-nt-attestation/v1")
+        ky = _than("kho._dc_ck_ky")
+        self.assertIn("encode(public.hmac(convert_to(p_payload::text, 'UTF8'), kho._dc_ck_khoa(), 'sha256'), 'hex')", ky)
+        self.assertIn(f"(p_payload->>'domain') IS DISTINCT FROM '{SG.DOMAIN_CHUNG_THUC}'", ky)
+        self.assertIn("(p_payload->'mac') IS NOT NULL", ky)
+        hl = _than("kho._dc_ck_hop_le")
+        self.assertIn("RETURN kho._dc_ck_ky(p_entry - 'mac') = (p_entry->>'mac');", hl)
+        self.assertIn("(p_entry->>'mac') ~ '^[0-9a-f]{64}$'", hl)
+        self.assertNotRegex(hl + ky, r"sha256\(convert_to\(p_(payload|entry)")  # MAC thật, không SHA(payload)
+        g = _than("kho._dc_nt_ghi")
+        for k in ("'domain'", "'pid', v_pid", "'txid', v_txid", "'session_user', v_su", "'actor_id', v_aid::text", "'actor', v_ai",
+                  "'cho_id', p_cho::text", "'ngu_canh', v_nc", "'producer'", "'chung_thuc_sha256'", "'ket_qua'"):
+            self.assertIn(k, g)
+        self.assertIn("v_txid := pg_catalog.txid_current()::text", g)
+        self.assertIn("v_su := session_user::text", g)
+        nc = _ham("kho._dc_nt_ngu_canh")
+        for k in ("'phap_nhan_id'", "'du_an_id'", "'hop_dong_id'", "'dot_id'", "'phong_bi_id'", "'phong_bi_sha256'", "'version_id'",
+                  "'version_moi_nhat_id'", "'seal_id'", "'ket_luan_id'", "'seal_graph_sha256'", "'co_so_l3_sha256'", "'kt_revision_id'",
+                  "'kt_xac_nhan_id'", "'toan_ven'", "'do_thi_hien_hanh'"):
+            self.assertIn(k, nc)
+        self.assertNotIn("_kt_hien_hanh", nc)
+
+    def test_issuer_xac_minh_truoc_khi_ky_khong_ky_lai(self):
+        g = _than("kho._dc_nt_ghi")
+        self.assertNotIn("SET search_path", _dau("kho._dc_nt_ghi"), "SET LOCAL phải sống tới hết giao dịch")
+        thu_tu = [g.index("NOT m4._kt_phien_chu()"), g.index("v_ai := master.ktt_danh_tinh()"), g.index("v_aid := m4.ai_id()"),
+                  g.index("PERFORM m4.kt_kiem(p_cho, 'XEM')"), g.index("v_h := m4._kt_hien_hanh(p_cho)"), g.index("kho._dc_ck_hop_le(v_e)"),
+                  g.index("kho._dc_ck_ky(v_payload)"), g.index(f"set_config('{SG.GUC_NT}'")]
+        self.assertEqual(thu_tu, sorted(thu_tu))
+        self.assertEqual(g.count("kho._dc_ck_ky("), 1, "chỉ ký payload mới của đúng gốc")
+        # mục cũ: chỉ chép NGUYÊN VĂN sau MAC riêng + cùng tuple; không jsonb_set/không dựng lại bool
+        vong = g[g.index("FOR v_k, v_e IN"):g.index("END LOOP;")]
+        for k in ("kho._dc_ck_hop_le(v_e)", "(v_e->>'cho_id') IS NOT DISTINCT FROM v_k", "(v_e->>'pid') IS NOT DISTINCT FROM v_pid",
+                  "(v_e->>'txid') IS NOT DISTINCT FROM v_txid", "(v_e->>'session_user') IS NOT DISTINCT FROM v_su",
+                  "(v_e->>'actor_id') IS NOT DISTINCT FROM v_aid::text", "(v_e->>'actor') IS NOT DISTINCT FROM v_ai",
+                  "v_moi := v_moi || pg_catalog.jsonb_build_object(v_k, v_e);"):
+            self.assertIn(k, vong)
+        self.assertNotIn("jsonb_set", g)
+        self.assertNotIn("_dc_ck_ky", vong)
+        self.assertIn(f"<= {SG.TOI_DA_THANH_PHAN} THEN", g)
+        self.assertIn(f">= {SG.TOI_DA_THANH_PHAN} THEN", g)
+        # bool ký = kết quả DB tính (m4._kt_hien_hanh) AND chứng thực producer 03A thuộc ĐÚNG gốc/PB
+        self.assertIn("(v_ktj->>'kt_pending_id') IS NOT DISTINCT FROM p_cho::text", g)
+        self.assertIn("(v_ktj->>'phong_bi_id') IS NOT DISTINCT FROM (v_nc->>'phong_bi_id')", g)
+
+    def test_reader_chi_nhan_muc_ky_hop_le(self):
+        r = _than("kho._dc_nt_hien_hanh")
+        thu_tu = [r.index("NOT m4._kt_phien_chu()"), r.index("kho._dc_ck_json("), r.index("kho._dc_ck_hop_le(v_e)"),
+                  r.index("(v_e->>'txid') IS DISTINCT FROM txid_current()::text"), r.index("v_nc := kho._dc_nt_ngu_canh(p_cho)"),
+                  r.index("v_nc IS DISTINCT FROM (v_e->'ngu_canh')"), r.index("m4.kt_doc_cho(p_cho)"), r.index("RETURN jsonb_build_object(")]
+        self.assertEqual(thu_tu, sorted(thu_tu))
+        for k in ("(v_e->>'cho_id') IS DISTINCT FROM p_cho::text", "(v_e->>'pid') IS DISTINCT FROM pg_backend_pid()::text",
+                  "(v_e->>'session_user') IS DISTINCT FROM session_user::text",
+                  "(v_e->>'actor_id') IS DISTINCT FROM nullif(current_setting('ktt.nguoi_dung_id', true), '')",
+                  "(v_e->>'actor') IS DISTINCT FROM master.ktt_danh_tinh()"):
+            self.assertIn(k, r)
+        self.assertGreaterEqual(r.count("RETURN NULL;"), 5)
+        self.assertNotIn("_kt_hien_hanh", r, "không gọi lại producer hiện hành trên gốc cũ (03A chỉ giữ một gốc)")
+        self.assertNotRegex(r, r"RETURN\s+v_m|RETURN\s+v_e\b|::jsonb;")
+        # bool hiện hành = bool đã ký AND ngữ cảnh hiện tại (không bao giờ bool thô từ GUC)
+        self.assertIn("coalesce((v_e->'ket_qua'->>'hien_hanh')::boolean, false)", r)
+        self.assertIn("(v_nc->>'version_id') IS NOT DISTINCT FROM (v_nc->>'version_moi_nhat_id')", r)
+        self.assertIn("kho._dc_nt_hien_hanh(c.id)", _ham("kho._dc_do_thi"))
+
+    def test_stamp_top_tx_thay_xmin(self):
+        pb = next(s for s in SG.M4_03B_COMMON_SQL if s.startswith("CREATE TABLE kho.mua_doi_chieu_can_cu_phien_ban ("))
+        self.assertIn("tao_txid bigint NOT NULL CHECK (tao_txid > 0)", pb)
+        self.assertIn("tao_backend_pid integer NOT NULL CHECK (tao_backend_pid > 0)", pb)
+        self.assertNotIn("tao_txid", SG._TRUONG_PB, "stamp không nhận từ lệnh/body")
+        k = _than("kho._dc_phien_ban_kiem")
+        i_gan = k.index("NEW.tao_txid := pg_catalog.txid_current();")
+        self.assertLess(i_gan, k.index("NEW.noi_dung_sha256 IS DISTINCT FROM"))
+        self.assertIn("NEW.tao_backend_pid := pg_catalog.pg_backend_pid();", k)
+        self.assertIn("NEW.tao_boi_id::text IS DISTINCT FROM nullif(pg_catalog.current_setting('ktt.nguoi_dung_id', true), '')", k)
+        self.assertIn("NEW.tao_boi IS DISTINCT FROM master.ktt_danh_tinh()", k)
+        for h in ("kho._dc_thanh_phan_kiem", "kho._dc_tap_kiem"):
+            b = _than(h)
+            for c in ("v.id IS NULL", "v.tao_txid IS DISTINCT FROM pg_catalog.txid_current()",
+                      "v.tao_backend_pid IS DISTINCT FROM pg_catalog.pg_backend_pid()",
+                      "v.tao_boi_id::text IS DISTINCT FROM nullif(pg_catalog.current_setting('ktt.nguoi_dung_id', true), '')",
+                      "v.tao_boi IS DISTINCT FROM master.ktt_danh_tinh()", "v.doi_chieu_id IS DISTINCT FROM NEW.doi_chieu_id",
+                      "v.phap_nhan_id IS DISTINCT FROM NEW.phap_nhan_id", "RAISE EXCEPTION 'DC_BAT_BIEN:"):
+                self.assertIn(c, b, h)
+        self.assertIn("v.tap_sha256 IS DISTINCT FROM NEW.tap_sha256", _than("kho._dc_tap_kiem"))
+        # không còn xmin/modulo; không nới thành "cùng người tạo" hay "xmin đang chạy"
+        self.assertNotRegex(NOI, r"\bxmin\b|4294967296|txid_status|pg_xact_status|pg_current_xact_id_if_assigned")
+        # stamp không lộ qua lịch sử/DTO
+        self.assertNotIn("tao_txid", _ham("kho._dc_lich_su"))
+        self.assertNotIn("tao_txid", (SRC / "k2" / "ghi_nhan_chung.py").read_text(encoding="utf-8"))
 
 
 # ================================================================================================== đầu vào
