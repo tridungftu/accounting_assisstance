@@ -13,7 +13,8 @@
 | Mã | Việc | Worker gợi ý | Giữ file chung | Phụ thuộc | Trạng thái |
 |---|---|---|---|---|---|
 | L0-1 | Nền test `chinh` vs `hop-nhat`, tìm test treo, nhóm nguyên nhân ERROR | Claude | — | — | Đang code (24/10) |
-| L0-2a | Gộp chuỗi `m4-03b-common-identity` fix01→fix04 | Codex | — | — | Đang code (24/10) |
+| L0-2a | Gộp chuỗi `m4-03b-common-identity` fix01→fix04 | Codex | — | — | Chờ kiểm (test chờ L0-2c + L0-2i) |
+| L0-2i | Tìm code/test chỉ có trong `var\codex-dieu-phoi` (chưa vào git) — phát hiện khi làm L0-2a | Codex | — | — | Đang code (24/10) |
 | L0-2d | Gộp `crm-g5-doi-chieu` + `crm-m4-three` | Claude | `crm_g.py`, `crm_g.js`, `pg_migrations.py` | — | Đang code (24/10) |
 | L0-2b | Gộp `m4-02c-ui` → `ui-fix01` | Codex | — | — | Sẵn sàng |
 | L0-2e | Gộp `m2-00b-fix01` (có thể là nguyên nhân 114 ERROR M2-00B) | Codex | — | — | Sẵn sàng |
@@ -99,3 +100,5 @@ Mở ứng dụng Claude trên máy → tab Code → phiên **trên máy này** 
 - Subagent tự định nghĩa (`worker-lat-man-hinh`, `kiem-nhanh`) chỉ nạp khi khởi động lại phiên; tới lúc đó lead gọi worker bằng agent chung + Sonnet + đọc file vai.
 - Codex CLI 0.164.0 đã cài, đã đăng nhập ChatGPT sẵn. Lệnh worker: `codex exec --sandbox workspace-write --add-dir <repo>/.git -c model_reasoning_effort=high -o <báo cáo> - < <handoff>` chạy trong worktree của lát. Cấu hình Codex toàn máy có quy tắc "hỏi trước khi code" và mức `ultra` → handoff ghi rõ "Anh đã duyệt qua lead, làm ngay"; hạ `high` cho lát gộp/sửa.
 - Giao song song: L0-1 (Claude), L0-2a (Codex), L0-2d (Claude).
+- L0-2a: sandbox Codex trên Windows **không ghi được `.git`** dù có `--add-dir` → Codex áp fix01 rồi dừng; lead commit fix01 và áp fix02→04 (bản kế nhiệm thắng, khớp byte). Từ nay handoff Codex ghi: **Codex sửa + chạy test, không commit; lead commit** theo danh sách Codex báo.
+- Phát hiện: `tests/test_m4_03a_pg.py` không có ở nhánh nào, chỉ trong `var\codex-dieu-phoi\*frozen*`. Mở lát L0-2i để dò hết file bị sót.
