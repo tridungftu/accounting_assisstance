@@ -25,7 +25,7 @@
 | L0-3b | Sửa test treo `test_source6_g5_e5` (vòng lặp bận ở `json.raw_decode`) | Codex | — | — | Chờ slot |
 | L0-5 | Bật hook cổng test so với nền theo `ids_loi` (`cong_test.py`) | Codex | `.claude\hooks` | sau đo lại nền | Chờ |
 | L0-2g | Gộp `m4-review-basis-c18-testfix` | Codex | — | — | Chờ slot |
-| L0-2c | Gộp `m4-02c-backend` + `m4-04c-request-m27` | Claude | `pg_migrations.py` | sau L0-2d | Đang code (24/10, Codex, 2 lượt) |
+| L0-2c | Gộp `m4-02c-backend` + `m4-04c-request-m27` | Claude | `pg_migrations.py` | sau L0-2d | Chờ kiểm — 2 lượt đã commit; lead chạy test lượt 2 |
 | L0-2h | Rà `m4b2`, `m4b3` (chưa terminal): còn dùng được gì | Codex | — | — | Chờ slot |
 | L0-3 | Sửa nhóm ERROR còn lại theo nguyên nhân gốc L0-1 | theo nhóm | tùy nhóm | sau L0-1, L0-2* | Chờ |
 | H5 | Gộp `hop-nhat` → `chinh`, đẩy GitHub | lead | — | sau L0-1, L0-2*, Anh xem `NEN-TEST.md` | Chờ Anh |
@@ -56,7 +56,7 @@ Căn cứ: lệnh của Anh 24/10 (mọi module đã chốt thiết kế; M9 d�
 | Mã | Module · việc | Worker | Phụ thuộc | Khóa file chung | Trạng thái |
 |---|---|---|---|---|---|
 | P0 | Nền · khôi phục file chưa vào git (theo L0-2i; L0-2d đã liệt kê 11 file G6A/G5-B + `m4\sql_duyet.py` + `crm_g.js` bản 27a0d3db — phải vào TRƯỚC BG-1) + gộp `m4-02c-backend`, `m4-04c-request-m27` (= L0-2c) + chuỗi migration import được: 24 duyệt · 25 G6A · 26 KT · 27 Request nháp · rồi master-reuse, 03B | Claude Opus | L0-2d, L0-2i | `crm_g.js`, `m4\*` (chỉ thêm file) | Xong 24/10 — gộp 1c5c67a; module lỗi nạp 29 → 1 |
-| BG-1a | CRM · Báo giá gói 1 phía máy chủ: parse ô thông minh (`%`, dấu chấm/phẩy VN), BG-04 ghi đè + nhật ký, nhãn tên thay mã, mốc chuẩn | Codex | P0 | `crm_g.py` | Sửa vòng 2 (4 điểm, Codex) |
+| BG-1a | CRM · Báo giá gói 1 phía máy chủ: parse ô thông minh (`%`, dấu chấm/phẩy VN), BG-04 ghi đè + nhật ký, nhãn tên thay mã, mốc chuẩn | Codex | P0 | `crm_g.py` | Xong 24/10 — gộp 5a8042a (review Đạt, vòng 2 sửa 4 điểm) |
 | BG-1b | CRM · Báo giá gói 1 màn hình: BG-01…05, đo số ô trước/sau → **cổng A** | Claude | BG-1a | `crm_g.js` | Đang code (24/10, từ lat/bg-1a) |
 | BG-2a | CRM · Báo giá gói 2 máy chủ: profile loại hình v3 (BG-06/11), tìm khách (BG-08) | Codex | BG-1a | `crm_g.py` | Chờ |
 | BG-2b | CRM · Báo giá gói 2 màn hình: BG-06, 07, 08, 10, 11, 12 | Claude | cổng A gói 1, BG-2a | `crm_g.js` | Chờ |
@@ -71,7 +71,7 @@ Căn cứ: lệnh của Anh 24/10 (mọi module đã chốt thiết kế; M9 d�
 | C7 | CRM 42 · S9 báo cáo, file soát | Codex + Claude | C6; tỷ lệ kiểm mẫu chờ Q-SAMPLE | — | Chờ |
 | M2a | M2-00 · = L0-2e gộp `m2-00b-fix01` | Codex | — | — | Xong (= L0-2e) |
 | M2b | M2-00 · `manifest.py`, `chinh_sach_tien_te.py` (POLICY-TIENTE-01) + ca M2-00-06/10 | Codex | — | — | Xong 24/10 — gộp 4e1f6bb (review Đạt, vòng 2 sửa 2 điểm) |
-| M2c | M2-00 · `nhan.py` nhận theo manifest (identity, revision/xung đột, KHONG_XML_GOC → bảng kê) nối `k2\hoa_don.py` | Codex | M2b | (migration nếu cần → khóa) | Chờ |
+| M2c | M2-00 · `nhan.py` nhận theo manifest (identity, revision/xung đột, KHONG_XML_GOC → bảng kê) nối `k2\hoa_don.py` | Codex | M2b | (migration nếu cần → khóa) | Đang code (24/10, Codex) |
 | M2d | M2-00 · `hoi_cuu.py` manifest hồi cứu 33 tháng, fixture giả | Codex | M2b | — | Chờ |
 | M2e | M2-00 · nút "Tải từ cổng thuế" + route + cấu hình | Claude | M2a, M2c | `server.py`, `app.js`, `index.html` | Chờ |
 | M2f | M2-00 · ca -03/-07/-09 trên cổng thật, áp bản vá vào #7 thật | Anh | M2e | — | Chờ Anh (cần lệnh riêng: gọi cổng thuế thật) |
