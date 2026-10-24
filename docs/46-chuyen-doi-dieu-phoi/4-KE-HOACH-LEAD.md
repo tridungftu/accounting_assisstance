@@ -15,7 +15,8 @@
 | L0-1 | Nền test `chinh` vs `hop-nhat`, tìm test treo, nhóm nguyên nhân ERROR | Claude | — | — | Đang code (24/10) |
 | L0-2a | Gộp chuỗi `m4-03b-common-identity` fix01→fix04 | Codex | — | — | Chờ kiểm (test chờ L0-2c + L0-2i) |
 | L0-2i | Tìm code/test chỉ có trong `var\codex-dieu-phoi` (chưa vào git) — phát hiện khi làm L0-2a | Codex | — | — | Đang code (24/10) |
-| L0-2d | Gộp `crm-g5-doi-chieu` + `crm-m4-three` | Claude | `crm_g.py`, `crm_g.js`, `pg_migrations.py` | — | Đang code (24/10) |
+| L0-2d | Gộp `crm-g5-doi-chieu` + `crm-m4-three` | Claude | `crm_g.py`, `crm_g.js`, `pg_migrations.py` | — | Chờ kiểm (review Codex vòng 1) |
+| L0-4 | Lệnh mở DEMO cho worktree, có CRM PostgreSQL: DataRoot `var\demo-<lát>` trong worktree + chép `runtime.local.json`, `ket-noi.local.json` từ `var\web\crm-demo` (không mở nội dung), kiểm CSDL DEMO không đụng nhau giữa worktree; ghi lệnh vào CLAUDE.md mục 5 | Claude | — | sau L0-1 | Chờ |
 | L0-2b | Gộp `m4-02c-ui` → `ui-fix01` | Codex | — | — | Sẵn sàng |
 | L0-2e | Gộp `m2-00b-fix01` (có thể là nguyên nhân 114 ERROR M2-00B) | Codex | — | — | Sẵn sàng |
 | L0-2f | Gộp `source6-g5-e5-ordered-fix01` | Codex | — | — | Chờ slot |
@@ -50,7 +51,7 @@ Căn cứ: lệnh của Anh 24/10 (mọi module đã chốt thiết kế; M9 d�
 
 | Mã | Module · việc | Worker | Phụ thuộc | Khóa file chung | Trạng thái |
 |---|---|---|---|---|---|
-| P0 | Nền · khôi phục file chưa vào git (theo L0-2i) + gộp `m4-02c-backend`, `m4-04c-request-m27` (= L0-2c) + chuỗi migration import được: 24 duyệt · 25 G6A · 26 KT · 27 Request nháp · rồi master-reuse, 03B | Claude | L0-2d, L0-2i | `pg_migrations.py`, `giao_dien\m4.py`, `xay_dung.py` | Chờ |
+| P0 | Nền · khôi phục file chưa vào git (theo L0-2i; L0-2d đã liệt kê 11 file G6A/G5-B + `m4\sql_duyet.py` + `crm_g.js` bản 27a0d3db — phải vào TRƯỚC BG-1) + gộp `m4-02c-backend`, `m4-04c-request-m27` (= L0-2c) + chuỗi migration import được: 24 duyệt · 25 G6A · 26 KT · 27 Request nháp · rồi master-reuse, 03B | Claude | L0-2d, L0-2i | `pg_migrations.py`, `giao_dien\m4.py`, `xay_dung.py` | Chờ |
 | BG-1a | CRM · Báo giá gói 1 phía máy chủ: parse ô thông minh (`%`, dấu chấm/phẩy VN), BG-04 ghi đè + nhật ký, nhãn tên thay mã, mốc chuẩn | Codex | P0 | `crm_g.py` | Chờ |
 | BG-1b | CRM · Báo giá gói 1 màn hình: BG-01…05, đo số ô trước/sau → **cổng A** | Claude | BG-1a | `crm_g.js` | Chờ |
 | BG-2a | CRM · Báo giá gói 2 máy chủ: profile loại hình v3 (BG-06/11), tìm khách (BG-08) | Codex | BG-1a | `crm_g.py` | Chờ |
@@ -160,3 +161,5 @@ Mở ứng dụng Claude trên máy → tab Code → phiên **trên máy này** 
 - Giao song song: L0-1 (Claude), L0-2a (Codex), L0-2d (Claude).
 - L0-2a: sandbox Codex trên Windows **không ghi được `.git`** dù có `--add-dir` → Codex áp fix01 rồi dừng; lead commit fix01 và áp fix02→04 (bản kế nhiệm thắng, khớp byte). Từ nay handoff Codex ghi: **Codex sửa + chạy test, không commit; lead commit** theo danh sách Codex báo.
 - Phát hiện: `tests/test_m4_03a_pg.py` không có ở nhánh nào, chỉ trong `var\codex-dieu-phoi\*frozen*`. Mở lát L0-2i để dò hết file bị sót.
+- L0-2d (24/10): worker đứng 600 giây (mở server ở chế độ thường) → lead nối lại, xong. Gộp theo dòng dõi (m4-three trước G5) vì crm-g4 trên hop-nhat là bản cũ hơn nền chinh. CRM DEMO cần `<DataRoot>\crm-demo\runtime.local.json` (Python + thư mục thư viện có psycopg) và `ket-noi.local.json` (kết nối PG DEMO, không mở) → lát L0-4. Lead đã tắt server 8781.
+- Quy tắc mới cho worker: mọi lệnh có thể quá 2 phút và mọi server phải chạy nền (`run_in_background`), nếu không agent bị ngắt sau 600 giây.

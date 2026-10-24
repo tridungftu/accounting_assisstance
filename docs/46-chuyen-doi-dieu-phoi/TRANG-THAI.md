@@ -9,7 +9,7 @@ Trạng thái lát: Đang code → Chờ kiểm → Chờ Anh (cổng A/B) → S
 | L0-1 | Nền test `chinh` vs `hop-nhat` | Claude Sonnet | `lat/l0-1` · `.claude/worktrees/lat-l0-1` | 24/10 | Đang code |
 | L0-2a | Gộp chuỗi M4 common identity fix01→04 | Codex + lead commit | `lat/l0-2a` · `.claude/worktrees/lat-l0-2a` (b7be3a0) | 24/10 | Chờ kiểm — 4 commit khớp byte bản fix; biên dịch/import đạt; test gói chưa chạy được: thiếu `m4/sql_duyet.py` (ở L0-2c) và `tests/test_m4_03a_pg.py` (chưa vào git, xem L0-2i) |
 | L0-2i | Tìm code/test chỉ có trong bản chụp Codex cũ, chưa vào git | Codex | `lat/l0-2i` · `.claude/worktrees/lat-l0-2i` | 24/10 | Đang code |
-| L0-2d | Gộp CRM G5 + CRM-M4-three | Claude Sonnet | `lat/l0-2d` · `.claude/worktrees/lat-l0-2d` | 24/10 | Đang code |
+| L0-2d | Gộp CRM G5 + CRM-M4-three | Claude Sonnet | `lat/l0-2d` · `.claude/worktrees/lat-l0-2d` (e69e9eb) | 24/10 | Chờ kiểm — review Codex vòng 1 đang chạy. 2 commit, 9 file, 0 migration mới; không lỗi mới (đa số module lỗi import nền). Phát hiện: crm-g4 trên hop-nhat đã ghi đè bản cũ (mất ~700 dòng so với chinh) — worker khôi phục theo dòng dõi. Màn CRM chưa mở được: worktree thiếu cấu hình CRM DEMO (xem L0-4) |
 
 Worktree đo nền `chinh`: `.claude/worktrees/nen-chinh-59b7d8e` (tách rời ở 59b7d8e, chỉ chạy test).
 
