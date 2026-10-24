@@ -17,3 +17,5 @@
 /tests/test_m4_02c_pg.py text eol=lf
 /tests/m4_01c_async.cjs text eol=lf
 /docs/L11-QUANTITY-CASES-01.json text eol=lf
+# manifest.json được ghim SHA trên bản CRLF gốc → giữ nguyên byte, không chuyển xuống dòng
+/tests/fixtures/m2_invoice_xml/manifest.json -text
