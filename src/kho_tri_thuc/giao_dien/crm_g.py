@@ -9,7 +9,7 @@ Route (đều dưới /api/crm; route đặc biệt khớp CHÍNH XÁC trước 
 POST /api/crm/mau (đúng chuỗi, không hậu tố) vẫn thuộc handler cũ nhận mẫu #6 DEMO.
 
 CRM-41-03 (G2 Báo giá → G3 Soạn; cùng phiên/token/factory, không router thứ hai):
-  GET  /api/crm/bao-gia · /api/crm/bao-gia/{id} · /api/crm/soan/{id} · /api/crm/giao-ket/tep/{xuat_id}/{docx|pdf}
+  GET  /api/crm/bao-gia · /api/crm/bao-gia/moc-chuan · /api/crm/bao-gia/{id} · /api/crm/soan/{id} · /api/crm/giao-ket/tep/{xuat_id}/{docx|pdf}
   POST /api/crm/bao-gia/{luu, huy, chuyen} · /api/crm/soan/luu   (lệnh ngắn dưới mutation lock)
   POST /api/crm/bao-gia/in · /api/crm/soan/xuat   (ba pha: chụp dưới khóa → render NGOÀI khóa/giao dịch → công bố dưới khóa + CAS)
 
@@ -450,6 +450,12 @@ def dieu_huong(h, app, post: bool, path: str, query: dict):
                     _, me, _ = app.crm_phien(h.crm_sid())
                     return h.send_content(200, app._crm_db(dich_vu(app).chi_tiet, me, m.group(1)))
             # --- CRM-41-03 G2/G3 (đọc: quyền hiện hành trong cùng giao dịch RR trên kết nối chủ bảng)
+            if path == "/api/crm/bao-gia/moc-chuan":
+                _khong_query(h, query)
+                with app.mutation_lock:
+                    app.crm_phien(h.crm_sid())
+                    from ..k2.crm_giao_ket import danh_muc_moc_chuan
+                    return h.send_content(200, danh_muc_moc_chuan())
             if path == "/api/crm/bao-gia":
                 with app.mutation_lock:
                     _, me, _ = app.crm_phien(h.crm_sid())

@@ -220,6 +220,19 @@ class TinhChinhXac(unittest.TestCase):
         self.assertEqual(t["tong_ty_le"], "100")
         self.assertEqual(t["chan_in"], [])
 
+    def test_bg1_lich_typed_cu_co_phan_hien_thi_moi(self):
+        _, t = self.tinh()
+        self.assertEqual(t["dong"][0]["so_tien"], t["dong"][0]["so_tien_minor"])
+        self.assertEqual(t["dong"][0]["hien_thi_mo"], "= 300.000.000 VND")
+        self.assertEqual(t["dong"][0]["moc_hien_thi"], "Ký")
+        self.assertTrue(t["tong_ty_le_khop"])
+        self.assertEqual(t["ly_do_chan_in"], "")
+
+    def test_bg1_moc_tham_so_khong_doi_ma_luu(self):
+        d, t = self.tinh(lich=[{"gia_tri_nhap": "100%", "moc_loai": "SU_KIEN", "moc_su_kien": "SAU_KY_30"}])
+        self.assertEqual(d["lich"][0]["moc_su_kien"], "SAU_KY_30")
+        self.assertEqual(t["dong"][0]["moc_hien_thi"], "Sau ký + 30 ngày")
+
     def test_tong_khac_100_usd_thieu_fx_chan_in_nhung_luu_duoc(self):
         _, t = self.tinh(lich=[{"lan": "1", "loai": "PERCENT", "ty_le": "30"}, {"lan": "2", "loai": "PERCENT", "ty_le": "60"}])
         self.assertIn("TONG_TY_LE_KHAC_100", [x["ma"] for x in t["chan_in"]])
