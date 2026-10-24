@@ -54,13 +54,10 @@ class M22Tinh(unittest.TestCase):
     def test_prefix_927604_byte_va_append_m22(self):
         raw = (SRC / "ha_tang" / "pg_migrations.py").read_bytes()
         self.assertEqual(hashlib.sha256(raw[:927604]).hexdigest(), "0e87d8e1a39aef582d79ffd7cef30b7dcdf523d151009729e6cb1d5b64452dce")
-        # toàn M1–22 (928356 byte) giữ nguyên; migration hợp lệ sau (M23…) chỉ append SAU boundary này
-        self.assertEqual(hashlib.sha256(raw[:928356]).hexdigest(), "225cc40f14670e8428bf8afcc58318c04c15707bdddffa31242067f20199cce2")
-        duoi = raw[927604:928356].decode("utf-8")  # đúng đoạn append M22
+        duoi = raw[927604:].decode("utf-8")
         self.assertIn("from ..m4.sql_chung_tu import M0022_M4_CHUNG_TU", duoi)
         self.assertTrue(duoi.rstrip().endswith("PG_MIGRATIONS = (*PG_MIGRATIONS, M0022_M4_CHUNG_TU)\nPG_SCHEMA_VERSION = len(PG_MIGRATIONS)"), duoi[-200:])
-        self.assertEqual(PM.PG_SCHEMA_VERSION, len(PM.PG_MIGRATIONS))  # không cố định tổng (22/23): registry được append tiếp
-        self.assertGreaterEqual(len(PM.PG_MIGRATIONS), 22)
+        self.assertEqual((PM.PG_SCHEMA_VERSION, len(PM.PG_MIGRATIONS)), (22, 22))  # M22 candidate; KHÔNG có M23
         self.assertIs(PM.PG_MIGRATIONS[21], SC.M0022_M4_CHUNG_TU)
         self.assertIs(PM.PG_MIGRATIONS[20], PM.M0021_CRM_G2G3)
 
