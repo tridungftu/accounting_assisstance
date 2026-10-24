@@ -33,7 +33,7 @@ Worktree đo nền `chinh`: `.claude/worktrees/nen-chinh-59b7d8e` (tách rời �
 | `ha_tang\pg_migrations.py` | — (P0 không sửa; chỉ khôi phục module nó import) |
 | `giao_dien\crm_g.py`, `giao_dien\assets\crm_g.js` | P0 (thay `crm_g.js` bằng bản 27a0d3db) |
 | `m4\*` dùng chung | P0 (chỉ thêm file thiếu) |
-| `tests\run_suite.py`, `tools\chay_test_theo_module.py`, `.gitattributes` | L0-3a |
+| `tests\run_suite.py`, `tools\chay_test_theo_module.py`, `.gitattributes`, `.gitignore` | L0-3a (chờ gộp) |
 | `CLAUDE.md` mục 5 | L0-4 |
 
 ## Màn hình / module chờ Anh
