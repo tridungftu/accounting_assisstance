@@ -31,7 +31,7 @@ from ..ha_tang.primitives import DataError
 from ..m2.tai_hoa_don import CauHinhTaiHoaDon, DieuPhoiTaiHoaDon, TepPin, TienTrinhNode
 from ..m2.tai_hoa_don.cau_hinh import kiem_khong_reparse
 from ..m2.tai_hoa_don.dieu_phoi import RE_RUN_REL
-from ..m2.tai_hoa_don.manifest import RE_GIA_TRI_CAM, doc_manifest
+from ..m2.tai_hoa_don.manifest import doc_manifest
 from ..m2.tai_hoa_don.nhan import lap_ke_hoach_nhan, nhan_vao_k2
 
 TIEN_TO = "/api/m2/tai-hoa-don"
@@ -245,12 +245,14 @@ def mo_ta_loi(exc: DataError):
 
 
 # ---------------------------------------------------------------------------------------------- lọc DTO (chỉ whitelist ra trình duyệt)
-_BI_MAT = re.compile(r"(?i)[a-z_]*(?:mat[_ -]?khau|password|passwd|pwd|secret|token|captcha)[a-z_]*\s*[:=]\s*\S+")
+_BI_MAT = re.compile(r"(?i)[a-z_]*(?:mat[_ -]?khau|password|passwd|pwd|secret|token|captcha)[a-z_]*\s*[:=]\s*\S+|bearer\s+\S+"
+                     r"|[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}")
 
 
 def an_toan(msg, toi_da=400) -> str:
+    """Dòng log của bộ tải → chuỗi hiển thị. Node đã tự che bí mật; đây là lớp thứ hai (khóa=giá trị, bearer, dạng JWT) — thà che thừa còn hơn lộ."""
     s = "".join(c for c in str(msg) if c == "\t" or c >= " ")[:toi_da]
-    return _BI_MAT.sub("[AN]", RE_GIA_TRI_CAM.sub("[AN]", s))
+    return _BI_MAT.sub("[AN]", s)
 
 
 def _ma(v):
@@ -293,9 +295,11 @@ def lam_sach_run(d: dict) -> dict:
          "run_rel": _run_rel(r.get("run_rel")), "ton_tai": r.get("ton_tai") is True, "manifest": _ma(r.get("manifest")) if isinstance(r.get("manifest"), str) else None,
          "trang_thai_run": r.get("trang_thai_run") if r.get("trang_thai_run") in TRANG_THAI_RUN else None}
         for r in (rec.get("runs") or [])[:100] if isinstance(r, dict)]}
-    y = goi_y_ma(out["ma"]) if isinstance(out.get("ma"), str) else None
-    if y:
-        out["goi_y"] = y
+    if isinstance(out.get("ma"), str):  # `ma` của điều phối là mã ngắn của bộ tải (KHACH_*, JOB_BUSY…); gợi ý tra theo dạng M2_00B_<mã>
+        out["ma"] = _ma(out["ma"])
+        y = goi_y_ma("M2_00B_" + out["ma"]) if out["ma"] else None
+        if y:
+            out["goi_y"] = y
     return out
 
 
@@ -400,6 +404,7 @@ def _nhan_mot_run(app, dv, sid, login, ctx, run) -> dict:
         return {**base, "loi": {"ma": _ma(exc.code) or "UNSPECIFIED", "thong_bao": str(exc)}}
     return {**base, "nguon": ke_hoach["nguon"], "coverage": ke_hoach["coverage"], "so_muc": len(ke_hoach["muc"]),
             "ket_qua": [{"item_ordinal": it.get("item_ordinal"), "trang_thai": it.get("trang_thai"), "ly_do": it.get("ly_do"),
+                         "thong_bao": an_toan(it["thong_bao"], 200) if isinstance(it.get("thong_bao"), str) else None,
                          "lap_lai": it.get("lap_lai") is True, "items": [{"classification": x.get("classification"), "phien_ban_moi": x.get("phien_ban_moi") is True}
                                                                          for x in it.get("items", [])]} for it in kq["ket_qua"]],
             "ngoai_le": [_ngoai_le_sach(e) for e in kq["ngoai_le"]], "so_chua_ro_nguon": len(kq["chua_ro_nguon"]),
