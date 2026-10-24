@@ -11808,3 +11808,25 @@ from ..k2.sql_crm_kiem_hd import CRM_G6A_SQL  # noqa: E402 — module chỉ hằ
 M0025_CRM_G6A = CRM_G6A_SQL
 PG_MIGRATIONS = (*PG_MIGRATIONS, M0025_CRM_G6A)
 PG_SCHEMA_VERSION = len(PG_MIGRATIONS)
+
+# ---------------------------------------------------------------------------
+# 0026 — M4-03A kế toán xác nhận nguồn nghiệm thu (APPEND sau toàn bộ 1–25; không sửa byte/định nghĩa/checksum 1–25).
+#        Định nghĩa trong m4/sql_ke_toan_nghiem_thu.py (chỉ hằng SQL, không import ha_tang): đăng ký ĐÚNG MỘT lần, cùng object M4_03A_SQL
+#        (alias, không sao chép/dựng lại). Không AP, không Request, không bút toán.
+# ---------------------------------------------------------------------------
+from ..m4.sql_ke_toan_nghiem_thu import M4_03A_SQL  # noqa: E402 — module chỉ hằng SQL, không import ha_tang
+
+M0026_M4_KT = M4_03A_SQL
+PG_MIGRATIONS = (*PG_MIGRATIONS, M0026_M4_KT)
+PG_SCHEMA_VERSION = len(PG_MIGRATIONS)
+
+# ---------------------------------------------------------------------------
+# 0027 — M4-04C Request nháp từ hồ sơ đợt đã seal (APPEND sau toàn bộ 1–26; không sửa byte/định nghĩa/checksum 1–26).
+#        Định nghĩa trong m4/sql_request_nhap.py (chỉ hằng SQL, không import ha_tang): đăng ký ĐÚNG MỘT lần, cùng object M4_REQUEST_NHAP
+#        (alias, không sao chép/dựng lại). Backend Request vận hành thật vẫn OFF; không AP, không bút toán.
+# ---------------------------------------------------------------------------
+from ..m4.sql_request_nhap import M4_REQUEST_NHAP  # noqa: E402 — module chỉ hằng SQL, không import ha_tang
+
+M0027_M4_REQUEST = M4_REQUEST_NHAP
+PG_MIGRATIONS = (*PG_MIGRATIONS, M0027_M4_REQUEST)
+PG_SCHEMA_VERSION = len(PG_MIGRATIONS)

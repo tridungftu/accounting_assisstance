@@ -16,6 +16,11 @@ M4-01B (B6):
 - Quyền dự án chỉ chèn khi CHƯA từng có hàng nào (kể cả hàng đã thu hồi) cho (người, dự án, vai): KHÔNG cấp lại quyền đã thu hồi.
 - Báo cáo trung thực từng actor: DU / THIEU (kèm danh sách thiếu) / DA_THU_HOI (kèm assignment đã thu hồi); toàn bộ: DU / THIEU / CHUA_SAN_SANG.
   Không coi seed "xong" khi còn thiếu; không sửa/xóa hàng có sẵn để "cho đủ".
+
+M4-02C (duyệt hồ sơ đợt, cần schema M24): `khoi_tao_duyet` RIÊNG, gọi tường minh sau `khoi_tao` (không nằm trong seed gốc/bootstrap):
+- MO_PHONG_DUYET_M4: CFO, PN_DEMO_A module M4, assignment DUYET dự án A1 — CHỈ chấp thuận/kết luận/PDF trên đợt đã nộp; không SOAN/REVIEW/XEM.
+- KHÔNG nâng MO_PHONG_REVIEW_M4 (review-only vẫn là ca âm của chấp thuận), không cấp DUYET cho actor nào khác, không cấp lại hàng đã thu hồi,
+  không sửa người dùng/phân quyền có sẵn khác ma trận (báo xung đột). Marker riêng; chạy lại không thêm gì.
 """
 
 from __future__ import annotations
@@ -35,10 +40,25 @@ NGUOI_DUNG = (  # đăng nhập, vai trò, {PN: module}, [(dự án, vai dự á
     ("MO_PHONG_DU_AN_KHONG_M4", "DU_AN", {"PN_DEMO_A": []}, [("DA_XD_A1", "PHU_TRACH")]),
 )
 assert all(n[0].startswith(TIEN_TO) for n in NGUOI_DUNG)
+MARKER_DUYET = "demo_seed_m4_duyet"
+NGUOI_DUNG_DUYET = (  # M4-02C: duyệt viên DEMO riêng (vai dự án DUYET); cùng hình dạng NGUOI_DUNG
+    ("MO_PHONG_DUYET_M4", "CFO", {"PN_DEMO_A": ["M4"]}, [("DA_XD_A1", "DUYET")]),
+)
+assert all(n[0].startswith(TIEN_TO) for n in NGUOI_DUNG_DUYET)
+assert not {n[0] for n in NGUOI_DUNG} & {n[0] for n in NGUOI_DUNG_DUYET}
+
+
+def _dang_nhap_goc() -> list[str]:
+    return [n[0] for n in NGUOI_DUNG]
 
 
 def dang_nhap_m4() -> list[str]:
-    return [n[0] for n in NGUOI_DUNG]
+    """Vai mô phỏng M4 chọn được trên giao diện DEMO (gốc + duyệt viên M4-02C). Danh tính vẫn phải tồn tại/hoạt động trong CSDL."""
+    return _dang_nhap_goc() + dang_nhap_m4_duyet()
+
+
+def dang_nhap_m4_duyet() -> list[str]:
+    return [n[0] for n in NGUOI_DUNG_DUYET]
 
 
 def _mot(conn, sql, params=()):
@@ -94,7 +114,7 @@ def khoi_tao(admin_conn) -> dict:
                                                   ON CONFLICT (phap_nhan_id, ma_junsky) DO NOTHING""", (pn[pn_ma], ma, ten)).rowcount
             du_an[ma] = (_mot(admin_conn, "SELECT id FROM master.du_an WHERE phap_nhan_id = %s AND ma_junsky = %s", (pn[pn_ma], ma)), pn[pn_ma])
         da_co = _mot(admin_conn, "SELECT 1 FROM master.he_thong WHERE key = %s", (MARKER,)) is not None or \
-            _mot(admin_conn, "SELECT EXISTS (SELECT 1 FROM master.nguoi_dung WHERE dang_nhap = ANY(%s))", (dang_nhap_m4(),))
+            _mot(admin_conn, "SELECT EXISTS (SELECT 1 FROM master.nguoi_dung WHERE dang_nhap = ANY(%s))", (_dang_nhap_goc(),))
         xung_dot = []
         for dang_nhap, vai_tro, modules, du_an_vai in ([] if da_co else NGUOI_DUNG):
             dem["actor"] += admin_conn.execute("""INSERT INTO master.nguoi_dung (ten, dang_nhap, vai_tro, mo_phong) VALUES (%s,%s,%s,true)
@@ -117,3 +137,53 @@ def khoi_tao(admin_conn) -> dict:
     tong = "DU" if all(a["trang_thai"] == "DU" for a in actor) else "THIEU"
     return {"trang_thai": tong, "ly_do": None if tong == "DU" else "Có actor thiếu/đã thu hồi/khác ma trận — xem danh sách; seed không tự bù/cấp lại.",
             "dem": dem, "mo_lai_khong_them": bool(da_co), "xung_dot_khong_ghi_de": xung_dot, "actor": actor}
+
+
+def khoi_tao_duyet(admin_conn) -> dict:
+    """M4-02C — thêm duyệt viên DEMO riêng (vai dự án DUYET) MỘT LẦN, chỉ thêm. admin_conn: psycopg autocommit, chủ CSDL, schema đã có M24.
+    Không raise khi chưa sẵn sàng; không đụng actor gốc (review-only giữ nguyên), không cấp lại quyền đã thu hồi, không sửa hàng có sẵn khác ma trận.
+    Trả {"trang_thai": DU|THIEU|CHUA_SAN_SANG, "ly_do", "dem", "actor", "review_khong_duyet"}."""
+    dem = {"actor": 0, "phan_quyen": 0, "quyen_du_an": 0}
+    with admin_conn.transaction():
+        if _mot(admin_conn, "SELECT to_regclass('m4.duyet_phien_ban') IS NOT NULL") is not True:
+            return {"trang_thai": "CHUA_SAN_SANG", "ly_do": "Schema M24 (duyệt hồ sơ đợt) chưa có — Root áp migration trước; helper không migrate.",
+                    "dem": dem, "actor": []}
+        pn, du_an, thieu = {}, {}, []
+        for pn_ma, ma, _ten in DU_AN:
+            pn[pn_ma] = _mot(admin_conn, "SELECT id FROM master.phap_nhan WHERE ma = %s", (pn_ma,))
+            i = None if pn[pn_ma] is None else _mot(admin_conn, "SELECT id FROM master.du_an WHERE phap_nhan_id = %s AND ma_junsky = %s", (pn[pn_ma], ma))
+            if i is None:
+                thieu.append(ma)
+            du_an[ma] = (i, pn[pn_ma])
+        can = sorted({ma for n in NGUOI_DUNG_DUYET for ma, _ in n[3]} & set(thieu))
+        if can:
+            return {"trang_thai": "CHUA_SAN_SANG", "ly_do": "Thiếu PN/dự án DEMO " + ", ".join(can) + " — chạy khoi_tao M4 DEMO trước.",
+                    "dem": dem, "actor": []}
+        da_co = _mot(admin_conn, "SELECT 1 FROM master.he_thong WHERE key = %s", (MARKER_DUYET,)) is not None
+        xung_dot = []
+        for dang_nhap, vai_tro, modules, du_an_vai in ([] if da_co else NGUOI_DUNG_DUYET):
+            dem["actor"] += admin_conn.execute("""INSERT INTO master.nguoi_dung (ten, dang_nhap, vai_tro, mo_phong) VALUES (%s,%s,%s,true)
+                                                  ON CONFLICT (dang_nhap) DO NOTHING""", (dang_nhap, dang_nhap, vai_tro)).rowcount
+            row = admin_conn.execute("SELECT id, vai_tro, mo_phong FROM master.nguoi_dung WHERE dang_nhap = %s", (dang_nhap,)).fetchone()
+            if (row[1], row[2]) != (vai_tro, True):
+                xung_dot.append(dang_nhap)
+                continue
+            for pn_ma, mod in modules.items():  # phân quyền có sẵn (kể cả đã gỡ module) giữ nguyên — không ghi đè
+                dem["phan_quyen"] += admin_conn.execute("""INSERT INTO master.phan_quyen (nguoi_dung_id, phap_nhan_id, duyet_loai_viec, module)
+                                                           VALUES (%s,%s,'{}',%s) ON CONFLICT (nguoi_dung_id, phap_nhan_id) DO NOTHING""",
+                                                        (row[0], pn[pn_ma], mod)).rowcount
+            for ma, vai in du_an_vai:  # chỉ khi CHƯA TỪNG có hàng (kể cả đã thu hồi) — không hồi sinh quyền đã thu hồi
+                dem["quyen_du_an"] += admin_conn.execute("""INSERT INTO m4.quyen_du_an (nguoi_dung_id, phap_nhan_id, du_an_id, vai)
+                                                            SELECT %s,%s,%s,%s WHERE NOT EXISTS (SELECT 1 FROM m4.quyen_du_an
+                                                                WHERE nguoi_dung_id = %s AND du_an_id = %s AND vai = %s)""",
+                                                         (row[0], du_an[ma][1], du_an[ma][0], vai, row[0], du_an[ma][0], vai)).rowcount
+        admin_conn.execute("INSERT INTO master.he_thong (key, value) VALUES (%s, 'v1') ON CONFLICT (key) DO NOTHING", (MARKER_DUYET,))
+        actor = [_trang_thai_actor(admin_conn, pn, du_an, *n) for n in NGUOI_DUNG_DUYET]
+        # ca âm bắt buộc: actor review-only gốc KHÔNG có DUYET hiện hành (helper không cấp; nếu ai đó đã cấp ngoài seed → báo, không tự gỡ)
+        review_duyet = [r[0] for r in admin_conn.execute(
+            """SELECT n.dang_nhap FROM m4.quyen_du_an q JOIN master.nguoi_dung n ON n.id = q.nguoi_dung_id
+               WHERE q.vai = 'DUYET' AND q.thu_hoi_luc IS NULL AND n.dang_nhap = ANY(%s) ORDER BY n.dang_nhap""", (_dang_nhap_goc(),)).fetchall()]
+    tong = "DU" if all(a["trang_thai"] == "DU" for a in actor) and not review_duyet else "THIEU"
+    return {"trang_thai": tong,
+            "ly_do": None if tong == "DU" else "Duyệt viên thiếu/đã thu hồi/khác ma trận, hoặc actor gốc đang có DUYET — xem chi tiết; helper không tự bù/gỡ.",
+            "dem": dem, "mo_lai_khong_them": da_co, "xung_dot_khong_ghi_de": xung_dot, "actor": actor, "actor_goc_co_duyet": review_duyet}

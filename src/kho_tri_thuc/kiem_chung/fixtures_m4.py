@@ -116,3 +116,32 @@ def boq_xlsx(dong=BOQ_GOC, *, tieu_de=BOQ_TIEU_DE, sheet: str = "BOQ") -> bytes:
 
 def pdf_demo(nhan: str = "DEMO") -> bytes:
     return (b"%PDF-1.4\n% " + nhan.encode("ascii", "replace") + b"\n1 0 obj<<>>endobj\ntrailer<<>>\n%%EOF\n")
+
+
+# ============================================================================ M4-02C — duyệt hồ sơ đợt (tổng hợp, không tài liệu thật)
+def ho_so_dot_duyet_pdf(nhan: str = "HO-SO-DOT-DA-DUYET-1") -> bytes:
+    """PDF hồ sơ thanh toán ĐÃ DUYỆT tổng hợp (chữ ký %PDF-, kết thúc %%EOF); nhãn khác → bytes/hash khác."""
+    return pdf_demo(nhan)
+
+
+# PDF bị cắt (không có %%EOF trong 1024 byte cuối) — máy chủ phải từ chối, không lưu bản ghi
+PDF_BI_CAT = b"%PDF-1.4\n% HO-SO-BI-CAT\n1 0 obj<<>>endobj\n"
+# không phải PDF (chữ ký ZIP) dù khai application/pdf + đuôi .pdf
+KHONG_PHAI_PDF = b"PK\x03\x04" + b"\x00" * 60
+# bộ tiền VND của kết luận: chuỗi thập phân chuẩn (NT/TT/tạm ứng/thu hồi/giữ lại độc lập; 0 tường minh khác null)
+KET_LUAN_VND = {"tien_te": "VND", "gia_tri_nt": "35000000", "so_xin_thanh_toan": "31500000", "tam_ung": "0", "thu_hoi": "0", "giu_lai": "1750000"}
+# thiếu số xin thanh toán (null = CHƯA CÓ, khác 0) → kết luận lưu được nhưng còn TIEN_THIEU, không chấp thuận được
+KET_LUAN_VND_THIEU_TT = {**KET_LUAN_VND, "so_xin_thanh_toan": None}
+# NT khác TT: chấp nhận giá trị NT lớn hơn số xin thanh toán (không suy cái này từ cái kia)
+KET_LUAN_NT_KHAC_TT = {**KET_LUAN_VND, "gia_tri_nt": "36000000", "so_xin_thanh_toan": "30000000"}
+TIEN_HOP_LE = ("0", "1", "35000000", "12.5", "12.05", "999999999999999999.99")
+TIEN_SAI = (35000000, 12.5, True, "35,000,000", "1e6", "-1", "01", "1.50", "1.", ".5", " 1", "1 ", "NaN", "Infinity", "", "１２")
+KL_HOP_LE = ("0", "100", "22.5", "0.000001")
+KL_SAI = (100, "1.0000001", "-0.5", "1,5", "100.0", "00", "1e2")
+# khối lượng chấp nhận theo dòng (row_id do máy chủ cấp; test lấy từ DTO, không tự đặt) — giá trị literal cho dòng đầu/dòng sau
+KL_CHAP_NHAN = ("100", "20")
+# BOQ đổi sau nộp (HM-02: 20 → 22) — dùng cho ca vật liệu đổi sau khi đã nộp phiên bản (cần phiên bản kế tiếp, không duyệt bản cũ)
+BOQ_DOI_SAU_NOP = (("A", None, "Phần móng", None, None, None, None),
+                   (1, "HM-01", "Đào đất hố móng", "m3", 100, 50000, 5000000),
+                   (2, "HM-02", "Bê tông móng", "m3", 22, 1500000, 33000000),
+                   (None, None, "Tổng cộng", None, None, None, 38000000))

@@ -31,6 +31,8 @@ HELPER_PY = GOC / "tests" / "test_m4_02c_pg.py"
 
 # handoff GIAO-CODE-M4-KT-M26-REGISTRATION (Root pin — không tính lại từ code)
 PREFIX_BYTES, PREFIX_SHA256 = 973_003, "1f91fafc029b62bbc6d4edba126301b5a0962e176f2bdc10619cb55d0e3ec3a9"  # toàn pg_migrations.py baseline 25
+# checkpoint M26 = đoạn byte [973.003:973.783] (handoff GIAO-CODE-M4-04C-M27, Root pin); registry được tiến hóa APPEND sau mốc này (27+)
+M26_END, M26_PREFIX_SHA256 = 973_783, "682131e655ff7b15470ecac3c47e2b9a666645321ac558eca8d692718af51f89"  # toàn pg_migrations.py baseline 26
 SQL_SHA256 = "ad36b72993defa3f9cb5c951716a141bd77843a0dcf7f354226d9ad7da3992db"  # m4/sql_ke_toan_nghiem_thu.py
 HELPER_SHA256 = "6bed282d8d37947fa947b737e31f074546a291e5707d45df740268c21eabcde7"  # tests/test_m4_02c_pg.py
 DONG_NOI = ("from ..m4.sql_ke_toan_nghiem_thu import M4_03A_SQL  # noqa: E402 — module chỉ hằng SQL, không import ha_tang",
@@ -61,7 +63,10 @@ class M26Prefix(unittest.TestCase):
         self.assertNotIn("M0026", truoc)
 
     def test_phan_noi_chi_import_alias_mot_dang_ky(self):
-        duoi = PG_PY.read_bytes()[PREFIX_BYTES:].decode("utf-8")
+        raw = PG_PY.read_bytes()
+        self.assertGreaterEqual(len(raw), M26_END)
+        self.assertEqual(hashlib.sha256(raw[:M26_END]).hexdigest(), M26_PREFIX_SHA256, "đoạn M26 bị sửa — chỉ được APPEND sau mốc 26")
+        duoi = raw[PREFIX_BYTES:M26_END].decode("utf-8")  # chỉ đoạn M26; migration sau 26 nằm ngoài checkpoint này
         ma = tuple(x.rstrip() for x in duoi.splitlines() if x.strip() and not x.lstrip().startswith("#"))
         self.assertEqual(ma, DONG_NOI, "phần nối chỉ được import + alias + một tuple đăng ký + version")
         self.assertTrue(duoi.endswith("\n"))
@@ -118,14 +123,17 @@ class M26Registry(unittest.TestCase):
         self.assertEqual(PM._hash(PM.PG_MIGRATIONS[24]), self.B["_hash"](self.B["PG_MIGRATIONS"][24]))
 
     def test_version26_kt_dung_mot_lan_cung_object(self):
-        self.assertEqual((PM.PG_SCHEMA_VERSION, len(PM.PG_MIGRATIONS)), (26, 26))
+        # registry tiến hóa: version = len và >= 26; M26 cố định ở index 25 (ngay sau M25), không đòi mãi là phần tử cuối
+        self.assertEqual(PM.PG_SCHEMA_VERSION, len(PM.PG_MIGRATIONS))
+        self.assertGreaterEqual(PM.PG_SCHEMA_VERSION, 26)
         self.assertIs(PM.PG_MIGRATIONS[25], SK.M4_03A_SQL)
-        self.assertIs(PM.PG_MIGRATIONS[-1], SK.M4_03A_SQL)  # hậu tố duy nhất, ngay sau M25
+        self.assertIs(PM.PG_MIGRATIONS[:26][-1], SK.M4_03A_SQL)  # hậu tố duy nhất của 1–26, ngay sau M25
         self.assertIs(PM.M0026_M4_KT, SK.M4_03A_SQL)
         self.assertIs(PM.M4_03A_SQL, SK.M4_03A_SQL)
         self.assertEqual([i for i, m in enumerate(PM.PG_MIGRATIONS) if m is SK.M4_03A_SQL], [25])
         self.assertEqual([i for i, m in enumerate(PM.PG_MIGRATIONS) if tuple(m) == tuple(SK.M4_03A_SQL)], [25])
-        self.assertEqual([i for i, m in enumerate(PM.PG_MIGRATIONS) if any(BANG_KT in s for s in m)], [25])
+        # dấu bảng KT duy nhất trong 1–26; migration sau 26 được phép FK/tham chiếu m4.kt_xac_nhan
+        self.assertEqual([i for i, m in enumerate(PM.PG_MIGRATIONS[:26]) if any(BANG_KT in s for s in m)], [25])
         self.assertIsInstance(SK.M4_03A_SQL, tuple)
         self.assertTrue(SK.M4_03A_SQL and all(isinstance(s, str) and s.strip() for s in SK.M4_03A_SQL))
         self.assertEqual(SK.M4_03A_SQL[0], "SET LOCAL check_function_bodies = off")
