@@ -18,7 +18,7 @@ Worktree đo nền `chinh`: `.claude/worktrees/nen-chinh-59b7d8e` (tách rời �
 | File | Lát giữ |
 |---|---|
 | `src\kho_tri_thuc\giao_dien\server.py` | — |
-| `giao_dien\m4.py`, `giao_dienssetspp.js`, `index.html`, `style.css` | — |
+| `giao_dien\m4.py`, `giao_dien\assets\app.js`, `index.html`, `style.css` | — |
 | `ha_tang\pg_migrations.py` | L0-2d |
 | `giao_dien\crm_g.py`, `giao_dien\assets\crm_g.js` | L0-2d |
 | `m4\*` dùng chung | — (`k2\ghi_nhan_chung.py`, `k2\sql_ghi_nhan_chung.py`: L0-2a giữ tới khi gộp) |
