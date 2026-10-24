@@ -20,6 +20,7 @@ from .crm_giao_ket import CrmGiaoKetK2, tinh_bao_gia
 from .crm_mau import _chuoi, _h, _khoa, _ngay, _uuid, _v
 
 HANH = "CRM_KY_KET"
+HANH_DOC = "CRM_KY_DOC"  # action hẹp đọc bản ký (KT/KTT/CFO) trên master.phan_cong_hanh_dong + phạm vi crm_ky_pham_vi — chỉ quản trị cấp, không tự cấp
 TEP_KY_TOI_DA = 50 * 1024 * 1024  # cùng cap tệp tải lên của máy chủ (giao_dien/intake.MAX_FILE_SIZE)
 HIEN_THI_DA_KY = "Đã ký — chờ kế toán kiểm"
 MUC_DICH_TAI = "TAI_BAN_KY"
@@ -156,7 +157,9 @@ class CrmKyKetK2:
             if input_sha != x["input_sha256"]:
                 _loi("CRM_KY_G3_LECH", "Input lineage của bản xuất không khớp revision đã ghim — không ký.")
             tom_tat = _tom_tat(x["du_lieu"]["bao_gia"])
-            write_immutable(self.kho_ky / sha, raw)  # TRƯỚC commit; lỗi/rollback sau đó vẫn giữ raw (không cleanup)
+            # TRƯỚC commit; lỗi/rollback sau đó vẫn giữ raw (không cleanup). Bản ký lưu ở `ky/` (vai trò bằng chứng ký), tách khỏi G3 `tep/`:
+            # bytes trùng bản xuất vẫn là bằng chứng riêng (ID/hash/độ dài riêng) — hash/bytes không chứng minh chữ ký xác thực.
+            write_immutable(self.kho_ky / sha, raw)
             r =_v(dict(c.execute("""SELECT master.crm_ky_ket(%s, %s, %s::uuid, %s, %s::uuid, %s, %s, %s::bigint, %s, %s::bigint, %s, %s, %s::date, %s,
                                                               %s, %s, %s::jsonb) AS r""",
                                   (y["khoa"], h, y["soan_id"], y["expected_revision"], y["expected_xuat_id"], input_sha, x["pdf_sha256"], x["pdf_len"],
@@ -166,7 +169,8 @@ class CrmKyKetK2:
 
     # ------------------------------------------------------------------ đọc
     def doc(self, dang_nhap: str, soan_id) -> dict:
-        """Điều kiện/căn cứ dialog + bản ký + lịch sử theo quyền HIỆN HÀNH (giao dịch RR). Người không đọc được bản ký chỉ nhận trạng thái/quyền."""
+        """Điều kiện/căn cứ dialog + bản ký + lịch sử theo quyền HIỆN HÀNH (giao dịch RR). Người không đọc được bản ký chỉ nhận trạng thái/quyền.
+        Đọc chi tiết: người ký trong phạm vi, hoặc KT/KTT/CFO có phân công hẹp CRM_KY_DOC + phạm vi tường minh hiện hành (M0023 crm_ky_doc_duoc)."""
         m, dt = self.mau, self.mau.danh_tinh(dang_nhap)
         with m._tx(dt, rr=True) as c:
             d = _v(dict(c.execute("SELECT master.crm_ky_doc(%s::uuid) AS r", (_uuid(soan_id, "soan_id"),)).fetchone()))["r"]

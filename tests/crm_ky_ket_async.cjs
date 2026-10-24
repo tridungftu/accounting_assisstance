@@ -13,6 +13,16 @@
 //  K6  thành công → "Đã ký — chờ kế toán kiểm" (không "Đã chuyển"), G5 trung thực; làm mới.
 //  K7  DA_KY: không Lưu/Xuất/đổi mẫu, ô nhập vô hiệu, khối bản ký; tải PDF bản ký: dương click 1 lần; blob về sau khi đổi vai → không click.
 //  K8  GET điều kiện ký cũ về trễ không lùi trạng thái; quyen.ky=false → nút vô hiệu + lý do phạm vi.
+//  FIX04 (CODE_ONLY, NOT_RUN — mock DOM, không phải trình duyệt; mock ACK KHÔNG phải actual G3/PG positive):
+//  K9  ACK 2xx hỏng/lệch ({} / null / JSON hỏng / sai bản soạn-HĐ-trạng thái-revision-bản xuất-ngày-co_sua-độ dài-hash G3-G5/thiếu ky_id) → CHƯA RÕ:
+//      không nhãn Đã ký, không đóng dialog/xóa nháp, không GET; gửi lại ĐÚNG File + header + khóa; chỉ ACK typed đúng định danh mới FINAL.
+//  K10 POST gốc + gửi lại đang bay qua vai A→B→A (B không bị khóa), G3→G2→G3, nhập form mới → lỗi/ACK cũ im lặng, nhả đúng bản ghi, giữ CHƯA RÕ
+//      của A; GET làm mới dùng guard chụp lúc gửi (form đổi sau ACK → không GET chi tiết).
+//  K11 tải PDF bản ký: headers đã về, blob() là Promise điều khiển; rời #hopdong rồi về (và chỉ rời) → không click; đối chứng dương sau khi về.
+//  K12 U2 File-only (CODE_ONLY, NOT_RUN): (a) POST gốc còn bay, (b) gửi lại y nguyên của ý định CHƯA RÕ còn bay — CHỈ đổi File (ngày/người/Có-Không
+//      giữ nguyên) → ACK HỢP LỆ cũ im lặng (không toast/trạng thái/đóng dialog/xóa File-nháp/GET); File/form mới còn; ý định File mới gửi khóa mới.
+// Harness: setTimeout tiêm vào vm CHỈ unref timer dọn URL 60000ms (revokeObjectURL) để không giữ event loop Node ~60s; callback/độ trễ/thứ tự
+// giữ nguyên, mọi timer khác (0ms chờ, 800ms thử lại phiên, toast) không đổi. Listener hashchange chỉ thu của crm_g.js để mô phỏng điều hướng.
 const fs = require("fs");
 const path = require("path");
 const vm = require("vm");
@@ -65,7 +75,9 @@ function moiTruong() {
   const calls = [];
   const fetch = (url, opts = {}) => new Promise((resolve, reject) => calls.push({url, opts, resolve, reject, method: (opts && opts.method) || "GET"}));
   let soUuid = 0;
-  const ctx = {document, Node: El, console, setTimeout, clearTimeout, Promise, Map, Set, JSON, Math, Date, Number, String, Object, Array, Error, TypeError, SyntaxError,
+  // chỉ timer dọn URL 60000ms (crm_g.js taiGoc/taiTep/taiBanKy; app.js tải) được unref — vẫn chạy nếu tiến trình còn sống, không giữ event loop
+  const henGio = (fn, ms, ...a) => { const t = setTimeout(fn, ms, ...a); if (ms === 60000 && t && typeof t.unref === "function") t.unref(); return t; };
+  const ctx = {document, Node: El, console, setTimeout: henGio, clearTimeout, Promise, Map, Set, JSON, Math, Date, Number, String, Object, Array, Error, TypeError, SyntaxError,
     encodeURIComponent, decodeURIComponent, URLSearchParams, location: {hash: "#hopdong"}, crypto: {randomUUID: () => "uuid-" + (++soUuid)},
     URL: {createObjectURL: () => "blob:x", revokeObjectURL() {}}, fetch, navigator: {}};
   ctx.window = ctx;
@@ -109,12 +121,26 @@ const KY = (sua = {}) => ({soan_id: "so-1", hop_dong_id: "hd-1", ma_noi_bo: "HD-
 const BAN_KY = {ky_id: "k-1", revision: 2, xuat_id: "x-1", ngay_ky: "2026-10-20", nguoi_ky_khach: null, co_sua: false, mo_ta_sua: null,
   ky_pdf_sha256: "c".repeat(64), ky_pdf_len: 2048, ky_so_trang: 1, g3_pdf_sha256: "a".repeat(64), g3_pdf_len: 1234, tom_tat: TOM_TAT, tao_boi: BH,
   tao_luc: "2026-10-21T01:00:00Z", hien_thi: "Đã ký — chờ kế toán kiểm", g5: {trang_thai: "NOT_SELECTED", ly_do: "CHUA_AP_DUNG_CHON_MAU"}};
+// ACK theo DTO master.crm_ky_kq (+ lap_lai) — dữ liệu GIẢ của mock, không phải biên nhận actual
+const ACK = (sua = {}) => ({ky_id: "11111111-2222-4333-8444-555555555555", soan_id: "so-1", hop_dong_id: "hd-1", revision: 2, xuat_id: "x-1", trang_thai: "DA_KY",
+  hien_thi: "Đã ký — chờ kế toán kiểm", ngay_ky: "2026-10-20", co_sua: false, ky_pdf_sha256: "c".repeat(64), ky_pdf_len: 2048, g3_pdf_sha256: "a".repeat(64),
+  g5: {trang_thai: "NOT_SELECTED", ly_do: "CHUA_AP_DUNG_CHON_MAU"}, lap_lai: false, ...sua});
+const phanHoiJsonHong = () => ({ok: true, status: 200, headers: {get: () => "application/json"}, json: async () => { throw new SyntaxError("Unexpected end of JSON input"); },
+  blob: async () => new BLOB_GOC([])});
+function blobTreo() {  // headers về ngay; blob() là Promise do ca điều khiển
+  let ra;
+  const p = new Promise(r => { ra = r; });
+  return {res: {ok: true, status: 200, headers: {get: () => "application/pdf"}, json: async () => ({}), blob: () => p}, ra: n => ra(new BLOB_GOC([new Uint8Array(n)]))};
+}
 const TRUONG_KY = ["co_sua", "expected_revision", "expected_xuat_id", "khoa", "mo_ta", "ngay_ky", "nguoi_ky_khach", "soan_id", "ten_tep"];
 
 async function main() {
   const {document, calls, ctx} = moiTruong();
   vm.runInContext(APP, ctx, {filename: "app.js"});
+  const ngheHash = [];  // chỉ listener hashchange của crm_g.js (router app.js không mô phỏng)
+  ctx.addEventListener = (t, fn) => { if (t === "hashchange") ngheHash.push(fn); };
   vm.runInContext(CRMG, ctx, {filename: "crm_g.js"});
+  async function diHash(h) { ctx.location.hash = h; for (const fn of ngheHash) fn({}); await chay(); }
   const $ = id => document.getElementById(id);
   const conLai = pred => calls.filter(c => !c.xong && pred(c));
   const cho = (pred, moTa) => { const c = calls.find(x => !x.xong && pred(x)); assert.ok(c, "không thấy yêu cầu: " + moTa); c.xong = true; return c; };
@@ -152,6 +178,27 @@ async function main() {
   function go(id, v, ev = "input") { const el = o(id); el.value = v; el.dispatch(ev); }
   async function moDialog() { nutKy().click(); await chay(); assert.ok(dialog(), "chưa mở dialog Ký kết"); }
   async function dienDu(f = F1, ngay = "2026-10-20", co = "KHONG") { chonTep(f); await chay(); go("ky-ngay", ngay); go("ky-co-sua", co, "change"); await chay(); }
+  function ackTu(p, sua = {}) {  // ACK GIẢ đúng định danh của chính POST p (header + File), cho phép ghi đè để tạo ACK lệch
+    const info = JSON.parse(decodeURIComponent(p.opts.headers["X-CRM-G-Info"]));
+    return ACK({soan_id: info.soan_id, revision: info.expected_revision, xuat_id: info.expected_xuat_id, ngay_ky: info.ngay_ky, co_sua: info.co_sua,
+      ky_pdf_len: p.opts.body.size, g5: info.co_sua ? {trang_thai: "PENDING", ly_do: "BAT_BUOC_KHAI_CO"} : {trang_thai: "NOT_SELECTED", ly_do: "CHUA_AP_DUNG_CHON_MAU"}, ...sua});
+  }
+  async function lamMoi(ky = KY(), tt = "CHO_KY") {  // ↻ Làm mới trên G3 đang mở so-1 → danh sách → bản soạn → điều kiện ký
+    nut(gk(), "↻ Làm mới").click(); await chay();
+    await traDs(BH, tt);
+    for (const c of conLai(getSo)) { c.xong = true; c.resolve(phanHoi(200, SO(tt))); }
+    await chay();
+    cho(getKy, "GET điều kiện ký (làm mới)").resolve(phanHoi(200, ky)); await chay();
+  }
+  async function traNapLai(tt, ky) {  // trả chuỗi GET làm mới đang chờ (danh sách → bản soạn → điều kiện ký) nếu có
+    await traDs(BH, tt); await traKhac();
+    for (const c of conLai(getSo)) { c.xong = true; c.resolve(phanHoi(200, SO(tt))); }
+    await chay();
+    for (const c of conLai(getKy)) { c.xong = true; c.resolve(phanHoi(200, ky)); }
+    await chay();
+  }
+  const KY_DA = () => KY({trang_thai: "DA_KY", hien_thi: "Đã ký — chờ kế toán kiểm", quyen: {ky: false, doc: true, ly_do: null},
+    ban_ky: BAN_KY, lich_su: [{luc: "2026-10-21T01:00:00Z", nguoi: BH, hanh_dong: "CRM_KY_KET"}]});
 
   // khởi động vai BH → tab G3
   for (const c of conLai(get("/api/crm"))) { c.xong = true; c.resolve(phanHoi(200, CRM(BH))); }
@@ -279,8 +326,7 @@ async function main() {
     assert.notStrictEqual(JSON.parse(decodeURIComponent(p.opts.headers["X-CRM-G-Info"])).khoa, JSON.parse(decodeURIComponent(y1.opts.headers["X-CRM-G-Info"])).khoa,
       "K6: ý định mới dùng lại khóa đã FINAL");
     datToast("");
-    p.resolve(phanHoi(200, {ky_id: "k-1", soan_id: "so-1", trang_thai: "DA_KY", hien_thi: "Đã ký — chờ kế toán kiểm", lap_lai: false,
-      g5: {trang_thai: "NOT_SELECTED", ly_do: "CHUA_AP_DUNG_CHON_MAU"}})); await chay();
+    p.resolve(phanHoi(200, ackTu(p))); await chay();  // FIX04: ACK đủ DTO crm_ky_kq đúng định danh ý định (mock, không phải actual)
     const t = toastTxt() + " " + trangThaiGk().textContent;
     assert.ok(t.includes("Đã ký — chờ kế toán kiểm"), "K6: thiếu nhãn Đã ký — chờ kế toán kiểm");
     assert.ok(!t.includes("Đã chuyển") && !t.includes("hiệu lực"), "K6: nhãn nói đã chuyển/hiệu lực");
@@ -343,6 +389,228 @@ async function main() {
     assert.ok(ly && ly.textContent.includes("phạm vi ký"), "K8: thiếu lý do phạm vi");
     assert.ok(ly.textContent.includes("không suy từ người tạo"), "K8: lý do không nói rõ phạm vi do quản trị cấp");
     console.log("K8 đạt");
+  }
+
+  // ---------------------------------------------------------------- K9 ACK 2xx hỏng/lệch → CHƯA RÕ (giữ File/header/khóa), không FINAL
+  {
+    await lamMoi();
+    assert.ok(nutKy() && !nutKy().disabled, "K9: chuẩn bị — nút Ký kết… không bật");
+    await moDialog(); await dienDu(F1, "2026-10-20", "KHONG");
+    nutGui().click(); await chay();
+    let p = cho(postKy, "POST ký K9");
+    const hGoc = p.opts.headers["X-CRM-G-Info"], p0 = p;
+    const nDs = dem(getDs), nSo = dem(getSo), nKy = dem(getKy);
+    const JSON_HONG = Symbol("json-hong");
+    const HONG = [["{}", {}], ["null", null], ["mảng", []], ["JSON hỏng", JSON_HONG],
+      ["sai bản soạn", ackTu(p0, {soan_id: "so-2"})], ["sai HĐ", ackTu(p0, {hop_dong_id: "hd-2"})], ["sai trạng thái", ackTu(p0, {trang_thai: "CHO_KY"})],
+      ["thiếu ky_id", ackTu(p0, {ky_id: undefined})], ["ky_id không UUID", ackTu(p0, {ky_id: "k-1"})], ["sai revision", ackTu(p0, {revision: 1})],
+      ["sai bản xuất", ackTu(p0, {xuat_id: "x-0"})], ["sai ngày ký", ackTu(p0, {ngay_ky: "2026-10-19"})], ["co_sua chuỗi", ackTu(p0, {co_sua: "false"})],
+      ["sai độ dài PDF", ackTu(p0, {ky_pdf_len: 1})], ["hash ký sai dạng", ackTu(p0, {ky_pdf_sha256: "xyz"})], ["sai hash G3", ackTu(p0, {g3_pdf_sha256: "d".repeat(64)})],
+      ["G5 PENDING khi khai Không", ackTu(p0, {g5: {trang_thai: "PENDING", ly_do: "BAT_BUOC_KHAI_CO"}})], ["G5 MATCH", ackTu(p0, {g5: {trang_thai: "MATCH"}})],
+      ["thiếu G5", ackTu(p0, {g5: undefined})], ["lap_lai không boolean", ackTu(p0, {lap_lai: "false"})]];
+    for (const [ten, ack] of HONG) {
+      datToast("");
+      p.resolve(ack === JSON_HONG ? phanHoiJsonHong() : phanHoi(200, ack)); await chay();
+      const t = toastTxt() + " " + trangThaiGk().textContent;
+      assert.ok(!t.includes("Đã ký — chờ kế toán kiểm"), `K9 ${ten}: ACK hỏng/lệch bị hiển thị là đã ký`);
+      assert.ok(t.includes("chưa xác nhận"), `K9 ${ten}: thiếu thông báo chưa xác nhận`);
+      assert.ok(dialog(), `K9 ${ten}: ACK hỏng/lệch đóng dialog`);
+      assert.strictEqual(o("ky-ngay").value, "2026-10-20", `K9 ${ten}: ACK hỏng/lệch xóa nháp dialog`);
+      assert.ok(dialog().textContent.includes(F1.name), `K9 ${ten}: ACK hỏng/lệch bỏ tệp đã chọn`);
+      assert.strictEqual(dem(getDs), nDs, `K9 ${ten}: ACK hỏng/lệch mở GET danh sách`);
+      assert.strictEqual(dem(getSo), nSo, `K9 ${ten}: ACK hỏng/lệch mở GET bản soạn`);
+      assert.strictEqual(dem(getKy), nKy, `K9 ${ten}: ACK hỏng/lệch mở GET điều kiện ký`);
+      assert.ok(nutLai(), `K9 ${ten}: mất đường đối soát (gửi lại y nguyên)`);
+      go("ky-ngay", "2026-10-18"); await chay();  // ý định MỚI vẫn bị chặn khi ý định gốc chưa rõ
+      nutGui().click(); await chay();
+      assert.strictEqual(conLai(postKy).length, 0, `K9 ${ten}: ý định mới được gửi khi ý định gốc chưa rõ`);
+      go("ky-ngay", "2026-10-20"); await chay();
+      nutLai().click(); await chay();
+      p = cho(postKy, `POST gửi lại sau ${ten}`);
+      assert.strictEqual(p.opts.body, F1, `K9 ${ten}: gửi lại khác File`);
+      assert.strictEqual(p.opts.headers["X-CRM-G-Info"], hGoc, `K9 ${ten}: gửi lại khác header/khóa`);
+    }
+    datToast("");
+    p.resolve(phanHoi(200, ackTu(p0, {lap_lai: true}))); await chay();  // ACK typed đúng định danh → FINAL (mock)
+    const t = toastTxt() + " " + trangThaiGk().textContent;
+    assert.ok(t.includes("Đã ký — chờ kế toán kiểm") && t.includes("biên nhận cũ") && t.includes("NOT_SELECTED"), "K9: ACK đúng không FINAL");
+    assert.ok(dem(getDs) > nDs, "K9: ACK đúng không làm mới");
+    await traNapLai("DA_KY", KY_DA());
+    assert.strictEqual(dialog(), null, "K9: ACK đúng không đóng dialog");
+    assert.strictEqual(nutLai(), null, "K9: ACK đúng vẫn giữ nút gửi lại");
+    console.log("K9 đạt");
+  }
+
+  // ---------------------------------------------------------------- K10 ABA: POST gốc + gửi lại đang bay; form mới; lỗi/ACK/GET cũ không ghi đè
+  {
+    await lamMoi();  // mock trả lại CHO_KY để dựng ca (không phải luồng nghiệp vụ thật)
+    await moDialog(); await dienDu(F1, "2026-10-21", "KHONG");
+    nutGui().click(); await chay();
+    const goc = cho(postKy, "K10 POST gốc (A)");
+    const hGoc = goc.opts.headers["X-CRM-G-Info"], khoaGoc = JSON.parse(decodeURIComponent(hGoc)).khoa;
+    // A → B khi POST gốc còn bay; B không bị khóa bởi ý định của A
+    await doiVai(KT);
+    await moSo();
+    assert.strictEqual(nutLai(), null, "K10: vai B thấy nút gửi lại của A");
+    await moDialog(); await dienDu(F2, "2026-10-21", "KHONG");
+    nutGui().click(); await chay();
+    assert.strictEqual(conLai(postKy).length, 1, "K10: vai B bị khóa bởi ý định đang bay của A");
+    const pB = cho(postKy, "K10 POST của B");
+    assert.notStrictEqual(JSON.parse(decodeURIComponent(pB.opts.headers["X-CRM-G-Info"])).khoa, khoaGoc, "K10: B dùng khóa của A");
+    pB.resolve(phanHoi(400, {error: "CRM_G_YEU_CAU_SAI", message: "Yêu cầu sai (mock)"})); await chay();
+    datToast(""); const nDsB = dem(getDs);
+    goc.reject(new TypeError("Failed to fetch")); await chay();  // lỗi chưa rõ của A khi đang là B: im lặng, A giữ CHƯA RÕ
+    assert.strictEqual(toastTxt(), "", "K10: lỗi muộn của A hiện toast trên vai B");
+    assert.strictEqual(dem(getDs), nDsB, "K10: lỗi muộn của A mở GET dưới vai B");
+    assert.strictEqual(nutLai(), null, "K10: vai B thấy nút gửi lại của A");
+    // B → A: đường đối soát của A còn; gửi lại đúng File/header/khóa gốc
+    await doiVai(BH);
+    await moSo();
+    assert.ok(nutLai(), "K10: CHƯA RÕ của A mất sau A→B→A");
+    nutLai().click(); await chay();
+    const lai = cho(postKy, "K10 gửi lại (A)");
+    assert.strictEqual(lai.opts.body, F1, "K10: gửi lại khác File gốc");
+    assert.strictEqual(lai.opts.headers["X-CRM-G-Info"], hGoc, "K10: gửi lại khác header/khóa gốc");
+    // gửi lại còn bay qua A→B→A; A nhập form MỚI; ý định mới bị chặn khi gửi lại còn bay
+    await doiVai(KT); await doiVai(BH);
+    await moSo();
+    await moDialog(); await dienDu(F2, "2026-10-24", "KHONG");
+    nutGui().click(); await chay();
+    assert.strictEqual(conLai(postKy).length, 0, "K10: ý định mới gửi khi gửi lại của A còn bay");
+    datToast(""); let nDs = dem(getDs), nSo = dem(getSo);
+    lai.resolve(phanHoi(409, {error: "CRM_KY_XUAT_CU", message: "Đã có bản xuất mới hơn (mock)"})); await chay();  // lỗi cũ sau ABA
+    assert.strictEqual(toastTxt(), "", "K10: lỗi cũ sau ABA hiện toast");
+    assert.ok(!trangThaiGk().textContent.includes("đã tải lại căn cứ"), "K10: lỗi cũ sau ABA ghi trạng thái");
+    assert.strictEqual(dem(getDs), nDs, "K10: lỗi cũ sau ABA mở GET danh sách với fence mới");
+    assert.strictEqual(dem(getSo), nSo, "K10: lỗi cũ sau ABA mở GET bản soạn");
+    assert.ok(dialog(), "K10: lỗi cũ sau ABA đóng dialog của form mới");
+    assert.strictEqual(o("ky-ngay").value, "2026-10-24", "K10: lỗi cũ sau ABA xóa nháp form mới");
+    assert.ok(dialog().textContent.includes(F2.name), "K10: lỗi cũ sau ABA bỏ tệp của form mới");
+    // bản ghi gốc đã nhả (kết quả xác định) → ý định mới gửi được; G3→G2→G3 + nhập form mới trong lúc chờ → ACK cũ im lặng
+    nutGui().click(); await chay();
+    const p3 = cho(postKy, "K10 POST ý định mới");
+    assert.notStrictEqual(JSON.parse(decodeURIComponent(p3.opts.headers["X-CRM-G-Info"])).khoa, khoaGoc, "K10: ý định mới dùng khóa gốc");
+    assert.strictEqual(p3.opts.body, F2, "K10: ý định mới không phải File mới");
+    nut(gk(), "Báo giá (G2)").click(); await chay();
+    nut(gk(), "Soạn hợp đồng (G3)").click(); await chay();
+    assert.ok(dialog(), "K10: chuẩn bị — dialog không còn sau G3→G2→G3");
+    go("ky-nguoi", "Ông B"); await chay();
+    datToast(""); nDs = dem(getDs); nSo = dem(getSo);
+    p3.resolve(phanHoi(200, ackTu(p3))); await chay();
+    assert.strictEqual(toastTxt(), "", "K10: ACK cũ sau G3→G2→G3 + form mới hiện toast");
+    assert.ok(!trangThaiGk().textContent.includes("Đã ký — chờ kế toán kiểm"), "K10: ACK cũ ghi trạng thái lên form mới");
+    assert.ok(dialog(), "K10: ACK cũ đóng dialog của form mới");
+    assert.strictEqual(o("ky-nguoi").value, "Ông B", "K10: ACK cũ xóa nháp form mới");
+    assert.strictEqual(dem(getDs), nDs, "K10: ACK cũ mở GET danh sách với fence mới");
+    assert.strictEqual(dem(getSo), nSo, "K10: ACK cũ mở GET bản soạn");
+    // ACK cũ đã nhả ĐÚNG bản ghi (không còn "đang gửi") → ý định hiện tại gửi được; ACK hợp lệ → làm mới theo guard lúc gửi; form đổi sau ACK → dừng chuỗi
+    nutGui().click(); await chay();
+    const p4 = cho(postKy, "K10 POST ý định hiện tại");
+    datToast(""); nDs = dem(getDs); nSo = dem(getSo);
+    p4.resolve(phanHoi(200, ackTu(p4))); await chay();
+    assert.ok(toastTxt().includes("Đã ký — chờ kế toán kiểm"), "K10: ACK hợp lệ trong context hiện tại không hiển thị");
+    assert.strictEqual(dem(getDs), nDs + 1, "K10: ACK hợp lệ không làm mới đúng một lần");
+    go("ky-nguoi", "Bà C"); await chay();  // form đổi khi GET danh sách đang chờ
+    await traDs(BH, "DA_KY");
+    assert.strictEqual(dem(getSo), nSo, "K10: GET làm mới dùng fence chụp lại sau ACK (đè form mới)");
+    await traNapLai("DA_KY", KY_DA());
+    console.log("K10 đạt");
+  }
+
+  // ---------------------------------------------------------------- K11 tải PDF bản ký: blob Promise điều khiển + điều hướng hash
+  {
+    const getTai = get("/api/crm/giao-ket/ban-ky/k-1/tep");
+    await lamMoi(KY_DA(), "DA_KY");
+    assert.ok(nut(gk(), "PDF bản ký ↓"), "K11: chuẩn bị — thiếu nút tải bản ký");
+    const truoc = soClickTai;
+    // (a) headers đã về, blob còn chờ → rời #hopdong rồi quay lại → blob về: không click
+    nut(gk(), "PDF bản ký ↓").click(); await chay();
+    const b1 = blobTreo();
+    cho(getTai, "K11 GET tải (đi-rồi-về)").resolve(b1.res); await chay();
+    await diHash("#tongquan"); await diHash("#hopdong");
+    b1.ra(2048); await chay();
+    assert.strictEqual(soClickTai, truoc, "K11: blob sau đi-rồi-về #hopdong vẫn click tải");
+    await traNapLai("DA_KY", KY_DA());
+    // (b) headers đã về, blob còn chờ → rời #hopdong → blob về khi đang ở trang khác: không click
+    nut(gk(), "PDF bản ký ↓").click(); await chay();
+    const b2 = blobTreo();
+    cho(getTai, "K11 GET tải (rời trang)").resolve(b2.res); await chay();
+    await diHash("#tongquan");
+    b2.ra(2048); await chay();
+    assert.strictEqual(soClickTai, truoc, "K11: blob về khi đã rời #hopdong vẫn click tải");
+    await diHash("#hopdong");
+    await traNapLai("DA_KY", KY_DA());
+    // (c) đối chứng dương sau khi về: cùng đường blob Promise điều khiển, không điều hướng → click đúng một lần
+    nut(gk(), "PDF bản ký ↓").click(); await chay();
+    const b3 = blobTreo();
+    cho(getTai, "K11 GET tải (dương)").resolve(b3.res); await chay();
+    b3.ra(2048); await chay();
+    assert.strictEqual(soClickTai, truoc + 1, "K11: tải dương sau khi quay lại không click đúng một lần");
+    console.log("K11 đạt");
+  }
+
+  // ---------------------------------------------------------------- K12 U2 File-only: đổi CHỈ File (ngày/người/Có-Không giữ nguyên) khi POST gốc
+  // hoặc gửi lại y nguyên (CHƯA RÕ) còn bay → ACK HỢP LỆ cũ về: không toast/trạng thái/đóng dialog/xóa File-nháp/GET làm mới; File/form mới còn nguyên.
+  {
+    const kiemImLang = (nhan, n) => {
+      assert.strictEqual(toastTxt(), "", `${nhan}: ACK cũ hiện toast sau khi đổi File`);
+      assert.ok(!trangThaiGk().textContent.includes("Đã ký — chờ kế toán kiểm"), `${nhan}: ACK cũ ghi trạng thái lên form có File mới`);
+      assert.ok(dialog(), `${nhan}: ACK cũ đóng dialog của File mới`);
+      assert.ok(dialog().textContent.includes("Đã chọn: " + F2.name), `${nhan}: ACK cũ xóa File mới đã chọn`);
+      assert.strictEqual(o("ky-ngay").value, n, `${nhan}: ACK cũ xóa ngày ký của form`);
+      assert.strictEqual(o("ky-co-sua").value, "KHONG", `${nhan}: ACK cũ xóa khai báo Có/Không của form`);
+      assert.ok(nutGui() && !nutGui().disabled, `${nhan}: ACK cũ vô hiệu nút gửi của form mới`);
+    };
+    // (a) POST gốc còn bay → chỉ đổi File → ACK hợp lệ cũ
+    await lamMoi();  // mock trả lại CHO_KY để dựng ca (không phải luồng nghiệp vụ thật)
+    await moDialog(); await dienDu(F1, "2026-10-22", "KHONG");
+    nutGui().click(); await chay();
+    const pa = cho(postKy, "K12a POST gốc");
+    assert.strictEqual(pa.opts.body, F1, "K12a: chuẩn bị — POST gốc không phải F1");
+    const khoaA = JSON.parse(decodeURIComponent(pa.opts.headers["X-CRM-G-Info"])).khoa;
+    chonTep(F2); await chay();  // CHỈ File đổi
+    datToast(""); let nDs = dem(getDs), nSo = dem(getSo), nKy = dem(getKy);
+    pa.resolve(phanHoi(200, ackTu(pa))); await chay();
+    kiemImLang("K12a", "2026-10-22");
+    assert.deepStrictEqual([dem(getDs), dem(getSo), dem(getKy)], [nDs, nSo, nKy], "K12a: ACK cũ mở GET làm mới sau khi đổi File");
+    // đối chứng: form mới (F2) gửi ý định MỚI (khóa mới, đúng File mới); ACK hợp lệ của CHÍNH nó hiển thị
+    nutGui().click(); await chay();
+    const pa2 = cho(postKy, "K12a POST ý định File mới");
+    assert.strictEqual(pa2.opts.body, F2, "K12a: ý định mới không gửi File mới");
+    assert.notStrictEqual(JSON.parse(decodeURIComponent(pa2.opts.headers["X-CRM-G-Info"])).khoa, khoaA, "K12a: ý định File mới dùng khóa gốc");
+    datToast("");
+    pa2.resolve(phanHoi(200, ackTu(pa2))); await chay();
+    assert.ok(toastTxt().includes("Đã ký — chờ kế toán kiểm"), "K12a: ACK hợp lệ của ý định File mới không hiển thị");
+    await traNapLai("DA_KY", KY_DA());
+    console.log("K12a đạt");
+
+    // (b) CHƯA RÕ → gửi lại y nguyên (ĐÚNG File/header/khóa gốc) còn bay → chỉ đổi File → ACK hợp lệ cũ
+    await lamMoi();  // mock trả lại CHO_KY
+    await moDialog(); await dienDu(F1, "2026-10-23", "KHONG");
+    nutGui().click(); await chay();
+    const goc = cho(postKy, "K12b POST gốc");
+    const hGoc = goc.opts.headers["X-CRM-G-Info"], khoaB = JSON.parse(decodeURIComponent(hGoc)).khoa;
+    goc.reject(new TypeError("Failed to fetch")); await chay();  // CHƯA RÕ
+    assert.ok(nutLai(), "K12b: chuẩn bị — thiếu nút gửi lại y nguyên");
+    nutLai().click(); await chay();
+    const lai = cho(postKy, "K12b gửi lại y nguyên");
+    assert.strictEqual(lai.opts.body, F1, "K12b: gửi lại khác File gốc");
+    assert.strictEqual(lai.opts.headers["X-CRM-G-Info"], hGoc, "K12b: gửi lại khác header/khóa gốc");
+    chonTep(F2); await chay();  // CHỈ File đổi khi gửi lại còn bay
+    datToast(""); nDs = dem(getDs); nSo = dem(getSo); nKy = dem(getKy);
+    lai.resolve(phanHoi(200, ackTu(lai))); await chay();
+    kiemImLang("K12b", "2026-10-23");
+    assert.deepStrictEqual([dem(getDs), dem(getSo), dem(getKy)], [nDs, nSo, nKy], "K12b: ACK cũ mở GET làm mới sau khi đổi File");
+    assert.strictEqual(nutLai(), null, "K12b: ACK hợp lệ cũ đã FINAL nhưng vẫn giữ nút gửi lại");
+    nutGui().click(); await chay();
+    const pb2 = cho(postKy, "K12b POST ý định File mới");
+    assert.strictEqual(pb2.opts.body, F2, "K12b: ý định mới không gửi File mới");
+    assert.notStrictEqual(JSON.parse(decodeURIComponent(pb2.opts.headers["X-CRM-G-Info"])).khoa, khoaB, "K12b: ý định File mới dùng khóa gốc");
+    datToast("");
+    pb2.resolve(phanHoi(200, ackTu(pb2))); await chay();
+    assert.ok(toastTxt().includes("Đã ký — chờ kế toán kiểm"), "K12b: ACK hợp lệ của ý định File mới không hiển thị");
+    await traNapLai("DA_KY", KY_DA());
+    console.log("K12b đạt");
   }
 
   assert.deepStrictEqual(loiNgoai, [], "có Promise bị từ chối không xử lý");
