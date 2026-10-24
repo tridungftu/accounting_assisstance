@@ -1,0 +1,49 @@
+{
+  "permissions": {
+    "deny": [
+      "Read(./.env)",
+      "Read(./**/.env*)",
+      "Edit(./.env*)",
+      "Write(./.env*)",
+      "Read(./cau_hinh.that.toml)",
+      "Edit(./cau_hinh.that.toml)",
+      "Write(./cau_hinh.that.toml)",
+      "Read(./var/plhn-that/**)",
+      "Edit(./var/plhn-that/**)",
+      "Write(./var/plhn-that/**)",
+      "Read(./var/web-that/**)",
+      "Edit(./var/web-that/**)",
+      "Write(./var/web-that/**)",
+      "Bash(rm *)",
+      "Bash(rmdir *)",
+      "Bash(del *)",
+      "Bash(Remove-Item *)",
+      "Bash(git clean *)",
+      "Bash(git reset --hard *)",
+      "Bash(git push --force *)",
+      "PowerShell(rm *)",
+      "PowerShell(rmdir *)",
+      "PowerShell(del *)",
+      "PowerShell(Remove-Item *)",
+      "PowerShell(git clean *)",
+      "PowerShell(git reset --hard *)",
+      "PowerShell(git push --force *)"
+    ]
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash|PowerShell",
+        "hooks": [
+          { "type": "command", "command": "python .claude/hooks/chan_lenh_nguy_hiem.py" }
+        ]
+      },
+      {
+        "matcher": "Edit|Write|Read|NotebookEdit|Grep|Glob",
+        "hooks": [
+          { "type": "command", "command": "python .claude/hooks/chan_lenh_nguy_hiem.py" }
+        ]
+      }
+    ]
+  }
+}

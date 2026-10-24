@@ -33,3 +33,8 @@ source-settings.json
 /cau_hinh.*.toml
 /evidence/
 /graphify-out/
+
+# Claude Code: worktree cua worker va cau hinh rieng tung may
+/.claude/worktrees/
+/.claude/settings.local.json
+/.claude/lenh-test.txt
