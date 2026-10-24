@@ -16,11 +16,12 @@
 | L0-2a | Gộp chuỗi `m4-03b-common-identity` fix01→fix04 | Codex | — | — | Xong 24/10 — gộp hop-nhat 73deacb |
 | L0-2i | Tìm code/test chỉ có trong `var\codex-dieu-phoi` (chưa vào git) — phát hiện khi làm L0-2a | Codex | — | — | Xong 24/10 — gộp 8b4670f; A=27, B=26 |
 | L0-2d | Gộp `crm-g5-doi-chieu` + `crm-m4-three` | Claude | `crm_g.py`, `crm_g.js`, `pg_migrations.py` | — | Xong 24/10 — gộp b2fd07c |
-| L0-4 | Lệnh mở DEMO cho worktree, có CRM PostgreSQL: DataRoot `var\demo-<lát>` trong worktree + chép `runtime.local.json`, `ket-noi.local.json` từ `var\web\crm-demo` (không mở nội dung), kiểm CSDL DEMO không đụng nhau giữa worktree; ghi lệnh vào CLAUDE.md mục 5 | Claude | — | sau L0-1 | Đang code (24/10) |
+| L0-4 | Lệnh mở DEMO cho worktree, có CRM PostgreSQL: DataRoot `var\demo-<lát>` trong worktree + chép `runtime.local.json`, `ket-noi.local.json` từ `var\web\crm-demo` (không mở nội dung), kiểm CSDL DEMO không đụng nhau giữa worktree; ghi lệnh vào CLAUDE.md mục 5 | Claude | — | sau L0-1 | Xong 24/10 — gộp 7cbc41b |
+| L0-4b | CSDL CRM DEMO riêng cho lập trình (Anh chốt 24/10: không dùng chung DEMO của Anh) | Claude | `mo_demo_worktree.ps1`, CLAUDE.md mục 5 | sau L0-4 | Đang code (24/10) |
 | L0-2b | Gộp `m4-02c-ui` → `ui-fix01` | Codex | — | — | Sẵn sàng |
 | L0-2e | Gộp `m2-00b-fix01` (có thể là nguyên nhân 114 ERROR M2-00B) | Codex | — | — | Xong 24/10 — gộp 3a2b083 |
 | L0-2f | Gộp `source6-g5-e5-ordered-fix01` | lead | — | — | Xong 24/10 — gộp d07117a; không hết treo → L0-3b |
-| L0-3a | Lỗi môi trường N3/N4 (CRLF, fixture bị ignore, sys.path) + bộ chạy test dùng Python có psycopg | Codex | `run_suite.py`, `chay_test_theo_module.py`, `.gitattributes` | sau L0-1 | Chờ kiểm (lead chạy lại toàn bộ) |
+| L0-3a | Lỗi môi trường N3/N4 (CRLF, fixture bị ignore, sys.path) + bộ chạy test dùng Python có psycopg | Codex | `run_suite.py`, `chay_test_theo_module.py`, `.gitattributes` | sau L0-1 | Xong 24/10 — gộp 7b114e2 |
 | L0-3b | Sửa test treo `test_source6_g5_e5` (vòng lặp bận ở `json.raw_decode`) | Codex | — | — | Chờ slot |
 | L0-5 | Bật hook cổng test so với nền theo `ids_loi` (`cong_test.py`) | Codex | `.claude\hooks` | sau đo lại nền | Chờ |
 | L0-2g | Gộp `m4-review-basis-c18-testfix` | Codex | — | — | Chờ slot |
@@ -54,8 +55,8 @@ Căn cứ: lệnh của Anh 24/10 (mọi module đã chốt thiết kế; M9 d�
 
 | Mã | Module · việc | Worker | Phụ thuộc | Khóa file chung | Trạng thái |
 |---|---|---|---|---|---|
-| P0 | Nền · khôi phục file chưa vào git (theo L0-2i; L0-2d đã liệt kê 11 file G6A/G5-B + `m4\sql_duyet.py` + `crm_g.js` bản 27a0d3db — phải vào TRƯỚC BG-1) + gộp `m4-02c-backend`, `m4-04c-request-m27` (= L0-2c) + chuỗi migration import được: 24 duyệt · 25 G6A · 26 KT · 27 Request nháp · rồi master-reuse, 03B | Claude Opus | L0-2d, L0-2i | `crm_g.js`, `m4\*` (chỉ thêm file) | Đang code (24/10) — chỉ khôi phục nguyên file; gộp đầy đủ m4-02c-backend/m4-04c-request-m27 để L0-2c |
-| BG-1a | CRM · Báo giá gói 1 phía máy chủ: parse ô thông minh (`%`, dấu chấm/phẩy VN), BG-04 ghi đè + nhật ký, nhãn tên thay mã, mốc chuẩn | Codex | P0 | `crm_g.py` | Chờ |
+| P0 | Nền · khôi phục file chưa vào git (theo L0-2i; L0-2d đã liệt kê 11 file G6A/G5-B + `m4\sql_duyet.py` + `crm_g.js` bản 27a0d3db — phải vào TRƯỚC BG-1) + gộp `m4-02c-backend`, `m4-04c-request-m27` (= L0-2c) + chuỗi migration import được: 24 duyệt · 25 G6A · 26 KT · 27 Request nháp · rồi master-reuse, 03B | Claude Opus | L0-2d, L0-2i | `crm_g.js`, `m4\*` (chỉ thêm file) | Xong 24/10 — gộp 1c5c67a; module lỗi nạp 29 → 1 |
+| BG-1a | CRM · Báo giá gói 1 phía máy chủ: parse ô thông minh (`%`, dấu chấm/phẩy VN), BG-04 ghi đè + nhật ký, nhãn tên thay mã, mốc chuẩn | Codex | P0 | `crm_g.py` | Đang code (24/10) |
 | BG-1b | CRM · Báo giá gói 1 màn hình: BG-01…05, đo số ô trước/sau → **cổng A** | Claude | BG-1a | `crm_g.js` | Chờ |
 | BG-2a | CRM · Báo giá gói 2 máy chủ: profile loại hình v3 (BG-06/11), tìm khách (BG-08) | Codex | BG-1a | `crm_g.py` | Chờ |
 | BG-2b | CRM · Báo giá gói 2 màn hình: BG-06, 07, 08, 10, 11, 12 | Claude | cổng A gói 1, BG-2a | `crm_g.js` | Chờ |
@@ -69,7 +70,7 @@ Căn cứ: lệnh của Anh 24/10 (mọi module đã chốt thiết kế; M9 d�
 | C6 | CRM 42 · S2 tab Thu tiền (+S8) / Phụ lục / Bản ký / Lịch sử | Claude | C5; ô Junsky chờ kiểm RLS | `crm_g.*` | Chờ |
 | C7 | CRM 42 · S9 báo cáo, file soát | Codex + Claude | C6; tỷ lệ kiểm mẫu chờ Q-SAMPLE | — | Chờ |
 | M2a | M2-00 · = L0-2e gộp `m2-00b-fix01` | Codex | — | — | Xong (= L0-2e) |
-| M2b | M2-00 · `manifest.py`, `chinh_sach_tien_te.py` (POLICY-TIENTE-01) + ca M2-00-06/10 | Codex | — | — | Đang code (24/10) |
+| M2b | M2-00 · `manifest.py`, `chinh_sach_tien_te.py` (POLICY-TIENTE-01) + ca M2-00-06/10 | Codex | — | — | Chờ kiểm (review Claude vòng 1) |
 | M2c | M2-00 · `nhan.py` nhận theo manifest (identity, revision/xung đột, KHONG_XML_GOC → bảng kê) nối `k2\hoa_don.py` | Codex | M2b | (migration nếu cần → khóa) | Chờ |
 | M2d | M2-00 · `hoi_cuu.py` manifest hồi cứu 33 tháng, fixture giả | Codex | M2b | — | Chờ |
 | M2e | M2-00 · nút "Tải từ cổng thuế" + route + cấu hình | Claude | M2a, M2c | `server.py`, `app.js`, `index.html` | Chờ |
@@ -170,3 +171,6 @@ Mở ứng dụng Claude trên máy → tab Code → phiên **trên máy này** 
 - L0-1 xong (24/10): bảng nền ở `NEN-TEST.md`. Số H4 (275 ERROR) không tái hiện được trong worktree sạch → dùng nền mới, bỏ số H4. Sau P0 + L0-3a phải **đo lại nền** bằng cùng script (module bị N1 che sẽ chạy thật).
 - L0-2d review Codex vòng 1: #1 M0023 — lead tính `_hash` trên bản xuất tạm: L0-2d = chinh (43 câu, 574129b2), hop-nhat 1502fe7 (42 câu) là hồi quy H3 → không lỗi; #2 duyệt mở phạm vi `k2\crm_ky_ket.py`. Không cần vòng 2.
 - L0-3a: sandbox Codex không đọc được `var\web\crm-demo\runtime.local.json` và không checkout lại được → lead tự chuyển 97 file bị ghim sang LF trên đĩa, đưa 19 fixture DEMO vào git (đã kiểm: 17 có DEMO, 2 file lỗi cố ý; 0 nghi thật), chạy lại toàn bộ test có `--runtime`.
+
+- 24/10: Anh chốt CSDL CRM DEMO riêng cho lập trình → lát L0-4b. Lần thử L0-4 trên bản sao `chinh` đã nâng CSDL DEMO dùng chung lên schema 23 (đúng `chinh`) và nạp thêm dữ liệu mẫu — đã ghi trong TRANG-THAI.
+- 24/10: Anh hỏi Codex có chạy không — đã chạy 6 lần `codex exec` (~474 nghìn token, gpt-6.1-sol, tài khoản ChatGPT trong `~/.codex`); nhật ký ở `~/.codex/sessions/2026/10/24/`.
