@@ -208,6 +208,66 @@ class RouteTinh(unittest.TestCase):
         self.assertTrue({"CRM_GK_DANG_XU_LY", "CRM_GK_LAN_KHONG_KHOP"} <= G.MA_409_GK)
 
 
+class ChuyenMayChu(unittest.TestCase):
+    """TL 45: kiểm tổng/FX ngay tại service, không phụ thuộc nút Chuyển trên màn hình."""
+
+    def setUp(self):
+        self.c = mock.MagicMock()
+        tx = mock.MagicMock()
+        tx.__enter__.return_value = self.c
+        self.m = types.SimpleNamespace(root=".", danh_tinh=mock.Mock(return_value={"dang_nhap": "nguoi-thu"}),
+                                       _tx=mock.Mock(return_value=tx), _nhieu=mock.Mock(return_value=[]),
+                                       _mot=mock.Mock(return_value={"cau_hinh": {}}))
+        self.s = GK.CrmGiaoKetK2(self.m)
+        self.s._tra = mock.Mock(return_value=None)
+        self.s._bao_gia = mock.Mock()
+        self.kw = {"bao_gia_id": "33333333-3333-4333-8333-333333333333", "expected_revision": 1,
+                   "mau_phien_ban_id": "44444444-4444-4444-8444-444444444444", "khoa": "chuyen-bg1"}
+
+    def dat_bao_gia(self, d):
+        d = GK.chuan_hoa_bao_gia(d)
+        t = GK.tinh_bao_gia(d, None)
+        self.s._bao_gia.return_value = {"phap_nhan_id": LOAI, "loai_hinh_id": LOAI, "du_lieu": d, "tinh": t}
+        return t
+
+    def test_chan_chuyen_tong_phan_tram_tien_va_fx_tra_nguyen_ly_do(self):
+        for d in (bao_gia(lich=[{"gia_tri_nhap": "40%"}]),
+                  bao_gia(lich=[{"gia_tri_nhap": "100"}, {"gia_tri_nhap": "999.999.899"}]),
+                  bao_gia(gia={"tien_te": "USD", "tong": "1000", "co_so_thue": "NET"}),
+                  bao_gia(gia={"tien_te": "USD", "tong": "1000", "co_so_thue": "NET"}, lich=[{"gia_tri_nhap": "90%"}])):
+            with self.subTest(d=d):
+                t = self.dat_bao_gia(d)
+                ly_do = t["ly_do_chan_chuyen"]
+                self.assertTrue(ly_do)
+                # Revision cũ/giá trị cache không được bỏ qua cổng máy chủ.
+                self.s._bao_gia.return_value["tinh"] = {"ly_do_chan_chuyen": ""}
+                with self.assertRaises(DataError) as cm:
+                    self.s.chuyen("nguoi-thu", **self.kw)
+                self.assertEqual(cm.exception.code, "CRM_GK_CHAN_CHUYEN")
+                self.assertEqual(str(cm.exception), ly_do)
+                self.c.execute.assert_not_called()  # Chưa ghim mẫu/chưa gọi SQL tạo hợp đồng.
+
+    def test_du_tien_ty_le_xap_xi_va_phan_tram_chinh_xac_van_chuyen(self):
+        for d in (bao_gia(), bao_gia(gia={"tien_te": "VND", "tong": "1500000", "co_so_thue": "NET"},
+                                    lich=[{"gia_tri_nhap": "500.000"}] * 3)):
+            with self.subTest(d=d):
+                self.dat_bao_gia(d)
+                self.c.execute.reset_mock()
+                self.c.execute.return_value.fetchone.side_effect = [
+                    {"r": {"danh_muc_ref": "DM", "danh_muc_rev": 1}},
+                    {"r": {"ket_qua": {"soan_id": "SOAN-THU"}, "lap_lai": False}}]
+                self.assertEqual(self.s.chuyen("nguoi-thu", **self.kw), {"soan_id": "SOAN-THU", "lap_lai": False})
+                calls = self.c.execute.call_args_list
+                self.assertEqual(len(calls), 2)
+                self.assertIn("master.crm_gk_chuyen(", calls[-1].args[0])
+
+    def test_replay_chuyen_giu_bien_nhan_khong_tao_them_hop_dong(self):
+        self.s._tra.return_value = {"soan_id": "SOAN-THU", "lap_lai": True}
+        self.assertEqual(self.s.chuyen("nguoi-thu", **self.kw), self.s._tra.return_value)
+        self.s._bao_gia.assert_not_called()
+        self.c.execute.assert_not_called()
+
+
 class TinhChinhXac(unittest.TestCase):
     def tinh(self, **sua):
         d = GK.chuan_hoa_bao_gia(bao_gia(**sua))

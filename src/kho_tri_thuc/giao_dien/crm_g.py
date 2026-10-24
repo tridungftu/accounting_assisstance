@@ -68,7 +68,7 @@ TRUONG_GK = {
     "bao-gia/xem-truoc": {"du_lieu"},  # FIX01 #4: tính thử chỉ đọc (không khóa, không ghi)
 }
 TRUONG_GK_DAI = {"bao-gia/in": {"bao_gia_id", "expected_revision", "khoa"}, "soan/xuat": {"soan_id", "expected_revision", "khoa"}}
-MA_409_GK = frozenset({"CRM_GK_DANG_XU_LY", "CRM_GK_LAN_KHONG_KHOP", "CRM_GK_REVISION_CU", "CRM_GK_TRANG_THAI", "CRM_GK_DA_CHUYEN", "CRM_GK_G7_DOI", "CRM_GK_CHAN_IN", "CRM_GK_CHAN_XUAT",
+MA_409_GK = frozenset({"CRM_GK_DANG_XU_LY", "CRM_GK_LAN_KHONG_KHOP", "CRM_GK_REVISION_CU", "CRM_GK_TRANG_THAI", "CRM_GK_DA_CHUYEN", "CRM_GK_G7_DOI", "CRM_GK_CHAN_IN", "CRM_GK_CHAN_XUAT", "CRM_GK_CHAN_CHUYEN",
                        "CRM_GK_MAU_KHONG_HIEU_LUC", "CRM_GK_MAU_KHONG_HOP_LE", "CRM_GK_MAU_LECH_GHIM", "CRM_GK_LOAI_HD_CHUA_KHAI", "ARTIFACT_CHANGED"})
 MA_403_GK = frozenset({"CRM_GK_PHAM_VI"})
 MA_403 = frozenset({"CRM_G_KHONG_CO_QUYEN", "CRM_G_CLIENT_AUTHORITY", "CRM_G_DANH_TINH", "CRM_G_CHI_MAY_CHU", "CRM_G_CHI_CHU", "CRM_G_VIEC_CHI_CHU",
