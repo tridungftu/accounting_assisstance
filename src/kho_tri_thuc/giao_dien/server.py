@@ -939,6 +939,9 @@ class Handler(BaseHTTPRequestHandler):
             from . import crm_g as crm_g_http  # CRM-41-02: G1 mẫu/G7 bộ chuẩn — trước route CRM cũ; POST /api/crm/mau (#6) giữ handler cũ
             if crm_g_http.la_route(post, path):
                 return crm_g_http.dieu_huong(self, app, post, path, query)
+            from . import m2_tai_hoa_don as m2_thue_http  # M2-00E: nút "Tải từ cổng thuế" — trước route /api/m2/ chung
+            if m2_thue_http.la_route(post, path):
+                return m2_thue_http.dieu_huong(self, app, post, path, query)
             if not post:
                 if path == "/api/health":
                     return self.send_content(200, {"application": "kho-tri-thuc-local", "version": __version__, "local_only": True, "root_id": app.root_id,
@@ -947,7 +950,7 @@ class Handler(BaseHTTPRequestHandler):
                 if path in {"/", "/index.html"}:
                     raw = (ASSETS / ("that.html" if app.is_that else "index.html")).read_bytes().replace(b"__KTT_TOKEN__", app.token.encode())
                     return self.send_content(200, raw, "text/html; charset=utf-8")
-                if path in {"/app.js", "/style.css", "/that.css", "/mark.svg", "/crm_g.js"}:
+                if path in {"/app.js", "/style.css", "/that.css", "/mark.svg", "/crm_g.js", "/m2_tai_hoa_don.js"}:
                     mime = {".js": "text/javascript; charset=utf-8", ".css": "text/css; charset=utf-8", ".svg": "image/svg+xml"}[Path(path).suffix]
                     asset = "that.js" if path == "/app.js" and app.is_that else path[1:]
                     return self.send_content(200, (ASSETS / asset).read_bytes(), mime)
@@ -1261,6 +1264,8 @@ def serve(config_path, root, port=8766, open_browser=True, trich6_nguon=None):
     finally:
         if host is not None:
             host.stop()   # dừng đúng engine của instance này (central bị buộc dừng: Job đóng → engine chết theo)
+        from . import m2_tai_hoa_don
+        m2_tai_hoa_don.dung(app)   # M2-00E: đóng M2 thì tắt bộ tải #7 sở hữu (nếu đã mở)
 
 
 def main():
