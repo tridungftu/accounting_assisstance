@@ -27,7 +27,7 @@
 | L0-2g | Gộp `m4-review-basis-c18-testfix` | Codex | — | — | Chờ slot |
 | L0-2c | Gộp `m4-02c-backend` + `m4-04c-request-m27` | Claude | `pg_migrations.py` | sau L0-2d | Xong 24/10 — gộp c4deb00 |
 | L0-2h | Rà `m4b2`, `m4b3` (chưa terminal): còn dùng được gì | Codex | — | — | Chờ slot |
-| L0-3 | Sửa nhóm ERROR còn lại theo nguyên nhân gốc L0-1 | theo nhóm | tùy nhóm | sau L0-1, L0-2* | Tách: L0-3a xong · L0-3c xong 24/10 (gộp ad7d3d4, nền v3) · L0-3b chờ slot |
+| L0-3 | Sửa nhóm ERROR còn lại theo nguyên nhân gốc L0-1 | theo nhóm | tùy nhóm | sau L0-1, L0-2* | Tách: L0-3a xong · L0-3c xong (nền v3) · L0-3b đang code (24/10, Claude) |
 | H5 | Gộp `hop-nhat` → `chinh`, đẩy GitHub | lead | — | sau L0-1, L0-2*, Anh xem `NEN-TEST.md` | Chờ Anh |
 | BG-1 | Báo giá gói 1: BG-01…05 (lịch 4 cột, dòng tổng, tính tự động, tổng tự tính, bỏ mã kỹ thuật) | Claude | `crm_g.*` | sau L0-2d (Anh đã ra lệnh 24/10) | Chờ L0-2d |
 | BG-2, BG-3 | Báo giá gói 2 (BG-06…12), gói 3 (BG-13, 14) | Claude | `crm_g.*` | sau cổng A gói 1 | Chờ |
@@ -75,7 +75,7 @@ Căn cứ: lệnh của Anh 24/10 (mọi module đã chốt thiết kế; M9 d�
 | M2d | M2-00 · `hoi_cuu.py` manifest hồi cứu 33 tháng, fixture giả | Codex | M2b | — | Đang code (24/10, Codex) |
 | M2e | M2-00 · nút "Tải từ cổng thuế" + route + cấu hình | Claude | M2a, M2c | `server.py`, `app.js`, `index.html` | Chờ |
 | M2f | M2-00 · ca -03/-07/-09 trên cổng thật, áp bản vá vào #7 thật | Anh | M2e | — | Chờ Anh (cần lệnh riêng: gọi cổng thuế thật) |
-| E1-1 | E1-MUA · đăng ký 5 loại + DV trong `CATALOG_COMMON`, `danh_muc_theo_loai`, từ chối loại lạ; test XD nguyên trạng | Codex | L0-2f | — | Đang code (24/10, Codex; trong bản vá tools/source6_g5_e5) |
+| E1-1 | E1-MUA · đăng ký 5 loại + DV trong `CATALOG_COMMON`, `danh_muc_theo_loai`, từ chối loại lạ; test XD nguyên trạng | Codex | L0-2f | — | Xong 24/10 — gộp d5fe3cc |
 | E1-2 | E1-MUA · quy tắc theo loại + `phien_ban_danh_muc` | Codex | E1-1 | — | Chờ |
 | E1-3 | E1-MUA · bảng TT-05/TT-20 trên `source6_docx_tables` | Codex | E1-1 | — | Chờ |
 | E1-4 | E1-MUA · màn danh mục Sửa + nhật ký; mở loại ở trích chung #6 | Claude | E1-1 | `app.js` | Chờ |
@@ -180,3 +180,4 @@ Mở ứng dụng Claude trên máy → tab Code → phiên **trên máy này** 
 - 24/10: BG-1b tách nhánh từ `lat/bg-1a` để chạy song song với review BG-1a (không ai đứng chờ); nếu review BG-1a có sửa, BG-1b gộp lại trước cổng A.
 - 24/10: M2b — 3 điểm 'Để sau' của review chuyển sang M2c: số thực dạng mũ trong thành phần khóa (Python/JS in khác), file lạ ngoài .xml/.pdf trong thư mục run, package-data cho `quy_tac/*.json` khi đóng gói.
 - 24/10: `codex exec` L0-3c lỗi "Selected model is at capacity" (gpt-6.1-sol) sau ~110 nghìn token, không sửa file nào. Theo quy tắc: không tự hạ model, không gọi lặp — thử lại 1 lần khi lượt Codex đang chạy xong; vẫn lỗi thì chuyển lát cho Claude.
+- 24/10: từ L0-3a, sandbox `codex exec` không thấy `python` trên PATH (Python 3.13 hệ thống bị 'Access is denied') → handoff Codex sau ghi rõ dùng Python đi kèm `%USERPROFILE%\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe`; lát cần tái hiện bằng chạy (treo, DEMO) giao Claude.
