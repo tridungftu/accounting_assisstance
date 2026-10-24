@@ -23,6 +23,13 @@
       duy nhat o xuong dong (git van coi sach); tep khac noi dung that giu nguyen va duoc bao.
     - -KhongCrm: mo ung dung nhung KHONG noi CSDL PostgreSQL (trang CRM bao chua cau hinh).
 
+    - Chan numpy (L0-6): Python he thong cua runtime co numpy/pandas (khong thuoc phu thuoc cua ung dung; openpyxl chi import numpy neu co). Trong
+      tien trinh con engine #6, lan import numpy DAU TIEN nam o luong lam viec (master_hd -> openpyxl) luc may chu con dang phuc vu HTTP bi TREO cho
+      toi khi central dong stdin: lenh trich dau tien tra TRICH6_KHONG_KET_NOI sau 60 giay (client timeout), health san_sang:false. Script ghi vao
+      BAN SAO <DataRoot>\crm-demo\runtime.local.json (khong dung vao tep cua repo chinh) them thu muc runtime-chan-numpy (goi numpy gia, raise
+      ImportError) o DAU duong_dan_phu_thuoc -> openpyxl bo qua numpy; san pham va engine khong dung numpy. -KhongChanNumpy de tat. Sua tep xong ma
+      tren cong do dang co server khoi dong truoc do thi script bao va thoat 2 (phai tat server roi mo lai).
+
     Ma thoat: 0 = da mo; 1 = loi khoi dong; 2 = dung vi an toan CSDL (khong mo).
 #>
 [CmdletBinding()]
@@ -31,7 +38,8 @@ param(
     [string]$DataRoot,
     [string]$ConfigPath,
     [ValidatePattern('^(auto|[a-z0-9_]{1,47})$')][string]$CsdlRieng,
-    [switch]$KhongCrm
+    [switch]$KhongCrm,
+    [switch]$KhongChanNumpy
 )
 
 $ErrorActionPreference = 'Stop'
@@ -106,6 +114,40 @@ function Get-KttPythonTienIch {
     try { if (Test-Path -LiteralPath $kttRtDst -PathType Leaf) { $kttP = [string]((Get-Content -LiteralPath $kttRtDst -Raw -Encoding UTF8 | ConvertFrom-Json).python) } } catch { $kttP = $null }
     if (-not $kttP -or -not (Test-Path -LiteralPath $kttP -PathType Leaf)) { $kttC = Get-Command python -ErrorAction SilentlyContinue; if ($kttC) { $kttP = $kttC.Source } else { $kttP = $null } }
     return $kttP
+}
+
+# L0-6: chan numpy trong runtime cua DataRoot nay (xem .DESCRIPTION). Chi sua BAN SAO <DataRoot>\crm-demo\runtime.local.json; idempotent.
+$kttRtDoi = $false
+if (-not $KhongChanNumpy -and (Test-Path -LiteralPath $kttRtDst -PathType Leaf)) {
+    $kttStubDir = Join-Path $kttCrmDir 'runtime-chan-numpy'
+    $kttStubPkg = Join-Path $kttStubDir 'numpy'
+    try {
+        $kttRtObj = Get-Content -LiteralPath $kttRtDst -Raw -Encoding UTF8 | ConvertFrom-Json
+        $kttDeps = @()
+        if ($null -ne $kttRtObj.duong_dan_phu_thuoc) { $kttDeps = @($kttRtObj.duong_dan_phu_thuoc | ForEach-Object { [string]$_ }) }
+        if ($kttDeps -notcontains $kttStubDir) {
+            New-Item -ItemType Directory -Path $kttStubPkg -Force | Out-Null
+            $kttUtf8 = New-Object Text.UTF8Encoding($false)
+            [IO.File]::WriteAllText((Join-Path $kttStubPkg '__init__.py'), ("raise ImportError('numpy bi chan trong ban DEMO worktree (L0-6)')" + "`n"), $kttUtf8)
+            $kttNew = [ordered]@{ phien_ban = $kttRtObj.phien_ban; python = [string]$kttRtObj.python; duong_dan_phu_thuoc = @(@($kttStubDir) + $kttDeps) }
+            if ($kttRtObj.thu_muc_khoi_dong) { $kttNew['thu_muc_khoi_dong'] = [string]$kttRtObj.thu_muc_khoi_dong }
+            [IO.File]::WriteAllText($kttRtDst, (ConvertTo-Json -InputObject $kttNew -Depth 4), $kttUtf8)
+            $kttRtDoi = $true
+            Write-Host 'Da chan numpy trong runtime cua ban DEMO nay (engine #6 DEMO treo khi import numpy o luong lam viec; xem L0-6).'
+        }
+    } catch {
+        Write-Host ('CANH BAO: khong chan duoc numpy (' + $_.Exception.Message + ') - lenh trich dau tien co the treo 60 giay.')
+    }
+}
+if ($kttRtDoi) {
+    # Server dang chay tren cong nay khoi dong TRUOC khi runtime doi con giu moi truong cu (chua chan numpy): khong tai su dung
+    $kttH1 = $null
+    try { $kttH1 = Invoke-RestMethod -Uri ('http://127.0.0.1:' + $Port + '/api/health') -TimeoutSec 5 -ErrorAction Stop } catch { $kttH1 = $null }
+    if ($null -ne $kttH1) {
+        Write-Host ('DUNG: server dang chay tren cong ' + $Port + ' (pid ' + $kttH1.pid + ') khoi dong TRUOC khi runtime duoc chan numpy.')
+        Write-Host ('  Dung no:  Stop-Process -Id ' + $kttH1.pid + '   roi chay lai lenh nay.')
+        exit 2
+    }
 }
 
 $kttKnDst = Join-Path $kttCrmDir 'ket-noi.local.json'
