@@ -20,7 +20,7 @@
 | L0-2b | Gộp `m4-02c-ui` → `ui-fix01` | Codex | — | — | Sẵn sàng |
 | L0-2e | Gộp `m2-00b-fix01` (có thể là nguyên nhân 114 ERROR M2-00B) | Codex | — | — | Xong 24/10 — gộp 3a2b083 |
 | L0-2f | Gộp `source6-g5-e5-ordered-fix01` | lead | — | — | Xong 24/10 — gộp d07117a; không hết treo → L0-3b |
-| L0-3a | Lỗi môi trường N3/N4 (CRLF, fixture bị ignore, sys.path) + bộ chạy test dùng Python có psycopg | Codex | `run_suite.py`, `chay_test_theo_module.py`, `.gitattributes` | sau L0-1 | Đang code (24/10) |
+| L0-3a | Lỗi môi trường N3/N4 (CRLF, fixture bị ignore, sys.path) + bộ chạy test dùng Python có psycopg | Codex | `run_suite.py`, `chay_test_theo_module.py`, `.gitattributes` | sau L0-1 | Chờ kiểm (lead chạy lại toàn bộ) |
 | L0-3b | Sửa test treo `test_source6_g5_e5` (vòng lặp bận ở `json.raw_decode`) | Codex | — | — | Chờ slot |
 | L0-5 | Bật hook cổng test so với nền theo `ids_loi` (`cong_test.py`) | Codex | `.claude\hooks` | sau đo lại nền | Chờ |
 | L0-2g | Gộp `m4-review-basis-c18-testfix` | Codex | — | — | Chờ slot |
@@ -69,7 +69,7 @@ Căn cứ: lệnh của Anh 24/10 (mọi module đã chốt thiết kế; M9 d�
 | C6 | CRM 42 · S2 tab Thu tiền (+S8) / Phụ lục / Bản ký / Lịch sử | Claude | C5; ô Junsky chờ kiểm RLS | `crm_g.*` | Chờ |
 | C7 | CRM 42 · S9 báo cáo, file soát | Codex + Claude | C6; tỷ lệ kiểm mẫu chờ Q-SAMPLE | — | Chờ |
 | M2a | M2-00 · = L0-2e gộp `m2-00b-fix01` | Codex | — | — | Xong (= L0-2e) |
-| M2b | M2-00 · `manifest.py`, `chinh_sach_tien_te.py` (POLICY-TIENTE-01) + ca M2-00-06/10 | Codex | — | — | Sẵn sàng |
+| M2b | M2-00 · `manifest.py`, `chinh_sach_tien_te.py` (POLICY-TIENTE-01) + ca M2-00-06/10 | Codex | — | — | Đang code (24/10) |
 | M2c | M2-00 · `nhan.py` nhận theo manifest (identity, revision/xung đột, KHONG_XML_GOC → bảng kê) nối `k2\hoa_don.py` | Codex | M2b | (migration nếu cần → khóa) | Chờ |
 | M2d | M2-00 · `hoi_cuu.py` manifest hồi cứu 33 tháng, fixture giả | Codex | M2b | — | Chờ |
 | M2e | M2-00 · nút "Tải từ cổng thuế" + route + cấu hình | Claude | M2a, M2c | `server.py`, `app.js`, `index.html` | Chờ |
@@ -169,3 +169,4 @@ Mở ứng dụng Claude trên máy → tab Code → phiên **trên máy này** 
 - L0-2i xong: phần lớn file bị sót đến từ job `m4-financial-basis-a-20261023-01` (không có trong 36 gói của TAN-DUNG-CODE) — P0 phải xác định gói này là gì trước khi khôi phục.
 - L0-1 xong (24/10): bảng nền ở `NEN-TEST.md`. Số H4 (275 ERROR) không tái hiện được trong worktree sạch → dùng nền mới, bỏ số H4. Sau P0 + L0-3a phải **đo lại nền** bằng cùng script (module bị N1 che sẽ chạy thật).
 - L0-2d review Codex vòng 1: #1 M0023 — lead tính `_hash` trên bản xuất tạm: L0-2d = chinh (43 câu, 574129b2), hop-nhat 1502fe7 (42 câu) là hồi quy H3 → không lỗi; #2 duyệt mở phạm vi `k2\crm_ky_ket.py`. Không cần vòng 2.
+- L0-3a: sandbox Codex không đọc được `var\web\crm-demo\runtime.local.json` và không checkout lại được → lead tự chuyển 97 file bị ghim sang LF trên đĩa, đưa 19 fixture DEMO vào git (đã kiểm: 17 có DEMO, 2 file lỗi cố ý; 0 nghi thật), chạy lại toàn bộ test có `--runtime`.

@@ -8,7 +8,8 @@ Trạng thái lát: Đang code → Chờ kiểm → Chờ Anh (cổng A/B) → S
 |---|---|---|---|---|---|
 | P0 | Khôi phục file chưa vào git để hop-nhat import được (CRM G6A/G5-B, M4 duyệt/Request/03A) | Claude Opus | `lat/p0` · `.claude/worktrees/lat-p0` | 24/10 | Đang code |
 | L0-4 | Lệnh mở DEMO cho worktree, có CRM PostgreSQL | Claude Sonnet | `lat/l0-4` · `.claude/worktrees/lat-l0-4` | 24/10 | Đang code |
-| L0-3a | Lỗi môi trường N3/N4 + bộ chạy test dùng Python có psycopg | Codex | `lat/l0-3a` · `.claude/worktrees/lat-l0-3a` | 24/10 | Đang code |
+| L0-3a | Lỗi môi trường N3/N4 + bộ chạy test dùng Python có psycopg | Codex + lead | `lat/l0-3a` (b20019d) | 24/10 | Chờ kiểm — lead đang chạy toàn bộ test có `--runtime`; 19 fixture DEMO đã vào git (ngoại lệ .gitignore hẹp) |
+| M2b | M2-00 · đọc/kiểm manifest + POLICY-TIENTE-01 v1 (ca M2-00-06, -10) | Codex | `lat/m2b` · `.claude/worktrees/lat-m2b` | 24/10 | Đang code |
 
 ## Lát đã xong (24/10)
 
