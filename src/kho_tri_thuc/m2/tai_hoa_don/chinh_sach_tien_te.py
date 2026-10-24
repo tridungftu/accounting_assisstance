@@ -111,10 +111,10 @@ def ap_dung(thong_tin_xml, thong_tin_bang_ke, *, duong_dan_quy_tac=None) -> KetQ
         # Giá trị có cấu trúc/sai kiểu thì không được bỏ qua.
         if bk["dvtte_cong"] is not None and not isinstance(bk["dvtte_cong"], str):
             return ket_qua("CHUA_RO", "TIEN_TE_BANG_KE_KHONG_HOP_LE")
-    if not all(_mst_vn(xml.get(k), q["mst_vn"]) for k in ("mst_ban", "mst_mua")):
-        return ket_qua("CHUA_RO", "THIEU_MST_VN_HOP_LE")
     if tien_xml == noi_dia:
         return ket_qua("THEO_XML", "DVTTE_TU_XML", noi_dia)
+    if not all(_mst_vn(xml.get(k), q["mst_vn"]) for k in ("mst_ban", "mst_mua")):
+        return ket_qua("CHUA_RO", "THIEU_MST_VN_HOP_LE")
     if "DVTTe" not in xml and "TGia" not in xml:
         return ket_qua("DE_XUAT", "THIEU_DVTTE_TGIA_HAI_MST_VN", noi_dia, True)
     return ket_qua("CHUA_RO", "CHUA_DU_DIEU_KIEN_POLICY")

@@ -145,6 +145,22 @@ class _Tep:
     bytes: int | None
 
 
+class KetQuaDocManifest(dict):
+    """Dict nguồn giữ nguyên; hai danh sách riêng để M2c phân luồng.
+
+    hoa_don_thieu_khoa giữ toàn bộ hóa đơn, gồm key_raw và key_thieu, chỉ để
+    đưa vào danh sách việc. hoa_don_du_khoa chưa phải đề xuất được duyệt.
+    """
+
+    @property
+    def hoa_don_thieu_khoa(self) -> list[dict]:
+        return [h for h in self["hoa_don"] if h["key_thieu"]]
+
+    @property
+    def hoa_don_du_khoa(self) -> list[dict]:
+        return [h for h in self["hoa_don"] if not h["key_thieu"]]
+
+
 def _tep(v, tai, tep, *, lon=SO_NGUYEN_TOI_DA, nho=1):
     _ten_tep(v["file"], tai + ".file")
     _chuoi(v["sha256"], RE_HASH, tai + ".sha256")
@@ -207,11 +223,12 @@ def _kiem_hd(h, i, tep):
         _raw(h["key_raw"][k], a + ".key_raw." + k)
     _can(isinstance(h["key_canonical"], str), a + ".key_canonical", "SAI_KIEU")
     phan = h["key_canonical"].split("|")
-    _can(len(phan) == 4 and all(x.strip() for x in phan), a + ".key_canonical", "IDENTITY_THIEU")
+    _can(len(phan) == 4, a + ".key_canonical", "IDENTITY_THIEU")
     _can(h["key_canonical"] == "|".join(_chuoi_raw(h["key_raw"][k]) for k in KHOA_IDENTITY),
          a + ".key_canonical", "IDENTITY_KHONG_KHOP")
     _mang(h["key_thieu"], a + ".key_thieu")
-    _can(h["key_thieu"] == [], a + ".key_thieu", "IDENTITY_THIEU")
+    thieu = [k for k in KHOA_IDENTITY if h["key_raw"][k] is None or h["key_raw"][k] == ""]
+    _can(h["key_thieu"] == thieu, a + ".key_thieu", "IDENTITY_THIEU")
     _can(h["scope"] in ("query", "sco-query"), a + ".scope")
     for k in ("ttxly", "tthai_cong", "tdlap", "dvtte_cong"):
         _raw(h[k], a + "." + k)
@@ -406,11 +423,13 @@ def _hang_json_khong_hop_le(_):
     _loi("JSON_SAI")
 
 
-def doc_manifest(duong_dan_run) -> dict:
-    """Đọc/kiểm toàn bộ rồi trả dict raw, không sửa hay ghi bất kỳ file nào.
+def doc_manifest(duong_dan_run) -> KetQuaDocManifest:
+    """Đọc/kiểm toàn bộ rồi trả dict raw kèm danh sách phân luồng cho M2c.
 
     Hash SHA-256 của bytes trên đĩa, không chuẩn hóa newline/XML trước khi băm.
     Lỗi hash mang tên file ở DataError.locator; thông báo không chứa dữ liệu thô.
+    Hóa đơn thiếu khóa nằm ở hoa_don_thieu_khoa, không vào đề xuất; M2c chỉ
+    xét tiếp hoa_don_du_khoa. Dict nguồn vẫn giữ đủ hóa đơn và số đếm gốc.
     """
     goc = _duong_dan(Path(os.path.abspath(duong_dan_run)), thu_muc=True)
     p = _duong_dan(goc / "manifest.json", thu_muc=False)
@@ -445,7 +464,7 @@ def doc_manifest(duong_dan_run) -> dict:
         _can(h.hexdigest() == t.sha256, t.file, "HASH_LECH")
         _can(t.bytes is None or n == t.bytes, t.file, "BYTES_LECH")
         da_kiem[os.path.normcase(t.file)] = t
-    return m
+    return KetQuaDocManifest(m)
 
 
 def phan_loai_file_tren_dia(duong_dan_run, manifest) -> list[str]:
@@ -454,7 +473,7 @@ def phan_loai_file_tren_dia(duong_dan_run, manifest) -> list[str]:
     manifest phải qua doc_manifest trước khi caller dùng cho intake. Hàm này
     kiểm lại hình dạng nhưng không thay thế lần kiểm bytes ở doc_manifest.
     """
-    tep = _kiem_manifest(manifest)
+    tep = _kiem_manifest(dict(manifest) if isinstance(manifest, KetQuaDocManifest) else manifest)
     da_khai_bao = {os.path.normcase(t.file) for t in tep}
     goc = _duong_dan(Path(os.path.abspath(duong_dan_run)), thu_muc=True)
     chua_ro = []

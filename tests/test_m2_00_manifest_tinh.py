@@ -89,6 +89,8 @@ class ManifestTinh(unittest.TestCase):
         self.assertEqual(kq, self.m)
         self.assertEqual(kq["hoa_don"][0]["key_canonical"], "0000000001|1|DEMO|000001")
         self.assertIsNone(kq["hoa_don"][0]["dvtte_cong"])
+        self.assertEqual(kq.hoa_don_thieu_khoa, [])
+        self.assertEqual(kq.hoa_don_du_khoa, self.m["hoa_don"])
 
     def test_thieu_tung_truong_bat_buoc(self):
         for k in self.m:
@@ -156,11 +158,55 @@ class ManifestTinh(unittest.TestCase):
         self.tu_choi(ma="THIEU_TRUONG")
 
     def test_identity_thieu_tung_phan_va_thua_phan(self):
-        for key in ("|1|DEMO|1", "0000000001||DEMO|1", "0000000001|1||1", "0000000001|1|DEMO|",
-                    "0000000001|1|DEMO", "0000000001|1|DEMO|1|EXTRA", "0000000001|1| |1"):
+        for key in ("0000000001|1|DEMO", "0000000001|1|DEMO|1|EXTRA"):
             with self.subTest(key=key):
                 self.m["hoa_don"][0]["key_canonical"] = key
                 self.tu_choi(ma="IDENTITY_THIEU")
+        for key in ("|1|DEMO|1", "0000000001||DEMO|1", "0000000001|1||1",
+                    "0000000001|1|DEMO|", "0000000001|1| |1"):
+            with self.subTest(key=key):
+                self.m["hoa_don"][0]["key_canonical"] = key
+                self.tu_choi(ma="IDENTITY_KHONG_KHOP")
+
+    def test_thieu_shdon_vao_ngoai_le_khong_chan_hoa_don_khac(self):
+        h = copy.deepcopy(self.m["hoa_don"][0])
+        h.update(item_ordinal=2, key_canonical="0000000001|1|DEMO|", key_thieu=["shdon"])
+        h["key_raw"]["shdon"] = None
+        self.m["hoa_don"].append(h)
+        self.m["tong"].update(tong_hd=2, xml_ok=2, pdf_ok=2)
+        self.m["nhom"][0].update(so_ban_ghi=2, so_moi=2)
+        self.ghi()
+        kq = doc_manifest(self.goc)
+        self.assertEqual(kq, self.m)
+        self.assertEqual(kq.hoa_don_thieu_khoa, [h])
+        self.assertEqual(kq.hoa_don_thieu_khoa[0]["key_raw"]["shdon"], None)
+        self.assertEqual(kq.hoa_don_thieu_khoa[0]["key_thieu"], ["shdon"])
+        self.assertEqual(kq.hoa_don_du_khoa, [self.m["hoa_don"][0]])
+        self.assertEqual(phan_loai_file_tren_dia(self.goc, kq), [])
+
+    def test_key_thieu_phai_khop_dung_phan_raw_thieu(self):
+        for k in ("nbmst", "khmshdon", "khhdon", "shdon"):
+            for raw in (None, ""):
+                with self.subTest(k=k, raw=raw):
+                    m = copy.deepcopy(self.m)
+                    h = m["hoa_don"][0]
+                    h["key_raw"][k] = raw
+                    h["key_canonical"] = "|".join("" if v is None else v for v in h["key_raw"].values())
+                    h["key_thieu"] = [k]
+                    self.ghi(m)
+                    self.assertEqual(doc_manifest(self.goc).hoa_don_thieu_khoa, [h])
+                    for sai in ([], ["khac"], [k, k], [k, "khac"]):
+                        h["key_thieu"] = sai
+                        self.tu_choi(m, "IDENTITY_THIEU")
+        self.m["hoa_don"][0]["key_thieu"] = ["shdon"]
+        self.tu_choi(ma="IDENTITY_THIEU")
+
+    def test_hoa_don_thieu_khoa_van_kiem_hash(self):
+        h = self.m["hoa_don"][0]
+        h["key_raw"]["shdon"] = None
+        h.update(key_canonical="0000000001|1|DEMO|", key_thieu=["shdon"])
+        (self.goc / h["file_xml"]).write_bytes(b"DEMO-HASH-SAI")
+        self.tu_choi(ma="HASH_LECH", file=h["file_xml"])
 
     def test_identity_raw_khong_khop_va_giu_so_khong_dau(self):
         self.m["hoa_don"][0]["key_canonical"] = "0000000001|1|DEMO|1"

@@ -84,8 +84,26 @@ class TienTeTinh(unittest.TestCase):
         self.assertEqual(kq.trang_thai, "THEO_XML")
 
     def test_dvtte_vnd_nhung_co_dau_hieu_ngoai_te_van_chua_ro(self):
-        self.chua_ro({**self.xml, "DVTTe": "VND", "TGia": "25000"})
-        self.chua_ro({**self.xml, "DVTTe": "VND", "mst_mua": "DEMO-US"})
+        for mst in (self.xml["mst_mua"], "DEMO-US", None):
+            with self.subTest(mst_mua=mst):
+                xml = {**self.xml, "DVTTe": "VND", "mst_mua": mst}
+                self.chua_ro({**xml, "TGia": "25000"})
+                kq = ap_dung(xml, {"dvtte_cong": "USD"})
+                self.assertEqual(kq.trang_thai, "XUNG_DOT")
+                self.assertIsNone(kq.de_xuat_tien_te)
+                self.assertFalse(kq.co_theo_policy)
+
+    def test_dvtte_vnd_khong_phu_thuoc_mst_hop_le(self):
+        for ben in ("mst_ban", "mst_mua"):
+            for mst in (None, "", "DEMO-US"):
+                with self.subTest(ben=ben, mst=mst):
+                    xml = {**self.xml, "DVTTe": "VND", ben: mst}
+                    kq = ap_dung(xml, None)
+                    self.assertEqual((kq.trang_thai, kq.de_xuat_tien_te, kq.co_theo_policy),
+                                     ("THEO_XML", "VND", False))
+            xml = {**self.xml, "DVTTe": "VND"}
+            xml.pop(ben)
+            self.assertEqual(ap_dung(xml, None).trang_thai, "THEO_XML")
 
     def test_tgia_co_mat_bang_1_khong_du_dieu_kien_policy(self):
         for ty_gia in (1, 1.0, "1", "1.00"):
