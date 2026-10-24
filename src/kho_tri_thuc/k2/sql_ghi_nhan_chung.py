@@ -34,6 +34,11 @@ FIX01 (docs/GIAO-CODE-M4-03B-FIX01.md) — gốc ổn định khi đổi tập n
 - Closure trước khóa: refs revision mới nhất ∪ refs yêu cầu (quyền đọc mọi revision trước) → quyền ghi hiện hành trên union → khóa hóa đơn union sorted →
   alias (advisory DC_TAP|) → gốc → revision mới nhất (phải đúng revision đã đọc trước khóa, lệch → DC_REVISION_CU rollback) → biên nhận → CAS.
   Python ghim producer 03A cho mọi NT của union (adapter không đổi). Revision/receipt/identity nguồn cũ giữ nguyên (append-only).
+
+FIX02 (docs/GIAO-CODE-M4-03B-FIX02.md) — chỉ tên: native05 C01 dừng 42702 AmbiguousColumn `t` (dc_luu line22) vì alias `t` của `_REFS` trùng biến
+jsonb `t` của dc_luu; `_HIEN_HANH` cũng dùng alias `x` trùng biến `x`. Sửa: `_REFS`/`_HIEN_HANH` dùng alias riêng + cột tường minh
+(`AS dc_ref(value)` → `dc_ref.value`, `dc_hh`/`dc_ghim`), biến dc_luu `t`/`x` → `v_muc`/`v_cap`. Không `#variable_conflict`, không đổi GUC/cấu hình,
+không đổi statement/guard/shape/thứ tự khóa/CAS/quyền. Quy tắc: trong mỗi hàm plpgsql không tên alias quan hệ/cột SQL nào trùng biến/tham số.
 """
 
 from __future__ import annotations
@@ -97,8 +102,10 @@ _TIN_CAY = """
             END IF;
             aid := m4.ai_id();"""
 
-# refs của một noi_dung/yêu cầu (mảng thanh_phan) → mảng nguon refs
-_REFS = "(SELECT jsonb_agg(t->'nguon' ORDER BY t->'nguon'->>'kind', t->'nguon'->>'occurrence_id', coalesce(t->'nguon'->>'part_id', '')) FROM jsonb_array_elements({x}) t)"
+# refs của một noi_dung/yêu cầu (mảng thanh_phan) → mảng nguon refs. FIX02: alias SQL có tên riêng + cột tường minh (dc_ref.value), không trùng
+# biến PL/pgSQL của hàm nhúng (dc_luu từng khai biến `t` → 42702 AmbiguousColumn với alias `t`).
+_REFS = ("(SELECT jsonb_agg(dc_ref.value->'nguon' ORDER BY dc_ref.value->'nguon'->>'kind', dc_ref.value->'nguon'->>'occurrence_id', "
+         "coalesce(dc_ref.value->'nguon'->>'part_id', '')) FROM jsonb_array_elements({x}) AS dc_ref(value))")
 
 
 def _kq(hanh: str, x: str, tt: str, trung: str) -> str:
@@ -115,11 +122,12 @@ def _tra(lap_lai: str, kq: str, rid: str) -> str:
 
 # kiểm hiện hành từng mục đồ thị dưới khóa: NT toàn vẹn + hiện hành (chứng thực producer của giao dịch này); hóa đơn có phiên bản hiện hành;
 # ref ghim đúng phiên bản hiện hành (CAS nguồn). {ma} = mã lỗi khi lệch.
+# FIX02: alias tường minh dc_hh/dc_ghim(value) — trước dùng `x`, trùng biến jsonb `x` của dc_luu (cùng lớp lỗi 42702).
 _HIEN_HANH = """
-            FOR it IN SELECT e FROM jsonb_array_elements(r->'do_thi'->'nguon') e LOOP
-                SELECT x INTO ref FROM jsonb_array_elements({refs}) x
-                    WHERE x->>'kind' = it->>'kind' AND x->>'occurrence_id' = it->>'occurrence_id'
-                      AND coalesce(x->>'part_id', '') = coalesce(it->>'part_id', '');
+            FOR it IN SELECT dc_hh.value FROM jsonb_array_elements(r->'do_thi'->'nguon') AS dc_hh(value) LOOP
+                SELECT dc_ghim.value INTO ref FROM jsonb_array_elements({refs}) AS dc_ghim(value)
+                    WHERE dc_ghim.value->>'kind' = it->>'kind' AND dc_ghim.value->>'occurrence_id' = it->>'occurrence_id'
+                      AND coalesce(dc_ghim.value->>'part_id', '') = coalesce(it->>'part_id', '');
                 IF ref IS NULL OR (it->>'current') IS NULL OR (ref->>'source_version_id') IS DISTINCT FROM (it->>'current') THEN
                     RAISE EXCEPTION '{ma_cu}: nguồn đã có phiên bản/phong bì mới hơn phiên bản đang ghim — tải lại' """ + _LOI + """;
                 END IF;
@@ -873,7 +881,7 @@ M4_03B_COMMON_SQL = (
     # LƯU NHÁP (tạo gốc mới expected_revision=0, hoặc revision mới của gốc có lý do). Thiếu căn cứ được lưu (thieu ≠ []), không tự xác nhận.
     f"""CREATE OR REPLACE FUNCTION kho.dc_luu(p_khoa text, p_yc jsonb) RETURNS jsonb
         LANGUAGE plpgsql SET search_path = master, kho, m4, pg_temp AS $$
-        DECLARE ai text; aid uuid; refs jsonb; r jsonb; it jsonb; ref jsonb; t jsonb; x jsonb; pn uuid; n_pn integer; module text; kg text;
+        DECLARE ai text; aid uuid; refs jsonb; r jsonb; it jsonb; ref jsonb; v_muc jsonb; v_cap jsonb; pn uuid; n_pn integer; module text; kg text;
                 goc kho.mua_doi_chieu_can_cu%ROWTYPE; cuoi kho.mua_doi_chieu_can_cu_phien_ban%ROWTYPE; moi kho.mua_doi_chieu_can_cu_phien_ban%ROWTYPE;
                 cu jsonb; rid uuid; th jsonb; tep jsonb; nd jsonb; tp jsonb; hd uuid; dtac uuid; kq jsonb; erev integer; ma_goc uuid;
                 hop jsonb; cu_refs jsonb; v_goc uuid; v_cuoi0 uuid;
@@ -953,16 +961,16 @@ M4_03B_COMMON_SQL = (
                 VALUES (goc.id, pn, coalesce(cuoi.revision, 0) + 1, cuoi.id, 'NHAP', NULL, nd, {_SHA.format(x="nd")}, r->'do_thi',
                         r->>'graph_sha256', th, kg, hd, dtac, p_yc->>'ly_do', ai, aid)
                 RETURNING * INTO moi;
-            FOR t IN SELECT z FROM jsonb_array_elements(tp) z LOOP
+            FOR v_muc IN SELECT z FROM jsonb_array_elements(tp) z LOOP
                 SELECT i INTO it FROM jsonb_array_elements(r->'do_thi'->'nguon') i
-                    WHERE i->>'kind' = t->'nguon'->>'kind' AND i->>'occurrence_id' = t->'nguon'->>'occurrence_id'
-                      AND coalesce(i->>'part_id', '') = coalesce(t->'nguon'->>'part_id', '');
-                x := kho._dc_cap_nguon(it, ai, aid);
+                    WHERE i->>'kind' = v_muc->'nguon'->>'kind' AND i->>'occurrence_id' = v_muc->'nguon'->>'occurrence_id'
+                      AND coalesce(i->>'part_id', '') = coalesce(v_muc->'nguon'->>'part_id', '');
+                v_cap := kho._dc_cap_nguon(it, ai, aid);
                 INSERT INTO kho.mua_doi_chieu_can_cu_thanh_phan (phien_ban_id, doi_chieu_id, phap_nhan_id, nguon_id, nguon_phien_ban_id, phan_id,
                                                                   phan, ty_le_khai, ty_le_trang_thai)
-                    VALUES (moi.id, goc.id, pn, (x->>'nguon_id')::uuid, (x->>'nguon_phien_ban_id')::uuid, (x->>'phan_id')::uuid, t->>'phan',
-                            t->>'ty_le_khai', CASE WHEN t->>'phan' = 'TOAN_PHAN' THEN 'KHONG_AP_DUNG'
-                                                   WHEN t->>'ty_le_khai' IS NULL THEN 'THIEU' ELSE 'KHAI_BAO_THO_CHUA_SCALE' END);
+                    VALUES (moi.id, goc.id, pn, (v_cap->>'nguon_id')::uuid, (v_cap->>'nguon_phien_ban_id')::uuid, (v_cap->>'phan_id')::uuid,
+                            v_muc->>'phan', v_muc->>'ty_le_khai', CASE WHEN v_muc->>'phan' = 'TOAN_PHAN' THEN 'KHONG_AP_DUNG'
+                                                                     WHEN v_muc->>'ty_le_khai' IS NULL THEN 'THIEU' ELSE 'KHAI_BAO_THO_CHUA_SCALE' END);
             END LOOP;
             IF ma_goc IS NULL THEN
                 INSERT INTO kho.mua_doi_chieu_can_cu_tap (phap_nhan_id, tap_sha256, doi_chieu_id, phien_ban_id, tao_boi, tao_boi_id)

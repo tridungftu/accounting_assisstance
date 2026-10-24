@@ -11,6 +11,8 @@ Phân loại (nhãn trung thực):
 - `PhamVi`: không file cũ nào bị import-sửa: module mới không gọi writer tiền/AP, không route/UI.
 FIX01 (static/mock, KHÔNG phải bằng chứng native): đổi tập nguồn là revision cùng gốc (không còn từ chối khoa_goc ≠ tập), alias tập UNIQUE(PN, tap),
 không UNIQUE theo nguồn đơn lẻ, namespace biên nhận theo gốc, closure union trước khóa + kiểm revision đã đọc dưới khóa, gương `hop_refs`.
+FIX02 (`TenPlpgsql`, static — KHÔNG phải bằng chứng native): hồi quy 42702 AmbiguousColumn — `_REFS`/`_HIEN_HANH` alias tường minh `dc_ref(value)`;
+mọi hàm/khối plpgsql của hằng common không có alias quan hệ/cột SQL hay cột bảng mới trùng tham số/biến; bộ dò tự kiểm trên mẫu lỗi đã thấy.
 """
 
 from __future__ import annotations
@@ -237,6 +239,143 @@ class SqlTinh(unittest.TestCase):
         t = _ham("kho._dc_thieu")
         self.assertEqual(set(re.findall(r"array_append\(x, '([A-Z_0-9]+)'\)", t)), set(SG.THIEU))
         self.assertEqual(list(SG.THIEU), sorted(SG.THIEU))
+
+
+# ================================================================================================== FIX02: tên PL/pgSQL ↔ SQL
+# PL/pgSQL (variable_conflict mặc định = error) báo 42702 khi một tên trong statement nhúng vừa là biến/tham số vừa là alias quan hệ/cột SQL.
+# Bộ dò tĩnh: với mỗi hàm/khối plpgsql, tập (tham số + biến DECLARE) phải rời tập (alias quan hệ + alias cột + cột bảng mới được FROM/JOIN).
+_SRF = ("jsonb_array_elements", "jsonb_array_elements_text", "_kt_tep_can_cu", "unnest")
+_ID = r"[a-z_][a-z_0-9]*"
+_TU_KHOA = frozenset(("as", "on", "where", "join", "left", "cross", "lateral", "order", "limit", "for", "loop", "then", "and", "or", "is", "in",
+                      "into", "from", "group", "union", "all", "select", "using", "returning", "values", "not", "case", "when", "else", "end",
+                      "desc", "asc", "collate", "filter", "nulls", "exists"))
+
+
+def _bo_chuoi(s: str) -> str:
+    s = re.sub(r"--[^\n]*", "", s)
+    return re.sub(r"'(?:[^']|'')*'", "''", s)
+
+
+def _ngoac_dong(s: str, i: int) -> int:
+    sau = 0
+    for j in range(i, len(s)):
+        sau += {"(": 1, ")": -1}.get(s[j], 0)
+        if sau == 0:
+            return j
+    raise AssertionError("ngoặc không cân")
+
+
+def _ten_khai(than: str, tham_so: str) -> set:
+    ten = {p.split()[0] for p in tham_so.split(",") if p.strip()}
+    m = re.match(r"\s*DECLARE(.*?)\bBEGIN\b", than, re.S)
+    if m:
+        ten |= {k.split()[0] for k in m.group(1).split(";") if k.strip()}
+    return ten
+
+
+def _alias_sql(than: str) -> set:
+    """Alias quan hệ (bảng/hàm SRF/truy vấn con), alias cột `(c, ...)` và `AS c` trong phần thân sau BEGIN."""
+    s = _bo_chuoi(than)
+    s = s[re.search(r"\bBEGIN\b", s).end():]
+    ra = set(re.findall(rf"\b(?:kho|m4|master)\.[a-z_0-9]+\s+(?:AS\s+)?({_ID})\b(?!\s*\()", s))
+    for m in re.finditer(r"\(", s):
+        truoc = re.search(rf"({_ID})\s*$", s[:m.start()])
+        if not ((truoc and truoc.group(1) in _SRF) or re.match(r"\(\s*SELECT\b", s[m.start():])):
+            continue
+        sau = re.match(rf"\s*(?:AS\s+)?({_ID})(?:\(([a-z_0-9, ]+)\))?", s[_ngoac_dong(s, m.start()) + 1:])
+        if sau and sau.group(1) not in _TU_KHOA:
+            ra.add(sau.group(1))
+            if sau.group(2):
+                ra |= {c.strip() for c in sau.group(2).split(",")}
+            elif truoc and truoc.group(1) in _SRF[:2]:
+                ra.add("value")  # cột ngầm của jsonb_array_elements*
+    ra |= set(re.findall(rf"\bAS\s+({_ID})\b", s))
+    return ra - _TU_KHOA
+
+
+def _cot_bang_moi() -> dict:
+    cot = {}
+    for t in SG.BANG:
+        s = next(x for x in SG.M4_03B_COMMON_SQL if x.startswith(f"CREATE TABLE kho.{t} ("))
+        cot[t] = set(re.findall(r"^\s+([a-z_0-9]+) (?:uuid|text|integer|jsonb|timestamptz)\b", s, re.M))
+    return cot
+
+
+def _plpgsql():
+    """(tên, tên khai, thân) của mọi hàm + khối DO plpgsql trong hằng common."""
+    for i, s in enumerate(SG.M4_03B_COMMON_SQL):
+        m = re.match(r"\s*CREATE OR REPLACE FUNCTION (kho\.[a-z_0-9]+)\(([^)]*)\)", s)
+        if m and "LANGUAGE plpgsql" in s.split("$$")[0]:
+            than = s.split("$$")[1]
+            yield m.group(1), _ten_khai(than, m.group(2)), than
+        elif s.startswith("DO $$"):
+            than = s.split("$$")[1]
+            yield f"DO@{i}", _ten_khai(than, ""), than
+
+
+def _xung_dot(ten: set, than: str, cot: dict) -> set:
+    s = _bo_chuoi(than)
+    dung = set().union(*(cot[t] for t in cot if re.search(rf"\b(?:FROM|JOIN|,)\s+kho\.{t}\b", s)))
+    return ten & (_alias_sql(than) | dung)
+
+
+class TenPlpgsql(unittest.TestCase):
+    def test_bo_do_bat_dung_mau_loi_native05(self):
+        # mẫu lỗi đã có bằng chứng native: biến jsonb `t` + alias `t` của _REFS cũ; biến `x` + alias `x` của _HIEN_HANH cũ
+        cu = ("\n        DECLARE refs jsonb; t jsonb; x jsonb; ref jsonb;\n        BEGIN\n"
+              "            refs := (SELECT jsonb_agg(t->'nguon' ORDER BY t->'nguon'->>'kind') FROM jsonb_array_elements(tp) t);\n"
+              "            SELECT x INTO ref FROM jsonb_array_elements(refs) x WHERE x->>'kind' = 'NT';\n        END ")
+        self.assertEqual(_xung_dot(_ten_khai(cu, ""), cu, {}), {"t", "x"})
+        sach = cu.replace("t jsonb; x jsonb;", "v_muc jsonb; v_cap jsonb;")
+        self.assertEqual(_xung_dot(_ten_khai(sach, ""), sach, {}), set())
+        # cột bảng mới FROM trực tiếp cũng tính (biến trùng tên cột không qualify)
+        cot = "\n DECLARE revision integer;\n BEGIN\n SELECT 1 FROM kho.mua_doi_chieu_can_cu_phien_ban v WHERE v.id IS NULL;\n END "
+        self.assertEqual(_xung_dot(_ten_khai(cot, ""), cot, _cot_bang_moi()), {"revision"})
+
+    def test_khong_ham_plpgsql_nao_trung_ten(self):
+        cot = _cot_bang_moi()
+        ham = {ten: (khai, than) for ten, khai, than in _plpgsql()}
+        for can in ("kho.dc_luu", "kho.dc_xac_nhan", "kho._dc_phien_ban_hoan_tat", "kho._dc_phien_ban_kiem", "kho._dc_nguon_cua",
+                    "kho._dc_do_thi", "kho._dc_cap_nguon", "kho._dc_xem", "kho._dc_thieu"):
+            self.assertIn(can, ham)
+        self.assertEqual(len([k for k in ham if k.startswith("DO@")]), 2)
+        self.assertEqual(ham["DO@1"][0], {"r"})
+        # bộ dò không rỗng trên hàm thật (không kiểm cho có)
+        al = _alias_sql(ham["kho.dc_luu"][1])
+        self.assertTrue({"dc_ref", "dc_hh", "dc_ghim", "value", "x", "z", "i", "a", "e"} <= al, al)
+        self.assertTrue({"v_muc", "v_cap", "refs", "tp", "module", "p_khoa", "p_yc"} <= ham["kho.dc_luu"][0])
+        loi = {ten: sorted(_xung_dot(khai, than, cot)) for ten, (khai, than) in ham.items()}
+        self.assertEqual({k: v for k, v in loi.items() if v}, {})
+
+    def test_refs_va_hien_hanh_alias_tuong_minh(self):
+        self.assertIn("FROM jsonb_array_elements({x}) AS dc_ref(value))", SG._REFS)
+        self.assertIn("jsonb_agg(dc_ref.value->'nguon' ORDER BY dc_ref.value->'nguon'->>'kind'", SG._REFS)
+        self.assertNotRegex(SG._REFS, r"\bt->|\) t\)")
+        self.assertIn("AS dc_hh(value)", SG._HIEN_HANH)
+        self.assertIn("SELECT dc_ghim.value INTO ref FROM jsonb_array_elements({refs}) AS dc_ghim(value)", SG._HIEN_HANH)
+        self.assertNotRegex(SG._HIEN_HANH, r"\bSELECT x INTO|\bx->>")
+        b = _ham("kho.dc_luu")
+        self.assertIn("refs := (SELECT jsonb_agg(dc_ref.value->'nguon'", b)
+        self.assertIn("FROM jsonb_array_elements(tp) AS dc_ref(value))", b)
+        dk = b[b.index("DECLARE"):b.index("BEGIN")]
+        self.assertNotRegex(dk, r"[;\s]t jsonb|[;\s]x jsonb")
+        self.assertIn("v_cap := kho._dc_cap_nguon(it, ai, aid)", b)
+        self.assertIn("FOR v_muc IN SELECT z FROM jsonb_array_elements(tp) z LOOP", b)
+        # cùng macro ở mọi nơi dùng (thân hàm trên clone phải bằng byte hằng)
+        for h in ("kho._dc_phien_ban_kiem", "kho._dc_nguon_cua", "kho._dc_phien_ban_hoan_tat"):
+            self.assertIn("AS dc_ref(value))", _ham(h))
+        for h in ("kho.dc_luu", "kho.dc_xac_nhan", "kho._dc_phien_ban_hoan_tat"):
+            self.assertIn("AS dc_ghim(value)", _ham(h))
+
+    def test_khong_giau_loi_bang_cau_hinh(self):
+        self.assertNotRegex(NOI, r"(?i)variable_conflict|use_variable|use_column")
+        self.assertNotRegex(NOI, r"(?i)plpgsql\.")
+        # guard/statement giữ nguyên: CAS nguồn + hiện hành NT vẫn ở cả ba nơi dùng _HIEN_HANH
+        for h, ma in (("kho.dc_luu", "DC_NGUON_CU"), ("kho.dc_xac_nhan", "DC_CAN_KIEM_LAI"), ("kho._dc_phien_ban_hoan_tat", "DC_CAN_KIEM_LAI")):
+            b = _ham(h)
+            self.assertIn(f"RAISE EXCEPTION '{ma}: nguồn đã có phiên bản/phong bì mới hơn", b)
+            self.assertIn("(ref->>'source_version_id') IS DISTINCT FROM (it->>'current')", b)
+            self.assertIn("DC_CAN_KIEM_LAI: nguồn nghiệm thu không còn hiện hành", b)
 
 
 # ================================================================================================== đầu vào
