@@ -25,7 +25,7 @@
 | L0-3b | Sửa test treo `test_source6_g5_e5` (vòng lặp bận ở `json.raw_decode`) | Codex | — | — | Chờ slot |
 | L0-5 | Bật hook cổng test so với nền theo `ids_loi` (`cong_test.py`) | Codex | `.claude\hooks` | sau đo lại nền | Chờ |
 | L0-2g | Gộp `m4-review-basis-c18-testfix` | Codex | — | — | Chờ slot |
-| L0-2c | Gộp `m4-02c-backend` + `m4-04c-request-m27` | Claude | `pg_migrations.py` | sau L0-2d | Chờ |
+| L0-2c | Gộp `m4-02c-backend` + `m4-04c-request-m27` | Claude | `pg_migrations.py` | sau L0-2d | Đang code (24/10, Codex, 2 lượt) |
 | L0-2h | Rà `m4b2`, `m4b3` (chưa terminal): còn dùng được gì | Codex | — | — | Chờ slot |
 | L0-3 | Sửa nhóm ERROR còn lại theo nguyên nhân gốc L0-1 | theo nhóm | tùy nhóm | sau L0-1, L0-2* | Chờ |
 | H5 | Gộp `hop-nhat` → `chinh`, đẩy GitHub | lead | — | sau L0-1, L0-2*, Anh xem `NEN-TEST.md` | Chờ Anh |
@@ -70,7 +70,7 @@ Căn cứ: lệnh của Anh 24/10 (mọi module đã chốt thiết kế; M9 d�
 | C6 | CRM 42 · S2 tab Thu tiền (+S8) / Phụ lục / Bản ký / Lịch sử | Claude | C5; ô Junsky chờ kiểm RLS | `crm_g.*` | Chờ |
 | C7 | CRM 42 · S9 báo cáo, file soát | Codex + Claude | C6; tỷ lệ kiểm mẫu chờ Q-SAMPLE | — | Chờ |
 | M2a | M2-00 · = L0-2e gộp `m2-00b-fix01` | Codex | — | — | Xong (= L0-2e) |
-| M2b | M2-00 · `manifest.py`, `chinh_sach_tien_te.py` (POLICY-TIENTE-01) + ca M2-00-06/10 | Codex | — | — | Sửa vòng 2 (2 điểm lệch TL 43 §6) |
+| M2b | M2-00 · `manifest.py`, `chinh_sach_tien_te.py` (POLICY-TIENTE-01) + ca M2-00-06/10 | Codex | — | — | Xong 24/10 — gộp 4e1f6bb (review Đạt, vòng 2 sửa 2 điểm) |
 | M2c | M2-00 · `nhan.py` nhận theo manifest (identity, revision/xung đột, KHONG_XML_GOC → bảng kê) nối `k2\hoa_don.py` | Codex | M2b | (migration nếu cần → khóa) | Chờ |
 | M2d | M2-00 · `hoi_cuu.py` manifest hồi cứu 33 tháng, fixture giả | Codex | M2b | — | Chờ |
 | M2e | M2-00 · nút "Tải từ cổng thuế" + route + cấu hình | Claude | M2a, M2c | `server.py`, `app.js`, `index.html` | Chờ |
@@ -175,3 +175,4 @@ Mở ứng dụng Claude trên máy → tab Code → phiên **trên máy này** 
 - 24/10: Anh chốt CSDL CRM DEMO riêng cho lập trình → lát L0-4b. Lần thử L0-4 trên bản sao `chinh` đã nâng CSDL DEMO dùng chung lên schema 23 (đúng `chinh`) và nạp thêm dữ liệu mẫu — đã ghi trong TRANG-THAI.
 - 24/10: Anh hỏi Codex có chạy không — đã chạy 6 lần `codex exec` (~474 nghìn token, gpt-6.1-sol, tài khoản ChatGPT trong `~/.codex`); nhật ký ở `~/.codex/sessions/2026/10/24/`.
 - 24/10: BG-1b tách nhánh từ `lat/bg-1a` để chạy song song với review BG-1a (không ai đứng chờ); nếu review BG-1a có sửa, BG-1b gộp lại trước cổng A.
+- 24/10: M2b — 3 điểm 'Để sau' của review chuyển sang M2c: số thực dạng mũ trong thành phần khóa (Python/JS in khác), file lạ ngoài .xml/.pdf trong thư mục run, package-data cho `quy_tac/*.json` khi đóng gói.

@@ -8,12 +8,13 @@ Trạng thái lát: Đang code → Chờ kiểm → Chờ Anh (cổng A/B) → S
 |---|---|---|---|---|---|
 | BG-1b | CRM · Báo giá gói 1 màn hình (BG-01…05) → cổng A | Claude Sonnet | `lat/bg-1b` (từ `lat/bg-1a`) · `.claude/worktrees/lat-bg-1b` · DEMO cổng 8784, CSDL riêng `p8784` | 24/10 | Đang code |
 | BG-1a | CRM · Báo giá gói 1 máy chủ | Codex (code) · Claude (review) | `lat/bg-1a` (56c46c9) | 24/10 | Chờ kiểm — review chéo vòng 1 đang chạy; Codex báo 74 test đạt (+24), không lỗi mới, không đổi schema |
-| M2b | M2-00 · đọc/kiểm manifest + POLICY-TIENTE-01 v1 | Codex | `lat/m2b` | 24/10 | Sửa vòng 2 — 2 điểm lệch TL 43 §6 |
+| L0-2c | M4 · Nghiệm thu & chi phí dự án: gộp backend duyệt/PDF (lượt 1: 5 file gộp 3 bên) rồi đăng ký migration 26–27 (lượt 2) | Codex | `lat/l0-2c` · `.claude/worktrees/lat-l0-2c` | 24/10 | Đang code (lượt 1) |
 
 ## Lát đã xong (24/10)
 
 | Lát | Kết quả | Gộp vào hop-nhat |
 |---|---|---|
+| M2b | M2-00 · đọc/kiểm manifest + POLICY-TIENTE-01 v1 (ca M2-00-06, -10, 3 ràng buộc); review Claude Đạt, vòng 2 sửa 2 điểm lệch TL 43 §6; 67/67 | 4e1f6bb |
 | L0-4b | CSDL CRM DEMO riêng cho lập trình (`-CsdlRieng`); CSDL DEMO của Anh không đổi (schema 23, băm trước = sau) | 550f573 |
 | P0 | Khôi phục 24 file chưa vào git (CRM G6A/G5-B, M4 duyệt/Request/03A); `pg_migrations` nạp được (25); module lỗi nạp 29 → 1; ok 501 → 1067; không test vốn đạt nào hỏng | 1c5c67a |
 | L0-3a | Runner: gốc repo vào sys.path + `--runtime` (Python có psycopg); `.gitattributes` cho file bị ghim byte; 19 fixture DEMO vào git; trên nhánh lát: ERROR 112 → 62, FAIL 20 → 6 | 7b114e2 |
@@ -32,11 +33,12 @@ Worktree đo nền: `.claude/worktrees/nen-chinh-59b7d8e` (chinh) · `.claude/wo
 | File | Lát giữ |
 |---|---|
 | `src\kho_tri_thuc\giao_dien\server.py` | — |
-| `giao_dien\m4.py`, `giao_dien\assets\app.js`, `index.html`, `style.css` | — |
-| `ha_tang\pg_migrations.py` | — |
+| `giao_dien\m4.py` | L0-2c |
+| `giao_dien\assets\app.js`, `index.html` | — |
+| `ha_tang\pg_migrations.py` | L0-2c (lượt 2) |
 | `giao_dien\crm_g.py`, `k2\crm_giao_ket.py` | BG-1a (chờ review) |
 | `giao_dien\assets\crm_g.js`, `style.css` | BG-1b |
-| `m4\*` dùng chung | — |
+| `m4\*` dùng chung (`duyet_dot.py`, `fixtures_m4.py`, `m4_demo.py`, `xay_dung.py`) | L0-2c |
 | `tools\mo_demo_worktree.ps1`, `CLAUDE.md` | lead |
 
 ## Màn hình / module chờ Anh
