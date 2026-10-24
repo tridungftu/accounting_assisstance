@@ -18,7 +18,7 @@
 | L0-2d | Gộp `crm-g5-doi-chieu` + `crm-m4-three` | Claude | `crm_g.py`, `crm_g.js`, `pg_migrations.py` | — | Xong 24/10 — gộp b2fd07c |
 | L0-4 | Lệnh mở DEMO cho worktree, có CRM PostgreSQL: DataRoot `var\demo-<lát>` trong worktree + chép `runtime.local.json`, `ket-noi.local.json` từ `var\web\crm-demo` (không mở nội dung), kiểm CSDL DEMO không đụng nhau giữa worktree; ghi lệnh vào CLAUDE.md mục 5 | Claude | — | sau L0-1 | Xong 24/10 — gộp 7cbc41b |
 | L0-4b | CSDL CRM DEMO riêng cho lập trình (Anh chốt 24/10: không dùng chung DEMO của Anh) | Claude | `mo_demo_worktree.ps1`, CLAUDE.md mục 5 | sau L0-4 | Xong 24/10 — gộp 550f573 |
-| L0-2b | Gộp `m4-02c-ui` → `ui-fix01` | Codex | — | — | Gộp vào M4-2 (24/10) |
+| L0-2b | Gộp `m4-02c-ui` → `ui-fix01` | Codex | — | — | Xong (trong M4-2) |
 | L0-2e | Gộp `m2-00b-fix01` (có thể là nguyên nhân 114 ERROR M2-00B) | Codex | — | — | Xong 24/10 — gộp 3a2b083 |
 | L0-2f | Gộp `source6-g5-e5-ordered-fix01` | lead | — | — | Xong 24/10 — gộp d07117a; không hết treo → L0-3b |
 | L0-3a | Lỗi môi trường N3/N4 (CRLF, fixture bị ignore, sys.path) + bộ chạy test dùng Python có psycopg | Codex | `run_suite.py`, `chay_test_theo_module.py`, `.gitattributes` | sau L0-1 | Xong 24/10 — gộp 7b114e2 |
@@ -27,7 +27,7 @@
 | L0-2g | Gộp `m4-review-basis-c18-testfix` | Codex | — | — | Chờ slot |
 | L0-2c | Gộp `m4-02c-backend` + `m4-04c-request-m27` | Claude | `pg_migrations.py` | sau L0-2d | Xong 24/10 — gộp c4deb00 |
 | L0-2h | Rà `m4b2`, `m4b3` (chưa terminal): còn dùng được gì | Codex | — | — | Chờ slot |
-| L0-3 | Sửa nhóm ERROR còn lại theo nguyên nhân gốc L0-1 | theo nhóm | tùy nhóm | sau L0-1, L0-2* | Tách: L0-3a xong · L0-3b chờ slot · L0-3c chờ thử lại (Codex quá tải) |
+| L0-3 | Sửa nhóm ERROR còn lại theo nguyên nhân gốc L0-1 | theo nhóm | tùy nhóm | sau L0-1, L0-2* | Tách: L0-3a xong · L0-3b chờ slot · L0-3c đang code (thử lại) |
 | H5 | Gộp `hop-nhat` → `chinh`, đẩy GitHub | lead | — | sau L0-1, L0-2*, Anh xem `NEN-TEST.md` | Chờ Anh |
 | BG-1 | Báo giá gói 1: BG-01…05 (lịch 4 cột, dòng tổng, tính tự động, tổng tự tính, bỏ mã kỹ thuật) | Claude | `crm_g.*` | sau L0-2d (Anh đã ra lệnh 24/10) | Chờ L0-2d |
 | BG-2, BG-3 | Báo giá gói 2 (BG-06…12), gói 3 (BG-13, 14) | Claude | `crm_g.*` | sau cổng A gói 1 | Chờ |
@@ -80,7 +80,8 @@ Căn cứ: lệnh của Anh 24/10 (mọi module đã chốt thiết kế; M9 d�
 | E1-3 | E1-MUA · bảng TT-05/TT-20 trên `source6_docx_tables` | Codex | E1-1 | — | Chờ |
 | E1-4 | E1-MUA · màn danh mục Sửa + nhật ký; mở loại ở trích chung #6 | Claude | E1-1 | `app.js` | Chờ |
 | E1-5 | E1-MUA · áp vào #6 thật, chấm 2 hợp đồng thật offline | Anh | E1-2 | — | Chờ Anh |
-| M4-2 | M4 · Nghiệm thu & chi phí dự án · UI 02C duyệt/PDF: đối chiếu với fix01 + 3 lỗi đã tái hiện (gồm L0-2b) | Claude | P0 | `m4\*` UI | Đang code (24/10, Claude; gồm L0-2b) |
+| M4-2 | M4 · Nghiệm thu & chi phí dự án · UI 02C duyệt/PDF: đối chiếu với fix01 + 3 lỗi đã tái hiện (gồm L0-2b) | Claude | P0 | `m4\*` UI | Xong 24/10 — gộp ff9503f |
+| L0-6 | Engine trích #6 trên DEMO worktree: báo sẵn sàng lúc khởi động nhưng `TRICH6_KHONG_KET_NOI` ngay sau lệnh trích đầu tiên → chưa dựng được hợp đồng/đợt DEMO cho M4 (chẩn đoán tối đa 2 lượt; không xong thì dựng đợt bằng fixture test) | Claude | — | — | Chờ slot |
 | M4-3 | M4 · 03A kế toán nghiệm thu: M0026 + test + xác minh màn | Codex | P0 | — | Chờ |
 | M4-4 | M4 · 03B căn cứ nghiệm thu ↔ hóa đơn: L0-2a + migration + test PG | Codex | L0-2a, M4-3 | `pg_migrations.py` | Chờ |
 | M4-5 | M4 · 03B route + panel trong màn kế toán nghiệm thu | Claude | M4-4 | `giao_dien\m4.py` | Chờ |
