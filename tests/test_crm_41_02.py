@@ -103,11 +103,15 @@ class PrefixMigration(unittest.TestCase):
         self.assertEqual(hashlib.sha256(raw[:791902]).hexdigest(), "36ed5ad1035f3cf85593cbfdc2e5ca84b3a73ecffd1df010aa4987d6826b3964")
         duoi = raw[791902:].decode("utf-8")
         self.assertIn("M0018_CRM_G = (", duoi)
+        # Các gói sau M18 nối thêm; chỉ cắt tới cuối khối đăng ký M18, giữ nguyên pin prefix.
+        cuoi = "PG_MIGRATIONS = (*PG_MIGRATIONS, M0018_CRM_G)\nPG_SCHEMA_VERSION = len(PG_MIGRATIONS)"
+        self.assertEqual(duoi.count(cuoi), 1)
+        duoi = duoi.split("\n# ---------------------------------------------------------------------------\n# 0019", 1)[0]
         self.assertTrue(duoi.rstrip().endswith("PG_MIGRATIONS = (*PG_MIGRATIONS, M0018_CRM_G)\nPG_SCHEMA_VERSION = len(PG_MIGRATIONS)"), duoi[-200:])
 
     def test_17_checksum_va_digest_thu_tu(self):
-        self.assertEqual(len(PM.PG_MIGRATIONS), 18)
-        self.assertEqual(PM.PG_SCHEMA_VERSION, 18)
+        self.assertGreaterEqual(len(PM.PG_MIGRATIONS), 18)
+        self.assertEqual(PM.PG_SCHEMA_VERSION, len(PM.PG_MIGRATIONS))
         self.assertIs(PM.PG_MIGRATIONS[17], PM.M0018_CRM_G)
         ds = PREFIX["prefix_1_17"]
         self.assertEqual([x["version"] for x in ds], list(range(1, 18)))

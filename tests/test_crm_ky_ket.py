@@ -1,7 +1,7 @@
 """CRM-41-04A — G4 ký lần đầu: kiểm tĩnh + thuần + service MOCK + (có điều kiện) guard CSDL THẬT. CODE_ONLY: coder viết, CHƯA CHẠY (NOT_RUN_CODE_ONLY).
 
 Phân loại (ghi rõ để không lẫn bằng chứng):
-- `PrefixVaPhamVi`: TĨNH trên byte mã nguồn — prefix 1–22 (928356 B) nguyên, chỉ append M0023, không M0024; crm_giao_ket.py nguyên byte.
+- `PrefixVaPhamVi`: TĨNH trên byte mã nguồn — prefix 1–22 (928356 B) nguyên, khối append M0023 riêng; crm_giao_ket.py nguyên byte.
 - `M23Tinh`: TĨNH trên hằng SQL M0023 — thứ tự quyền → biên nhận → căn cứ; guard sau ký; G5 chỉ PENDING|NOT_SELECTED; không nghĩa vụ/hiệu lực/M1;
   đọc KT/KTT/CFO cần phân công hẹp CRM_KY_DOC + phạm vi tường minh (không còn nhánh PN+module+vai); không buộc signed_sha ≠ g3_sha.
 - `RouteTinh`: TĨNH + handler GIẢ (thuần) — route/mã lỗi; POST ký từ chối query trước body/phiên/khóa.
@@ -40,7 +40,7 @@ GOC = Path(__file__).resolve().parents[1]
 SRC = GOC / "src" / "kho_tri_thuc"
 PREFIX_BYTES = 928_356  # handoff CRM-41-04A §1: toàn pg_migrations.py migration 1–22
 PREFIX_SHA256 = "225cc40f14670e8428bf8afcc58318c04c15707bdddffa31242067f20199cce2"
-GK_SHA256 = "c155c5336f88a97640556cbc17ae7fb007fcf96806d49ab56b4f05815843cc56"  # k2/crm_giao_ket.py 885 dòng (không sửa)
+GK_SHA256 = "53dae579438aded7c5e3b95b29b102783a82400718679c98dbef971dde65d539"  # k2/crm_giao_ket.py sau BG-1a vòng 2 (24/10/2026, TL 45 — sửa có chủ đích); chốt cũ của G4 là c155c533…
 M23 = "\n".join(PM.M0023_CRM_KY)
 M23_MOI = "\n".join(s for s in PM.M0023_CRM_KY if s is not PM._KY_XG)  # phần mới của M0023 (bỏ định nghĩa M0021 tạo lại một dòng)
 SO, XU = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"
@@ -78,10 +78,15 @@ class PrefixVaPhamVi(unittest.TestCase):
         self.assertEqual(hashlib.sha256(raw[:PREFIX_BYTES]).hexdigest(), PREFIX_SHA256)
         duoi = raw[PREFIX_BYTES:].decode("utf-8")
         self.assertIn("M0023_CRM_KY = (", duoi)
+        # M4-02C và các gói sau nối thêm sau M23; kiểm riêng khối M23, giữ pin 1–22.
+        cuoi = "PG_MIGRATIONS = (*PG_MIGRATIONS, M0023_CRM_KY)\nPG_SCHEMA_VERSION = len(PG_MIGRATIONS)"
+        self.assertEqual(duoi.count(cuoi), 1)
+        duoi = duoi.split("\n# ---------------------------------------------------------------------------\n# 0024", 1)[0]
         self.assertTrue(duoi.rstrip().endswith("PG_MIGRATIONS = (*PG_MIGRATIONS, M0023_CRM_KY)\nPG_SCHEMA_VERSION = len(PG_MIGRATIONS)"), duoi[-200:])
         self.assertNotIn("M0024", duoi)
-        self.assertEqual((PM.PG_SCHEMA_VERSION, len(PM.PG_MIGRATIONS)), (23, 23))
-        self.assertIs(PM.PG_MIGRATIONS[-1], PM.M0023_CRM_KY)
+        self.assertGreaterEqual(len(PM.PG_MIGRATIONS), 23)
+        self.assertEqual(PM.PG_SCHEMA_VERSION, len(PM.PG_MIGRATIONS))
+        self.assertIs(PM.PG_MIGRATIONS[22], PM.M0023_CRM_KY)
         self.assertIs(PM.PG_MIGRATIONS[21], PM.M0022_M4_CHUNG_TU)
         self.assertIs(PM.PG_MIGRATIONS[20], PM.M0021_CRM_G2G3)
 

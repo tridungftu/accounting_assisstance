@@ -52,11 +52,16 @@ class M24Tinh(unittest.TestCase):
     NOI = "\n".join(SD.M0024_M4_DUYET)
 
     def test_registry_append_24(self):
-        self.assertEqual((PM.PG_SCHEMA_VERSION, len(PM.PG_MIGRATIONS)), (24, 24))
-        self.assertIs(PM.PG_MIGRATIONS[-1], SD.M0024_M4_DUYET)
+        self.assertGreaterEqual(len(PM.PG_MIGRATIONS), 24)
+        self.assertEqual(PM.PG_SCHEMA_VERSION, len(PM.PG_MIGRATIONS))
+        self.assertIs(PM.PG_MIGRATIONS[23], SD.M0024_M4_DUYET)
         self.assertIs(PM.PG_MIGRATIONS[22], PM.M0023_CRM_KY)
         self.assertIs(PM.PG_MIGRATIONS[21], PM.M0022_M4_CHUNG_TU)
         duoi = (SRC / "ha_tang" / "pg_migrations.py").read_text(encoding="utf-8")
+        # CRM-41-06A và các gói sau nối thêm sau khối đăng ký M24.
+        cuoi = "PG_MIGRATIONS = (*PG_MIGRATIONS, M0024_M4_DUYET)\nPG_SCHEMA_VERSION = len(PG_MIGRATIONS)"
+        self.assertEqual(duoi.count(cuoi), 1)
+        duoi = duoi.split("\n# ---------------------------------------------------------------------------\n# 0025", 1)[0]
         self.assertTrue(duoi.rstrip().endswith("PG_MIGRATIONS = (*PG_MIGRATIONS, M0024_M4_DUYET)\nPG_SCHEMA_VERSION = len(PG_MIGRATIONS)"), duoi[-200:])
         self.assertIn("from ..m4.sql_duyet import M0024_M4_DUYET", duoi)
         # sql_duyet chỉ hằng SQL: không import ha_tang (tránh vòng import với pg_migrations)

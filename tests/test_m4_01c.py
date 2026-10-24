@@ -114,8 +114,14 @@ class M4Js(unittest.TestCase):
         self.assertIn('{dot_id: d.id, revision_ho_so: d.revision_ho_so, revision_dot: d.revision}', M4JS)
 
     def test_khong_nut_gia_nhanh_sau(self):
-        for cam in ("/api/m4/duyet", "/api/m4/pdf", "/api/m4/request", "/api/m4/ke-toan"):
+        for cam in ("/api/m4/duyet", "/api/m4/pdf", "/api/m4/request"):
             self.assertNotIn(cam, M4JS)
+        # M4-03A đã nối màn kế toán thật qua module tải lười và route máy chủ.
+        self.assertIn('/api/m4/ke-toan', M4JS)
+        self.assertIn('s.src = "/m4/m4_ke_toan.js"', M4JS)
+        ktjs = (SRC / "m4" / "giao_dien" / "m4_ke_toan.js").read_text("utf-8")
+        self.assertIn('/api/m4/ke-toan', ktjs)
+        self.assertIn('if path == "/api/m4/ke-toan":', (SRC / "giao_dien" / "m4.py").read_text("utf-8"))
         self.assertIn('x.trang_thai === "CHUA_NOI" ? "Chưa nối"', M4JS)
 
 

@@ -64,6 +64,10 @@ class MigrationM19(unittest.TestCase):
         duoi = raw[PREFIX19_BYTES:].decode("utf-8")
         self.assertNotIn("M0019", duoi)  # không đụng lại đăng ký M19
         self.assertIn("from ..m4.sql_review import M0020_M4_REVIEW_QUYEN", duoi)
+        # CRM-41-03 và các gói sau nối thêm sau M20; pin 1–19 không đổi.
+        cuoi = "PG_MIGRATIONS = (*PG_MIGRATIONS, M0020_M4_REVIEW_QUYEN)\nPG_SCHEMA_VERSION = len(PG_MIGRATIONS)"
+        self.assertEqual(duoi.count(cuoi), 1)
+        duoi = duoi.split("\n# ---------------------------------------------------------------------------\n# 0021", 1)[0]
         self.assertTrue(duoi.rstrip().endswith("PG_MIGRATIONS = (*PG_MIGRATIONS, M0020_M4_REVIEW_QUYEN)\nPG_SCHEMA_VERSION = len(PG_MIGRATIONS)"),
                         duoi[-200:])
         sq = (SRC / "m4" / "sql_review.py").read_bytes()
@@ -75,12 +79,12 @@ class MigrationM19(unittest.TestCase):
             self.assertNotIn(helper, sq_duoi, helper)
 
     def test_1_18_identity_m19_m20_cuoi(self):
-        self.assertEqual(len(PM.PG_MIGRATIONS), 20)
-        self.assertEqual(PM.PG_SCHEMA_VERSION, 20)
+        self.assertGreaterEqual(len(PM.PG_MIGRATIONS), 20)
+        self.assertEqual(PM.PG_SCHEMA_VERSION, len(PM.PG_MIGRATIONS))
         self.assertIs(PM.PG_MIGRATIONS[17], PM.M0018_CRM_G)
         self.assertIs(PM.PG_MIGRATIONS[18], SR.M0019_M4_REVIEW)
-        self.assertIs(PM.PG_MIGRATIONS[19], SR.M0020_M4_REVIEW_QUYEN)  # M20 là phần tử CUỐI
-        self.assertIs(PM.PG_MIGRATIONS[-1], SR.M0020_M4_REVIEW_QUYEN)
+        self.assertIs(PM.PG_MIGRATIONS[19], SR.M0020_M4_REVIEW_QUYEN)
+        self.assertEqual(sum(m is SR.M0020_M4_REVIEW_QUYEN for m in PM.PG_MIGRATIONS), 1)
         from kho_tri_thuc.m4.sql_m17 import M0017_M4
         self.assertIs(PM.PG_MIGRATIONS[16], M0017_M4)
 
