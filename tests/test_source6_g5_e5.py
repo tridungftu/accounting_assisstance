@@ -1294,5 +1294,142 @@ class E5OverlayNguonTests(unittest.TestCase):
             self.assertNotEqual(v["sau_s_tt"], "xong", chon)
 
 
+class E5BangThuTuFix01Tests(unittest.TestCase):
+    """FIX01 (pure, CODE_ONLY/NOT_RUN): `_doc_ma_e5(BANG_DONG)` THẬT trên bản sao private37 + overlay, tiến trình con riêng (kế thừa env, không -I/-S/-E/-s).
+    Bảng phải đọc từ dòng bản ký (thứ tự dòng/ô, dòng thừa), không dựng lại từ expected. Chạy cả hai probe read-only docs/E5-FIX01-READONLY (không sửa).
+    Không phải PDF thật/producer. Thiếu env/baseline/thư viện → NOT_VERIFIED (skip KHÔNG phải PASS). Thư mục tạm giữ lại."""
+    COT2 = [{"ten": "Dot", "kieu": "text"}, {"ten": "Thanh toan", "kieu": "tien"}]
+    KV2 = {"cot": COT2, "dong": [["Dot A", {"so": "100", "tien_te": "VND"}], ["Dot B", {"so": "200", "tien_te": "VND"}]]}
+    KV_TEXT = {"cot": [{"ten": "Dot", "kieu": "text"}, {"ten": "Nguoi nhan", "kieu": "text"}, {"ten": "Noi dung", "kieu": "text"}],
+               "dong": [["Dot A", "ANPHA", "BETA"]]}
+    KV_TRON = {"cot": [{"ten": "Dot", "kieu": "text"}, {"ten": "Noi dung", "kieu": "text"}, {"ten": "Thanh toan", "kieu": "tien"}],
+               "dong": [["Dot A", "Tam ung", {"so": "100", "tien_te": "VND"}]]}
+    CA = {"duong": ("KV2", ["Dot A 100 VND", "Dot B 200 VND"]),
+          "dao_dong": ("KV2", ["Dot B 200 VND", "Dot A 100 VND"]),
+          "dao_o_text": ("KV_TEXT", ["Dot A BETA ANPHA"]),
+          "them_dong": ("KV2", ["Dot A 100 VND", "Dot B 200 VND", "Dot C 300 VND"]),
+          "text_duong": ("KV_TEXT", ["Dot A ANPHA BETA"]),
+          "text_tu_du": ("KV_TEXT", ["Dot A ANPHA BETA GAMMA"]),
+          "typed_du": ("KV2", ["Dot A 100 VND 50 VND", "Dot B 200 VND"]),
+          "vung_co_loi_van": ("KV2", ["Dieu 4. Thanh toan", "Dot A 100 VND", "Dot B 200 VND", "Dieu 5. Chung"]),
+          "vung_dut": ("KV2", ["Dot A 100 VND", "Ghi chu giua bang", "Dot B 200 VND"]),
+          "mat_dong": ("KV2", ["Dot B 200 VND"]),
+          "tron_duong": ("KV_TRON", ["Dot A: Tam ung, 100 VND"])}
+    CON = r'''
+import json, sys, traceback, unittest
+sys.dont_write_bytecode = True
+CFG = json.loads(open(sys.argv[1], encoding="utf-8").read())
+sys.path.insert(0, CFG["goc"])
+OBS = {}
+try:
+    from trich_xuat import quy_trinh as Q
+    for ten, (kv, lines) in CFG["ca"].items():
+        try:
+            OBS[ten] = {"ok": Q._doc_ma_e5("BANG_DONG", "bang", kv, None, lines, [Q.norm(x) for x in lines], {}, "DEMO_SCHEDULE")}
+        except BaseException as e:  # noqa: BLE001
+            OBS[ten] = {"loi": type(e).__name__, "vet": traceback.format_exc()[-2000:]}
+    for ten, p in CFG["probe"].items():
+        r = unittest.TextTestRunner(stream=open(p + ".out.txt", "w", encoding="utf-8"), verbosity=2).run(
+            unittest.defaultTestLoader.discover(CFG["probe_dir"], pattern=ten))
+        OBS["probe_" + ten] = {"so": r.testsRun, "fail": len(r.failures), "error": len(r.errors), "skip": len(r.skipped)}
+except BaseException as e:  # noqa: BLE001
+    OBS["_import"] = {"loi": type(e).__name__, "ten": getattr(e, "name", None), "vet": traceback.format_exc()[-2000:]}
+open(CFG["ra"], "w", encoding="utf-8").write(json.dumps(OBS, ensure_ascii=False, indent=1, default=str))
+'''
+
+    @classmethod
+    def setUpClass(cls):
+        p37 = os.environ.get(ENV_P37)
+        if not p37:
+            raise unittest.SkipTest(f"NOT_VERIFIED: chưa đặt {ENV_P37} — skip KHÔNG phải PASS")
+        p37 = Path(p37)
+        for rel in ARTEFACT:
+            a, b = p37 / rel, BASELINE / rel
+            if not a.is_file() or not b.is_file() or a.read_bytes() != b.read_bytes():
+                raise unittest.SkipTest(f"NOT_VERIFIED: private37 {rel} khác baseline docs/E5-SOURCE6-READONLY")
+        tam = Path(tempfile.mkdtemp(prefix="ktt_s6e5_fix01_"))  # GIỮ LẠI
+        goc = tam / "nguon"
+
+        def bo_qua(thu_muc, ten):
+            rel = os.path.relpath(thu_muc, p37).replace("\\", "/")
+            out = {t for t in ten if t in ("__pycache__", ".git") or t.endswith((".pyc", ".pyo"))}
+            if rel == ".":
+                out |= {t for t in ten if t in ("ket_qua_AI", "co_so_du_lieu", "ocr", "cau_hinh_may_ai.json", "khoa_api.json")}
+            return out | {t for t in ten if (t if rel == "." else f"{rel}/{t}") in ARTEFACT}
+        shutil.copytree(p37, goc, ignore=bo_qua)
+        for rel in ARTEFACT:
+            (goc / rel).write_bytes((OVERLAY / rel).read_bytes())
+        probe_dir = tam / "probe"
+        probe_dir.mkdir()
+        probe = {}
+        for ten in ("probe_e5_ordered_table03.py", "probe_e5_table_positive01.py"):
+            (probe_dir / ten).write_bytes((ROOT / "docs" / "E5-FIX01-READONLY" / ten).read_bytes())  # bản sao nguyên byte, không sửa
+            probe[ten] = str(probe_dir / ten)
+        ca = {k: (copy.deepcopy(getattr(cls, kv)), lines) for k, (kv, lines) in cls.CA.items()}
+        cfg = {"goc": str(goc), "ra": str(tam / "quan_sat.json"), "ca": ca, "probe": probe, "probe_dir": str(probe_dir)}
+        (tam / "dau_vao.json").write_text(json.dumps(cfg, ensure_ascii=False, indent=1), encoding="utf-8")
+        (tam / "con_fix01.py").write_text(cls.CON, encoding="utf-8")
+        env = dict(os.environ)
+        env.update(PYTHONDONTWRITEBYTECODE="1", PYTHONIOENCODING="utf-8", HD_DU_LIEU=str(tam / "du_lieu"), HD_OUT_DIR=str(tam / "du_lieu" / "trich_xuat"),
+                   HD_CSDL=str(tam / "csdl" / "hop_dong.db"), HD_THU_MUC_KHOA=str(tam / "khoa"))
+        kq = subprocess.run([sys.executable, str(tam / "con_fix01.py"), str(tam / "dau_vao.json")], cwd=str(goc), env=env, capture_output=True,
+                            timeout=600)
+        (tam / "con_stdout.txt").write_bytes(kq.stdout)
+        (tam / "con_stderr.txt").write_bytes(kq.stderr)
+        cls.TAM = tam
+        if not (tam / "quan_sat.json").is_file():
+            raise AssertionError(f"Tiến trình con không ghi quan sát (mã {kq.returncode}); xem {tam}")
+        cls.OBS = json.loads((tam / "quan_sat.json").read_text(encoding="utf-8"))
+        imp = cls.OBS.get("_import")
+        if imp and imp["loi"] == "ModuleNotFoundError" and (imp.get("ten") or "").split(".")[0] not in ("trich_xuat", "may_chu"):
+            raise unittest.SkipTest(f"NOT_VERIFIED: thiếu thư viện {imp.get('ten')} — {tam}")
+        if imp:
+            raise AssertionError(f"Import overlay lỗi: {imp}")
+
+    def kq(self, ten):
+        v = self.OBS.get(ten)
+        self.assertIsNotNone(v, f"thiếu quan sát {ten} ({self.TAM})")
+        self.assertNotIn("loi", v, f"{ten}: {v}")
+        return v["ok"]
+
+    def doc(self, ten, dong, ix):
+        r = self.kq(ten)
+        self.assertEqual(r[0], "doc", (ten, r))
+        self.assertEqual(r[1]["dong"], dong, ten)
+        self.assertEqual(r[2], ix, ten)
+        return r
+
+    def chua(self, ten, ly_do, phan):
+        r = self.kq(ten)
+        self.assertEqual(r[:2], ["thieu", ly_do], (ten, r))
+        for x in phan:
+            self.assertIn(x, r[2], ten)
+        return r
+
+    def test_probe_doc_lap(self):
+        for ten, so in (("probe_e5_ordered_table03.py", 3), ("probe_e5_table_positive01.py", 1)):
+            self.assertEqual(self.OBS.get("probe_" + ten), {"so": so, "fail": 0, "error": 0, "skip": 0}, ten)
+
+    def test_duong_tinh_giu_nguyen(self):
+        self.assertEqual(self.doc("duong", self.KV2["dong"], [0, 1])[1], self.KV2)
+        self.doc("vung_co_loi_van", self.KV2["dong"], [1, 2])               # lời văn ngoài vùng bảng không thành dòng
+        self.doc("text_duong", [["Dot A", "ANPHA", "BETA"]], [0])
+        self.doc("tron_duong", [["Dot A", "Tam ung", {"so": "100", "tien_te": "VND"}]], [0])
+
+    def test_ba_ca_tai_hien_doc_dung_ban_ky(self):
+        b, a = self.KV2["dong"][1], self.KV2["dong"][0]
+        self.doc("dao_dong", [b, a], [0, 1])                                 # thứ tự dòng bản ký
+        self.doc("dao_o_text", [["Dot A", "BETA", "ANPHA"]], [0])            # thứ tự ô bản ký
+        self.doc("them_dong", [a, b, ["Dot C", {"so": "300", "tien_te": "VND"}]], [0, 1, 2])  # dòng thừa trong vùng giữ lại
+
+    def test_khong_xac_dinh_thi_chua(self):
+        r = self.chua("text_tu_du", "BANG_CHUA_DU", [{"dong": "Dot A", "ly_do": "O_KHONG_XAC_DINH", "dong_so": 1}])  # từ dư → không đoán ranh giới
+        self.assertNotIn({"dong": "Dot A", "ly_do": "KHONG_THAY_DONG"}, r[2])   # dòng đã thấy, chỉ ô không xác định
+        self.chua("typed_du", "BANG_CHUA_DU", [{"dong": "Dot A", "ly_do": "O_KHONG_XAC_DINH", "dong_so": 1}])
+        self.chua("vung_dut", "NHIEU_VUNG_BANG", [{"dong_so": [1, 3]}])
+        r = self.chua("mat_dong", "BANG_CHUA_DU", [{"dong": "Dot A", "ly_do": "KHONG_THAY_DONG"}])
+        self.assertNotIn("Dot B", [x.get("dong") for x in r[2] if x.get("ly_do")])  # dòng đọc được và khớp không bị báo thiếu
+
+
 if __name__ == "__main__":
     unittest.main()
