@@ -20,3 +20,9 @@
 # manifest.json được ghim SHA trên bản CRLF gốc → giữ nguyên byte, không chuyển xuống dòng
 /tests/fixtures/m2_invoice_xml/manifest.json -text
 /src/kho_tri_thuc/m4/sql_request_nhap.py text eol=lf
+# L0-7: lõi Review vendored (m4/review_goc) — SHA ghim (nguon_review.PIN, FONT_PIN) tính trên byte gốc của nguồn (manifest docs/M4-REVIEW-REFERENCE-20261020):
+# toàn bộ LF, trừ hai tệp CRLF. Không ép thì core.autocrlf=true làm tệp CRLF → M4_NGUON_REVIEW_SAI_PIN (20/21 tệp ghim lệch). Font .woff2 là nhị phân: không đổi byte.
+/src/kho_tri_thuc/m4/review_goc/** text eol=lf
+/src/kho_tri_thuc/m4/review_goc/app_kiem_tra_ho_so/core.py text eol=crlf
+/src/kho_tri_thuc/m4/review_goc/giao_dien/fonts/fonts.css text eol=crlf
+/src/kho_tri_thuc/m4/review_goc/giao_dien/fonts/*.woff2 -text
