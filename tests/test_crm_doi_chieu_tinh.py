@@ -784,7 +784,11 @@ class HopDongSqlTinh(unittest.TestCase):
         src = (ROOT / "src/kho_tri_thuc/k2/sql_crm_doi_chieu.py").read_text(encoding="utf-8")
         self.assertEqual(_import_that(src), [], "module SQL chỉ hằng — không import registry")
         from kho_tri_thuc.ha_tang import pg_migrations as PM
-        self.assertFalse(any(tuple(x) == tuple(CRM_G5_SQL) for x in PM.PG_MIGRATIONS), "gói không tự đăng ký migration")
+        self.assertGreaterEqual(PM.PG_SCHEMA_VERSION, 32)
+        self.assertEqual(PM.PG_SCHEMA_VERSION, len(PM.PG_MIGRATIONS))
+        self.assertEqual([i for i, x in enumerate(PM.PG_MIGRATIONS) if tuple(x) == tuple(CRM_G5_SQL)], [31],
+                         "owner đăng ký G5 đúng một lần tại M0032")
+        self.assertIs(PM.PG_MIGRATIONS[31], CRM_G5_SQL)
         self.assertNotIn("schema_migrations", SQL_TXT)
         self.assertNotIn("ktt.crm_kiem_g5', 'SYNTHETIC", SQL_TXT)  # không tự đặt GUC fixture
 

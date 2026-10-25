@@ -6,8 +6,11 @@ import io
 import json
 import os
 import re
+import subprocess
 import sys
 import tempfile
+import threading
+import time
 import types
 import unittest
 from pathlib import Path
@@ -242,6 +245,147 @@ class PgDemoThuanTests(unittest.TestCase):
             R._bat_bao_ve_pth()
         thoat.assert_called_once_with(2)
 
+    def _site_that(self, pg):
+        pg._site_phu_thuoc()
+        return next(self.root.rglob("ktt-phu-thuoc.pth")).parent
+
+    def _chay_pth(self, site, ma, env=None):
+        # -S + addsitedir thực thi .pth thật nhưng không dùng user site của máy chạy test.
+        return subprocess.run([sys.executable, "-X", "utf8", "-S", "-c",
+                               "import site; site.addsitedir(" + repr(str(site)) + "); " + ma],
+                              env=env or R._moi_truong(self.repo, self.root, them={"KHO_PG_DEMO_SO": str(self.tep)}),
+                              cwd=self.root, capture_output=True, timeout=10)
+
+    def test_pth_nap_tep_loi_thoat_ma_2_khong_chay_test_con(self):
+        site = self._site_that(self._pg_demo())
+        ma = "import importlib.util; importlib.util.spec_from_file_location = lambda *a: None; "
+        r = subprocess.run([sys.executable, "-X", "utf8", "-S", "-c",
+                            ma + "import site; site.addsitedir(" + repr(str(site)) + "); print('TEST_DA_CHAY')"],
+                           env=R._moi_truong(self.repo, self.root, them={"KHO_PG_DEMO_SO": str(self.tep)}),
+                           capture_output=True, timeout=10)
+        self.assertEqual(r.returncode, 2, r.stderr.decode("utf-8", errors="replace"))
+        self.assertNotIn(b"TEST_DA_CHAY", r.stdout)
+
+    def test_pth_hook_loi_thuc_te_thoat_ma_2(self):
+        site = self._site_that(self._pg_demo())
+        # Không có tệp kết nối/sổ hợp lệ: hook phải dừng dù import chính nó thành công.
+        r = self._chay_pth(site, "print('TEST_DA_CHAY')")
+        self.assertEqual(r.returncode, 2)
+        self.assertNotIn(b"TEST_DA_CHAY", r.stdout)
+
+    def test_pth_repo_khac_van_nap_dung_bao_ve_tu_duong_dan(self):
+        repo_cu = self.root / "worktree-cu"
+        (repo_cu / "tools").mkdir(parents=True)
+        (repo_cu / "tools" / "__init__.py").write_text("", encoding="utf-8")
+        (repo_cu / "tools" / "chay_test_theo_module.py").write_text("# Bản cũ chưa có bảo vệ\n", encoding="utf-8")
+        (repo_cu / "psycopg.py").write_text(
+            "class Cursor:\n def execute(self, *a, **kw): raise AssertionError('Cấm nối CSDL')\n", encoding="utf-8")
+        pg = self._pg_demo()
+        pg.repo = repo_cu
+        dsn = "postgresql://demo:gia@127.0.0.1:5432/postgres"
+        pg.tep.write_text(json.dumps({"phien_ban": 1, "admin_dsn": dsn, "app_dsn": dsn}), encoding="utf-8")
+        site = self._site_that(pg)
+        env = R._moi_truong(repo_cu, self.root, them={**pg._env_so()})
+        r = self._chay_pth(site, "import sys, psycopg; "
+                           "assert psycopg.Cursor.execute._pg_demo; "
+                           "print(sys.modules[psycopg.Cursor.execute.__module__].__file__)", env)
+        self.assertEqual(r.returncode, 0, r.stderr.decode("utf-8", errors="replace"))
+        self.assertEqual(Path(r.stdout.decode("utf-8").strip()).resolve(), Path(R.__file__).resolve())
+
+    def test_timeout_giet_ca_chau_giu_stdout_va_tra_treo_dung_han(self):
+        pid_chau = self.root / "pid-chau.txt"
+        goc_popen = subprocess.Popen
+        da_tao = []
+        pw = "bi-mat-trong-stdout-123"
+        R._LOC = R._LocBiMat({"admin_dsn": f"postgresql://demo:{pw}@127.0.0.1/postgres"})
+        ma_chau = "import os, time; from pathlib import Path; " + f"Path({str(pid_chau)!r}).write_text(str(os.getpid()), encoding='utf-8'); time.sleep(600)"
+
+        def popen(cmd, **kwargs):
+            self.assertEqual(kwargs["stdout"], subprocess.PIPE)
+            # Tiến trình giả thay test con PostgreSQL: không cần driver/kết nối CSDL.
+            ma = ("import subprocess, sys, time; from pathlib import Path; "
+                  f"Path({cmd[-1]!r}).write_text('{{\"e\":\"bd\",\"id\":\"test_gia.treo\"}}\\n', encoding='utf-8'); "
+                  f"subprocess.Popen([sys.executable, '-c', {ma_chau!r}]); "
+                  f"print({pw!r}, flush=True); time.sleep(600)")
+            proc = goc_popen([sys.executable, "-X", "utf8", "-c", ma], **kwargs)
+            da_tao.append(proc)
+            return proc
+
+        try:
+            bd = time.monotonic()
+            # taskkill phải dùng Popen thật, chỉ thay lệnh --con.
+            def chon(cmd, **kwargs):
+                return popen(cmd, **kwargs) if "--con" in cmd else goc_popen(cmd, **kwargs)
+            with patch.object(R.subprocess, "Popen", side_effect=chon):
+                r = R._chay_mot_module(self.repo, "test_gia_treo", 3, self.root, sys.executable,
+                                       them_env={"KHO_PG_DEMO_SO": str(self.tep)})
+            self.assertLess(time.monotonic() - bd, 8)
+            self.assertEqual(r["treo"], 1)
+            self.assertEqual(r["test_treo"], "test_gia.treo")
+            self.assertGreaterEqual(r["giay"], 3)
+            self.assertLess(r["giay"], 8)
+            self.assertTrue(pid_chau.exists(), "Cháu phải khởi động trước timeout")
+            pid = int(pid_chau.read_text(encoding="utf-8"))
+            if os.name == "nt":
+                import ctypes
+                from ctypes import wintypes as W
+                k = ctypes.WinDLL("kernel32", use_last_error=True)
+                k.OpenProcess.argtypes, k.OpenProcess.restype = (W.DWORD, W.BOOL, W.DWORD), W.HANDLE
+                k.WaitForSingleObject.argtypes, k.WaitForSingleObject.restype = (W.HANDLE, W.DWORD), W.DWORD
+                k.CloseHandle.argtypes, k.CloseHandle.restype = (W.HANDLE,), W.BOOL
+                handle = k.OpenProcess(0x100000, False, pid)  # SYNCHRONIZE; không dựa vào tasklist bị sandbox cấm.
+                if handle:
+                    try:
+                        self.assertEqual(k.WaitForSingleObject(handle, 0), 0, "Cháu vẫn còn chạy")
+                    finally:
+                        k.CloseHandle(handle)
+                else:
+                    self.assertEqual(ctypes.get_last_error(), 87, "Không xác minh được cháu đã thoát")
+            else:
+                with self.assertRaises(ProcessLookupError):
+                    os.kill(pid, 0)
+            log = (self.root / "test_gia_treo.log").read_text(encoding="utf-8")
+            self.assertNotIn(pw, log)
+            self.assertIn("DA_AN", log)
+        finally:
+            # Chỉ dọn cây do ca này tạo nếu assertion sớm thất bại.
+            for proc in da_tao:
+                if proc.poll() is None:
+                    R._giet_cay(proc)
+                    proc.wait(timeout=5)
+
+    def test_pipe_va_close_bi_giu_van_khong_keo_dai_timeout(self):
+        tha = threading.Event()
+
+        class OngGiu(io.RawIOBase):
+            def readable(self):
+                return True
+
+            def readinto(self, buf):
+                tha.wait()
+                return 0
+
+            def close(self):
+                tha.wait()  # Mô phỏng khóa CRT khi luồng khác còn đọc pipe.
+                super().close()
+
+        proc = Mock(stdout=OngGiu())
+        proc.wait.side_effect = [subprocess.TimeoutExpired("gia", 3), 1]
+        canh = threading.Timer(8, tha.set)
+        canh.start()
+        try:
+            bd = time.monotonic()
+            with patch.object(R.subprocess, "Popen", return_value=proc), patch.object(R, "_gan_job_windows", return_value=None), patch.object(R, "_giet_cay") as giet:
+                r = R._chay_mot_module(self.repo, "test_ong_giu", 3, self.root, sys.executable)
+            self.assertLess(time.monotonic() - bd, 5)
+            self.assertEqual(r["treo"], 1)
+            giet.assert_called_once_with(proc)
+            proc.communicate.assert_not_called()
+            self.assertEqual([c.kwargs["timeout"] for c in proc.wait.call_args_list], [3, 2])
+        finally:
+            tha.set()
+            canh.cancel()
+
     def test_noi_bo_pg_xoa_khong_so_bi_chan(self):
         kn = {"admin_dsn": "postgresql://demo:gia@127.0.0.1:5432/postgres"}
         with patch.object(R, "_nap_tien_ich_dsn", return_value=types.SimpleNamespace(nap_tep=lambda p: kn)), patch.object(sys, "path", sys.path.copy()), contextlib.redirect_stdout(io.StringIO()):
@@ -294,7 +438,7 @@ class PgDemoThuanTests(unittest.TestCase):
             self.assertEqual(kwargs["stdout"], R.subprocess.PIPE)
             proc = Mock(returncode=0)
 
-            def communicate(**kw):
+            def wait(**kw):
                 with Path(cmd[-1]).open("a", encoding="utf-8") as f:
                     kq = R._KetQuaGhiTienDo(f)
 
@@ -305,9 +449,10 @@ class PgDemoThuanTests(unittest.TestCase):
                     kq._ghi(e="tong", n=1)
                     Hong().run(kq)
                     kq._ghi(e="het")
-                return (f"stdout {pw}\nstderr {dsn}\npassword='{pw}'\n".encode(), None)
+                return 0
 
-            proc.communicate.side_effect = communicate
+            proc.stdout = io.BytesIO(f"stdout {pw}\nstderr {dsn}\npassword='{pw}'\n".encode())
+            proc.wait.side_effect = wait
             return proc
 
         with contextlib.redirect_stdout(console), contextlib.redirect_stderr(console), patch.object(Path, "write_text", write_text), patch.object(R.subprocess, "Popen", side_effect=popen):
@@ -347,6 +492,16 @@ class PgDemoThuanTests(unittest.TestCase):
             loc = R._LocBiMat({"admin_dsn": dsn}, tkn)
             self.assertNotIn(pw, loc.text(pw))
             self.assertNotIn(json.dumps(pw)[1:-1], loc.text(json.dumps(pw)))
+
+    def test_luong_log_loc_ca_mat_khau_co_xuong_dong(self):
+        pw = "bi-mat-dong-mot\nbi-mat-dong-hai"
+        loc = R._LocBiMat({"admin_dsn": "host=127.0.0.1 password='" + pw + "'"}, R._nap_tien_ich_dsn())
+        log = self.root / "log-da-loc.txt"
+        R._doc_log_con(io.BytesIO(("stdout " + pw + "\n").encode()), log, threading.Event(), loc)
+        sach = log.read_text(encoding="utf-8")
+        for manh in pw.splitlines():
+            self.assertNotIn(manh, sach)
+        self.assertIn("DA_AN", sach)
 
 
 if __name__ == "__main__":

@@ -36,6 +36,9 @@ DECLARATIONS_BASIS = f"ROOT_SEED_DEMO:declarations.json:{DECLARATIONS_SHA256}"
 UNIT_DECLARATION_LOCATOR = "/shared_master_unit_definition/payload"
 SEED = "ROOT_SEED_DEMO"
 MARKER = "demo_seed_m2_actor"
+M2_00_LOGIN = "MO_PHONG_KT_M2_A"
+M2_00_LABEL = "Kế toán M2 (mô phỏng)"
+M2_00_MARKER = "demo_seed_m2_00_actor"
 COMPANY_VALID_FROM = "2026-01-01T00:00:00+00:00"  # mốc DEMO cố định (không lấy giờ hiện tại để seed tái lập được)
 COVERAGE_BINDING = "INPUT_BUNDLE_ONLY_PERIOD_COMPLETENESS_UNKNOWN"
 
@@ -215,10 +218,45 @@ def khoi_tao(admin_conn) -> dict:
                                                          hanh_dong, target_phap_nhan_id) VALUES (%s,%s,%s,%s,%s,%s) ON CONFLICT DO NOTHING""",
                                                       (nd, inst, ref, PROFILE_PAYLOAD_SHA256, action, target)).rowcount
         admin_conn.execute("INSERT INTO master.he_thong (key, value) VALUES (%s, 'r15') ON CONFLICT (key) DO NOTHING", (MARKER,))
+        bo_sung_ke_toan_m2(admin_conn, d)
     dem["mo_lai_giu_quyen_hien_hanh"] = da_co
     return dem
 
 
 def dang_nhap_m2() -> list[str]:
-    """Đúng 8 login DEMO M2 theo declarations đã pin (bộ chọn vai M2; quyền thật vẫn do CSDL quyết)."""
-    return [a["login"] for a in doc_khai_bao()["actors"]]
+    """8 login đã pin và kế toán M2-00; quyền hiện hành vẫn do CSDL quyết."""
+    return [a["login"] for a in doc_khai_bao()["actors"]] + [M2_00_LOGIN]
+
+
+def bo_sung_ke_toan_m2(admin_conn, khai_bao=None) -> dict:
+    """M2s: actor/marker riêng, bổ sung cả DEMO đã seed R15, không cấp lại.
+
+    INTAKE/READ_SOURCE gắn instance/profile, không có PN đích. KE_TOAN +
+    module M2 chỉ trên PN_DEMO_A cho M2_READ. Giữ nguyên mọi actor có sẵn.
+    """
+    d = khai_bao if khai_bao is not None else doc_khai_bao()
+    with admin_conn.transaction():
+        admin_conn.execute("SELECT pg_advisory_xact_lock(hashtext(%s))", (M2_00_MARKER,))
+        if admin_conn.execute("SELECT 1 FROM master.he_thong WHERE key = %s", (M2_00_MARKER,)).fetchone() is not None:
+            return {"da_them": False}
+        if admin_conn.execute("SELECT 1 FROM master.nguoi_dung WHERE dang_nhap = %s", (M2_00_LOGIN,)).fetchone() is not None:
+            return {"da_them": False}
+        pn = admin_conn.execute("SELECT id FROM master.phap_nhan WHERE ma = %s", ("PN_DEMO_A",)).fetchone()
+        if pn is None:
+            raise DataError("PHAP_NHAN", "Thiếu PN_DEMO_A — chạy seed CRM DEMO trước.")
+        admin_conn.execute("""INSERT INTO master.nguoi_dung (ten, dang_nhap, vai_tro, mo_phong)
+                              VALUES (%s,%s,'KE_TOAN',true) ON CONFLICT (dang_nhap) DO NOTHING""",
+                           (M2_00_LABEL, M2_00_LOGIN))
+        row = admin_conn.execute("SELECT id, vai_tro, mo_phong, trang_thai FROM master.nguoi_dung WHERE dang_nhap = %s",
+                                 (M2_00_LOGIN,)).fetchone()
+        if row is None or tuple(row[1:]) != ("KE_TOAN", True, "HOAT_DONG"):
+            _xung_dot("nguoi_dung " + M2_00_LOGIN)
+        admin_conn.execute("""INSERT INTO master.phan_quyen (nguoi_dung_id, phap_nhan_id, duyet_loai_viec, module)
+                              VALUES (%s,%s,'{}',%s) ON CONFLICT (nguoi_dung_id, phap_nhan_id) DO NOTHING""",
+                           (row[0], pn[0], ["M2"]))
+        for action in ("INTAKE", "READ_SOURCE"):
+            admin_conn.execute("""INSERT INTO master.nang_luc_nguon (nguoi_dung_id, source_instance_id, profile_ref, profile_sha256,
+                                  hanh_dong, target_phap_nhan_id) VALUES (%s,%s,%s,%s,%s,NULL) ON CONFLICT DO NOTHING""",
+                               (row[0], d["source_instance"], d["profile_ref"], PROFILE_PAYLOAD_SHA256, action))
+        admin_conn.execute("INSERT INTO master.he_thong (key, value) VALUES (%s, 'm2s') ON CONFLICT (key) DO NOTHING", (M2_00_MARKER,))
+    return {"da_them": True}

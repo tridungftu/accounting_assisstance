@@ -1,7 +1,7 @@
 """CRM-41-04A — kiểm HTTP thật G4 ký lần đầu trên LocalApp/LocalServer + PostgreSQL DEMO mới (CODE_ONLY: coder viết, CHƯA CHẠY — NOT_RUN_CODE_ONLY).
 
 Chạy khi Root cấp KHO_PG_DSN_TEST lúc chạy (DSN chủ CSDL; không đọc .env/var, không hardcode credentials). DB MỚI `kho_test_crmky_*` migrate mặc định
-(1–23), seed CRM DEMO + crm_g_demo (không M9, không bootstrap chung). Mẫu/báo giá/bản soạn/xuất dựng bằng LUỒNG DỊCH VỤ THẬT qua HTTP (mượn helper
+(tối thiểu M0023), seed CRM DEMO + crm_g_demo (không M9, không bootstrap chung). Mẫu/báo giá/bản soạn/xuất dựng bằng LUỒNG DỊCH VỤ THẬT qua HTTP (mượn helper
 của tests/test_crm_giao_ket_http.py — không sửa file đó). Phân công CRM_KY_KET + phạm vi ký do CHỦ CSDL khai (đúng vai trò quản trị của handoff —
 không tự cấp qua HTTP, không suy từ người tạo). KHÔNG owner-forge PDF_DAT: `_co_word()` CHỈ là metadata probe (Word/guard có mặt), KHÔNG chứng
 minh PDF_DAT. Nhánh ký dương chỉ chạy khi RUNTIME có bản xuất G3 thật PDF_DAT (hàng crm_gk_xuat PDF_DAT + bản soạn CHO_KY + tải bytes G3 qua HTTP
@@ -191,7 +191,11 @@ class CrmKyKetHttp(unittest.TestCase):
 
     # ------------------------------------------------------------------ k01: dựng HĐ CRM qua luồng thật tới bản xuất G3
     def test_k01_dung_ban_soan_va_xuat_that(self):
-        self.assertEqual(self.version, 23)
+        from kho_tri_thuc.ha_tang import pg_migrations as PM
+        self.assertGreaterEqual(self.version, 23)
+        self.assertEqual([i + 1 for i, m in enumerate(PM.PG_MIGRATIONS) if tuple(m) == tuple(PM.M0023_CRM_KY)], [23])
+        ls = self.admin.execute("SELECT version, checksum FROM master.schema_migrations WHERE version <= %s ORDER BY version", (23,)).fetchall()
+        self.assertEqual([tuple(x) for x in ls], [(i + 1, PM._hash(m)) for i, m in enumerate(PM.PG_MIGRATIONS[:23])])
         pb, _ = self.mau_hieu_luc("HD_KY_" + self.run_id, ngay(-2), "MAU V1")
         self.s["pb"] = pb
         r = self.ok(BH, "bao-gia/luu", {"bao_gia_id": None, "expected_revision": None, "du_lieu": self.bao_gia(), "khoa": self.K("bg")})

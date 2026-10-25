@@ -2,7 +2,7 @@
 NOT_RUN_CODE_ONLY).
 
 Chạy khi Root cấp KHO_PG_DSN_TEST lúc chạy (DSN chủ CSDL; không đọc .env/var, không hardcode credentials). DB MỚI `kho_test_crmgk_*` migrate mặc
-định (1–21), seed CRM DEMO + crm_g_demo (actor/danh mục/phân công + điều khoản tham chiếu DEMO — KHÔNG seed M9, KHÔNG bootstrap chung kéo theo
+định (tối thiểu M0021), seed CRM DEMO + crm_g_demo (actor/danh mục/phân công + điều khoản tham chiếu DEMO — KHÔNG seed M9, KHÔNG bootstrap chung kéo theo
 module vay). Mẫu hợp đồng và bộ chuẩn G7 được dựng bằng LUỒNG DỊCH VỤ THẬT qua HTTP (tải → ánh xạ → gửi kiểm → KT kiểm → CFO duyệt; KT lập/gửi →
 CFO duyệt) — không owner INSERT đối tượng đã duyệt. Word/PDF: có Word đã ghim + guard → PDF_DAT/CHO_KY phải đạt; không có → PDF_CHUA_SAN_SANG,
 DOCX vẫn giữ, KHÔNG CHO_KY (cả hai nhánh đều assert, ghi rõ nhánh đã chạy). Không DROP/DELETE/cleanup — DB/role/thư mục giữ làm bằng chứng.
@@ -223,7 +223,11 @@ class CrmGiaoKetHttp(unittest.TestCase):
 
     # ------------------------------------------------------------------ g01 (c4): mẫu + G7 qua luồng dịch vụ thật
     def test_g01_mau_va_bo_chuan_qua_luong_that(self):
-        self.assertEqual(self.version, 21)
+        from kho_tri_thuc.ha_tang import pg_migrations as PM
+        self.assertGreaterEqual(self.version, 21)
+        self.assertEqual([i + 1 for i, m in enumerate(PM.PG_MIGRATIONS) if tuple(m) == tuple(PM.M0021_CRM_G2G3)], [21])
+        ls = self.admin.execute("SELECT version, checksum FROM master.schema_migrations WHERE version <= %s ORDER BY version", (21,)).fetchall()
+        self.assertEqual([tuple(x) for x in ls], [(i + 1, PM._hash(m)) for i, m in enumerate(PM.PG_MIGRATIONS[:21])])
         self.assertEqual(self.seed["g2g3_dieu_khoan"], "DA_TAO", self.seed)
         self.s["v1"], self.s["v1_sha"] = self.mau_hieu_luc("HD_GK_" + self.run_id, ngay(-2), "MAU V1")
         ct = self.get(KT, "mau/" + self.s["v1"])

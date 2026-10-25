@@ -1,7 +1,7 @@
 """CRM-41-02 — kiểm HTTP thật G1/G7/S6 trên LocalApp/LocalServer + PostgreSQL DEMO mới (CODE_ONLY: coder viết, CHƯA CHẠY — NOT_RUN_CODE_ONLY).
 
 Chạy khi Root cấp KHO_PG_DSN_TEST qua env lúc chạy (DSN chủ CSDL; không đọc .env/var, không hardcode credentials). DB MỚI `kho_test_crmg_*` migrate
-mặc định (1–18), seed CRM DEMO + crm_g_demo (actor MO_PHONG_CRM_G_*, danh mục, phân công — KHÔNG seed duyệt); login ứng dụng tạm (NOSUPERUSER
+mặc định (tối thiểu M0018), seed CRM DEMO + crm_g_demo (actor MO_PHONG_CRM_G_*, danh mục, phân công — KHÔNG seed duyệt); login ứng dụng tạm (NOSUPERUSER
 NOBYPASSRLS IN ROLE app_web) + admin DSN cho factory kết nối chủ bảng hiện hành của máy chủ. HTTP loopback cổng ngẫu nhiên, cùng token/cookie như
 trình duyệt; vai đổi qua đúng route phiên CRM hiện có. Không mock quyền/dịch vụ sản phẩm (chỉ bọc bộ đọc DOCX THẬT để giữ request ở bước parse
 trong ca đồng thời). Không DROP/DELETE/TRUNCATE/cleanup — DB/role/thư mục giữ làm bằng chứng. Thiếu driver/DSN → skip = NOT_RUN (không tính đạt).
@@ -237,7 +237,11 @@ class CrmGHttp(unittest.TestCase):
 
     # ------------------------------------------------------------------ g01 tài sản, phiên, seed, CRM cũ giữ nguyên
     def test_g01_tai_san_phien_seed(self):
-        self.assertEqual(self.version, 18)
+        from kho_tri_thuc.ha_tang import pg_migrations as PM
+        self.assertGreaterEqual(self.version, 18)
+        self.assertEqual([i + 1 for i, m in enumerate(PM.PG_MIGRATIONS) if tuple(m) == tuple(PM.M0018_CRM_G)], [18])
+        ls = self.admin.execute("SELECT version, checksum FROM master.schema_migrations WHERE version <= %s ORDER BY version", (18,)).fetchall()
+        self.assertEqual([tuple(x) for x in ls], [(i + 1, PM._hash(m)) for i, m in enumerate(PM.PG_MIGRATIONS[:18])])
         self.assertEqual(self.seed["trang_thai"], "DU", self.seed)
         self.assertEqual(self.seed["danh_muc"], {"TYPE_A_V2": "DA_TAO", "TYPE_B_V2": "DA_TAO"})
         self.assertEqual(self.q("SELECT count(*) FROM master.crm_mau_phien_ban"), 0)  # không seed mẫu/duyệt

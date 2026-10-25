@@ -2,12 +2,12 @@
 
 Hai tầng:
   1. Thuần (không CSDL): toàn bộ 972.163 byte đầu ``pg_migrations.py`` = baseline 24 Root đã chốt (SHA trong handoff
-     GIAO-CODE-CRM-G6A-M25-REGISTRATION §2, không lấy từ code); phần nối chỉ gồm import + alias + MỘT tuple đăng ký; registry baseline 1–24
+     GIAO-CODE-CRM-G6A-M25-REGISTRATION §2, không lấy từ code); đoạn M0025 chỉ gồm import + alias + MỘT tuple đăng ký, cho phép append sau đó; registry baseline 1–24
      dựng lại TỪ CHÍNH prefix gốc (exec độc lập) khớp từng câu/checksum với registry mới; M24 ở index 23 nguyên object/checksum; G6A ở index 24
      đúng MỘT lần, cùng object ``CRM_G6A_SQL``; module SQL nguyên byte, không import registry; không bản sao SQL; thân ``kho.viec_chu_so_huu``
      của G6A = thân hiện hành 1–24 + đúng MỘT nhánh typed G6A (giữ legacy/CRM-G/M4); G5 VAN_HANH vẫn HOLD, registry không có producer.
-  2. PG thật CHỈ trên bản sao DEMO SỞ HỮU schema 25 do Root cấp, qua cổng ``test_crm_kiem_hd.cong_clone`` (owner DSN + DSN login ứng dụng
-     thường, provenance OWNED_DEMO_CLONE, lịch sử 1–25 + checksum, marker DEMO, quyền hiện hành). Thiếu/thiếu một phần → FAIL ``NOT_VERIFIED``
+  2. PG thật CHỈ trên bản sao DEMO SỞ HỮU schema tối thiểu 25 do Root cấp, qua cổng ``test_crm_kiem_hd.cong_clone`` (owner DSN + DSN login ứng dụng
+     thường, provenance OWNED_DEMO_CLONE, lịch sử registry hiện hành + checksum, marker DEMO, quyền hiện hành). Thiếu/thiếu một phần → FAIL ``NOT_VERIFIED``
      (không skip, không coi là đạt). Không tạo DB/vai/mã/đối tác, không SET ROLE, không seed/bootstrap/M9. Ca K5 dương cần hàng G6A typed
      ĐÃ CÓ do luồng domain thật tạo (tests/test_crm_kiem_hd_http.py n00–n06) — không có → NOT_VERIFIED, không đếm 0 rồi gọi dương.
      Ghi duy nhất được commit: thu hồi + cấp lại phạm vi kiểm (vai quản trị, như n05 của test HTTP) khi ``KTT_G6A_CLONE_CHO_GHI=1``; các lệnh
@@ -84,8 +84,12 @@ class M25Prefix(unittest.TestCase):
     def test_phan_noi_chi_import_alias_mot_dang_ky(self):
         duoi = PG_PY.read_bytes()[PREFIX_BYTES:].decode("utf-8")
         ma = tuple(x.rstrip() for x in duoi.splitlines() if x.strip() and not x.lstrip().startswith("#"))
-        self.assertEqual(ma, DONG_NOI, "phần nối chỉ được import + alias + một tuple đăng ký")
+        self.assertEqual(ma[:len(DONG_NOI)], DONG_NOI, "đoạn M0025 chỉ được import + alias + một tuple đăng ký")
+        for dong in DONG_NOI[:3]:
+            self.assertEqual(ma.count(dong), 1, dong)
         self.assertTrue(duoi.endswith("\n"))
+        # Owner có thể append migration sau M0025; oracle SQL chỉ xét đoạn G6A.
+        duoi = "\n".join(ma[:len(DONG_NOI)]) + "\n"
         self.assertNotRegex(duoi, r"(?i)\b(CREATE|ALTER|DROP|GRANT|REVOKE|INSERT|UPDATE)\s")  # không bản sao SQL
         self.assertNotRegex(duoi, r"(master|kho)\.crm_kiem_")  # không tên đối tượng SQL G6A nào ngoài hằng của module domain
         self.assertEqual(PG_PY.read_text(encoding="utf-8").count("import CRM_G6A_SQL"), 1)
@@ -114,19 +118,22 @@ class M25Registry(unittest.TestCase):
         for i in range(24):
             self.assertEqual(tuple(PM.PG_MIGRATIONS[i]), tuple(b[i]), f"migration {i + 1} đổi câu lệnh")
             self.assertEqual(PM._hash(PM.PG_MIGRATIONS[i]), self.B["_hash"](b[i]), f"migration {i + 1} đổi checksum")
-        self.assertEqual(PM.PG_MIGRATION_TUONG_THICH, self.B["PG_MIGRATION_TUONG_THICH"])  # không compatibility checksum mới
+        self.assertEqual({v: x for v, x in PM.PG_MIGRATION_TUONG_THICH.items() if v <= 25},
+                         self.B["PG_MIGRATION_TUONG_THICH"])  # không compatibility checksum mới trong prefix
         self.assertFalse({24, 25} & set(PM.PG_MIGRATION_TUONG_THICH))
         self.assertEqual(PM.PG_MIGRATIONS_LICH_SU_FULL_M9, self.B["PG_MIGRATIONS_LICH_SU_FULL_M9"])
         self.assertEqual(PM.LEGACY_FULL_M9_M0013_SHA256, self.B["LEGACY_FULL_M9_M0013_SHA256"])
 
     def test_m24_index23_nguyen(self):
+        self.assertEqual([i for i, m in enumerate(PM.PG_MIGRATIONS) if tuple(m) == tuple(SD.M0024_M4_DUYET)], [23])
         self.assertIs(PM.PG_MIGRATIONS[23], SD.M0024_M4_DUYET)
         self.assertIs(PM.PG_MIGRATIONS[23], PM.M0024_M4_DUYET)
         self.assertEqual(PM._hash(PM.PG_MIGRATIONS[23]), self.B["_hash"](self.B["PG_MIGRATIONS"][23]))
         self.assertIs(PM.PG_MIGRATIONS[22], PM.M0023_CRM_KY)
 
     def test_version25_g6a_dung_mot_lan_cung_object(self):
-        self.assertEqual((PM.PG_SCHEMA_VERSION, len(PM.PG_MIGRATIONS)), (25, 25))
+        self.assertGreaterEqual(PM.PG_SCHEMA_VERSION, 25)
+        self.assertEqual(PM.PG_SCHEMA_VERSION, len(PM.PG_MIGRATIONS))
         self.assertEqual(TK.SCHEMA_DU_KIEN, 25)
         self.assertIs(PM.PG_MIGRATIONS[24], SK.CRM_G6A_SQL)
         self.assertIs(PM.M0025_CRM_G6A, SK.CRM_G6A_SQL)
@@ -260,7 +267,7 @@ class CrmG6aM25BanSao(unittest.TestCase):
                 (y["khoa"], h, y["ky_id"], y["expected_revision"], json.dumps(y["checklist"]), y["doi_tac_id"], y["ma_junsky_id"],
                  y["ngay_hieu_luc"], y["can_cu_ngay"], y["trich_dan_ngay"], y["ghi_chu"]))
 
-    # ------------------------------------------------------------------ n01: provenance + lịch sử exact 25 + M24/G6A checksum, không compat
+    # ------------------------------------------------------------------ n01: provenance + lịch sử registry hiện hành + M24/G6A checksum, không compat
     def test_n01_lich_su_exact25(self):
         self.assertTrue(self.ctx["db"].startswith("kho_"), self.ctx["db"])
         self.assertTrue(self.ctx["bien_nhan"])

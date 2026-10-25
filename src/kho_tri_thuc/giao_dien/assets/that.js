@@ -938,7 +938,7 @@ function pageNguon(s) {
         <span class="panel-title">Chế độ chấm điểm (so với Junsky)</span>
         <span class="sub">Bật khi muốn kiểm tra độ chính xác: đặt <strong>Mốc học</strong> (ví dụ 30/06/2026), bật chế độ này, rồi thả sao kê của tháng sau mốc (T7, T8). Máy không dùng chứng từ sau mốc để học và không đánh dấu “Đã có trong Junsky”; nút <strong>So với Junsky</strong> ở màn Định khoản chấm từng dòng. <strong>Tắt trước khi dùng thật.</strong></span>
         <label class="export-opt"><input type="checkbox" data-check="scoring"${o.scoring_mode ? ' checked' : ''}><span><strong>${o.scoring_mode ? 'Đang bật' : 'Đang tắt'}</strong><small>${o.scoring_mode ? 'Chứng từ Junsky sau mốc học là đáp án, không phải tri thức.' : 'Vận hành bình thường: học toàn bộ sổ đến mốc, đánh dấu dòng đã có trong Junsky.'}</small></span></label>
-        <span style="font-size:12.5px;color:var(--chu-nhat)">AI cục bộ: ${o.local_ai && o.local_ai.enabled ? 'đang bật (' + esc(o.local_ai.url || '') + ')' : 'tắt — chỉ bật trong source-settings.json khi máy đã cài LM Studio/Ollama; chỉ dùng để chọn giữa các tên gần giống.'}</span>
+        <span style="font-size:12.5px;color:var(--chu-nhat)">AI cục bộ: ${o.local_ai && o.local_ai.error ? esc(o.local_ai.error) : o.local_ai && o.local_ai.enabled ? 'đang bật (' + esc(o.local_ai.url || '') + ')' : 'tắt — bật trong source-settings.json khi máy AI đã cài model; chỉ dùng để chọn giữa các tên gần giống.'} URL: http://&lt;IP&gt;:&lt;cổng&gt; — máy này, mạng nội bộ hoặc Tailscale (100.64.0.0/10); thêm /v1/chat/completions. Dùng máy AI tương thích OpenAI (Ollama: endpoint tương thích OpenAI).</span>
       </div>
       <div class="card panel">
         <span class="panel-title">Tài khoản công nợ bắt buộc có đối tượng</span>
