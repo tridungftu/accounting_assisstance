@@ -461,10 +461,25 @@ class RenderDocx(unittest.TestCase):
 
 
 class NhaCungCapPdf(unittest.TestCase):
+    def test_mac_dinh_tat_khong_spawn_giu_docx(self):
+        tam = Path(tempfile.mkdtemp(prefix="ktt_gk_pdf_tat_"))  # giữ lại
+        docx = tam / "x.docx"
+        docx.write_bytes(b"PK")
+        with mock.patch.dict(os.environ), \
+                mock.patch.object(R, "_chuyen_pdf_mot") as word, \
+                mock.patch("subprocess.Popen") as popen:
+            os.environ.pop("KHO_CRM_WORD_PDF", None)
+            kq = R.chuyen_pdf(tam, docx)
+        self.assertEqual((kq["trang_thai"], kq["ly_do"]), ("PDF_CHUA_SAN_SANG", "PDF_XUAT_TAY"))
+        word.assert_not_called()
+        popen.assert_not_called()
+        self.assertEqual(docx.read_bytes(), b"PK")
+
     def test_thieu_word_khong_spawn_giu_docx(self):
         tam = Path(tempfile.mkdtemp(prefix="ktt_gk_pdf_"))  # giữ lại
         (tam / "x.docx").write_bytes(b"PK")
-        with mock.patch.object(R, "_winword_ok", lambda w: "WORD_KHONG_CO"), \
+        with mock.patch.dict(os.environ, {"KHO_CRM_WORD_PDF": "1"}), \
+                mock.patch.object(R, "_winword_ok", lambda w: "WORD_KHONG_CO"), \
                 mock.patch("subprocess.Popen", side_effect=AssertionError("không được spawn khi thiếu nhà cung cấp")):
             kq = R.chuyen_pdf(tam, tam / "x.docx")
         self.assertEqual((kq["trang_thai"], kq["ly_do"]), ("PDF_CHUA_SAN_SANG", "WORD_KHONG_CO"))
@@ -1184,7 +1199,8 @@ class WordThat(unittest.TestCase):
 
     def test_qua_han_trung_thuc(self):
         lan = self.chuan_bi()
-        kq = R.chuyen_pdf(lan, lan / "hd.docx", han=0.5)
+        with mock.patch.dict(os.environ, {"KHO_CRM_WORD_PDF": "1"}):
+            kq = R.chuyen_pdf(lan, lan / "hd.docx", han=0.5)
         self.assertNotEqual(kq["trang_thai"], "PDF_DA_TAO")
         self.assertIn(kq["ly_do"], ("WORKER_QUA_HAN_HOAC_EOF", "WORKER_CHUA_DUNG"))
         if "dung" in kq:
