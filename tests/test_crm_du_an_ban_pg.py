@@ -418,6 +418,35 @@ class DuAnBanPostgres(unittest.TestCase):
         self.assertEqual(moi["thue"], {"thue_suat": "KCT", "nhan": "Không chịu thuế", "gia_chua_gom_vat": True})
         self.assertNotEqual(moi["anh_chup_sha256"], a1["anh_chup_sha256"])
 
+    def test_t14_cap_nhat_chi_mo_ta_giu_thue_va_dat_hien_hanh(self):
+        for thue in ("8", "KCT"):
+            with self.subTest(thue=thue):
+                du_an = self.admin.execute(
+                    "INSERT INTO master.du_an (phap_nhan_id, ma_junsky, ten) VALUES (%s, %s, %s) RETURNING id::text AS id",
+                    (self.pn, f"DA_DEMO_GIU_THUE_{self.ma_chay}_{thue}", "Dự án giữ thuế DEMO")).fetchone()["id"]
+                r = self.db(lambda: self.dv.bat_ban(BH, du_an_id=du_an, thong_tin=self.tt(thue_suat=thue, gia_dat_tru="20"),
+                                                  khoa=self.K(f"giu-{thue}-bat")))
+                da = r["da_ban_id"]
+                r2 = self.db(lambda: self.dv.cap_nhat(BH, da_ban_id=da, expected_phien_ban=1,
+                                                     thong_tin={"mo_ta": "Mô tả mới DEMO qua service"}, khoa=self.K(f"giu-{thue}-service")))
+                self.assertEqual((r2["phien_ban"], r2["khac"]), (2, ["mo_ta"]))
+                a2 = self.db(lambda: self.dv.anh_chup_mac_dinh(BH, du_an))
+                self.assertEqual((a2["thue"]["thue_suat"], a2["gia_dat_tru"], a2["don_gia"], a2["loai_hinh"]["id"]),
+                                 (thue, "20", "120", self.lh))
+                # Gọi trực tiếp hàm SQL trong giao dịch có danh tính: không dựa vào chuẩn hóa Python.
+                with self.mau._tx(self.mau.danh_tinh(BH)) as c:
+                    r3 = c.execute(
+                        "SELECT master.crm_da_cap_nhat(%s, %s, 'CRM_DA_CAP_NHAT', %s::uuid, 2, %s::jsonb, NULL, NULL) AS r",
+                        (self.K(f"giu-{thue}-sql"), "a" * 64, da, json.dumps({"mo_ta": "Mô tả mới DEMO qua SQL"}))).fetchone()["r"]["ket_qua"]
+                self.assertEqual((r3["phien_ban"], r3["khac"]), (3, ["mo_ta"]))
+                a3 = self.db(lambda: self.dv.anh_chup_mac_dinh(BH, du_an))
+                self.assertEqual((a3["thue"]["thue_suat"], a3["gia_dat_tru"]), (thue, "20"))
+                cu = self.db(lambda: self.dv.chi_tiet(BH, da, phien_ban="1"))["anh_chup"]
+                self.assertEqual((cu["thue"]["thue_suat"], cu["gia_dat_tru"]), (thue, "20"))
+                # Giá mới thấp hơn đất đang giữ phải bị từ chối tại SQL sau khi ghép.
+                self.assertEqual(self.ma(self.dv.cap_nhat, BH, da_ban_id=da, expected_phien_ban=3,
+                                         thong_tin={"don_gia_niem_yet": "19"}, khoa=self.K(f"giu-{thue}-gia-sai")), "CRM_DA_SO_SAI")
+
 
 if __name__ == "__main__":
     unittest.main()

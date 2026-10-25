@@ -214,7 +214,7 @@ CRM_DU_AN_BAN_SQL = (
     # ======================================================================= nội dung chuẩn hóa của một phiên bản (so "không đổi" + sha)
     """CREATE OR REPLACE FUNCTION master.crm_da_tt_chuan(p_tt jsonb) RETURNS jsonb
         LANGUAGE sql IMMUTABLE SET search_path = master, pg_temp AS $$
-        SELECT jsonb_build_object('thue_suat', '10', 'gia_dat_tru', '0') || p_tt ||
+        SELECT p_tt ||
                CASE WHEN coalesce(p_tt ->> 'loai_hinh_id', '') ~ """ + _UUID_RE + """
                     THEN jsonb_build_object('loai_hinh_id', (p_tt ->> 'loai_hinh_id')::uuid::text) ELSE '{}'::jsonb END ||
                CASE WHEN jsonb_typeof(p_tt -> 'gia_dat_tru') = 'string' AND (p_tt ->> 'gia_dat_tru') ~ """ + _RE_SO + """
@@ -328,7 +328,8 @@ CRM_DU_AN_BAN_SQL = (
                 RAISE EXCEPTION 'CRM_DA_DA_CO: dự án đã có trong danh mục dự án đang bán — dùng Sửa hoặc Mở bán lại' USING ERRCODE = 'P0001';
             END IF;
             INSERT INTO master.crm_da_ban (phap_nhan_id, du_an_id, tao_boi) VALUES (a.phap_nhan_id, p_du_an, ai) RETURNING id INTO da;
-            pb := master.crm_da_ghi_phien_ban(da, a.phap_nhan_id, 1, ngay, true, p_tt, p_phi, p_ly_do, ai, true);
+            pb := master.crm_da_ghi_phien_ban(da, a.phap_nhan_id, 1, ngay, true,
+                jsonb_build_object('thue_suat', '10', 'gia_dat_tru', '0') || p_tt, p_phi, p_ly_do, ai, true);
             INSERT INTO nhat_ky.su_kien (phap_nhan_id, nguoi, loai, doi_tuong_bang, doi_tuong_id, hanh_dong, sau, ly_do)
                 VALUES (a.phap_nhan_id, ai, 'SUA_DANH_MUC', 'master.crm_da_ban', da, 'CRM_DA_BAT_BAN',
                         jsonb_build_object('phien_ban', 1, 'phien_ban_id', pb, 'hieu_luc_tu', ngay, 'du_an_id', p_du_an,
@@ -357,7 +358,7 @@ CRM_DU_AN_BAN_SQL = (
                 RAISE EXCEPTION 'CRM_DA_NGAY_LUI: ngày hiện hành % trước ngày hiệu lực % của phiên bản đang dùng', ngay, v.hieu_luc_tu USING ERRCODE = 'P0001';
             END IF;
             nd_cu := master.crm_da_noi_dung(v.id);
-            v_tt := CASE WHEN p_hanh = 'CRM_DA_PHI' THEN nd_cu -> 'thong_tin' ELSE master.crm_da_tt_chuan(p_tt) END;
+            v_tt := CASE WHEN p_hanh = 'CRM_DA_PHI' THEN nd_cu -> 'thong_tin' ELSE master.crm_da_tt_chuan((nd_cu -> 'thong_tin') || p_tt) END;
             v_phi := CASE WHEN p_hanh = 'CRM_DA_CAP_NHAT' THEN coalesce(p_phi, nd_cu -> 'phi') ELSE p_phi END;
             IF v_tt IS NULL OR v_phi IS NULL THEN
                 RAISE EXCEPTION 'CRM_DA_YEU_CAU_SAI: thiếu thông tin dự án hoặc danh sách phí' USING ERRCODE = 'P0001';

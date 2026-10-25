@@ -217,6 +217,16 @@ class M31SqlTinh(unittest.TestCase):
         self.assertNotIn("viec_can_duyet", f)  # không tạo việc CFO
         self.assertNotIn("duyet_boi", f)  # không giả là CFO đã duyệt
 
+    def test_cap_nhat_giu_truong_thieu_sau_cas_khong_dat_mac_dinh(self):
+        f = _ham("crm_da_cap_nhat")
+        ghep = "master.crm_da_tt_chuan((nd_cu -> 'thong_tin') || p_tt)"
+        self.assertLess(f.index("FOR UPDATE"), f.index(ghep))
+        self.assertLess(f.index("v.phien_ban IS DISTINCT FROM p_expected"), f.index(ghep))
+        self.assertLess(f.index(ghep), f.index("PERFORM master.crm_da_kiem"))
+        for ten in ("crm_da_tt_chuan", "crm_da_cap_nhat", "crm_da_ghi_phien_ban"):
+            self.assertNotIn("jsonb_build_object('thue_suat', '10', 'gia_dat_tru', '0')", _ham(ten))
+        self.assertIn("jsonb_build_object('thue_suat', '10', 'gia_dat_tru', '0') || p_tt", _ham("crm_da_bat_ban"))
+
     def test_mien_so_sql_khop_python(self):
         for cot in ("don_gia_niem_yet ~ ", "muc ~ ", "gia_dat_tru::text ~ ", "dien_tich ~ "):
             self.assertIn(cot + B._RE_SO, SQL_TXT)
@@ -273,7 +283,7 @@ class ChuanHoa(unittest.TestCase):
         self.assertEqual(D.chuan_hoa_thong_tin(tt(mo_ta="dòng 1\ndòng 2"))["mo_ta"], "dòng 1\ndòng 2")  # mô tả nhiều dòng
 
     def test_thue_danh_muc_va_gia_dat_tru(self):
-        x = D.chuan_hoa_thong_tin({"tien_te": "USD", "loai_hinh_id": LH})
+        x = D.chuan_hoa_thong_tin({"tien_te": "USD", "loai_hinh_id": LH}, bat_ban=True)
         self.assertEqual((x["thue_suat"], x["gia_dat_tru"]), ("10", "0"))
         for ma in ("10", "8", "5", "0", "KCT", "KKKNT"):
             self.assertEqual(D.chuan_hoa_thong_tin(tt(thue_suat=ma))["thue_suat"], ma)
@@ -286,6 +296,15 @@ class ChuanHoa(unittest.TestCase):
         for v in ("0", "24.50", "120"):
             self.assertEqual(D.chuan_hoa_thong_tin(tt(gia_dat_tru=v))["gia_dat_tru"], {"24.50": "24.5"}.get(v, v))
         self.assertEqual(_ma(D.chuan_hoa_thong_tin, tt(don_gia_niem_yet=None, gia_dat_tru="1")), ("CRM_DA_SO_SAI", "thong_tin.gia_dat_tru"))
+
+    def test_thong_tin_cap_nhat_khong_chen_truong_vang(self):
+        self.assertEqual(D.chuan_hoa_thong_tin({"mo_ta": "  Mô tả mới DEMO  "}), {"mo_ta": "Mô tả mới DEMO"})
+        self.assertEqual(D.chuan_hoa_thong_tin({}), {})
+        for thue in ("8", "KCT"):
+            self.assertEqual(D.chuan_hoa_thong_tin({"thue_suat": thue, "gia_dat_tru": "20.00"}),
+                             {"thue_suat": thue, "gia_dat_tru": "20"})  # kiểm chéo đơn giá hiện hành tại SQL
+        self.assertEqual(_ma(D.chuan_hoa_thong_tin, {"mo_ta": "DEMO"}, bat_ban=True),
+                         ("CRM_DA_THIEU_LOAI_HINH", "thong_tin.loai_hinh_id"))
 
     def test_phi(self):
         x = D.chuan_hoa_phi(PHI)
@@ -389,6 +408,19 @@ class Service(unittest.TestCase):
         self.assertEqual(_ma(self.s.sua_phi, ME, da_ban_id=DB, expected_phien_ban=1, phi=None, khoa="k"), ("CRM_DA_PHI_SAI", "phi"))
         self.assertEqual(_ma(self.s.ngung_ban, ME, da_ban_id=DB, expected_phien_ban=1, ly_do="  ", khoa="k"), ("CRM_DA_THIEU_LY_DO", "ly_do"))
         self.assertEqual(self.m.lenh, [])  # mọi lỗi nhập dừng TRƯỚC giao dịch/SQL
+
+    def test_cap_nhat_chi_mo_ta_khong_gui_mac_dinh(self):
+        self.s.cap_nhat(ME, da_ban_id=DB, expected_phien_ban=1, thong_tin={"mo_ta": "Mô tả mới DEMO"}, khoa="giu-thue")
+        p = self.m.lenh[-1][1]
+        self.assertEqual(json.loads(p[4]), {"mo_ta": "Mô tả mới DEMO"})
+        self.assertEqual(p[3], 1)
+        self.s.cap_nhat(ME, da_ban_id=DB, expected_phien_ban=1,
+                        thong_tin={"mo_ta": "Mô tả mới DEMO", "thue_suat": "10", "gia_dat_tru": "0"}, khoa="doi-thue")
+        self.assertNotEqual(p[1], self.m.lenh[-1][1][1])  # không gửi khác với cũ ở thay thuế/đất
+        self.s.bat_ban(ME, du_an_id=DA, thong_tin={"tien_te": "USD", "loai_hinh_id": LH}, khoa="mac-dinh")
+        moi = json.loads(self.m.lenh[-1][1][3])
+        self.assertEqual((moi["thue_suat"], moi["gia_dat_tru"]), ("10", "0"))
+        self.assertFalse(hasattr(CrmMauK2, "ap_dung_bo_chuan"))
 
     def test_cac_lenh_goi_dung_ham(self):
         self.s.cap_nhat(ME, da_ban_id=DB, expected_phien_ban=3, thong_tin=tt(), khoa="a")
@@ -617,7 +649,15 @@ class Http(unittest.TestCase):
                     h, da = self.goi(True, "/api/crm/du-an-ban/" + endpoint, {**id_, "thong_tin": tt(**sua), "khoa": "k"})
                     self.assertEqual((h.st, h.data["truong"], da.goi), (400, "thong_tin." + truong, []))
         h, da = self.goi(True, "/api/crm/du-an-ban/bat-ban", {"du_an_id": DA, "thong_tin": {"loai_hinh_id": LH, "tien_te": "USD"}, "khoa": "k"})
-        self.assertEqual((h.st, da.goi[0][2]["thong_tin"]["thue_suat"], da.goi[0][2]["thong_tin"]["gia_dat_tru"]), (200, "10", "0"))
+        self.assertEqual((h.st, da.goi[0][2]["thong_tin"]), (200, {"loai_hinh_id": LH, "tien_te": "USD"}))  # service bật bán mới đặt mặc định
+
+    def test_cap_nhat_http_chi_mo_ta_khong_chen_mac_dinh(self):
+        m = _Mau()
+        h, _ = self.goi(True, "/api/crm/du-an-ban/cap-nhat",
+                       {"da_ban_id": DB, "expected_phien_ban": 1, "thong_tin": {"mo_ta": "Mô tả mới DEMO"}, "khoa": "giu-thue"},
+                       da=D.CrmDuAnBanK2(m))
+        self.assertEqual(h.st, 200)
+        self.assertEqual(json.loads(m.lenh[-1][1][4]), {"mo_ta": "Mô tả mới DEMO"})
 
     def test_query_tho_lap_rong_va_gioi_han(self):
         from urllib.parse import parse_qs
