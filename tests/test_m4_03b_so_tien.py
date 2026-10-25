@@ -9,6 +9,8 @@ import copy
 import hashlib
 import unittest
 import uuid
+from types import SimpleNamespace
+from unittest.mock import patch
 from contextlib import contextmanager
 from decimal import Decimal, localcontext
 from pathlib import Path
@@ -236,6 +238,79 @@ class GoiYDichVu(unittest.TestCase):
             GN.GhiNhanChungK2(xd).goi_y_hoa_don("kt-demo", dot())
         self.assertEqual(xd.log, [])
 
+    def test_co_da_gan_khop_danh_sach_csdl_ke_ca_ngoai_quyen(self):
+        for gan in ([], [{"doi_chieu_id": uid(60), "nhan": "đã gắn ở đối chiếu DEMO"}],
+                    [{"doi_chieu_id": None, "nhan": "đã gắn ở đối chiếu ngoài phạm vi"}]):
+            with self.subTest(gan=gan):
+                xd = FakeDoc({"khong_quyen": False, "dot": dot(), "hoa_don": [hd(2, da_gan_o=gan)]})
+                r = GN.GhiNhanChungK2(xd).goi_y_hoa_don("kt-demo", uid(50))["hoa_don"][0]
+                self.assertEqual((r["da_gan"], r["da_gan_o"]), (bool(gan), gan))
+
+
+class LoiGanTrungDichVu(unittest.TestCase):
+    class LoiPG(Exception):
+        def __init__(self, primary, detail='{}'):
+            self.diag = SimpleNamespace(message_primary=primary, message_detail=detail)
+            super().__init__("SQL/context bí mật không được trả về")
+
+    def test_luu_xac_nhan_va_commit_deferred_chuyen_loi_co_truong(self):
+        # Boundary thật của service, giả DB: xác minh lỗi trong lệnh và lúc thoát tx.
+        for xac_nhan in (False, True):
+            for deferred in (False, True):
+                with self.subTest(xac_nhan=xac_nhan, deferred=deferred):
+                    refs = [ref(), ref(2, "HOA_DON")]
+                    err = self.LoiPG("DC_HOA_DON_DA_GAN: Hóa đơn đã gắn ở đối chiếu DEMO-A; không cho gắn trùng.",
+                                     '{"hoa_don_id":"' + uid(2) + '"}')
+                    xd = FakeDoc(None)
+                    @contextmanager
+                    def tx(dt):
+                        yield None
+                        if deferred:
+                            raise err
+                    @contextmanager
+                    def chua_ro():
+                        yield
+                    def r1(c, sql, params):
+                        if deferred:
+                            return {"r": None}
+                        raise err
+                    xd._tx_review, xd._chua_ro, xd._r1 = tx, chua_ro, r1
+                    svc = GN.GhiNhanChungK2(xd)
+                    with patch.object(svc, "_kiem_som"), patch.object(svc, "_ghim"), patch.object(svc, "_refs_goc", return_value=refs):
+                        if xac_nhan:
+                            fn = svc.xac_nhan_doi_chieu
+                            body = {"doi_chieu_id": uid(80), "phien_ban_id": uid(81), "expected_revision": 1,
+                                    "expected_graph": "a" * 64, "khoa": "demo-xn"}
+                        else:
+                            fn = svc.luu_doi_chieu
+                            body = {"doi_chieu_id": None, "thanh_phan": [{"nguon": r, "phan": "TOAN_PHAN"} for r in refs],
+                                    "can_cu_tep": [], "expected_revision": 0, "expected_graph": "a" * 64,
+                                    "ly_do": "Đối chiếu DEMO", "khoa": "demo-luu"}
+                        with self.assertRaises(DataError) as cm:
+                            fn("kt-demo", body)
+                    self.assertEqual(cm.exception.code, "DC_HOA_DON_DA_GAN")
+                    # Lưu: theo thứ tự body ban đầu; xác nhận: theo thành phần
+                    # đã chuẩn hóa trong revision (HOA_DON trước NT).
+                    self.assertEqual(cm.exception.locator, f"thanh_phan.{0 if xac_nhan else 1}.nguon")
+                    self.assertIn("đã gắn ở đối chiếu DEMO-A", str(cm.exception))
+                    self.assertNotIn("bí mật", str(cm.exception))
+                    self.assertEqual(GN.MA_HTTP[cm.exception.code], 409)
+
+    def test_ngoai_quyen_khong_them_dinh_danh_detail_hong_khong_mat_loi(self):
+        for detail in ("không phải JSON", "[]", "null", '{}'):
+            with self.subTest(detail=detail), self.assertRaises(DataError) as cm:
+                with GN._loi_gan_trung([ref(2, "HOA_DON")]):
+                    raise self.LoiPG("DC_HOA_DON_DA_GAN: Hóa đơn đã gắn ở đối chiếu ngoài phạm vi.", detail)
+            self.assertEqual(cm.exception.locator, "thanh_phan")
+            self.assertEqual(str(cm.exception), "Hóa đơn đã gắn ở đối chiếu ngoài phạm vi.")
+
+    def test_loi_khac_va_data_error_giu_nguyen(self):
+        for err in (self.LoiPG("DC_REVISION_CU: tải lại"), RuntimeError("demo"), DataError("DEMO", "demo")):
+            with self.subTest(err=err), self.assertRaises(type(err)) as cm:
+                with GN._loi_gan_trung([]):
+                    raise err
+            self.assertIs(cm.exception, err)
+
 
 class MigrationTinh(unittest.TestCase):
     def test_prefix_m1_den_m32_nguyen_byte(self):
@@ -272,7 +347,7 @@ class MigrationTinh(unittest.TestCase):
         self.assertLess(h.index("kho._dc_m2_doc"), h.index("FROM kho.hoa_don_danh_tinh"))
         self.assertIn("d.chieu = 'MUA_VAO'", h)
         self.assertIn("d.mst_ban = dc_dot->>'doi_tac_mst'", h)
-        self.assertIn("kho._dc_doc_duoc", h)
+        self.assertIn("kho._dc_hd_da_gan(d.id, dc_goc)", h)
         self.assertTrue(SQL.M4_03B_SO_TIEN_SQL[-1].endswith("FROM PUBLIC"))
 
     def test_khong_doi_du_lieu_cu_khong_drop_ham(self):
@@ -281,6 +356,31 @@ class MigrationTinh(unittest.TestCase):
         self.assertIn("so_tien_khai > 0", sql)
         self.assertIn("scale(so_tien_khai) = 0", sql)
         self.assertIn("KHAI_BAO_THO_CHUA_SCALE", sql)
+
+    def test_guard_dung_khoa_hoa_don_va_snapshot_moi_truoc_ghi(self):
+        guard = next(s for s in SQL.M4_03B_SO_TIEN_SQL if s.startswith("CREATE OR REPLACE FUNCTION kho._dc_kiem_hd_da_gan("))
+        khoa = SQL._ham("kho._dc_khoa_hoa_don")
+        self.assertIn("pg_advisory_xact_lock(hashtextextended('HOA_DON_ROOT|'", khoa)
+        self.assertIn("ORDER BY (e->>'occurrence_id')::uuid", khoa)
+        self.assertLess(guard.index("PERFORM kho._dc_khoa_hoa_don(p_refs)"), guard.index("dc_gan := kho._dc_hd_da_gan"))
+        self.assertIn("LANGUAGE plpgsql VOLATILE", guard)
+        self.assertIn("current_setting('transaction_isolation') <> 'read committed'", guard)
+        for h in (SQL._LUU, SQL._XAC_NHAN):
+            self.assertLess(h.index("kho._dc_bn_tra("), h.index("PERFORM kho._dc_kiem_hd_da_gan(refs, goc.id)"))
+            self.assertLess(h.index("PERFORM kho._dc_khoa_hoa_don(hop)"), h.index("PERFORM kho._dc_kiem_hd_da_gan(refs, goc.id)"))
+            self.assertLess(h.index("PERFORM kho._dc_kiem_hd_da_gan(refs, goc.id)"), h.index("INSERT INTO kho.mua_doi_chieu_can_cu_phien_ban"))
+        self.assertIn("kho._dc_kiem_hd_da_gan(refs, NEW.doi_chieu_id)", SQL._HOAN_TAT)
+
+    def test_guard_va_goi_y_chung_hieu_luc_bo_qua_chinh_goc_che_quyen(self):
+        h = next(s for s in SQL.M4_03B_SO_TIEN_SQL if s.startswith("CREATE OR REPLACE FUNCTION kho._dc_hd_da_gan("))
+        self.assertIn("p.doi_chieu_id IS DISTINCT FROM p_goc", h)
+        self.assertIn("p2.revision > p.revision", h)
+        self.assertNotIn("p.loai =", h)  # nháp vẫn giữ chỗ, nguồn đổi cũng không tự giải phóng
+        self.assertIn("CASE WHEN z.doc_duoc THEN z.doi_chieu_id END", h)
+        self.assertIn("ELSE 'đã gắn ở đối chiếu ngoài phạm vi' END", h)
+        self.assertIn("kho._dc_doc_duoc", h)
+        self.assertIn("kho._dc_hd_da_gan(uuid,uuid)", SQL.M4_03B_SO_TIEN_SQL[-1])
+        self.assertIn("kho._dc_kiem_hd_da_gan(jsonb,uuid)", SQL.M4_03B_SO_TIEN_SQL[-1])
 
 
 if __name__ == "__main__":

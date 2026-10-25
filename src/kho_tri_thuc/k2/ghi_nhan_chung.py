@@ -21,6 +21,7 @@ from __future__ import annotations
 import json
 import re
 import uuid
+from contextlib import contextmanager
 from datetime import date
 from decimal import Decimal, localcontext
 
@@ -78,10 +79,40 @@ MA_HTTP = {
     "DC_KHAC_PN": 422,
     "DC_PHAM_VI": 403, "M4_KT_PHAM_VI": 403, "DC_KHONG_THAY": 404, "M4_KT_KHONG_THAY": 404, "DC_DANH_TINH": 401,
     "DC_NGUON_CU": 409, "DC_DO_THI_DOI": 409, "DC_CAN_KIEM_LAI": 409, "DC_REVISION_CU": 409, "DC_DA_CO_GOC": 409, "DC_CHO_BO_SUNG": 409,
-    "DC_XAC_NHAN_KHAC_NHAP": 409, "DC_IDEMPOTENCY_KHAC": 409, "DC_TAP_THUOC_GOC_KHAC": 409,
+    "DC_XAC_NHAN_KHAC_NHAP": 409, "DC_IDEMPOTENCY_KHAC": 409, "DC_TAP_THUOC_GOC_KHAC": 409, "DC_HOA_DON_DA_GAN": 409,
     "M4_KET_QUA_CHUA_RO": 503,
     "DC_SAI_DTO": 500, "DC_CHI_MAY_CHU": 500, "DC_TOAN_VEN": 500, "DC_THANH_PHAN_SAI": 500, "DC_BAT_BIEN": 500, "DC_CHI_CHU": 500,
+    "DC_GIAO_DICH_SAI": 500,
 }
+
+
+@contextmanager
+def _loi_gan_trung(refs):
+    """Chuyển đúng lỗi guard M0033 sau rollback, kể cả lỗi deferred lúc commit.
+
+    Chỉ dùng message_primary đã che phạm vi tại SQL; không trả context/query/DETAIL
+    của psycopg. DETAIL chỉ giúp định vị hóa đơn trong nguồn đã được kiểm quyền.
+    """
+    try:
+        yield
+    except Exception as exc:
+        if isinstance(exc, DataError):
+            raise
+        diag = getattr(exc, "diag", None)
+        ma, _, msg = (getattr(diag, "message_primary", "") or "").partition(":")
+        if ma not in ("DC_HOA_DON_DA_GAN", "DC_GIAO_DICH_SAI"):
+            raise
+        truong = "thanh_phan"
+        if ma == "DC_HOA_DON_DA_GAN":
+            try:
+                hd = json.loads(getattr(diag, "message_detail", "") or "{}").get("hoa_don_id")
+            except (ValueError, AttributeError):
+                hd = None
+            for i, r in enumerate(refs):
+                if r["kind"] == "HOA_DON" and r["occurrence_id"] == hd:
+                    truong = f"thanh_phan.{i}.nguon"
+                    break
+        raise DataError(ma, msg.strip(), truong) from None
 
 
 # ================================================================================================== kiểm đầu vào (chặt, không đoán)
@@ -536,14 +567,15 @@ class GhiNhanChungK2:
 
     # ------------------------------------------------------------------ lệnh (MỘT giao dịch chủ bảng: refs → quyền → khóa/ghim → SQL)
     def luu_doi_chieu(self, dang_nhap: str, body=None, **kw) -> dict:
-        yc = yeu_cau_luu(self._body(body, kw))
+        body = self._body(body, kw)
+        yc = yeu_cau_luu(body)
         xd = self.xd
         dt = xd.danh_tinh(dang_nhap)
         refs = [t["nguon"] for t in yc["thanh_phan"]]
         self._kiem_som(dt, refs)
         khoa = yc.pop("khoa")
         than = json.dumps(yc, ensure_ascii=False)
-        with xd._chua_ro():
+        with _loi_gan_trung([t["nguon"] for t in body["thanh_phan"]]), xd._chua_ro():
             with xd._tx_review(dt) as c:
                 hop = refs
                 if yc["doi_chieu_id"] is not None:  # quyền đọc mọi nguồn của mọi revision TRƯỚC; closure = revision mới nhất ∪ yêu cầu (SQL kiểm lại dưới khóa)
@@ -558,9 +590,10 @@ class GhiNhanChungK2:
         dt = xd.danh_tinh(dang_nhap)
         khoa = yc.pop("khoa")
         than = json.dumps(yc, ensure_ascii=False)
-        with xd._chua_ro():
+        refs = []
+        with _loi_gan_trung(refs), xd._chua_ro():
             with xd._tx_review(dt) as c:
-                refs = hop_refs(self._refs_goc(c, yc["doi_chieu_id"], yc["phien_ban_id"]), self._refs_goc(c, yc["doi_chieu_id"], None))
+                refs.extend(hop_refs(self._refs_goc(c, yc["doi_chieu_id"], yc["phien_ban_id"]), self._refs_goc(c, yc["doi_chieu_id"], None)))
                 self._ghim(c, dt, json.dumps(refs, ensure_ascii=False), True)
                 r = xd._r1(c, "SELECT kho.dc_xac_nhan(%s, %s::jsonb) AS r", (khoa, than))
         return ack_dto((r or {}).get("r"), khoa)
