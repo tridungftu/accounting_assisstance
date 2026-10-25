@@ -218,9 +218,9 @@ Căn cứ: `D:\Claude\Phan mem ho tro ke toan\48-cong-ai-local-luon-co-cloud-qua
 
 | Mã | Việc | Worker gợi ý | Phụ thuộc | Trạng thái |
 |---|---|---|---|---|
-| AI-0 | Tạm khóa đường Cloud trực tiếp của engine #6 (bản trong repo kế toán và bản độc lập `D:\Claude\Ho tro review ho so xay dung`): "Nguồn AI: Claude" và "cloud xác nhận" báo "chờ nối qua Mask v2" | Codex | — | Sẵn sàng, ưu tiên |
-| AI-1 | Cổng Local AI (`tri_thuc\ai_cuc_bo.py`) gọi được LAN/Tailscale, kiểm tra như `privacy\local_ai.py` của Mask v2 | Codex | — | Sẵn sàng |
-| MASK-1 | Chế độ API của Mask v2 (che / mở che / còn sót; khóa Bearer; chỉ 127.0.0.1). Làm trong thư mục Mask v2 theo `CLAUDE.md` của nó: không git, ghi CHANGELOG, test + benchmark độ phủ không giảm | Claude | — | Sẵn sàng (cần quyền thư mục `D:\GPT\Phan mem Mask file\Mask file v2`) |
+| AI-0 | Tạm khóa đường Cloud trực tiếp của engine #6 (bản trong repo kế toán và bản độc lập `D:\Claude\Ho tro review ho so xay dung`): "Nguồn AI: Claude" và "cloud xác nhận" báo "chờ nối qua Mask v2" | Codex | — | Đang làm (CD-001): AI-0a bản độc lập (Codex, lần 1 lỗi sandbox, thử lại) + AI-0b bản trong repo (Codex) |
+| AI-1 | Cổng Local AI (`tri_thuc\ai_cuc_bo.py`) gọi được LAN/Tailscale, kiểm tra như `privacy\local_ai.py` của Mask v2 | Codex | — | Chờ slot (sau AI-0) |
+| MASK-1 | Chế độ API của Mask v2 (che / mở che / còn sót; khóa Bearer; chỉ 127.0.0.1). Làm trong thư mục Mask v2 theo `CLAUDE.md` của nó: không git, ghi CHANGELOG, test + benchmark độ phủ không giảm | Claude | — | Anh đã cấp quyền thư mục 25/10 — chờ slot |
 | MASK-2 | Đưa "định danh đã biết" và kiểm `dau_vet` của `AnDanh` vào lõi Mask v2 | Claude | MASK-1 | Chờ |
 | AI-2 | Cổng AI dùng chung: định tuyến loại việc, Cloud qua Mask API, nhật ký `nhat_ky.cong_ai_goi`, công tắc tắt Cloud | Claude | AI-1, MASK-1 | Chờ |
 | AI-3 | Engine #6 chuyển Cloud sang cổng AI; bỏ `AnDanh`/`goi_api` riêng | Codex | AI-2, MASK-2 | Chờ |
