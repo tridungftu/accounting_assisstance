@@ -456,13 +456,20 @@ class M4DoiChieuCanCuPG(unittest.TestCase):
                        ("SELECT kho._dc_nt_ghi(%s::uuid)", (self.s["h1"]["cho"],)),
                        ("SELECT kho._dc_do_thi('[]'::jsonb)", ()),
                        ("SELECT kho._dc_hop('[]'::jsonb, '[]'::jsonb)", ()),
-                       ("SELECT kho._dc_hd_da_gan(%s::uuid, NULL::uuid)", (str(uuid.uuid4()),)),
-                       ("SELECT kho._dc_kiem_hd_da_gan('[]'::jsonb, NULL::uuid)", ()),
                        ("INSERT INTO kho.bien_nhan_thao_tac (phap_nhan_id, module, operation, client_key, request_sha256, result_json, actor) "
                         "VALUES (%s, 'M4', 'DC_CAN_CU_LUU', 'gia', %s, '{}'::jsonb, %s)", (pn, "2" * 64, self.KT1)),
                        ("INSERT INTO kho.bien_nhan_thao_tac (phap_nhan_id, module, operation, client_key, request_sha256, result_json, actor) "
                         "VALUES (%s, 'M2', 'DC_CAN_CU_XAC_NHAN', 'gia2', %s, '{}'::jsonb, %s)", (pn, "3" * 64, self.KT1))):
             self.assertIsNotNone(self.app_loi(sql, p), sql)
+        # Đủ 6 hàm trong REVOKE M0033: phải lỗi quyền, không nhận lỗi nghiệp vụ thay thế.
+        for sql, p in (("SELECT kho._dc_hd_da_gan(%s::uuid, NULL::uuid)", (str(uuid.uuid4()),)),
+                       ("SELECT kho._dc_kiem_hd_da_gan('[]'::jsonb, NULL::uuid)", ()),
+                       ("SELECT kho._dc_so_tien_hop_le('1'::text, 'VND'::text)", ()),
+                       ("SELECT kho._dc_kiem_tien_tp('[]'::jsonb)", ()),
+                       ("SELECT kho._dc_dot_goi_y(%s::uuid)", (self.s["h1"]["dot"],)),
+                       ("SELECT kho._dc_goi_y_hoa_don(%s::uuid)", (self.s["h1"]["dot"],))):
+            with self.subTest(sql=sql):
+                self.assertEqual(self.app_loi(sql, p), "InsufficientPrivilege", sql)
         self.doi_dc(truoc)
         # owner: lệnh không ghim producer / GUC giả → không hiện hành
         x = self.xem_dc([self.s["r1"]])

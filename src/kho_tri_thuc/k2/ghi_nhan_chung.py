@@ -87,11 +87,12 @@ MA_HTTP = {
 
 
 @contextmanager
-def _loi_gan_trung(refs):
+def _loi_gan_trung(refs, *, khi_luu: bool):
     """Chuyển đúng lỗi guard M0033 sau rollback, kể cả lỗi deferred lúc commit.
 
     Chỉ dùng message_primary đã che phạm vi tại SQL; không trả context/query/DETAIL
     của psycopg. DETAIL chỉ giúp định vị hóa đơn trong nguồn đã được kiểm quyền.
+    Khi lưu, refs theo thứ tự body; xác nhận dùng refs gộp nên lỗi thuộc toàn yêu cầu.
     """
     try:
         yield
@@ -104,14 +105,17 @@ def _loi_gan_trung(refs):
             raise
         truong = "thanh_phan"
         if ma == "DC_HOA_DON_DA_GAN":
-            try:
-                hd = json.loads(getattr(diag, "message_detail", "") or "{}").get("hoa_don_id")
-            except (ValueError, AttributeError):
-                hd = None
-            for i, r in enumerate(refs):
-                if r["kind"] == "HOA_DON" and r["occurrence_id"] == hd:
-                    truong = f"thanh_phan.{i}.nguon"
-                    break
+            if khi_luu:
+                try:
+                    hd = json.loads(getattr(diag, "message_detail", "") or "{}").get("hoa_don_id")
+                except (ValueError, AttributeError):
+                    hd = None
+                for i, r in enumerate(refs):
+                    if r["kind"] == "HOA_DON" and r["occurrence_id"] == hd:
+                        truong = f"thanh_phan.{i}.nguon"
+                        break
+            else:
+                truong = "$"
         raise DataError(ma, msg.strip(), truong) from None
 
 
@@ -345,7 +349,11 @@ def phan_khai_con_thieu(dot: dict, thanh_phan: list) -> list:
             else:
                 with localcontext() as ctx:
                     ctx.prec = 40
-                    so = max(Decimal(0), gia - parse_so_tien(t["so_tien_khai"], t["tien_te"]))
+                    khai = parse_so_tien(t["so_tien_khai"], t["tien_te"])
+                    if khai > gia:
+                        ly_do = "KHAI_VUOT_GIA_TRI_DOT"
+                    else:
+                        so = gia - khai
         except DataError:
             ly_do = "GIA_TRI_DOT_CHUA_DOC_DUOC"
         rows.append({"nguon": r, "so_tien_con_thieu": None if so is None else format(so, "f"),
@@ -369,6 +377,9 @@ def xep_hang_hoa_don(dot: dict, hoa_don: list) -> list:
             return None
 
     def tien(v, tt):
+        # Chỉ đọc tín hiệu: VND có phần lẻ toàn 0 vẫn là số nguyên; khai ghi giữ chặt.
+        if tt == "VND" and isinstance(v, str) and re.fullmatch(r"(?:0|[1-9][0-9]{0,17})\.0+", v):
+            v = v.split(".")[0]
         try:
             return parse_so_tien(v, tt, cho_phep_khong=True)
         except DataError:
@@ -575,7 +586,7 @@ class GhiNhanChungK2:
         self._kiem_som(dt, refs)
         khoa = yc.pop("khoa")
         than = json.dumps(yc, ensure_ascii=False)
-        with _loi_gan_trung([t["nguon"] for t in body["thanh_phan"]]), xd._chua_ro():
+        with _loi_gan_trung([t["nguon"] for t in body["thanh_phan"]], khi_luu=True), xd._chua_ro():
             with xd._tx_review(dt) as c:
                 hop = refs
                 if yc["doi_chieu_id"] is not None:  # quyền đọc mọi nguồn của mọi revision TRƯỚC; closure = revision mới nhất ∪ yêu cầu (SQL kiểm lại dưới khóa)
@@ -591,7 +602,7 @@ class GhiNhanChungK2:
         khoa = yc.pop("khoa")
         than = json.dumps(yc, ensure_ascii=False)
         refs = []
-        with _loi_gan_trung(refs), xd._chua_ro():
+        with _loi_gan_trung(refs, khi_luu=False), xd._chua_ro():
             with xd._tx_review(dt) as c:
                 refs.extend(hop_refs(self._refs_goc(c, yc["doi_chieu_id"], yc["phien_ban_id"]), self._refs_goc(c, yc["doi_chieu_id"], None)))
                 self._ghim(c, dt, json.dumps(refs, ensure_ascii=False), True)

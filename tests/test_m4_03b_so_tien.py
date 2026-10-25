@@ -136,14 +136,27 @@ class ContractMoiVaCu(unittest.TestCase):
 
 class PhanConThieu(unittest.TestCase):
     def test_dot_co_gia_tri_khong_khong_phai_thieu_gia_tri(self):
-        self.assertEqual(GN.phan_khai_con_thieu(dot(gia_tri="0"), [tp("1", "USD")])[0]["so_tien_con_thieu"], "0")
+        r = GN.phan_khai_con_thieu(dot(gia_tri="0"), [tp("1", "USD")])[0]
+        self.assertIsNone(r["so_tien_con_thieu"])
+        self.assertEqual(r["ly_do"], "KHAI_VUOT_GIA_TRI_DOT")
 
     def test_chenh_chinh_xac(self):
         self.assertEqual(GN.phan_khai_con_thieu(dot(), [tp("40.01", "USD")])[0]["so_tien_con_thieu"], "59.99")
 
-    def test_khong_am_va_toan_phan(self):
-        for t in (tp("101", "USD"), tp(phan="TOAN_PHAN")):
-            self.assertEqual(GN.phan_khai_con_thieu(dot(), [t])[0]["so_tien_con_thieu"], "0")
+    def test_khai_vuot_co_co_khong_suy_con_thieu_bang_khong(self):
+        for tt in ("VND", "USD"):
+            with self.subTest(tt=tt):
+                r = GN.phan_khai_con_thieu(dot(tien_te=tt), [tp("101", tt)])[0]
+                self.assertIsNone(r["so_tien_con_thieu"])
+                self.assertEqual(r["ly_do"], "KHAI_VUOT_GIA_TRI_DOT")
+
+    def test_khai_bang_va_toan_phan_con_thieu_bang_khong(self):
+        for d, t in ((dot(), tp("100", "USD")), (dot(), tp(phan="TOAN_PHAN")),
+                     (dot(gia_tri="0"), tp(phan="TOAN_PHAN"))):
+            with self.subTest(d=d, t=t):
+                r = GN.phan_khai_con_thieu(d, [t])[0]
+                self.assertEqual(r["so_tien_con_thieu"], "0")
+                self.assertIsNone(r["ly_do"])
 
     def test_khong_suy_tien_te_khac_va_thieu_du_lieu(self):
         for d, t, ly in ((dot(), tp("20", "VND"), "TIEN_TE_KHAC"),
@@ -186,6 +199,20 @@ class GoiYThuan(unittest.TestCase):
         r = GN.xep_hang_hoa_don(dot(), [hd(2, so="0")])[0]
         self.assertEqual(r["so_tien_doc_duoc"], "0")
         self.assertEqual(r["tin_hieu"]["chenh_so_tien"], "100")
+
+    def test_vnd_phan_le_toan_khong_chi_duoc_doc_tin_hieu(self):
+        d = dot(gia_tri="1000000", tien_te="VND")
+        for so in ("1100000.00", "1100000.000", "1100000.50"):
+            with self.subTest(so=so):
+                r = GN.xep_hang_hoa_don(d, [hd(2, so=so, tien_te="VND")])[0]
+                if so == "1100000.50":
+                    self.assertIsNone(r["so_tien_doc_duoc"])
+                    self.assertIsNone(r["tin_hieu"]["chenh_so_tien"])
+                else:
+                    self.assertEqual(r["so_tien_doc_duoc"], "1100000")
+                    self.assertEqual(r["tin_hieu"]["chenh_so_tien"], "100000")
+                with self.assertRaises(DataError):
+                    GN.parse_so_tien(so, "VND")
 
     def test_tien_chinh_xac_khong_float(self):
         d = dot(gia_tri="999999999999999999.99")
@@ -289,9 +316,8 @@ class LoiGanTrungDichVu(unittest.TestCase):
                         with self.assertRaises(DataError) as cm:
                             fn("kt-demo", body)
                     self.assertEqual(cm.exception.code, "DC_HOA_DON_DA_GAN")
-                    # Lưu: theo thứ tự body ban đầu; xác nhận: theo thành phần
-                    # đã chuẩn hóa trong revision (HOA_DON trước NT).
-                    self.assertEqual(cm.exception.locator, f"thanh_phan.{0 if xac_nhan else 1}.nguon")
+                    # Lưu theo thứ tự body ban đầu; xác nhận không có danh sách gửi lên.
+                    self.assertEqual(cm.exception.locator, "$" if xac_nhan else "thanh_phan.1.nguon")
                     self.assertIn("đã gắn ở đối chiếu DEMO-A", str(cm.exception))
                     self.assertNotIn("bí mật", str(cm.exception))
                     self.assertEqual(GN.MA_HTTP[cm.exception.code], 409)
@@ -299,7 +325,7 @@ class LoiGanTrungDichVu(unittest.TestCase):
     def test_ngoai_quyen_khong_them_dinh_danh_detail_hong_khong_mat_loi(self):
         for detail in ("không phải JSON", "[]", "null", '{}'):
             with self.subTest(detail=detail), self.assertRaises(DataError) as cm:
-                with GN._loi_gan_trung([ref(2, "HOA_DON")]):
+                with GN._loi_gan_trung([ref(2, "HOA_DON")], khi_luu=True):
                     raise self.LoiPG("DC_HOA_DON_DA_GAN: Hóa đơn đã gắn ở đối chiếu ngoài phạm vi.", detail)
             self.assertEqual(cm.exception.locator, "thanh_phan")
             self.assertEqual(str(cm.exception), "Hóa đơn đã gắn ở đối chiếu ngoài phạm vi.")
@@ -307,7 +333,7 @@ class LoiGanTrungDichVu(unittest.TestCase):
     def test_loi_khac_va_data_error_giu_nguyen(self):
         for err in (self.LoiPG("DC_REVISION_CU: tải lại"), RuntimeError("demo"), DataError("DEMO", "demo")):
             with self.subTest(err=err), self.assertRaises(type(err)) as cm:
-                with GN._loi_gan_trung([]):
+                with GN._loi_gan_trung([], khi_luu=True):
                     raise err
             self.assertIs(cm.exception, err)
 
