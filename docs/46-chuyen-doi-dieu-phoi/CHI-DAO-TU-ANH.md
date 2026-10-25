@@ -62,3 +62,43 @@
 6. Lát nhỏ ≤ 3 file theo CD-004; review `kiem-nhanh` → `review-lat`; tiêu chí đạt theo bảng TL 45 §8. Phối hợp khóa `crm_g.js`/`style.css` với UI-1.
 **Báo Anh khi:** phiếu cổng A lần 2 sẵn sàng (ca thử: 26.500.000.000 VND, nhập nhanh 10/30/40/10%).
 **Trạng thái:** ĐÃ NHẬN 22:06 25/10 — chia lát BG-e1…BG-e4 theo thứ tự TL 45 §8 (BG-20, BG-21, BG-19 → BG-18, BG-24 → BG-22, BG-23), làm trên dòng giao diện CRM `lat/ui-1` (= BG-1d + DA-2 + UI-1/UI-2) để không sửa chồng `crm_g.js`/`style.css`; các lát chạm `crm_g.js` làm tuần tự
+
+## CD-006 · 25/10/2026 22:15 · Gộp BG-1d + DA-2 ngay; mốc thanh toán do từng dự án tự khai
+**Căn cứ:** Anh chốt 25/10 22:10 qua bảng lựa chọn (Anh nhận xét "chưa thấy phần danh mục dự án bán hàng" trên DEMO; mốc "Xong CNDT" = **Xong chứng nhận đầu tư**); TL 45 §7 mục 4 và §8 BG-23 (cập nhật 22:15); `THIET-KE-DU-AN-DANG-BAN.md`.
+**Việc:**
+1. **Gộp ngay `lat/bg-1d` + `lat/da-2`** vào nhánh hợp nhất, khởi động lại DEMO để Anh thấy màn **Dự án đang bán** (sáng 26/10). Không chờ BG-18…24; 7 điểm của CD-005 làm tiếp trên nền đã gộp. Ghi trong `TRANG-THAI.md`: cổng A BG-1d chưa đạt, gộp theo lệnh Anh.
+2. **Mốc thanh toán theo dự án (lát mới, ≤ 3 file mỗi lát):** màn Dự án đang bán thêm mục **"Mốc thanh toán của dự án"** — dự án tự khai tên mốc (vd "Xong chứng nhận đầu tư"), có phiên bản + nhật ký như các thông số khác của dự án; dự án chưa khai chỉ có **mốc cơ bản** (Ký · Bàn giao · Sổ · Sau ký + n ngày · ngày cố định). Không thêm mốc riêng vào danh mục chung.
+3. Báo giá: ô Mốc thời gian lấy danh sách **mốc cơ bản + mốc của dự án đã chọn**; nhận gõ tắt không dấu khớp tên mốc của dự án (vd `cndt`/`CNĐT` → "Xong chứng nhận đầu tư" nếu dự án đã khai); báo lỗi theo BG-23.
+4. DEMO: khai mẫu mốc "Xong chứng nhận đầu tư" cho một dự án KCN DEMO để Anh thử.
+**Báo Anh khi:** DEMO đã có màn Dự án đang bán; lát mốc dự án sẵn sàng thử.
+**Trạng thái:** MỚI
+
+## CD-007 · 25/10/2026 22:20 · Mốc dự án có ngày dự kiến và ngày thực tế (bổ sung CD-006 mục 2)
+**Căn cứ:** Anh chốt 25/10 22:10: "nếu mốc chưa có ngày thì không đếm được quá hạn, khi đó nêu ngày dự kiến, khi hết ngày dự kiến vẫn chưa làm xong thì sẽ cho chỉnh ngày dự kiến đó"; TL 45 §7 mục 5.
+**Việc (gộp vào lát mốc dự án của CD-006):**
+1. Mỗi mốc dự án có **ngày dự kiến** (bắt buộc khi khai) và **ngày thực tế** (ghi khi xảy ra).
+2. Chưa có ngày thực tế: đợt gắn mốc hiện "dự kiến dd/mm/yyyy" ở Báo giá, Lịch nghĩa vụ, Danh sách hợp đồng (cột Đợt kế tiếp); **không đếm quá hạn**.
+3. Qua ngày dự kiến mà chưa có ngày thực tế: tạo việc chờ "Chỉnh ngày dự kiến mốc …" cho người phụ trách dự án (đếm vào số trên icon theo TL 49); chỉnh ngày dự kiến bắt buộc lý do, ghi nhật ký cũ → mới, ai, lúc nào.
+4. Ghi ngày thực tế: đợt gắn mốc có ngày đến hạn = ngày thực tế (+ n ngày nếu đợt khai) → đếm đến hạn/quá hạn như đợt ngày cố định; ghi nhật ký.
+5. Test: mốc chưa có ngày thực tế không vào danh sách quá hạn; qua ngày dự kiến sinh đúng 1 việc chờ; ghi ngày thực tế → đợt đổi trạng thái đúng.
+**Trạng thái:** MỚI
+
+## CD-008 · 25/10/2026 22:25 · CHẠY ĐÊM 25→26/10 (không có Anh), báo cáo lúc 05:45
+**Căn cứ:** Anh yêu cầu 25/10 22:13 "điều phối máy chạy đêm nay, các module và lát cắt thực hiện tuần tự, sáng mai 6h báo cáo điều phối, việc đã làm và chưa làm"; Anh chốt 22:20 dùng **mức 6 worker như CD-004** cả đêm.
+**Khung:** từ khi nhận đến **05:30 26/10** giao lát; 05:30–05:45 chỉ thu lát đang chạy, kiểm, gộp; **05:45 viết báo cáo**; sau đó dừng giao việc.
+**Thứ tự ưu tiên (làm theo thứ tự, mỗi module lát nối tiếp theo phụ thuộc; các module khác nhau chạy song song tới mức CD-004):**
+1. **DEMO mở được có CRM** (L0-10) — để 6h Anh kiểm cổng A Báo giá và Trang chủ lưới icon.
+2. CD-006 bước 1: gộp `lat/bg-1d` + `lat/da-2` vào hợp nhất; DEMO có màn Dự án đang bán.
+3. CD-005: BG-e1…BG-e4 (BG-18…24) → **phiếu cổng A lần 2 Báo giá sẵn trước 6h**.
+4. CD-006 bước 2–4 + CD-007: mốc thanh toán theo dự án (ngày dự kiến / thực tế).
+5. UI-2b; UI-3 dựng trên `lat/ui-1` (**không gộp UI-1/UI-3** khi Anh chưa qua cổng A).
+6. Hàng đợi còn lại trong `4-KE-HOACH-LEAD.md` theo thứ tự (AI-3, M4-5b, …).
+**Quy tắc đêm:**
+- Việc cần Anh quyết → **không chờ**: ghi vào báo cáo mục "Cần Anh", chuyển lát kế.
+- Mỗi lát: `kiem-nhanh` → `review-lat` (Opus) → gộp **nhánh hợp nhất** chỉ khi xanh so nền; đỏ → giữ nhánh, ghi lý do. Không gộp `chinh`, không push GitHub, không xóa file, không đụng kho thật (ràng buộc `CLAUDE.md`).
+- Một lát lỗi/không đạt **2 lần** → dừng lát đó, ghi lý do, sang lát khác (không quay vòng).
+- Ngừng giao thêm khi > 2 lát chờ review, xung đột test giữa lát, hoặc chạm hạn mức gói: Claude chạm hạn mức → ghi giờ, để Codex chạy hết lát đã giao, chỉ giao Codex lát không cần review Opus ngay (review dồn sáng); Codex chạm hạn mức → ghi giờ, chuyển lát cho Claude Sonnet nếu còn hạn mức.
+- Không khởi động lại máy, không cập nhật phần mềm, không dừng dịch vụ PostgreSQL.
+- Nhật ký CD-003 đủ từng lát (worker, model, giờ, vòng review, test).
+**05:45 viết `docs\46-chuyen-doi-dieu-phoi\bao-cao-ngay\BAO-CAO-DEM-20261026.md`:** §1 Kết luận (≤ 5 dòng) · §2 Đã xong (lát, commit, test so nền, gộp chưa) · §3 Chưa xong / bị chặn + lý do · §4 Cần Anh quyết · §5 Anh kiểm gì lúc 6h (cổng A nào, DEMO cổng nào, phiếu nào) · §6 Số liệu (giờ chạy từng khối, số worker cao nhất, Claude/Codex, model, vòng review, `/usage` nếu có). Cập nhật dòng Trạng thái của CD-005…CD-008.
+**Trạng thái:** MỚI
