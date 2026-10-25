@@ -551,9 +551,10 @@
     DC_XAC_NHAN_KHAC_NHAP: "Nội dung khác bản nháp — lưu nháp mới rồi xác nhận lại.",
     DC_DANH_TINH: "Phiên đăng nhập không còn hợp lệ — đăng nhập lại rồi tải lại căn cứ."
   };
-  function dcLoiMayChu(d) {
+  function dcLoiMayChu(d, chiDoc) {
     const code = [d && d.error, d && d.message].map(v => typeof v === "string" ? v.match(/\bDC_[A-Z_]+\b/) : null).find(Boolean);
-    return code && DC_LOI[code[0]] || "Không lưu được — tải lại rồi thử lại.";
+    if (!code) return dcChu(d && d.message) || "Chưa xử lý được yêu cầu — tải lại rồi thử lại.";
+    return DC_LOI[code[0]] || (chiDoc ? "Không đọc được — tải lại rồi thử lại." : "Không lưu được — tải lại rồi thử lại.");
   }
   function dcNhanDot(d) {
     return [d.so_dot != null ? "Đợt " + d.so_dot : "Đợt đã xác nhận", d.ngay_nghiem_thu ? dcNgay(d.ngay_nghiem_thu) : null,
@@ -586,7 +587,7 @@
       headers: {"X-KTT-Token": TOKEN, ...(body ? {"Content-Type": "application/json"} : {})}, ...(body ? {body: typeof body === "string" ? body : JSON.stringify(body)} : {})}); }
     catch (_) { throw new Error(MAT_KET_NOI + "."); }
     let d; try { d = await res.json(); } catch (_) { throw new Error("Phản hồi không trọn; hãy tải lại căn cứ."); }
-    if (!res.ok) { const e = new Error(dcLoiMayChu(d)); e.reload = e.message === DC_DOI; e.status = res.status; e.known = res.status < 500; throw e; }
+    if (!res.ok) { const e = new Error(dcLoiMayChu(d, !body)); e.reload = e.message === DC_DOI; e.status = res.status; e.known = res.status < 500; throw e; }
     if (!d || d.schema !== DC_SCHEMA) throw new Error("Dữ liệu đối chiếu chưa hợp lệ; hãy tải lại căn cứ.");
     return d;
   }
@@ -690,10 +691,10 @@
   async function dcDocDot(id, ungVien = false) {
     let res;
     try { res = await fetch("/api/m4/ke-toan/" + id, {headers: {"X-KTT-Token": TOKEN}, credentials: "same-origin", cache: "no-store"}); }
-    catch (_) { throw new Error(MAT_KET_NOI + "."); }
-    let d; try { d = await res.json(); } catch (_) { throw new Error("Phản hồi không trọn; hãy tải lại căn cứ."); }
+    catch (_) { if (ungVien) return null; throw new Error(MAT_KET_NOI + "."); }
+    let d; try { d = await res.json(); } catch (_) { if (ungVien) return null; throw new Error("Phản hồi không trọn; hãy tải lại căn cứ."); }
     if (!res.ok || !d || !d.context || !d.quyen || d.quyen.xem !== true || d.can_cu_hien_hanh !== true || !d.kt || d.kt.trang_thai !== DA_XAC_NHAN) {
-      if (ungVien && (res.ok || res.status === 403 || res.status === 404)) return null;
+      if (ungVien) return null;
       throw new Error("Chỉ chọn đợt đã xác nhận, hiện hành và cùng hợp đồng.");
     }
     return d;
