@@ -1350,6 +1350,11 @@ class CrmGiaoKetK2:
                                                    (b["loai_hinh_id"],))]
             da = m._mot(c, "SELECT ten FROM master.du_an WHERE id = %s", (b["du_an_id"],)) if b["du_an_id"] else None
             moc_du_an = self._nhan_moc_du_an(c, b["du_lieu"])
+            nguoi = m._mot(c, "SELECT ten FROM master.nguoi_dung WHERE dang_nhap = %s", (b["tao_boi"],))
+            ten_nguoi_lap = (nguoi.get("ten") or "").strip() if nguoi else ""
+            if not ten_nguoi_lap:
+                ten_nguoi_lap = ("Người dùng mô phỏng" if (b["tao_boi"] or "").startswith(("MO_PHONG_", "DEMO_"))
+                                 else "Người lập báo giá")
         d = b["du_lieu"]
         # BG-1c: cổng In tính lại từ dữ liệu đã chụp theo luật hiện hành (In sơ bộ không đòi khách/phí — QD-20261025-03), không dùng kết quả cũ
         t = tinh_bao_gia(d, b.get("g7"))
@@ -1402,7 +1407,7 @@ class CrmGiaoKetK2:
             pbt = f"Phí bảo trì (khai riêng, không gộp lịch thanh toán): {R.tien_hien_thi(mi, d['phi_bao_tri']['tien_te'])}" + \
                   (f" — {d['phi_bao_tri']['co_so']}" if d["phi_bao_tri"]["co_so"] else "")
         ten_khach = ten_khach or "Quý khách hàng"
-        nd = {"so_bao_gia": b["so_bao_gia"], "ngay": R.ngay_hien_thi(b["ngay"], "dd/MM/yyyy"), "nguoi_lap": b["tao_boi"],
+        nd = {"so_bao_gia": b["so_bao_gia"], "ngay": R.ngay_hien_thi(b["ngay"], "dd/MM/yyyy"), "nguoi_lap": ten_nguoi_lap,
               "het_han": R.ngay_hien_thi(d["het_han"], "dd/MM/yyyy") if d["het_han"] else None, "khach": ten_khach, "thong_tin": thong_tin,
               "lich": lich, "fx_cau": fx_cau, "phi_bao_tri": pbt, "dieu_khoan": dk}
         # FIX01 #12: nội dung kỳ vọng ĐẦY ĐỦ từ dữ liệu typed đã chụp — số/ngày/người lập/khách/thông tin giá/từng dòng lịch (lần/giá trị/mốc/ghi chú)/
