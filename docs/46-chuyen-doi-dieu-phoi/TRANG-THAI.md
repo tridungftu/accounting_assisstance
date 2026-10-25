@@ -67,7 +67,8 @@ Quy tắc áp cho mọi lát từ 25/10 (CD-001 việc 3): không lát nào vi�
 | MASK-2 | Claude | Opus | 20:31 | — | — | — |
 | L0-10 | Codex | gpt-6.1-sol · high | 20:38 | gộp 20:51 | review-lat Opus Đạt | Xanh — 46/46; DEMO 8798 chuẩn bị CRM chế độ DICH_VU |
 | L0-8f | Codex | gpt-6.1-sol · high | 20:47 | 20:44 (v1 dừng đúng: gốc ở helper test) | — | — |
-| L0-8f v2 | Codex | gpt-6.1-sol · high | 20:50 | — | — | — |
+| L0-8f v2 | Codex | gpt-6.1-sol · high | 20:50 | 20:55 | — | 7/7 thuần; 1 lỗi mock bộ chạy ngoài phạm vi (lead xử lý khi gộp); PG đang chạy |
+| L0-8e v2 | Codex | gpt-6.1-sol · high | 21:02 | — | — | — |
 | L0-10b | Codex | gpt-6.1-sol · high | 20:45 | gộp 21:00 | kiem-nhanh Đạt | Xanh — 52/52; kiểm thật dịch vụ khớp |
 | UI-1b | Codex | gpt-6.1-sol · high | 20:55 | — | — | — |
 | kiem-nhanh DA-3a v2 + AI-1b | Claude | Haiku | 20:12 | 20:15 | — | Đạt cả hai → gộp |
