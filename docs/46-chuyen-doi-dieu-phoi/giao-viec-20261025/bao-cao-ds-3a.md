@@ -1,0 +1,5 @@
+- Sửa `src/kho_tri_thuc/k2/crm_s1.py:175`: mốc ngừng có thực tế vẫn tính hạn + n; chưa có thực tế giữ `MOC_CHUA_CO_NGAY`.
+- Test tại `tests/test_crm_s1_moc_du_an.py:128,141,287,293`.
+- Trước: 39 test, đạt 25, skip 14. Sau: 41 test, đạt 26, skip 15; không lỗi mới.
+- Hai file UTF-8 không BOM; `git diff --check` đạt. PG chưa chạy.
+- Không commit. Thông điệp: `[DS-3a] Giữ hạn từ ngày thực tế của mốc đã ngừng dùng`.

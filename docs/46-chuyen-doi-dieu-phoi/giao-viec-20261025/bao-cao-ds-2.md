@@ -1,0 +1,5 @@
+- Sửa `src/kho_tri_thuc/giao_dien/khung_khai_bao.py:271`: `moc_cho` tính cả dự án ngừng bán; giữ nguyên bộ đếm khác.
+- Test `tests/test_khung_luoi_crm.py:138`: dự án ngừng bán có 1 việc chờ được tính vào icon.
+- Test khai báo trước/sau: **45/46**; chưa chạy được vì thiếu `python` trên PATH, gọi trực tiếp bị `Access denied`.
+- `git diff --check` đạt; hai file UTF-8 không BOM.
+- Không commit. Thông điệp: `[DS-2] Tính cả mốc chờ của dự án ngừng bán trên icon`

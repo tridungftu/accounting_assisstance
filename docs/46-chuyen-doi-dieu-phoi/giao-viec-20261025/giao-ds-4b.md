@@ -1,0 +1,3 @@
+# DS-4b — Sửa 1 nhãn sai nghĩa "Chưa ghi công nợ/AP (M4-03B)" (review lô DS)
+Bạn là worker Codex, chạy không tương tác. **Làm ngay, không hỏi lại.** UTF-8 không BOM — ghi tệp bằng UTF-8. Worktree hiện tại, nhánh `lat/ds-4`. Sandbox không ghi `.git`: **không commit**. Không mở server.
+Việc: `src/kho_tri_thuc/m4/giao_dien/m4_ke_toan.js` ~:968 "Chưa ghi công nợ/AP (M4-03B)" → không gán công nợ cho 03B (03B chỉ là đối chiếu căn cứ; công nợ nội bộ là gói sau, chưa thiết kế): vd "Chưa ghi công nợ/AP (gói sau)". Thêm assert trong `tests/m4_03b_async.cjs`: DOM không chứa "(M4-03B)". Chạy `node tests/m4_03b_async.cjs`, `node tests/m4_01c_async.cjs`. Báo cáo ≤ 4 dòng; thông điệp `[DS-4] vòng 2: …`.

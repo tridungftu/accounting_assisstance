@@ -1,0 +1,5 @@
+- `src/kho_tri_thuc/giao_dien/m4.py:613`: che message nội bộ 500, giữ mã lỗi.
+- `src/kho_tri_thuc/m4/giao_dien/m4_ke_toan.js:519,797,838,883`: giờ VN `dd/mm/yyyy hh:mm`, bỏ nhãn cũ.
+- Test thêm tại `tests/test_m4_03b_http.py:132`, `tests/m4_03b_async.cjs:72`.
+- Trước → sau: 03B **22/22 → 23/23**; HTTP **11/11 → 12/12**; 01C đều đạt; không lỗi mới.
+- UTF-8 không BOM; không commit. Thông điệp: `[DS-4] Che lỗi 500 đối chiếu, sửa nhãn và giờ Việt Nam`.

@@ -266,3 +266,14 @@ H3 phân loại 36 đầu việc: 19 gói đã nhập `hop-nhat`, 13 xung đột
 - Review Opus đêm: MDA-1a (Không đạt → v2), BG cụm, AI-3, KY-DOCX, MDA cụm, dòng giao diện (10 lát), M4-5b, lô 7 lát — **8 lượt**, không lát nào gộp khi còn Chặn.
 - **Nền PG v3** (01:28, hop-nhat 7e9b915): 2433/20/66/66, 132 module, 0 mã mới so v2 — `nen-test-hop-nhat-pg-v3.json`.
 - Phiếu cổng A lần 2: `PHIEU-CONG-A-BAO-GIA-LAN-2.md` (DEMO 8798 = `lat/ui-dem`, khởi động lại 01:33 nạp UI-3d + BG-e7s).
+
+### Nhật ký lát đêm — cập nhật 02:20
+
+| Lát | Worker · model | Giao → xong | Nhánh · commit | Kiểm / review | Test | Gộp |
+|---|---|---|---|---|---|---|
+| DS-1 / DS-2 | Codex | 01:37 → 01:39 | lat/ds-1, lat/ds-2 | review lô DS Đạt | node 4 bộ; 46/46 | ui-dem |
+| DS-3a | Codex | 01:37 → 01:39 | lat/ds-3a | review lô DS Đạt | PG 64 ok 0 skip | **hợp nhất dd06a08** |
+| DS-4 (+ vòng 2) | Codex | 01:37 → 01:51 | lat/ds-4 | review lô DS Đạt (nhãn dòng 968 → vòng 2) | PG 41 ok; 03B 23/23 | **hợp nhất d0baee2** |
+| DA-6 | Codex | 02:15 → 02:13* | lat/da-6 | lead thử trình duyệt: mở thẳng Dự án đang bán sau tải trang → nạp được | node dự án 44/44 | ui-dem |
+
+\* DA-6 giao 02:12, xong 02:13 (lát 2 tệp). Dòng giao diện cuối đêm `lat/ui-dem` 3ddad66 = hợp nhất d0baee2 + toàn bộ lát giao diện; DEMO 8798 khởi động lại 02:16 từ bản này. PG cả bộ trên `lat/ui-dem` đang chạy.
