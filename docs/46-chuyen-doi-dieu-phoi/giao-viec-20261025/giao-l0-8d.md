@@ -1,0 +1,14 @@
+# L0-8d — Bộ chạy test: dựng họ bản sao "03a" để chạy test PostgreSQL M4-03A/03B (M4 · Nghiệm thu & chi phí dự án)
+
+Bạn là worker Codex, chạy không tương tác. Lead giao: **làm ngay, không hỏi lại**. Đọc `AGENTS.md`, `CLAUDE.md` (§2, §5 dòng "Test có PostgreSQL"). UTF-8 không BOM — **ghi tệp bằng UTF-8** (chữ tiếng Việt không được thành `?`). Worktree hiện tại, nhánh `lat/l0-8d` (từ hop-nhat, chuỗi migration 33, đã có M0033). Sandbox không ghi `.git`: **không commit**. **Không nối CSDL, không khởi động PostgreSQL** — lead chạy thử thật sau; bạn chỉ chạy test thuần/mock.
+
+**Vì sao:** `tools/chay_test_theo_module.py` đánh dấu họ `03a` là chưa hỗ trợ (`HO_CHUA_HO_TRO`, ~:420), nên `tests/test_m4_03a_pg.py` (13 ca) và `tests/test_m4_03b_common_pg.py` (18 ca, gồm c11–c18 kiểm SQL M0033 — tiền, gắn trùng hóa đơn, quyền) **chưa từng chạy** với `--pg-demo` (trước đây do Codex Root dựng tay). Mục tiêu: chạy được hai module này trên bản sao DEMO sở hữu, như các họ `02c`, `mc`, `04a` đang làm.
+
+**Việc:**
+1. Thêm họ `"03a"` vào `HO_CLONE` (~:409) theo đúng mẫu các họ hiện có: CSDL `kho_test_pgd_*` sở hữu, migrate lên chuỗi hiện hành, ghi biên nhận nguồn gốc, dọn sau module. Biến cấp cho tiến trình con theo đúng tên test đọc: `KHO_M4_03A_CLONE_DSN`, `_CLONE_APP_DSN`, `_CLONE_DB`, `_CLONE_PROVENANCE`, `KHO_M4_03A_M24_SHA256`, `KHO_M4_03A_VERSION`, `KHO_M4_03A_SHA256`, `KHO_M4_03A_KT1`, `_KT2`, `_KT_KHAC` (xem `tests/test_m4_03a_pg.py` ~:56-66 và phần `setUpClass` để biết dữ liệu/vai cần có), và cho 03B: `KHO_M4_03B_DA_AP_DUNG=1` (M0029 + M0033 đã trong chuỗi), `KHO_M4_03B_HOA_DON_ID`, `KHO_M4_03B_DONG_ID`, `KHO_M4_03B_CFO`, `KHO_M4_03B_XEM` (xem `tests/test_m4_03b_common_pg.py` ~:50-60, :94, :192-289, :413, :587, :788-796).
+2. Dữ liệu cho bản sao: **chỉ DEMO**, dựng bằng seed/hàm có sẵn của dự án (`k2/m4_demo.py`, `k2/m2_demo.py`, fixture DEMO M2) — không chèn giả lịch sử migration, không viết SQL vượt quyền; ca nào cần dữ liệu không dựng được bằng đường chính thức → để test tự skip `NOT_VERIFIED` như hiện nay và **liệt kê trong báo cáo**. Đặt phần dựng dữ liệu vào một tệp mới `tools/pg_demo_ho_03a.py` nếu dài.
+3. Bỏ `03a` khỏi `HO_CHUA_HO_TRO`; `ho_cua()` nhận đúng hai module trên.
+4. Test thuần trong `tests/test_chay_test_pg_demo.py`: họ `03a` được nhận diện cho đúng 2 module; danh sách biến đủ và không in/log DSN; tên CSDL khớp `^kho_test_[a-z0-9_]+$`; không đụng `kho_crm_demo*`.
+
+**File được sửa/tạo (≤ 3):** `tools/chay_test_theo_module.py`, `tools/pg_demo_ho_03a.py` (mới, nếu cần), `tests/test_chay_test_pg_demo.py`. Không xóa file, không sửa test M4 hay mã sản phẩm.
+**Báo cáo cuối (≤ ½ trang):** cách dựng họ 03a (tệp:dòng) · biến cấp cho từng module · ca nào dự kiến còn skip và vì sao · test · thông điệp commit `[L0-8d] …`. Lead sẽ chạy `--pg-demo --module test_m4_03a_pg --module test_m4_03b_common_pg`.
