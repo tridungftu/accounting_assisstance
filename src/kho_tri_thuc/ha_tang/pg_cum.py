@@ -15,7 +15,8 @@ Luồng (pg_ctl 16: status 0 = đang chạy, 3 = không chạy, 4 = không truy 
      dir (so đường dẫn đã chuẩn hóa, không so chuỗi con) → dùng lại; không xác minh được → lỗi, không đụng tiến trình;
      status 3 hoặc exe/cmd không đọc được: chỉ dùng lại dịch vụ khi postmaster.pid khớp PID nghe/data/cổng/ready và dịch vụ RUNNING
      có đúng pg_ctl runservice -D data directory đã định danh;
-  4. không chạy (mã 3) và cổng KHÔNG có tiến trình nào nghe → `pg_ctl start -D <data> -l <log mới> -w -t <giây> -o "-h <host> -p <port>"`
+  4. không chạy (mã 3) và cổng KHÔNG có tiến trình nào nghe: có dịch vụ đúng cluster → báo chờ/bật dịch vụ, không start tay;
+     không có dịch vụ → `pg_ctl start -D <data> -l <log mới> -w -t <giây> -o "-h <host> -p <port>"`
      (ẩn cửa sổ, argv không DSN/mật khẩu); cổng bị tiến trình khác chiếm → lỗi, không giành cổng;
   5. start trả lỗi/timeout → kiểm status + định danh lại MỘT lần (server có thể vẫn đang lên); không spawn lại, không xóa lock.
 Log mỗi lần start là tệp mới `pg-start-<UTC>-<pid>-<nonce>.log` (tạo độc quyền trước, không ghi đè/xóa log cũ).
@@ -141,13 +142,16 @@ class HeDieuHanh:
                                r"[regex]::Replace($json, '[^\x00-\x7F]', { param($m) '\u{0:x4}' -f [int][char]$m.Value })"])
         if code != 0 or not out.strip():
             return []
-        try:
-            v = json.loads(out.strip().splitlines()[-1])
-        except ValueError:
-            return []
-        if isinstance(v, dict):
-            return [v]
-        return [s for s in v if isinstance(s, dict)] if isinstance(v, list) else []
+        for dong in out.splitlines():
+            try:
+                v = json.loads(dong)
+            except ValueError:
+                continue
+            if isinstance(v, dict):
+                return [v]
+            if isinstance(v, list):
+                return [s for s in v if isinstance(s, dict)]
+        return []
 
 
 # ------------------------------------------------------------------ khóa tuần tự theo cluster
@@ -225,6 +229,26 @@ def _doi_so_D(cmd: str) -> str | None:
     return (m.group(1) or m.group(2)) if m else None
 
 
+def _dich_vu_cua_cum(cum: Cum, hdh: HeDieuHanh) -> list[dict]:
+    dich_vu = []
+    for dv in hdh.dich_vu_pg():
+        # Tách đối số có dấu nháy: -D nằm trong chuỗi -o không phải data directory của service.
+        argv = [a[1:-1] if a.startswith('"') else a for a in re.findall(r'"[^"\r\n]*"|[^\s"]+', dv.get("PathName") or "")]
+        if len(argv) < 4 or _chuan(argv[0]) != _chuan(cum.pg_ctl) or argv[1] != "runservice" or argv.count("-D") != 1:
+            continue
+        i = argv.index("-D")
+        if i + 1 < len(argv) and _chuan(argv[i + 1]) == _chuan(cum.data_dir):
+            dich_vu.append(dv)
+    return dich_vu
+
+
+def _kiem_bang_chung_tien_trinh(cum: Cum, tt: dict | None) -> None:
+    exe, cmd = (tt.get("exe"), tt.get("cmd")) if tt else (None, None)
+    d = _doi_so_D(cmd)
+    if (exe and _chuan(exe) != _chuan(cum.postgres)) or (cmd and (not d or _chuan(d) != _chuan(cum.data_dir))):
+        raise DataError("CUM_KHONG_XAC_MINH", "Thông tin tiến trình PostgreSQL trái với runtime hoặc data directory đã định danh.")
+
+
 def _dung_dich_vu(cum: Cum, nghe: int | None, hdh: HeDieuHanh) -> bool:
     """Cả PID file lẫn dịch vụ phải chứng minh đúng cluster; không tin status dịch vụ đơn lẻ."""
     dong = hdh.doc_postmaster_pid(cum.data_dir)
@@ -236,16 +260,11 @@ def _dung_dich_vu(cum: Cum, nghe: int | None, hdh: HeDieuHanh) -> bool:
             return False
     except ValueError:
         return False
-    for dv in hdh.dich_vu_pg():
+    for dv in _dich_vu_cua_cum(cum, hdh):
         if str(dv.get("State", "")).upper() != "RUNNING":
             continue
-        # Tách đối số có dấu nháy: -D nằm trong chuỗi -o không phải data directory của service.
-        argv = [a[1:-1] if a.startswith('"') else a for a in re.findall(r'"[^"\r\n]*"|[^\s"]+', dv.get("PathName") or "")]
-        if len(argv) < 4 or _chuan(argv[0]) != _chuan(cum.pg_ctl) or argv[1] != "runservice" or argv.count("-D") != 1:
-            continue
-        i = argv.index("-D")
-        if i + 1 < len(argv) and _chuan(argv[i + 1]) == _chuan(cum.data_dir):
-            return True
+        _kiem_bang_chung_tien_trinh(cum, hdh.tien_trinh(nghe))
+        return True
     return False
 
 
@@ -254,6 +273,7 @@ def _xac_minh_dang_chay(cum: Cum, pid: int | None, hdh: HeDieuHanh) -> tuple[int
     if pid is None or nghe != pid:
         raise DataError("CUM_KHONG_XAC_MINH", f"Tiến trình đang nghe {cum.host}:{cum.port} không phải cluster đã định danh (không đụng tới tiến trình đó).")
     tt = hdh.tien_trinh(pid)
+    _kiem_bang_chung_tien_trinh(cum, tt)
     if (not tt or not tt.get("exe") or not tt.get("cmd")) and _dung_dich_vu(cum, nghe, hdh):
         return pid, "DICH_VU"
     d = _doi_so_D(tt.get("cmd")) if tt else None
@@ -293,6 +313,11 @@ def bao_dam_cum(cum: Cum, thu_muc_log: Path, thu_muc_khoa: Path, *, hdh: HeDieuH
             if _dung_dich_vu(cum, nghe, hdh):
                 return {"ket_qua": "DUNG_LAI", "pid": nghe, "endpoint": f"{cum.host}:{cum.port}", "che_do": "DICH_VU"}
             raise DataError("CUM_CONG_BI_CHIEM", f"Cổng {cum.host}:{cum.port} đang bị tiến trình khác dùng — không khởi động, không giành cổng.")
+        dich_vu = _dich_vu_cua_cum(cum, hdh)
+        if any(str(dv.get("State", "")).upper() != "STOPPED" for dv in dich_vu):
+            raise DataError("CUM_DICH_VU_DANG_LEN", "Dịch vụ PostgreSQL DEMO đang khởi động hoặc chưa dừng — chờ rồi thử lại.")
+        if dich_vu:
+            raise DataError("CUM_DICH_VU_DUNG", "Dịch vụ PostgreSQL DEMO đang dừng — bật dịch vụ ktt-postgres-demo.")
         log = _log_moi(thu_muc_log)
         code, _ = hdh.chay([str(cum.pg_ctl), "start", "-D", str(cum.data_dir), "-l", str(log), "-w", "-t", str(int(timeout_start)),
                             "-o", f"-h {cum.host} -p {int(cum.port)}"], timeout=timeout_start + 15)
