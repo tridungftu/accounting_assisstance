@@ -8,11 +8,12 @@ Trạng thái lát: Đang code → Chờ kiểm → Chờ Anh (cổng A/B) → S
 |---|---|---|---|---|---|
 | BG-1d | CRM · Báo giá màn hình 2 bước (BG-1b + BG-1d) | Claude Sonnet · review Codex | `lat/bg-1d` · DEMO 8791 | 25/10 | Chờ Anh — cổng A xem lại (`PHIEU-CONG-A-BAO-GIA-XEM-LAI.md`) |
 | DA-2 | CRM · màn Dự án đang bán (xem + thêm/sửa; ẩn luồng CFO) | Codex · review Claude | `lat/da-2` (= bg-1d + da-1) | 25/10 | Xong code đến DA-2c (33a2e29); review Đạt; chờ BG-1d qua cổng A để gộp |
-| M4-5a | M4 · Nghiệm thu & chi phí dự án · 03B máy chủ: khai một phần bằng số tiền + gợi ý hóa đơn — **M0033** | Codex · review Claude | `lat/m4-5a` | 25/10 19:16 (vòng 3) | Review vòng 1 Đạt → **vòng 3 đang code** (A1 khai vượt, A2 locator, A4 VND "…00"); sau đó lead chạy ca PostgreSQL c11–c18 trên CSDL có M0033 rồi gộp |
-| DA-3a | CRM · Báo giá nạp mặc định từ Dự án đang bán, ghi nhận khác tiêu chuẩn | Codex · review Claude | `lat/da-3a` (c077a83) | 25/10 | Review Đạt; chờ chỗ trống sửa **B1** (lead quyết: chỉ chặn dự án Ngừng bán khi tạo mới/đổi dự án/có lô; nháp cũ vẫn lưu được, ghi khác tiêu chuẩn) + chạy ca PostgreSQL |
-| T-MIG2 | Test PostgreSQL theo chuỗi migration mới | Codex | `lat/t-mig2` (26e9c35) | 25/10 | Còn 1 mã lỗi mới (`test_crm_k2.test_t21…`); lead xem nhật ký dựng bản sao G6A trước khi giao vòng 3 |
-| UI-1 | Khung lưới icon dùng chung + áp CRM 6 phần (CD-002) | Claude Sonnet | `lat/ui-1` (= da-2 + hop-nhat) | 25/10 | **Đang code** (worker Claude Sonnet, giao 19:21) |
-| UI-2 | Máy chủ `GET /api/khung/module/crm` (CD-002) | Codex | `lat/ui-2` | 25/10 19:16 | Đang code |
+| M4-5a | M4 · Nghiệm thu & chi phí dự án · 03B máy chủ: khai một phần bằng số tiền + gợi ý hóa đơn — **M0033** | Codex · review Claude | `lat/m4-5a` | 25/10 19:16 (vòng 3) | **XONG — đã gộp 834a53c** (M0033). **Nợ đã trả 25/10 21:05:** 21 ca PG `test_m4_03b_common_pg` (gồm SQL M0033) đạt thật trên bản sao 03a (nhờ L0-8d/8e/8f), c16 skip có chủ đích |
+| DA-3a | CRM · Báo giá nạp mặc định từ Dự án đang bán, ghi nhận khác tiêu chuẩn | Codex · review Claude | `lat/da-3a` (c077a83) | 25/10 | **XONG — đã gộp** (vòng 2 B1; kiem-nhanh Đạt; PG 29/29 + 16/16) |
+| T-MIG2 | Test PostgreSQL theo chuỗi migration mới | Codex | `lat/t-mig2` (26e9c35) | 25/10 | `t21` hết sau **L0-9b** (gốc: 8 fixture L11 bị L0-9 ép LF, lệch ghim SHA) — `test_crm_k2` chỉ còn lỗi có sẵn của nền; chờ chạy lại cả bộ PG → `kiem-nhanh` → `review-lat` → gộp |
+| UI-1 | Khung lưới icon dùng chung + áp CRM 6 phần (CD-002) | Claude Sonnet | `lat/ui-1` (= da-2 + hop-nhat) | 25/10 | **Chờ Anh — cổng A** (DEMO 8798; phiếu `PHIEU-CONG-A-TRANG-CHU-LUOI-ICON.md`); UI-1b sửa lỗi lần tải đầu xong; gộp sau cổng A + BG-1d |
+| UI-2 | Máy chủ `GET /api/khung/module/crm` (CD-002) | Codex | `lat/ui-2` | 25/10 19:16 | **XONG — đã gộp af7c389**: kiem-nhanh Đạt, review-lat Opus Đạt (3 Nên sửa → **UI-2b** chờ chỗ trống: số icon theo TL 42 §3, không trả tổng cắt); lead còn gọi thử `/api/khung/module/crm` 4 vai trên DEMO khi chuẩn bị cổng A |
+| L0-10 | **Bị chặn mở DEMO có CRM** từ 19:46 (sau khi cụm chạy dịch vụ Windows): `pg_ctl status` dưới tài khoản người dùng báo 3, không đọc được tiến trình dịch vụ → `pg_cum.bao_dam_cum` báo CUM_CONG_BI_CHIEM; ảnh hưởng `mo_demo_worktree.ps1` và `MỞ BẢN DEMO.cmd` | Codex | `lat/l0-10` | 25/10 20:38 | **XONG — đã gộp c199a05** (review Opus Đạt); điểm Nên sửa/Để sau → L0-10b đang code |
 | M2j-b | Sửa nóng `app.js`: bộ lọc "Lần tải" (M2j) làm vỡ 16 bộ test node (DOM giả không có phần tử cha) | Lead | `hop-nhat` | 25/10 19:08 | **Xong** — sửa 1 dòng; 16 → 7 bộ node không đạt, cả 7 cũng không đạt trên nền v4 (lỗi có sẵn) |
 
 ## Cổng AI (CD-001, TL 48 — Anh chốt 25/10: Local luôn có, Cloud chỉ qua Mask file v2)
@@ -21,10 +22,10 @@ Trạng thái lát: Đang code → Chờ kiểm → Chờ Anh (cổng A/B) → S
 |---|---|---|---|---|
 | AI-0a | Tạm khóa Cloud trực tiếp của engine #6 **bản độc lập** (`D:\Claude\Ho tro review ho so xay dung\review_xaydung`; mã ngoài git — lead sao lưu kèm SHA vào `LUU-TRU\ai-0a-sao-luu-review_xaydung-20261025-175621`) | Claude (Codex lỗi sandbox) | — | **Xong** 25/10 — 18 ca test mới đạt; 9 test Cloud cũ thất bại đúng thiết kế → AI-3 |
 | AI-0b | Tạm khóa Cloud trực tiếp ở bản engine trong repo (`m4\review_goc\trich_xuat\cloud.py`, `ai_cloud.py`) + cập nhật ghim SHA `nguon_review.py` | Codex | — | **Xong, đã gộp** (06fa717) |
-| AI-1 | Cổng Local AI (`tri_thuc\ai_cuc_bo.py`) gọi được LAN/Tailscale, kiểm tra như `privacy\local_ai.py` của Mask v2; test bằng máy AI giả | Codex | — | **Xong, đã gộp** (cfdf33c) — 40/40 test; chỉ IP loopback/RFC1918/Tailscale, không DNS/HTTPS/proxy |
-| MASK-1 | Chế độ API của Mask v2 (che / mở che / còn sót; khóa Bearer; chỉ 127.0.0.1) — làm trong thư mục Mask v2 theo `CLAUDE.md` của nó (không git, CHANGELOG, test + benchmark độ phủ không giảm; không đọc/sửa `data\`, `*.maskvault`, `*.maskkeep`, `*.key`) | Claude Opus | — | **Xong code** (Mask v2 2.7.0, 19 test mới; benchmark không giảm) → review Claude đang chạy; **2 câu chờ Anh** (lưu cụm mới chờ duyệt; dùng danh mục khi phiên giao diện hết hạn) |
-| MASK-2 | Đưa "định danh đã biết" và kiểm `dau_vet` của `AnDanh` vào lõi Mask v2; đo lại độ phủ | Claude | MASK-1 | Chờ |
-| AI-2 | Cổng AI dùng chung: định tuyến loại việc, Cloud qua Mask API, nhật ký `nhat_ky.cong_ai_goi`, công tắc tắt Cloud | Claude | AI-1, MASK-1 | Chờ |
+| AI-1 | Cổng Local AI (`tri_thuc\ai_cuc_bo.py`) gọi được LAN/Tailscale, kiểm tra như `privacy\local_ai.py` của Mask v2; test bằng máy AI giả | Codex | — | **Xong, đã gộp** (cfdf33c) — 40/40; review-lat sau gộp **Đạt**, 3 Nên sửa → lát **AI-1b** (Codex, chờ chỗ trống: `localhost`, LM Studio `/api/tags`, nhớ lỗi 15 giây, chuẩn hóa cài đặt khi đọc) |
+| MASK-1 | Chế độ API của Mask v2 (che / mở che / còn sót; khóa Bearer; chỉ 127.0.0.1) — làm trong thư mục Mask v2 theo `CLAUDE.md` của nó (không git, CHANGELOG, test + benchmark độ phủ không giảm; không đọc/sửa `data\`, `*.maskvault`, `*.maskkeep`, `*.key`) | Claude Opus | — | **XONG** 19:52 (Mask v2 2.7.0, không git): vòng 1 Không đạt (1 Chặn) → vòng 2 sửa + làm QD-24 → review Opus vòng 2 **Đạt**; 387 test đạt, benchmark không giảm. Nên sửa chuyển MASK-2 (định danh đã khai viết khác cách; nút Khóa ngay khi giao diện bận) |
+| MASK-2 | Đưa "định danh đã biết" và kiểm `dau_vet` của `AnDanh` vào lõi Mask v2; đo lại độ phủ | Claude | MASK-1 | Xong code 21:06 → review Opus vòng 1 **Không đạt** (Chặn: số tài khoản có nhãn 'tài khoản/TK' + 'VND' bị coi là tiền, lọt Cloud) → **vòng 2 đang sửa**; còn 1 câu hỏi Anh: dấu vết cho màn che thủ công (A giữ nguyên / B chặn duyệt tới khi xử lý) |
+| AI-2 | Cổng AI dùng chung: định tuyến loại việc, Cloud qua Mask API, nhật ký `nhat_ky.cong_ai_goi`, công tắc tắt Cloud | Claude | AI-1, MASK-1 | Chia **AI-2a** (lõi cổng, Claude Opus, đang code 21:12; Cloud mặc định tắt) + **AI-2b** (migration `nhat_ky.cong_ai_goi`, Codex, sau) |
 | AI-3 | Engine #6 (độc lập + bản trong repo) chuyển Cloud sang cổng AI; bỏ `AnDanh`, `goi_api` riêng | Codex | AI-2, MASK-2 | Chờ |
 | AI-4 | Mở Cloud theo TL 48 §1.5; đo độ chính xác Local theo loại việc; lịch giảm tỷ lệ kiểm xác suất **Anh đã đồng ý (§1.6)**: bắt đầu 20%; ≥ 90% trên 50 lượt gần nhất → 10%; ≥ 95% trên 100 lượt → 5%; tối thiểu 5%, không về 0; tụt dưới 90% → tự về 20% và báo lead | Claude | AI-3 qua review | Chờ |
 
@@ -35,7 +36,7 @@ Quy tắc áp cho mọi lát từ 25/10 (CD-001 việc 3): không lát nào vi�
 | Lát | Việc | Worker | Phụ thuộc | Trạng thái |
 |---|---|---|---|---|
 | UI-1 | Khung dùng chung: trang chủ module (thẻ tổng quan + lưới icon), thanh icon trái thay menu chữ; áp CRM 6 phần (màn bên trong giữ nguyên) | Claude | — (dựng trên `lat/da-2` vì khóa `crm_g.js`/`style.css`) | Đang code (19:21) |
-| UI-2 | Máy chủ `GET /api/khung/module/crm` đã lọc quyền + đếm việc chờ (nguồn sẵn có) — hợp đồng dữ liệu `HOP-DONG-DU-LIEU-KHUNG-LUOI.md` | Codex | — (song song UI-1) | Đang code (19:16) |
+| UI-2 | Máy chủ `GET /api/khung/module/crm` đã lọc quyền + đếm việc chờ (nguồn sẵn có) — hợp đồng dữ liệu `HOP-DONG-DU-LIEU-KHUNG-LUOI.md` | Codex | — (song song UI-1) | **XONG — đã gộp af7c389**: kiem-nhanh Đạt, review-lat Opus Đạt (3 Nên sửa → **UI-2b** chờ chỗ trống: số icon theo TL 42 §3, không trả tổng cắt); lead còn gọi thử `/api/khung/module/crm` 4 vai trên DEMO khi chuẩn bị cổng A |
 | UI-3 | Trang chủ hệ thống: icon module, tìm nhanh, thanh cố định 4 mục, M9 "Tạm dừng" | Claude | UI-1 | Chờ |
 | UI-4 | Áp khung cho M2, M4, Duyệt chung K5 | Claude/Codex | Cổng A của UI-1 | Chờ |
 
@@ -47,16 +48,37 @@ Quy tắc áp cho mọi lát từ 25/10 (CD-001 việc 3): không lát nào vi�
 | DA-3a | Codex | gpt-6.1-sol · high | 17:50 | 18:17 | 1 (Claude Sonnet) — Đạt | Xanh — 0 mã lỗi mới; PG chưa chạy |
 | T-MIG2 v1–v2 | Codex | gpt-6.1-sol | 17:44 | 18:44 | 0 | Đỏ — 1 mã lỗi mới |
 | C3c | Codex | gpt-6.1-sol · high | 17:52 | gộp 19:03 | 0 (sửa theo review C3) | Xanh — 43/43 có PostgreSQL (lead chạy) |
-| MASK-1 | Claude | Opus | 18:39 | 18:59 | review Opus đang chạy | Mask v2: 378 đạt / 1 lỗi có sẵn; benchmark không giảm |
+| MASK-1 | Claude | Opus | 18:39 | 18:59 | vòng 1 Không đạt | Mask v2: 378 đạt / 1 lỗi có sẵn; benchmark không giảm |
 | AI-1 | Codex | gpt-6.1-sol · high | 18:45 | gộp 18:58 | 0 (lead đọc diff mạng) | Xanh — 40/40 |
 | M2s-b | Codex | gpt-6.1-sol · low | 18:45 | gộp 19:02 | 0 | Xanh — node 7/7 |
 | Review M4-5a + DA-3a | Claude | Sonnet | 18:40 | ~18:55 | — | — |
 | M2j-b (sửa nóng) | Lead | Opus | 19:08 | 19:15 | 0 | Xanh — node về đúng nền v4 (7 bộ lỗi có sẵn) |
-| M4-5a v3 | Codex | gpt-6.1-sol · high | 19:16 | — | — | — |
-| UI-2 | Codex | gpt-6.1-sol · high | 19:16 | — | — | — |
-| Review MASK-1 | Claude | Opus | 19:17 | — | — | — |
+| M4-5a v3 | Codex | gpt-6.1-sol · high | 19:16 | gộp 19:56 | vòng 1 Đạt + kiem-nhanh Đạt | Xanh — thuần 104/104; M4 PG = nhánh tích hợp |
+| UI-2 | Codex | gpt-6.1-sol · high | 19:16 | gộp 20:03 | 1 (Opus) — Đạt | Xanh — test mới 16/16; CRM PG không thêm mã lỗi |
+| Review MASK-1 | Claude | Opus | 19:17 | 19:26 | vòng 1 | Không đạt — 1 Chặn |
+| MASK-1 vòng 2 | Claude | Opus | 19:35 | 19:48 | review vòng 2 đang chạy | Mask v2: 387 đạt / 1 lỗi có sẵn; benchmark không giảm |
+| Review MASK-1 vòng 2 | Claude | Opus | 19:48 | 19:52 | vòng 2 | **Đạt** — 2 Nên sửa → MASK-2 |
+| AI-1b | Codex | gpt-6.1-sol · high | 19:49 | 19:55 | (review sau gộp AI-1) → kiem-nhanh | Xanh — 101/101 |
+| L0-8d | Codex | gpt-6.1-sol · high | 20:07 | gộp 20:31 | kiem-nhanh Đạt | họ 03a dựng được; 03A/03B vẫn skip: host #6 GUARD_KHONG_NAP → L0-8e |
+| UI-2b | Codex | gpt-6.1-sol · high | 20:07 | gộp 20:17 | kiem-nhanh Đạt | Xanh — khung 20/20 |
+| T-M4a | Codex | gpt-6.1-sol · high | 20:16 | gộp 20:31 | kiem-nhanh Đạt | Xanh — 01b 12/12, 01c 8/8, review_k2 14/14, 0 skip (đủ tệp ghim) |
+| UI-1 | Claude | Sonnet | 19:21 | 20:15 | kiem-nhanh Đạt có điều kiện (giấy phép icon → lead sửa) | node 12/12 ca mới; 8 bộ node lỗi có sẵn |
+| L0-8e | Codex | gpt-6.1-sol · high | 20:28 | 20:38 | review-lat Opus **Không đạt** (2 Chặn: guard nuốt DROP CSDL tạm mà sổ ghi đã xóa; 3 mã lỗi test bộ chạy dưới runtime thật) → vòng 2 chờ suất | test_trich6_host 22/22, 03A PG 13/13 (kết quả test vẫn giá trị); CSDL kho_test_* 323 → 326 |
+| MASK-2 | Claude | Opus | 20:31 | 21:06 | review vòng 1 **Không đạt** (1 Chặn: STK có nhãn + VND lọt Cloud) → vòng 2 đang sửa 21:18 | Mask v2 2.7.1: 434 đạt / 1 lỗi có sẵn; benchmark không giảm |
+| L0-10 | Codex | gpt-6.1-sol · high | 20:38 | gộp 20:51 | review-lat Opus Đạt | Xanh — 46/46; DEMO 8798 chuẩn bị CRM chế độ DICH_VU |
+| L0-8f | Codex | gpt-6.1-sol · high | 20:47 | 20:44 (v1 dừng đúng: gốc ở helper test) | — | — |
+| L0-8f v2 | Codex | gpt-6.1-sol · high | 20:50 | 20:55 | chờ L0-8e v2 + kiem-nhanh | **PG: 03B 21/21 (c16 skip có chủ đích), 03A 13/13** — nợ M4-5a trả xong; 1 lỗi mock bộ chạy xử lý khi gộp |
+| L0-8e v2 | Codex | gpt-6.1-sol · high | 21:02 | gộp 21:20 | review-lat vòng 2 Đạt | Xanh — bộ chạy 45/45 runtime thật; CSDL tạm 329/329 |
+| AI-2a | Claude | Opus | 21:12 | — | — | — |
+| L0-10b | Codex | gpt-6.1-sol · high | 20:45 | gộp 21:00 | kiem-nhanh Đạt | Xanh — 52/52; kiểm thật dịch vụ khớp |
+| UI-1b | Codex | gpt-6.1-sol · high | 20:55 | 21:02 | lead thử DEMO | Xanh — node khung 16/16; DEMO 8798 lần tải đầu không còn lỗi phiên |
+| kiem-nhanh DA-3a v2 + AI-1b | Claude | Haiku | 20:12 | 20:15 | — | Đạt cả hai → gộp |
+| kiem-nhanh UI-2 + M4-5a v3 | Claude | Haiku | 19:51 | 19:55 | — | Đạt cả hai |
+| review-lat UI-2 | Claude | Opus | 19:56 | 20:02 | vòng 1 | Đạt — 3 Nên sửa → UI-2b |
+| DA-3a v2 | Codex | gpt-6.1-sol · high | 19:33 | 19:38 | (vòng 1 Đạt) → kiem-nhanh | Xanh — 0 mã lỗi mới; PG mặc định báo giá 29/29, dự án đang bán 16/16 (0 skip) |
+| L0-9b (fixture L11 đúng byte ghim) | Lead | Opus | 19:24 | 19:31 | 0 | Xanh — checkout mới 19/19 ghim; `t21` hết |
 | UI-1 | Claude | Sonnet | 19:21 | — | — | — |
-| review-lat sau gộp AI-1 + C3c | Claude | Opus | 19:22 | — | — | — |
+| review-lat sau gộp AI-1 + C3c | Claude | Opus | 19:22 | 19:29 | vòng 1 | Đạt cả hai; AI-1: 3 Nên sửa (→ AI-1b); C3c: Nên sửa test quá hạn PG (→ C3d) |
 
 ## Lát đã xong (24/10)
 

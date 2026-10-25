@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import contextlib
+import functools
 import io
 import json
 import os
@@ -17,6 +18,19 @@ from pathlib import Path
 from unittest.mock import Mock, patch
 
 from tools import chay_test_theo_module as R
+from tools import pg_demo_ho_03a as H03
+
+
+def _co_lap_provider(test):
+    """Chỉ tiến trình thử dùng provider tự dựng; không đổi hook đã nạp của caller."""
+    @functools.wraps(test)
+    def chay(self):
+        with patch.dict(sys.modules, {"sitecustomize": None}), patch.dict(os.environ, {
+                "PYTHONPATH": str(self.repo / "src"),
+                "PYTHONUSERBASE": str(self.root / "userbase-trong"),
+                "PYTHONNOUSERSITE": ""}):
+            return test(self)
+    return chay
 
 
 class _Sql(str):
@@ -182,6 +196,68 @@ class PgDemoThuanTests(unittest.TestCase):
         self.assertEqual(self.so.xoa(self.c, [ten])["tu_choi"], [ten])
         self.assertIn(ten, self.c.databases)
 
+    def test_drop_bi_nuot_khong_bao_da_xoa_va_don_so_thu_lai_duoc(self):
+        ten = "kho_test_drop_bi_nuot"
+        self.so.dang_ky(ten, self.c)
+        self.c.databases.add(ten)
+        raw = self.c.raw
+
+        def nuot_drop(q, p=None):
+            if str(q).startswith("DROP DATABASE"):
+                self.c.sql.append(str(q))
+                return None
+            return raw(q, p)
+
+        self.c.raw = nuot_drop
+        kq = self.so.xoa(self.c, [ten])
+        self.assertEqual(kq["da_xoa"], [])
+        self.assertEqual(kq["con_lai_sau_xoa"], [ten])
+        self.assertEqual(self.so.doc()["muc"][ten]["trang_thai"], "con_lai_sau_xoa")
+        self.assertEqual(self.c.sql[-1], "SELECT 1 FROM pg_database WHERE datname = %s")
+        pg = self._pg_demo()
+        pg.vai_truoc = set()
+        pg.quet_ro_ri = Mock(return_value=0)
+
+        def goi(viec, *args):
+            if viec == "liet-ke":
+                return {"csdl": sorted(self.c.databases), "vai_tro": []}
+            return self.so.xoa(self.c, args[2:])
+
+        pg._goi = Mock(side_effect=goi)
+        with patch.object(R.time, "sleep"):
+            tong = pg.ket_thuc([])
+        self.assertEqual(tong["sot"], [ten])
+        self.assertEqual(tong["da_xoa"], 0)
+        self.assertIn(ten, pg.chua_xoa)
+        self.assertTrue(any(ten in cb for cb in tong["canh_bao"]))
+        console = io.StringIO()
+        with patch.object(R, "_khoa_loai_tru_pg", return_value=None), contextlib.redirect_stdout(console):
+            self.assertEqual(R._don_theo_so(pg, self.tep), 1)
+            self.c.raw = raw
+            self.assertEqual(R._don_theo_so(pg, self.tep), 0)
+        self.assertIn("CẢNH BÁO", console.getvalue())
+        self.assertNotIn(ten, self.c.databases)
+        self.assertEqual(self.so.doc()["muc"][ten]["trang_thai"], "da_xoa")
+
+    def test_kiem_sau_drop_loi_khong_ghi_hoan_tat(self):
+        ten = "kho_test_kiem_drop_loi"
+        self.so.dang_ky(ten, self.c)
+        self.c.databases.add(ten)
+        raw = self.c.raw
+
+        def hong_select(q, p=None):
+            if str(q) == "SELECT 1 FROM pg_database WHERE datname = %s":
+                raise _PgError("không kiểm được")
+            return raw(q, p)
+
+        self.c.raw = hong_select
+        kq = self.so.xoa(self.c, [ten])
+        self.assertEqual(kq["da_xoa"], [])
+        self.assertEqual(len(kq["loi"]), 1)
+        self.assertEqual(self.so.doc()["muc"][ten]["trang_thai"], "dang_tao")
+        self.c.raw = raw
+        self.assertEqual(self.so.xoa(self.c, [ten])["khong_co"], [ten])
+
     def test_hook_ghi_ben_truoc_create_drop_chung_lop_khong_force(self):
         self._hook()
         ten = "kho_test_hook"
@@ -240,6 +316,17 @@ class PgDemoThuanTests(unittest.TestCase):
         self.assertTrue(pth.resolve().is_relative_to(self.root))
         self.assertIn("_bat_bao_ve_pth", pth.read_text(encoding="utf-8"))
 
+    def test_probe_user_site_goc_loi_khong_ghi_pth(self):
+        pg = self._pg_demo()
+        site = self.root / "tam" / "site-phu-thuoc" / "site-packages"
+        for rc, out in ((1, ""), (0, "")):
+            with self.subTest(rc=rc), patch.object(R.subprocess, "run", side_effect=[
+                    types.SimpleNamespace(returncode=0, stdout=str(site)),
+                    types.SimpleNamespace(returncode=rc, stdout=out)]):
+                with self.assertRaisesRegex(RuntimeError, "không ghi .pth"):
+                    pg._site_phu_thuoc()
+        self.assertEqual(list(self.root.rglob("*.pth")), [])
+
     def test_pth_bao_ve_loi_phai_dung_khong_tiep_tuc_python(self):
         with patch.object(R, "_bat_bao_ve_con", side_effect=ValueError("sổ sai")), patch.object(R.os, "_exit") as thoat, contextlib.redirect_stderr(io.StringIO()):
             R._bat_bao_ve_pth()
@@ -256,6 +343,7 @@ class PgDemoThuanTests(unittest.TestCase):
                               env=env or R._moi_truong(self.repo, self.root, them={"KHO_PG_DEMO_SO": str(self.tep)}),
                               cwd=self.root, capture_output=True, timeout=10)
 
+    @_co_lap_provider
     def test_pth_nap_tep_loi_thoat_ma_2_khong_chay_test_con(self):
         site = self._site_that(self._pg_demo())
         ma = "import importlib.util; importlib.util.spec_from_file_location = lambda *a: None; "
@@ -266,6 +354,7 @@ class PgDemoThuanTests(unittest.TestCase):
         self.assertEqual(r.returncode, 2, r.stderr.decode("utf-8", errors="replace"))
         self.assertNotIn(b"TEST_DA_CHAY", r.stdout)
 
+    @_co_lap_provider
     def test_pth_hook_loi_thuc_te_thoat_ma_2(self):
         site = self._site_that(self._pg_demo())
         # Không có tệp kết nối/sổ hợp lệ: hook phải dừng dù import chính nó thành công.
@@ -273,6 +362,7 @@ class PgDemoThuanTests(unittest.TestCase):
         self.assertEqual(r.returncode, 2)
         self.assertNotIn(b"TEST_DA_CHAY", r.stdout)
 
+    @_co_lap_provider
     def test_pth_repo_khac_van_nap_dung_bao_ve_tu_duong_dan(self):
         repo_cu = self.root / "worktree-cu"
         (repo_cu / "tools").mkdir(parents=True)
@@ -292,6 +382,162 @@ class PgDemoThuanTests(unittest.TestCase):
         self.assertEqual(r.returncode, 0, r.stderr.decode("utf-8", errors="replace"))
         self.assertEqual(Path(r.stdout.decode("utf-8").strip()).resolve(), Path(R.__file__).resolve())
 
+    def _provider_guard_thu(self, thu_muc, sitecustomize=True):
+        """Provider TEST có hook thật; SHA khác A517 nên không được host chấp nhận."""
+        thu_muc.mkdir(parents=True, exist_ok=True)
+        (thu_muc / "codex_no_delete_guard.py").write_text(
+            "import os, shutil\n"
+            "def chan(*a, **kw):\n    raise PermissionError('DEMO giữ tệp')\n"
+            "os.remove = os.unlink = shutil.rmtree = chan\n", encoding="utf-8")
+        if sitecustomize:
+            (thu_muc / "sitecustomize.py").write_text("import codex_no_delete_guard\n", encoding="utf-8")
+        else:
+            (thu_muc / "guard-thu.pth").write_text("import codex_no_delete_guard\n", encoding="utf-8")
+
+    def _kiem_hook_con_va_chau(self, env, ma_host="GUARD_SHA_SAI"):
+        # Chỉ import/đọc chứng cứ trong các tiến trình thật: không mở host/server/CSDL.
+        kiem = ("from kho_tri_thuc.nguon import trich6_host as H; "
+                "from kho_tri_thuc.m4.review_compute import guard_dang_nap; "
+                "cc = H.chung_cu_guard(); "
+                "assert cc['module'] and cc['flag'] and cc['bytecode_tat'], cc; "
+                "assert H.HOOK_BAT_BUOC <= set(cc['hooks']), cc; "
+                "assert guard_dang_nap()[0], guard_dang_nap(); "
+                f"assert H.guard_hop_le(cc) == {ma_host!r}, cc")
+        ma = ("import subprocess, sys; " + kiem + "; "
+              "from kho_tri_thuc.k2.xay_dung import XayDungK2; "
+              "envs = [H.env_con(), XayDungK2._env_worker()]; "
+              "assert all('KHO_PG_DEMO_SO' not in e for e in envs); "
+              f"rs = [subprocess.run([sys.executable, '-X', 'utf8', '-c', {kiem!r}], "
+              "env=e, capture_output=True, timeout=15) for e in envs]; "
+              "assert all(r.returncode == 0 for r in rs), [(r.stdout, r.stderr) for r in rs]")
+        r = subprocess.run([sys.executable, "-X", "utf8", "-c", ma], env=env, cwd=self.root,
+                           capture_output=True, timeout=40)
+        self.assertEqual(r.returncode, 0, r.stderr.decode("utf-8", errors="replace"))
+
+    @_co_lap_provider
+    def test_runtime_khoi_dong_cai_hook_o_con_va_chau(self):
+        kd = self.root / "khởi động"
+        self._provider_guard_thu(kd)
+        runtime = self.root / "runtime.json"
+        runtime.write_text(json.dumps({"python": sys.executable, "duong_dan_phu_thuoc": [],
+                                       "thu_muc_khoi_dong": kd.name}), encoding="utf-8")
+        py, deps = R._doc_runtime(runtime)
+        self.assertEqual(py, sys.executable)
+        self.assertIn(kd, deps)
+        env = R._moi_truong(self.repo, self.root, deps, {"CODEX_NO_DELETE_FILES": "1",
+                                                       "PYTHONUSERBASE": str(self.root / "userbase-trong")})
+        self._kiem_hook_con_va_chau(env)
+        # .pth PG cũng giữ provider khi test tự ghi đè PYTHONPATH=src.
+        pg = self._pg_demo()
+        pg.phu_thuoc = deps
+        with patch.dict(os.environ, {"PYTHONUSERBASE": env["PYTHONUSERBASE"]}):
+            env["PYTHONUSERBASE"] = pg._site_phu_thuoc()
+        env["PYTHONPATH"] = str(self.repo / "src")
+        self._kiem_hook_con_va_chau(env)
+
+    def test_runtime_tu_choi_duong_khoi_dong_sai(self):
+        runtime = self.root / "runtime.json"
+        for kd in (1, "", "khong-co"):
+            with self.subTest(kd=kd):
+                runtime.write_text(json.dumps({"python": sys.executable, "duong_dan_phu_thuoc": [],
+                                               "thu_muc_khoi_dong": kd}), encoding="utf-8")
+                with self.assertRaisesRegex(ValueError, "thu_muc_khoi_dong"):
+                    R._doc_runtime(runtime)
+
+    @_co_lap_provider
+    def test_giu_provider_pythonpath_cua_caller(self):
+        kd = self.root / "provider-caller"
+        self._provider_guard_thu(kd)
+        with patch.dict(os.environ, {"PYTHONPATH": str(kd) + os.pathsep + str(self.root / "repo-khac")}):
+            env = R._moi_truong(self.repo, self.root, them={"CODEX_NO_DELETE_FILES": "1",
+                                                          "PYTHONUSERBASE": str(self.root / "userbase-trong")})
+        self.assertNotIn(str(self.root / "repo-khac"), env["PYTHONPATH"])
+        self._kiem_hook_con_va_chau(env)
+
+    @_co_lap_provider
+    def test_userbase_pg_chuyen_tiep_pth_guard_goc_cho_chau(self):
+        import sysconfig
+        ub = self.root / "userbase-goc"
+        scheme = "nt_user" if os.name == "nt" else "posix_user"
+        site = Path(sysconfig.get_path("purelib", scheme, vars={"userbase": str(ub)}))
+        self._provider_guard_thu(site, sitecustomize=False)
+        with patch.dict(os.environ, {"PYTHONUSERBASE": str(ub), "PYTHONPATH": str(self.repo / "src")}):
+            pg = self._pg_demo()
+            moi = pg._site_phu_thuoc()
+            env = R._moi_truong(self.repo, self.root, them={"PYTHONUSERBASE": moi, "CODEX_NO_DELETE_FILES": "1"})
+        self._kiem_hook_con_va_chau(env)
+
+    @_co_lap_provider
+    def test_duong_khoi_dong_bo_sitecustomize_khong_co_guard(self):
+        la = self.root / "site-packages-la"
+        la.mkdir()
+        tep = la / "sitecustomize.py"
+        tep.write_text("# Không phải provider guard\n", encoding="utf-8")
+        kd = self.root / "provider-hop-le"
+        self._provider_guard_thu(kd)
+        with patch.dict(os.environ, {"PYTHONPATH": os.pathsep.join((str(la), str(kd)))}), \
+                patch.dict(sys.modules, {"sitecustomize": types.SimpleNamespace(__file__=str(tep))}):
+            self.assertEqual(R._duong_khoi_dong(), (kd,))
+        with patch.dict(sys.modules, {"sitecustomize": types.SimpleNamespace(__file__=str(kd / "sitecustomize.py"))}):
+            self.assertEqual(R._duong_khoi_dong(), (kd,))
+
+    @_co_lap_provider
+    def test_goi_pg_khong_nap_provider_nhung_test_van_giu_guard(self):
+        pg = self._pg_demo()
+        kd = self.root / "provider-runtime"
+        caller = self.root / "provider-caller"
+        deps = self.root / "phu-thuoc"
+        deps.mkdir()
+        self._provider_guard_thu(kd)
+        self._provider_guard_thu(caller)
+        runtime = self.root / "runtime.json"
+        runtime.write_text(json.dumps({"python": sys.executable, "duong_dan_phu_thuoc": [deps.name],
+                                       "thu_muc_khoi_dong": kd.name}), encoding="utf-8")
+        pg.python, pg.phu_thuoc = R._doc_runtime(runtime)
+        with patch.dict(os.environ, {"PYTHONPATH": str(caller), "CODEX_NO_DELETE_FILES": "1"}), \
+                patch.dict(sys.modules, {"sitecustomize": types.SimpleNamespace(__file__=str(caller / "sitecustomize.py"))}), \
+                patch.object(R.subprocess, "run", return_value=types.SimpleNamespace(stdout='{"ok": true}', returncode=0)) as run:
+            for viec in ("liet-ke", "tao-clone", "xoa"):
+                pg._goi(viec)
+                env = run.call_args.kwargs["env"]
+                self.assertEqual(env["PYTHONPATH"].split(os.pathsep), [str(self.repo / "src"), str(self.repo), str(deps)])
+                self.assertEqual(env["PYTHONNOUSERSITE"], "1")
+                self.assertEqual(env["CODEX_NO_DELETE_FILES"], "1")
+                self.assertEqual(env["KHO_PG_DEMO_SO"], str(self.tep))
+            env_test = R._moi_truong(self.repo, self.root, pg.phu_thuoc)
+        self.assertIn(str(kd), env_test["PYTHONPATH"].split(os.pathsep))
+        self.assertIn(str(caller), env_test["PYTHONPATH"].split(os.pathsep))
+        self.assertEqual(env_test["CODEX_NO_DELETE_FILES"], "1")
+        self.pg.connect.assert_not_called()
+
+    def test_thieu_hook_tien_trinh_that_van_dung_guard_khong_nap(self):
+        # -I bỏ cả hai provider, -B vẫn giữ yêu cầu không bytecode. Không import bù guard.
+        cfg = {"kieu": "trich6_host_cau_hinh/v1", "token": "d" * 40, "nguon": str(self.root / "nguon-khong-mo"),
+               "du_lieu": str(self.root / "khong-duoc-tao"), "instance_id": "demo"}
+        ma = (f"import sys; sys.path.insert(0, {str(self.repo / 'src')!r}); "
+              "from kho_tri_thuc.m4 import review_compute as C; "
+              f"assert C.main([{cfg['du_lieu']!r}]) == C.MA_GUARD_KHONG_NAP == 4; "
+              "from kho_tri_thuc.nguon import trich6_host as H; sys.exit(H._con(kenh=sys.stdout))")
+        env = R._moi_truong(self.repo, self.root, them={"CODEX_NO_DELETE_FILES": "1"})
+        r = subprocess.run([sys.executable, "-I", "-B", "-c", ma], env=env, cwd=self.root,
+                           input=json.dumps(cfg).encode("utf-8"), capture_output=True, timeout=15)
+        self.assertEqual(r.returncode, 4, r.stderr.decode("utf-8", errors="replace"))
+        self.assertEqual(json.loads(r.stdout)["ma"], "GUARD_KHONG_NAP")
+        self.assertIn(b"GUARD_KHONG_NAP", r.stderr)
+        self.assertFalse(Path(cfg["du_lieu"]).exists())
+
+    def test_guard_a517_that_o_chau_khi_runtime_co_provider(self):
+        from kho_tri_thuc.nguon import trich6_host as H
+        cc = H.chung_cu_guard()
+        if not cc["module"]:
+            self.skipTest("runtime không có provider guard A517 thật — lead chạy test với --runtime DEMO")
+        self.assertIsNone(H.guard_hop_le(cc), cc)
+        pg = self._pg_demo()
+        env = R._moi_truong(self.repo, self.root, them={"PYTHONUSERBASE": pg._site_phu_thuoc()})
+        env["PYTHONPATH"] = str(self.repo / "src")
+        self._kiem_hook_con_va_chau(env, ma_host=None)
+
+    @_co_lap_provider
     def test_timeout_giet_ca_chau_giu_stdout_va_tra_treo_dung_han(self):
         pid_chau = self.root / "pid-chau.txt"
         goc_popen = subprocess.Popen
@@ -421,6 +667,185 @@ class PgDemoThuanTests(unittest.TestCase):
                 R._pg_tao_clone(None, {"admin_dsn": dsn, "app_dsn": dsn}, "kho_test_trung", "02c")
         chuan_bi.assert_not_called()
         self.pg.connect.assert_not_called()
+
+    def test_ho_03a_nhan_dung_hai_module_khong_bat_test_thuan(self):
+        pg = self._pg_demo()
+        nhan = {p.stem for p in (self.repo / "tests").glob("test_*.py")
+                if "03a" in pg.ho_cua(p.read_text(encoding="utf-8"))}
+        self.assertEqual(nhan, {"test_m4_03a_pg", "test_m4_03b_common_pg"})
+        self.assertNotIn("03a", R.HO_CHUA_HO_TRO)
+        self.assertEqual(pg.chua_ho_tro, set())
+
+    def test_03a_ghim_ordinal_checksum_registry_hien_hanh(self):
+        from kho_tri_thuc.ha_tang.pg_migrations import PG_MIGRATIONS
+        from kho_tri_thuc.m4.sql_duyet import M0024_M4_DUYET
+        from kho_tri_thuc.m4.sql_ke_toan_nghiem_thu import M4_03A_SQL
+        he, env = R._dac_ta_ho("03a", "kho_test_pgd_0123456789ab")
+        self.assertEqual(he["m4_03a_clone_provenance"], env["KHO_M4_03A_CLONE_PROVENANCE"])
+        self.assertIs(PG_MIGRATIONS[int(env["KHO_M4_03A_VERSION"]) - 1], M4_03A_SQL)
+        self.assertEqual(env["KHO_M4_03A_M24_SHA256"], R._sha_sql(M0024_M4_DUYET))
+        self.assertEqual(env["KHO_M4_03A_SHA256"], R._sha_sql(M4_03A_SQL))
+        self.assertEqual(env["KHO_M4_03B_DA_AP_DUNG"], "1")
+        self.assertEqual(len({env["KHO_M4_03A_" + k] for k in ("KT1", "KT2", "KT_KHAC")}), 3)
+
+    def test_03a_registry_thieu_m33_khong_cap_co_da_ap_dung(self):
+        from kho_tri_thuc.ha_tang import pg_migrations as PGM
+        from kho_tri_thuc.k2.sql_ghi_nhan_so_tien import M4_03B_SO_TIEN_SQL
+        with patch.object(PGM, "PG_MIGRATIONS", tuple(s for s in PGM.PG_MIGRATIONS if s is not M4_03B_SO_TIEN_SQL)):
+            with self.assertRaisesRegex(ValueError, "Registry"):
+                H03.dac_ta("nguon-gia")
+
+    def test_03a_clone_moi_moi_module_du_env_khong_log_dsn_va_don_dung_so(self):
+        from kho_tri_thuc.k2 import crm_khoi_dong as KD
+        from kho_tri_thuc.ha_tang.pg_migrations import PG_SCHEMA_VERSION
+        pg = self._pg_demo()
+        pg.admin = dict(host="127.0.0.1", port="5432", user="chu", password="gia-bi-mat-chu", dbname="kho_crm_demo")
+        pg.app = {**pg.admin, "user": "web", "password": "gia-bi-mat-web"}
+        kn = {"admin_dsn": R._uri(pg.admin, "kho_crm_demo"), "app_dsn": R._uri(pg.app, "kho_crm_demo")}
+        self.pg.connect.side_effect = lambda *a, **k: contextlib.nullcontext(Mock())
+        tkn = R._nap_tien_ich_dsn()
+        optional = {"KHO_M4_03B_HOA_DON_ID": "hoa-don-demo", "KHO_M4_03B_DONG_ID": "dong-demo"}
+        tao = []
+
+        def tao_vide(kn, ten):
+            self.assertRegex(ten, r"^kho_test_[a-z0-9_]+$")
+            self.so.dang_ky(ten, self.c)
+            self.c.databases.add(ten)
+            tao.append(ten)
+
+        def goi(viec, ten, ho, **kw):
+            self.assertEqual((viec, ho), ("tao-clone", "03a"))
+            result = R._pg_tao_clone(tkn, kn, ten, ho)
+            # JSON trả từ tiến trình dựng clone không được mang DSN.
+            sach = json.dumps(result)
+            self.assertNotIn("postgresql://", sach)
+            self.assertNotIn("gia-bi-mat", sach)
+            return result
+
+        pg._goi = Mock(side_effect=goi)
+        console = io.StringIO()
+        with patch.object(R, "_pg_tao_vide", side_effect=tao_vide), \
+                patch.object(KD, "chuan_bi", return_value={"schema_sau": PG_SCHEMA_VERSION}) as boot, \
+                patch.object(KD, "chuan_hoa_dsn", side_effect=lambda dsn, _: {"conninfo": dsn}), \
+                patch.object(H03, "dung_du_lieu", return_value=optional) as seed, contextlib.redirect_stdout(console):
+            for module in ("test_m4_03a_pg", "test_m4_03b_common_pg"):
+                env, info = R._chuan_bi_pg_module(pg, self.repo, module)
+                self.assertEqual(info, {"ho": ["03a"]})
+                du = {"KHO_M4_03A_" + k for k in ("CLONE_DSN", "CLONE_APP_DSN", "CLONE_DB", "CLONE_PROVENANCE",
+                                                       "M24_SHA256", "VERSION", "SHA256", "KT1", "KT2", "KT_KHAC")}
+                du |= {"KHO_M4_03B_" + k for k in ("DA_AP_DUNG", "HOA_DON_ID", "DONG_ID", "CFO", "XEM")}
+                self.assertEqual(set(env), du)
+                ten = env["KHO_M4_03A_CLONE_DB"]
+                self.assertNotIn("kho_crm_demo", env["KHO_M4_03A_CLONE_DSN"])
+                self.assertTrue(env["KHO_M4_03A_CLONE_DSN"].endswith("/" + ten))
+                self.assertTrue(env["KHO_M4_03A_CLONE_APP_DSN"].endswith("/" + ten))
+                # Tiến trình con test nhận đủ biến, biến môi trường của cha giữ nguyên.
+                self.assertEqual({k: v for k, v in R._moi_truong(self.repo, self.root, them=env).items() if k in du}, env)
+                seed.assert_called_with(boot.call_args.args[0]["admin_dsn"], boot.call_args.args[0]["app_dsn"], ten)
+                R._ghi_json(self.root / (module + ".json"), {module: info})
+                self.assertEqual(self.so.xoa(self.c, [ten])["da_xoa"], [ten])
+        self.assertEqual(len(set(tao)), 2)
+        self.assertNotIn("postgresql://", console.getvalue())
+        self.assertNotIn("gia-bi-mat", console.getvalue())
+        self.assertFalse(any("kho_crm_demo" in sql for sql in self.c.sql))
+        for p in self.root.glob("*.json"):
+            self.assertNotIn("gia-bi-mat", p.read_text(encoding="utf-8"))
+
+    def test_03a_khong_nhan_so_huu_hay_drop_csdl_crm_demo(self):
+        for ten in ("kho_crm_demo", "kho_crm_demo_lt_l08d"):
+            with self.assertRaises(ValueError):
+                self.so.dang_ky(ten, self.c)
+            self.assertEqual(self.so.xoa(self.c, [ten])["tu_choi"], [ten])
+            with self.assertRaises(ValueError):
+                R._pg_tao_clone(None, {}, ten, "03a")
+        self.pg.connect.assert_not_called()
+
+    def test_03a_helper_chan_db_demo_va_cap_dsn_khac_clone_truoc_connect(self):
+        from kho_tri_thuc.k2 import crm_khoi_dong as KD
+        rows = types.ModuleType("psycopg.rows")
+        rows.dict_row = object()
+        with patch.dict(sys.modules, {"psycopg.rows": rows}), patch.object(KD, "kiem_cap", return_value={"db": "kho_crm_demo"}):
+            for ten in ("kho_crm_demo", "kho_crm_demo_lt_l08d", "kho_test_pgd_0123456789ab"):
+                with self.subTest(ten=ten), self.assertRaises(ValueError):
+                    H03.dung_du_lieu("chu-gia", "app-gia", ten)
+        self.pg.connect.assert_not_called()
+
+    def test_03a_helper_kiem_lineage_va_owner_truoc_nhan_m2_dong_ket_noi(self):
+        from kho_tri_thuc.k2 import crm_khoi_dong as KD, hoa_don
+        from kho_tri_thuc.ha_tang import postgres as PG
+        rows = types.ModuleType("psycopg.rows")
+        rows.dict_row = object()
+        db = "kho_test_pgd_0123456789ab"
+        admin, app, chu = Mock(), Mock(), Mock()
+        self.pg.connect.side_effect = [contextlib.nullcontext(c) for c in (admin, app, chu)]
+        cap = {"db": db, "admin": {"conninfo": "chu-clone-gia"}, "app": {"conninfo": "app-clone-gia"}}
+        thu_tu = Mock()
+        with patch.dict(sys.modules, {"psycopg.rows": rows}), patch.object(KD, "kiem_cap", return_value=cap), \
+                patch.object(PG, "kiem_lineage_ung_dung") as lineage, patch.object(H03, "_seed_ke_toan") as seed, \
+                patch.object(KD, "kiem_ket_noi_chu") as owner, patch.object(hoa_don, "HoaDonK2") as service, \
+                patch.object(H03.tempfile, "mkdtemp", return_value=str(self.root)), \
+                patch.object(H03, "_nhan_hoa_don", return_value={"KHO_M4_03B_HOA_DON_ID": "hd-demo"}) as nhan:
+            for ten, fn in (("lineage", lineage), ("seed", seed), ("owner", owner), ("nhan", nhan)):
+                thu_tu.attach_mock(fn, ten)
+            self.assertEqual(H03.dung_du_lieu("chu-gia", "app-gia", db), {"KHO_M4_03B_HOA_DON_ID": "hd-demo"})
+            self.assertEqual([c[0] for c in thu_tu.mock_calls], ["lineage", "seed", "owner", "nhan"])
+            lineage.assert_called_once_with(admin)
+            owner.assert_called_once_with(chu, app)
+            service.assert_called_once_with(app, self.root, conn_chu=chu)
+            nhan.assert_called_once_with(admin, service.return_value)
+
+    def test_03a_seed_dung_ham_m4_ma_tran_rieng_khong_doi_module_san_pham(self):
+        from kho_tri_thuc.k2 import m4_demo
+        marker, actors = m4_demo.MARKER_DUYET, m4_demo.NGUOI_DUNG_DUYET
+        seed = types.SimpleNamespace(khoi_tao_duyet=Mock(return_value={"trang_thai": "DU"}))
+        admin = Mock()
+        with patch.object(m4_demo, "khoi_tao_duyet", return_value={"trang_thai": "DU"}) as duyet, \
+                patch.object(H03.importlib.util, "module_from_spec", return_value=seed), \
+                patch.object(H03.importlib.util, "spec_from_file_location", return_value=types.SimpleNamespace(loader=Mock())):
+            H03._seed_ke_toan(admin)
+        duyet.assert_called_once_with(admin)
+        seed.khoi_tao_duyet.assert_called_once_with(admin)
+        self.assertEqual(seed.NGUOI_DUNG_DUYET, H03.ACTOR)
+        self.assertNotEqual(seed.MARKER_DUYET, marker)
+        self.assertEqual((m4_demo.MARKER_DUYET, m4_demo.NGUOI_DUNG_DUYET), (marker, actors))
+        self.assertIn("M2", H03.ACTOR[0][2]["PN_DEMO_A"])
+        self.assertNotIn("M2", H03.ACTOR[1][2]["PN_DEMO_A"])  # c15: KT2 không có M2
+        self.assertTrue(all(a[3] == [("DA_XD_A1", "KE_TOAN")] for a in H03.ACTOR))
+
+    def test_03a_seed_thieu_duyet_dung_khong_tu_cap_lai(self):
+        from kho_tri_thuc.k2 import m4_demo
+        with patch.object(m4_demo, "khoi_tao_duyet", return_value={"trang_thai": "THIEU"}), \
+                patch.object(H03.importlib.util, "spec_from_file_location") as nap:
+            with self.assertRaisesRegex(ValueError, "không tự cấp lại"):
+                H03._seed_ke_toan(Mock())
+        nap.assert_not_called()
+
+    def test_03b_nhan_fixture_va_map_bang_service_that_khong_insert_gia(self):
+        from kho_tri_thuc.k2 import m2_demo
+        admin, svc = Mock(), Mock()
+        admin.execute.return_value.fetchone.side_effect = [("hd-demo",), ("dong-demo",)]
+        fact = next(f for f in m2_demo.doc_ung_vien_dong(m2_demo.doc_khai_bao())
+                    if f["source_artifact_relative_path"] == "inputs/G01-wrapped-positive.xml")
+        svc.chi_tiet.return_value = {"expected_graph": "graph-demo", "dong_nguon_hien_hanh": [
+            {"source_row_id": "row-demo", "source_ordinal": fact["source_ordinal"], "locator": fact["source_locator"]}]}
+        env = H03._nhan_hoa_don(admin, svc)
+        self.assertEqual(env, {"KHO_M4_03B_HOA_DON_ID": "hd-demo", "KHO_M4_03B_DONG_ID": "dong-demo"})
+        nhan = svc.nhan.call_args
+        self.assertEqual(nhan.args, (H03.INTAKE,))
+        self.assertEqual(nhan.kwargs["native"], m2_demo.mau("inputs/G01-wrapped-positive.xml")[1])
+        self.assertEqual(nhan.kwargs["source_instance"], fact["source_instance"])
+        svc.mapping_line.assert_called_once_with(H03.CFO, client_key="pg-demo-03a-map-g01", hoa_don_id="hd-demo",
+                                                expected_graph="graph-demo", source_row_id="row-demo",
+                                                logical_line_key=fact["logical_line_key"], evidence_ref=fact["mapping_ref"],
+                                                evidence_revision=fact["revision"], reason="CFO DEMO map dòng cho test 03B")
+        self.assertTrue(all(c.args[0].lstrip().startswith("SELECT ") for c in admin.execute.call_args_list))
+
+    def test_03b_khong_co_hoa_don_chinh_thuc_de_test_tu_skip(self):
+        admin, svc = Mock(), Mock()
+        admin.execute.return_value.fetchone.return_value = None
+        self.assertEqual(H03._nhan_hoa_don(admin, svc), {})
+        svc.mapping_line.assert_not_called()
+        svc.chi_tiet.assert_not_called()
 
     def test_mat_khau_traceback_stdout_khong_lo_o_bat_ky_bien_xuat(self):
         pw = "gia!MatKhau-123"

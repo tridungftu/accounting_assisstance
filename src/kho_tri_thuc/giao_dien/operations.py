@@ -130,7 +130,7 @@ class Operations:
     def _sync_runtime_settings(self) -> None:
         """Make settings written in source-settings.json effective for the engine."""
         try:
-            current = self.source_settings()
+            current = self.source_settings(normalize_local_ai=False)
             # V12: the invoice folder (paths.invoice) is read by quick posting.
             settings = {**current["settings"], "invoice_root": str(current["paths"].get("invoice") or "")}
             with self._mutation_lock, Store(self.config) as store:
@@ -180,7 +180,7 @@ class Operations:
                    "files": [{"path": str(path), "mtime_ns": path.stat().st_mtime_ns, "size": path.stat().st_size, "hash": sha256(path.read_bytes())} for path in sorted(set(files))]}
         return canonical_json(payload)
 
-    def source_settings(self) -> dict:
+    def source_settings(self, *, normalize_local_ai: bool = True) -> dict:
         path = self.root / "source-settings.json"
         values, settings = dict(SOURCE_DEFAULTS), dict(SETTING_DEFAULTS)
         if path.is_file():
@@ -207,6 +207,9 @@ class Operations:
                 mappings = [dict(row) for row in store.conn.execute("SELECT bank_account,cash_account,source,evidence_json,updated_at FROM cash_account_mappings ORDER BY bank_account")]
         except (OSError, json.JSONDecodeError):
             mappings = []
+        if normalize_local_ai:
+            from ..tri_thuc.ai_cuc_bo import local_ai_settings
+            settings["local_ai"] = local_ai_settings(settings)
         return {"paths": values, "settings": settings, "cash_accounts": mappings}
 
     def save_source_settings(self, values: dict) -> dict:
@@ -223,7 +226,7 @@ class Operations:
             clean[key] = str(Path(value).expanduser())
         if not isinstance(requested_settings, dict):
             raise DataError("SOURCE_SETTINGS", "Thiết lập vận hành không hợp lệ.")
-        current = self.source_settings()["settings"]
+        current = self.source_settings(normalize_local_ai=False)["settings"]
         settings = {**current, **{key: value for key, value in requested_settings.items() if key in SETTING_DEFAULTS}}
         try:
             date_iso(settings["object_learning_from"])
@@ -271,7 +274,10 @@ class Operations:
         if not isinstance(local_ai, dict):
             raise DataError("SOURCE_SETTINGS", "Thiết lập AI cục bộ phải là một nhóm khóa/giá trị.")
         from ..tri_thuc.ai_cuc_bo import local_ai_settings
-        settings["local_ai"] = local_ai_settings({"local_ai": local_ai})
+        # Trạng thái hiệu lực chỉ dành cho lúc đọc; giữ lựa chọn của người dùng.
+        settings["local_ai"] = {**local_ai, **local_ai_settings({"local_ai": local_ai}),
+                                "enabled": bool(local_ai.get("enabled", False))}
+        settings["local_ai"].pop("error", None)
         debt = settings.get("debt_accounts")
         if not isinstance(debt, list) or not all(isinstance(value, str) and re.fullmatch(r"\d{3,10}", value.strip()) for value in debt):
             raise DataError("SOURCE_SETTINGS", "Danh sách tài khoản công nợ phải là các số tài khoản.")

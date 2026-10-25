@@ -72,7 +72,7 @@ RE_SO = _mau_m0030(_RE_SO_M0030)
 RE_SO_VN = _mau_m0030(_RE_SO_VN_M0030)
 RE_MA = re.compile(r"[A-Za-z0-9_.-]{1,80}")
 KHOA_BG = {"loai_hinh_id", "du_an_id", "giai_doan_g7", "nguon_lich", "don_vi", "khach", "gia", "fx", "phi_bao_tri", "lich", "het_han", "ghi_chu",
-           "tong_gia_tri_ghi_de", "tien_chinh"}
+           "tong_gia_tri_ghi_de", "tien_chinh", "lo_id", "phi", "nguon_tieu_chuan", "khac_tieu_chuan"}
 TRAM = Fraction(100)
 HAN_PDF_GIAY = 180.0
 MOC_CHUAN = (("KY_HD", "Ký"), ("BAN_GIAO", "Bàn giao"), ("SO", "Sổ"))
@@ -327,6 +327,12 @@ def chuan_hoa_bao_gia(du_lieu, *, fx_mac_dinh: dict | None = None, hom_nay: str 
         "het_han": _ngay_t(d["het_han"], "Ngày hết hạn", "het_han") if d.get("het_han") else None,
         "ghi_chu": _str(d.get("ghi_chu"), "ghi chú", 2000, truong="ghi_chu"),
     }
+    # DA-3a: metadata tiêu chuẩn gửi lại từ màn hình bị bỏ, luôn tính lại tại máy chủ.
+    if "lo_id" in d:
+        out["lo_id"] = _uuid_hoac_none(d.get("lo_id"), "lo_id")
+    if "phi" in d:
+        from .crm_du_an_ban import chuan_hoa_phi
+        out["phi"] = chuan_hoa_phi(d["phi"])
     if "tong_gia_tri_ghi_de" in d:
         # Giữ nguyên đầu vào để phép tính trả lỗi tại trường, giống ô thông minh của lịch.
         out["tong_gia_tri_ghi_de"] = d["tong_gia_tri_ghi_de"]
@@ -732,6 +738,29 @@ def _moc(r: dict) -> str:
     return "Chưa xác định"
 
 
+def _lich_tieu_chuan(s: dict) -> list[dict]:
+    """Đổi các đợt G7 sang hợp đồng nhập báo giá hiện có (tiền typed theo đơn vị lớn)."""
+    out = []
+    for r in (s.get("bo_chuan") or {}).get("rows") or []:
+        pct = r["gia_tri_loai"] == "PERCENT"
+        tien = None if pct else _frac_str(Fraction(int(r["so_tien_minor"]), 10 ** R.SCALE[r["tien_te"]]))
+        out.append({"lan": r["lan"], "loai": r["gia_tri_loai"], "ty_le": r.get("gia_tri_thap_phan") if pct else None,
+                    "so_tien": tien, "tien_te": None if pct else r["tien_te"], "moc_loai": r.get("moc_loai"),
+                    "moc_ngay": r.get("moc_ngay"), "moc_su_kien": r.get("moc_su_kien"), "ghi_chu": r.get("ghi_chu")})
+    return out
+
+
+def _so_sanh_chuan(v, *, la_so=False):
+    """So giá trị số chính xác, bỏ khác biệt scale biểu diễn; giữ chuỗi nghiệp vụ."""
+    if la_so and isinstance(v, str) and RE_SO.fullmatch(v):
+        return _frac_str(Fraction(Decimal(v)))
+    if isinstance(v, list):
+        return [_so_sanh_chuan(x) for x in v]
+    if isinstance(v, dict):
+        return {k: _so_sanh_chuan(x, la_so=k in {"ty_le", "so_tien", "muc", "gia_tri"}) for k, x in v.items()}
+    return v
+
+
 class CrmGiaoKetK2:
     """G2/G3 trên cùng service G1/G7 (CrmMauK2): cùng kết nối chủ bảng, cùng giao dịch có danh tính, cùng biên nhận."""
 
@@ -839,6 +868,98 @@ class CrmGiaoKetK2:
         x.pop("id")
         return {**x, "cap": "USD/VND", "khoa": KHOA_TY_GIA_MAC_DINH, "duoc_sua": True, "da_doi": doi}
 
+    def _chuan_du_an(self, c, du_an_id, ngay, *, bat_buoc=False, cho_ngung_ban=False):
+        from .crm_du_an_ban import CrmDuAnBanK2
+        s = CrmDuAnBanK2.anh_chup_trong(c, du_an_id, ngay)
+        if s["trang_thai"] == "NGUNG_BAN" and not cho_ngung_ban:
+            _loi("CRM_GK_TRANG_THAI", "Dự án đã ngừng bán.", "du_an_id")
+        if s["trang_thai"] != "DANG_BAN":
+            if bat_buoc:
+                _loi("CRM_G_KHONG_THAY", "Dự án không có trong danh mục đang bán vào ngày này.", "du_an_id")
+            return None  # báo giá nhập tay cũ, chưa thuộc danh mục bán: giữ hợp đồng cũ
+        return s
+
+    def mac_dinh_bao_gia(self, dang_nhap: str, du_an_id, ngay=None) -> dict:
+        """DA-3a: mặc định cho màn hình. Thuế/đất trừ chỉ hiển thị, chưa tham gia tính tiền."""
+        from .crm_du_an_ban import TRUONG_PHI, chuan_hoa_phi
+        m, dt = self.mau, self.mau.danh_tinh(dang_nhap)
+        da = _uuid(du_an_id, "du_an_id")
+        ngay = _ngay_t(ngay, "Ngày", "ngay") if ngay else m.hom_nay().isoformat()
+        with m._tx(dt, rr=True) as c:
+            ok = m._mot(c, """SELECT id FROM master.du_an WHERE id = %s::uuid
+                               AND master.crm_gk_duoc('CRM_BAO_GIA', phap_nhan_id)""", (da,))
+            if not ok:
+                _loi("CRM_G_KHONG_THAY", "Không thấy dự án (hoặc ngoài phạm vi báo giá).", "du_an_id")
+            s = self._chuan_du_an(c, da, ngay, bat_buoc=True)
+        return {"du_an_id": da, "ngay": ngay, "don_gia": s["don_gia"], "tien_te": s["tien_te"], "don_vi_don_gia": "m²",
+                "loai_hinh": s["loai_hinh"], "thue": s["thue"], "thue_chi_hien_thi": True, "gia_dat_tru": s["gia_dat_tru"],
+                "lo": [{"id": x["id"], "ma": x["ma"], "dien_tich": x["dien_tich"]} for x in s["lo"] if x["trang_thai"] == "CON_TRONG"],
+                "giai_doan_g7": s["giai_doan_g7"], "bo_chuan": s.get("bo_chuan"), "lich": _lich_tieu_chuan(s),
+                "phi": chuan_hoa_phi([{k: x.get(k) for k in TRUONG_PHI} for x in s["phi"]]),
+                "anh_chup_sha256": s["anh_chup_sha256"], "phien_ban": s["phien_ban"]}
+
+    def _gan_tieu_chuan(self, c, d, ngay, *, cho_ngung_ban=False):
+        """Chụp lại trong giao dịch lưu RR; chỉ lấy lô của đúng dự án, còn trống. Không đổi phép tính thuế."""
+        from .crm_du_an_ban import TRUONG_PHI, chuan_hoa_phi
+        if not d["du_an_id"]:
+            if d.get("lo_id"):
+                _loi("CRM_GK_YEU_CAU_SAI", "Cần chọn dự án của lô/căn.", "lo_id")
+            return
+        s = self._chuan_du_an(c, d["du_an_id"], ngay, bat_buoc=bool(d.get("lo_id")),
+                              cho_ngung_ban=cho_ngung_ban and not d.get("lo_id"))
+        if s is None:
+            if cho_ngung_ban:
+                # Nháp cũ cùng dự án, không chọn lô: giữ giá/phí nhập tay khi không còn chuẩn đang bán.
+                d["nguon_tieu_chuan"] = None
+                d["khac_tieu_chuan"] = [{"truong": "du_an_id", "nhan": "Dự án không có tiêu chuẩn đang bán",
+                                         "tieu_chuan": None, "bao_gia": d["du_an_id"]}]
+            return
+        khac = []
+
+        def so(truong, nhan, chuan, nhap, **them):
+            la_so = truong in {"gia.don_gia", "gia.dien_tich"}
+            if _so_sanh_chuan(chuan, la_so=la_so) != _so_sanh_chuan(nhap, la_so=la_so):
+                khac.append({"truong": truong, "nhan": nhan, "tieu_chuan": chuan, "bao_gia": nhap, **them})
+
+        so("gia.don_gia", "Đơn giá", s["don_gia"], d["gia"]["don_gia"])
+        so("gia.tien_te", "Tiền tệ", s["tien_te"], d["gia"]["tien_te"])
+        so("loai_hinh_id", "Loại hình", s["loai_hinh"]["id"], d["loai_hinh_id"])
+        lo = None
+        if d.get("lo_id"):
+            lo = next((x for x in s["lo"] if x["id"] == d["lo_id"]), None)
+            if lo is None:
+                _loi("CRM_GK_YEU_CAU_SAI", "Lô/căn không thuộc dự án đã chọn.", "lo_id")
+            if lo["trang_thai"] != "CON_TRONG":
+                _loi("CRM_GK_TRANG_THAI", "Lô/căn không còn trống.", "lo_id")
+            if d["don_vi"]["ma"] is not None:
+                so("don_vi.ma", "Lô/căn", lo["ma"], d["don_vi"]["ma"], gia_tri_luu=lo["ma"])
+            if d["gia"]["dien_tich"] is not None:
+                so("gia.dien_tich", "Diện tích", lo["dien_tich"], d["gia"]["dien_tich"], gia_tri_luu=lo["dien_tich"])
+            d["don_vi"].update({"ma": lo["ma"], "can_cu": {"lo_id": lo["id"], "anh_chup_sha256": s["anh_chup_sha256"]}})
+            d["gia"]["dien_tich"] = lo["dien_tich"]
+        else:
+            lo = next((x for x in s["lo"] if x["ma"].upper() == (d["don_vi"]["ma"] or "").upper()
+                       and x["trang_thai"] == "CON_TRONG"), None)
+            if lo:
+                so("gia.dien_tich", "Diện tích", lo["dien_tich"], d["gia"]["dien_tich"])
+            else:
+                so("don_vi.ma", "Lô/căn", [x["ma"] for x in s["lo"] if x["trang_thai"] == "CON_TRONG"], d["don_vi"]["ma"])
+        # Bỏ ID dòng/ô nhập/ghi chú; so đúng giá trị, thứ tự các đợt và mốc, kể cả nguồn lịch KHÁCH.
+        cot = ("lan", "loai", "ty_le", "so_tien", "tien_te", "moc_loai", "moc_ngay", "moc_su_kien")
+        chuan = [{k: r.get(k) for k in cot} for r in _lich_tieu_chuan(s)]
+        nhap = [{k: (None if k == "tien_te" and r["loai"] == "PERCENT" else
+                     (r.get(k) or TIEN_CHINH) if k == "tien_te" and r["loai"] == "AMOUNT" else r.get(k)) for k in cot} for r in d["lich"]]
+        so("lich", "Tiến độ thanh toán", chuan, nhap)
+        phi = chuan_hoa_phi([{k: x.get(k) for k in TRUONG_PHI} for x in s["phi"]])
+        sap = lambda rows: sorted(rows, key=lambda x: x["ten"].lower())
+        so("phi", "Phí", sap(phi), sap(d.get("phi") or []))
+        if d["phi_bao_tri"]:
+            bao_tri = [{"gia_tri": x["muc"], "tien_te": x["tien_te"], "co_so": x.get("co_so_tinh")} for x in phi if x["loai"] == "BAO_TRI"]
+            if not any(_so_sanh_chuan(x) == _so_sanh_chuan(d["phi_bao_tri"]) for x in bao_tri):
+                so("phi_bao_tri", "Phí bảo trì", bao_tri, d["phi_bao_tri"])
+        d["nguon_tieu_chuan"] = {"anh_chup_sha256": s["anh_chup_sha256"], "phien_ban": s["phien_ban"], "ngay": ngay}
+        d["khac_tieu_chuan"] = khac
+
     # ------------------------------------------------------------------ G2 đọc
     def danh_sach(self, dang_nhap: str) -> dict:
         m, dt = self.mau, self.mau.danh_tinh(dang_nhap)
@@ -914,6 +1035,8 @@ class CrmGiaoKetK2:
                     _loi("CRM_G_KHONG_THAY", "Không thấy dự án (hoặc ngoài phạm vi pháp nhân báo giá).")
             if self._can_fx_mac_dinh(d):
                 d = chuan_hoa_bao_gia(du_lieu, fx_mac_dinh=self._fx_mac_dinh(c), hom_nay=hom_nay)
+            if d.get("lo_id"):
+                self._gan_tieu_chuan(c, d, hom_nay)  # tính thử cùng diện tích máy chủ sẽ dùng khi lưu
             g7 = None
             if d["nguon_lich"] == "DU_AN" and d["du_an_id"] and d["giai_doan_g7"]:
                 g7 = c.execute("SELECT master.crm_g_chuan_doc(%s::uuid, %s, %s::date) AS r", (d["du_an_id"], d["giai_doan_g7"],
@@ -923,7 +1046,8 @@ class CrmGiaoKetK2:
                 "nhan": {"phap_nhan": {"ma": ok["phap_nhan"], "ten": ok["phap_nhan_ten"]},
                          "loai_hinh": {"ma": ok["loai_hinh"], "ten": ok["loai_hinh_ten"]}, "du_an": du_an},
                 "het_han_hien_thi": _ngay_vn(d["het_han"]), "fx_ngay_hien_thi": _ngay_vn((d["fx"] or {}).get("ngay")),
-                "fx": d["fx"], "co_phi": co_phi}
+                "fx": d["fx"], "co_phi": co_phi,
+                **{k: d[k] for k in ("nguon_tieu_chuan", "khac_tieu_chuan") if k in d}}
 
     # ------------------------------------------------------------------ G2 lệnh
     def luu(self, dang_nhap: str, *, bao_gia_id, expected_revision, du_lieu, khoa) -> dict:
@@ -945,6 +1069,8 @@ class CrmGiaoKetK2:
             # vào báo giá (đổi cấu hình sau không đổi báo giá đã lưu)
             d = chuan_hoa_bao_gia(du_lieu, fx_mac_dinh=self._fx_mac_dinh(c, truoc) if self._can_fx_mac_dinh(d0) else None,
                                   hom_nay=m.hom_nay().isoformat())
+            self._gan_tieu_chuan(c, d, m.hom_nay().isoformat(),
+                                 cho_ngung_ban=truoc is not None and truoc.get("du_an_id") == d["du_an_id"] and not d.get("lo_id"))
             for r in d["lich"]:  # row ID logic giữ qua revision/chuyển; dòng mới nhận ID máy chủ
                 r["dong_id"] = r["dong_id"] or str(uuid.uuid4())
             if d["fx"]:  # người nhập/ngày nhập do máy chủ ghi; giữ nguyên khi tỷ giá không đổi
@@ -964,6 +1090,15 @@ class CrmGiaoKetK2:
                                        json.dumps(d, ensure_ascii=False), json.dumps(tinh, ensure_ascii=False),
                                        d["du_an_id"] if g7 is not None else None, d["giai_doan_g7"] if g7 is not None else None,
                                        m.hom_nay().isoformat() if g7 is not None else None, None if g7 is None else json.dumps(g7, ensure_ascii=False))).fetchone())
+            if d.get("khac_tieu_chuan") and not kq["lap_lai"]:
+                c.execute("""INSERT INTO nhat_ky.su_kien
+                             (phap_nhan_id, nguoi, loai, doi_tuong_bang, doi_tuong_id, hanh_dong, truoc, sau, ly_do)
+                             SELECT b.phap_nhan_id, %s, 'DIEU_CHINH', 'master.crm_bao_gia', b.id, 'CRM_BAO_GIA_KHAC_TIEU_CHUAN',
+                                    %s::jsonb, %s::jsonb, 'Báo giá sửa riêng theo QD-20261025-09'
+                             FROM master.crm_bao_gia b WHERE b.id = %s::uuid""",
+                          (dt["dang_nhap"], json.dumps({x["truong"]: x["tieu_chuan"] for x in d["khac_tieu_chuan"]}, ensure_ascii=False),
+                           json.dumps({"revision": kq["revision"], "nguon_tieu_chuan": d["nguon_tieu_chuan"],
+                                       "khac_tieu_chuan": d["khac_tieu_chuan"]}, ensure_ascii=False), kq["bao_gia_id"]))
             lech = next((x for x in tinh["canh_bao"] if x["ma"] == "TONG_LECH_DON_GIA_X_DIEN_TICH"), None)
             if lech and not kq["lap_lai"]:
                 # Cùng giao dịch với revision/biên nhận; replay (kể cả hàm SQL trả replay) không ghi thêm sự kiện.

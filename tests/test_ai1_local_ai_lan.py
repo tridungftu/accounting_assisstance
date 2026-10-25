@@ -10,6 +10,8 @@ from contextlib import contextmanager
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from unittest.mock import Mock, patch
 
+from test_modules import FeatureCase
+from kho_tri_thuc.giao_dien.operations import Operations, SOURCE_DEFAULTS
 from kho_tri_thuc.tri_thuc import ai_cuc_bo as ai
 
 
@@ -22,7 +24,7 @@ def config(url="http://127.0.0.1:1234/v1/chat/completions", **kwargs):
 
 
 @contextmanager
-def fake_ai(*, model_entry=None, tags=None, redirects=None, completion=None):
+def fake_ai(*, model_entry=None, tags=None, tags_payload=None, redirects=None, completion=None):
     calls = []
     responses = {
         "/v1/models": {"data": [model_entry or {"id": "demo-local"}]},
@@ -30,6 +32,8 @@ def fake_ai(*, model_entry=None, tags=None, redirects=None, completion=None):
     }
     if tags is not None:
         responses["/api/tags"] = {"models": tags}
+    if tags_payload is not None:
+        responses["/api/tags"] = tags_payload
 
     class Handler(BaseHTTPRequestHandler):
         def do_GET(self):
@@ -86,12 +90,13 @@ class AddressTests(unittest.TestCase):
             dns.assert_not_called()
 
     def test_rejects_domains_https_public_linklocal_and_malformed_urls_without_dns(self):
-        urls = ("http://ai.example:1234/v1/chat/completions", "http://localhost:1234/v1/chat/completions",
+        urls = ("http://ai.example:1234/v1/chat/completions", "http://0.0.0.0:1234/v1/chat/completions",
                 "https://127.0.0.1:1234/v1/chat/completions", "http://8.8.8.8:1234/v1/chat/completions",
                 "http://100.63.255.255:1234/v1/chat/completions", "http://100.128.0.1:1234/v1/chat/completions",
                 "http://172.32.0.1:1234/v1/chat/completions", "http://169.254.1.2:1234/v1/chat/completions",
                 "http://[fe80::1]:1234/v1/chat/completions", "http://[2001:db8::1]:1234/v1/chat/completions",
-                "http://[::ffff:8.8.8.8]:1234/v1/chat/completions", "http://2130706433:1234/v1/chat/completions",
+                "http://[::ffff:8.8.8.8]:1234/v1/chat/completions", "http://[::ffff:127.0.0.1]:1234/v1/chat/completions",
+                "http://2130706433:1234/v1/chat/completions",
                 "http://127.0.0.1/v1/chat/completions", "http://127.0.0.1:0/v1/chat/completions",
                 "http://127.0.0.1:65536/v1/chat/completions", "http://user@127.0.0.1:1234/v1/chat/completions",
                 "http://127.0.0.1:1234/v1/chat/completions?proxy=1",
@@ -163,6 +168,26 @@ class AddressTests(unittest.TestCase):
 
 
 class FakeAIIntegrationTests(unittest.TestCase):
+    def test_legacy_localhost_connects_to_loopback_without_dns(self):
+        with fake_ai() as (settings, calls), \
+                patch.object(socket, "getaddrinfo", side_effect=AssertionError("Không được tra DNS")) as dns:
+            settings["url"] = settings["url"].replace("127.0.0.1", "localhost")
+            normalized = ai.local_ai_settings({"local_ai": settings})
+            self.assertTrue(normalized["enabled"])
+            self.assertIn("127.0.0.1", normalized["url"])
+            connect = ai._IPConnection.connect
+            hosts = []
+
+            def record_connect(connection):
+                hosts.append(connection.host)
+                return connect(connection)
+
+            with patch.object(ai._IPConnection, "connect", record_connect):
+                self.assertEqual("DEMO_B", ai.choose_counterparty(settings, "DEMO", "DEMO", OPTIONS)["code"])
+            self.assertEqual(["127.0.0.1"] * 3, hosts)
+            self.assertEqual("/v1/chat/completions", calls[-1][1])
+            dns.assert_not_called()
+
     def test_choose_counterparty_works_without_dns_or_environment_proxy(self):
         with fake_ai() as (settings, calls), patch.dict(os.environ, {
                 "HTTP_PROXY": "http://proxy.invalid:9999", "http_proxy": "http://proxy.invalid:9999",
@@ -183,6 +208,18 @@ class FakeAIIntegrationTests(unittest.TestCase):
                      tags=[{"name": "demo-local:latest", "model": "demo-local:latest"}]) as (settings, calls):
             self.assertEqual("DEMO_B", ai.choose_counterparty(settings, "DEMO", "DEMO", OPTIONS)["code"])
             self.assertEqual("/v1/chat/completions", calls[-1][1])
+
+    def test_lm_studio_unknown_tags_payload_does_not_block_completion(self):
+        for payload in ({}, {"error": "Unexpected endpoint"}, {"models": None}, {"models": {}}, []):
+            with self.subTest(payload=payload), fake_ai(tags_payload=payload) as (settings, calls):
+                self.assertEqual("DEMO_B", ai.choose_counterparty(settings, "DEMO", "DEMO", OPTIONS)["code"])
+                self.assertEqual("/v1/chat/completions", calls[-1][1])
+
+    def test_ollama_empty_or_nonmatching_models_list_still_blocks_prompt(self):
+        for tags in ([], [{"name": "another-demo-model"}]):
+            with self.subTest(tags=tags), fake_ai(tags=tags) as (settings, calls):
+                self.assertIsNone(ai.choose_counterparty(settings, "DEMO", "DEMO", OPTIONS))
+                self.assertTrue(all(method == "GET" for method, _, _ in calls))
 
     def test_remote_model_metadata_blocks_prompt_even_with_innocent_name(self):
         for metadata in ({"remote_host": "DEMO"}, {"remote_model": "DEMO"}, {"model": "demo-cloud"}):
@@ -216,6 +253,109 @@ class FakeAIIntegrationTests(unittest.TestCase):
     def test_output_must_still_choose_an_offered_code(self):
         with fake_ai(completion={"choices": [{"message": {"content": "MA=DEMO_OTHER"}}]}) as (settings, _):
             self.assertIsNone(ai.choose_counterparty(settings, "DEMO", "DEMO", OPTIONS))
+
+
+class ConnectionCooldownTests(unittest.TestCase):
+    def setUp(self):
+        self.cache = patch.dict(ai._CONNECTION_FAILURES, {}, clear=True)
+        self.cache.start()
+        self.addCleanup(self.cache.stop)
+
+    def test_connection_failures_skip_network_for_15_seconds_then_retry(self):
+        errors = (ai.urllib.error.URLError(ConnectionRefusedError("DEMO offline")),
+                  TimeoutError("DEMO timeout"), ai.http.client.RemoteDisconnected("DEMO closed"))
+        for error in errors:
+            with self.subTest(error=type(error).__name__), \
+                    patch.dict(ai._CONNECTION_FAILURES, {}, clear=True), \
+                    patch.object(ai.time, "monotonic", return_value=100) as clock, \
+                    patch.object(ai.urllib.request, "build_opener") as factory:
+                factory.return_value.open.side_effect = error
+                settings = config("http://localhost:1234/v1/chat/completions")
+                self.assertIsNone(ai.choose_counterparty(settings, "DEMO PRIVATE", "DEMO PROMPT", OPTIONS))
+                self.assertEqual({config()["url"]: 100}, ai._CONNECTION_FAILURES)
+                clock.return_value = 114.99
+                self.assertIsNone(ai.choose_counterparty(config(), "DEMO", "DEMO", OPTIONS))
+                factory.assert_called_once()
+                factory.return_value.open.assert_called_once()
+                transport = Mock(return_value=ANSWER)
+                other = config("http://127.0.0.1:1235/v1/chat/completions")
+                self.assertEqual("DEMO_B", ai.choose_counterparty(other, "DEMO", "DEMO", OPTIONS, transport)["code"])
+                clock.return_value = 115
+                self.assertEqual("DEMO_B", ai.choose_counterparty(settings, "DEMO", "DEMO", OPTIONS, transport)["code"])
+                self.assertEqual(2, transport.call_count)
+                self.assertEqual({}, ai._CONNECTION_FAILURES)
+
+    def test_completion_connection_failure_also_starts_cooldown(self):
+        with fake_ai() as (settings, calls), patch.object(ai.time, "monotonic", return_value=100):
+            # Mock metadata separately so the failed socket belongs to completion.
+            read_json = ai._read_json
+
+            def read(opener, url, timeout, body=None):
+                if url.endswith("/v1/models"):
+                    return {"data": [{"id": "demo-local"}]}
+                if url.endswith("/api/tags"):
+                    return {}
+                return read_json(opener, url, timeout, body)
+
+            with patch.object(ai, "_read_json", side_effect=read), \
+                    patch.object(ai._IPConnection, "connect", side_effect=TimeoutError("DEMO timeout")) as connect:
+                self.assertIsNone(ai.choose_counterparty(settings, "DEMO", "DEMO", OPTIONS))
+                self.assertIsNone(ai.choose_counterparty(settings, "DEMO", "DEMO", OPTIONS))
+                connect.assert_called_once()
+                self.assertEqual({settings["url"]: 100}, ai._CONNECTION_FAILURES)
+            self.assertEqual([], calls)
+
+    def test_model_or_answer_error_does_not_start_connection_cooldown(self):
+        transport = Mock(side_effect=[ValueError("DEMO model error"), ANSWER])
+        self.assertIsNone(ai.choose_counterparty(config(), "DEMO", "DEMO", OPTIONS, transport))
+        self.assertEqual("DEMO_B", ai.choose_counterparty(config(), "DEMO", "DEMO", OPTIONS, transport)["code"])
+        self.assertEqual({}, ai._CONNECTION_FAILURES)
+
+
+class LocalAISettingsTests(FeatureCase):
+    def setUp(self):
+        super().setUp()
+        self.operation = object.__new__(Operations)
+        self.operation.config = self.config
+        self.operation.config_path = self.root / "cau_hinh-demo.toml"
+        self.operation.root = self.root
+        self.operation._mutation_lock = threading.RLock()
+        self.operation.bootstrap_job = None
+        self.operation.bootstrap_status = {}
+        self.paths = {key: str(self.root / key) for key in SOURCE_DEFAULTS}
+
+    def write_settings(self, local_ai):
+        (self.root / "source-settings.json").write_text(
+            json.dumps({"paths": self.paths, "settings": {"local_ai": local_ai}}, ensure_ascii=False), encoding="utf-8")
+
+    def test_old_localhost_config_is_normalized_before_ui_reads_it(self):
+        self.write_settings(config("http://localhost:1234/v1/chat/completions", timeout_seconds=99, error="Lỗi cũ"))
+        with patch.object(socket, "getaddrinfo", side_effect=AssertionError("Không được tra DNS")) as dns:
+            settings = self.operation.source_settings()["settings"]["local_ai"]
+            self.assertTrue(settings["enabled"])
+            self.assertEqual("", settings["error"])
+            self.assertEqual(config()["url"], settings["url"])
+            self.assertEqual(30, settings["timeout_seconds"])
+            self.assertEqual(settings, self.operation.overview()["local_ai"])
+            dns.assert_not_called()
+
+    def test_invalid_config_shows_ui_error_but_saving_preserves_user_enabled(self):
+        for enabled in (True, False):
+            with self.subTest(enabled=enabled):
+                local_ai = config("http://0.0.0.0:1234/v1/chat/completions", enabled=enabled, error="Lỗi cũ")
+                result = self.operation.save_source_settings({"paths": self.paths, "settings": {"local_ai": local_ai}})
+                self.assertFalse(result["settings"]["local_ai"]["enabled"])
+                self.assertTrue(self.operation.overview()["local_ai"]["error"])
+                # Lưu mục khác và đồng bộ lúc khởi động cũng phải giữ enabled gốc.
+                self.operation._sync_runtime_settings()
+                self.operation.save_learning_settings({"scoring_mode": True})
+                saved = json.loads((self.root / "source-settings.json").read_text(encoding="utf-8"))["settings"]["local_ai"]
+                self.assertEqual(enabled, saved["enabled"])
+                self.assertNotIn("error", saved)
+                runtime = json.loads(self.store.conn.execute(
+                    "SELECT value FROM workspace_meta WHERE key='v9b_runtime_settings'").fetchone()[0])["local_ai"]
+                self.assertEqual(enabled, runtime["enabled"])
+                self.assertNotIn("error", runtime)
 
 
 if __name__ == "__main__":

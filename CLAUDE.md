@@ -35,6 +35,7 @@
 - "Xanh" tạm thời = **không thêm mã lỗi (`ids_loi`) so với nền v4** ở `docs\46-chuyen-doi-dieu-phoi\NEN-TEST.md` mục 0 (`nen-test-hop-nhat-v4.json`; `test_trich6_host.HandlerSoHuuTests…` chập chờn khi chạy cả bộ), không phải 100% đạt.
 - File dùng chung, mỗi lúc một lát giữ (ghi trong `docs\46-chuyen-doi-dieu-phoi\TRANG-THAI.md`): `src\kho_tri_thuc\giao_dien\server.py`, `ha_tang\pg_migrations.py`, `giao_dien\crm_g.py`, `giao_dien\assets\crm_g.js`, `giao_dien\m4.py`, `giao_dien\assets\app.js`, `index.html`, `style.css`, các file `m4\*` dùng chung.
 - Worktree của lát do lead tạo (`git worktree add -b lat/<ma> .claude/worktrees/lat-<ma> hop-nhat-20261023`); không dùng `isolation: worktree` (Claude Code tạo từ `main` cũ). Mọi lệnh có thể quá 2 phút và mọi server phải chạy nền, nếu không agent bị ngắt sau 600 giây.
+- Worktree mới **thiếu 2 tệp ghim của lõi Review** bị `.gitignore` (`src\kho_tri_thuc\m4\review_goc\trich_xuat\DANH_MUC_THAM_SO.xlsx`, `…\app_kiem_tra_ho_so\danh_muc_tai_lieu.csv`) → test M4 PG tự skip "lõi nguồn chưa nạp". Lead chép 2 tệp từ thư mục chính sang worktree trước khi chạy test. Cổng gộp kiểm cả **số skip** (so nền), không chỉ `ids_loi` (bài học M4-5a 25/10).
 - Gọi tên module kèm tên chu trình ("M4 · Nghiệm thu & chi phí dự án").
 - Giao diện: tiếng Việt nghiệp vụ, không mã kỹ thuật, ngày dd/mm/yyyy, tiền có đơn vị.
 - Kế hoạch và hàng đợi lát của lead: `docs\46-chuyen-doi-dieu-phoi\4-KE-HOACH-LEAD.md`.

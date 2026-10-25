@@ -16,7 +16,7 @@
 3. Từ nay không lát nào viết code gọi thẳng `api.anthropic.com` / `api.openai.com` hoặc thêm bộ che riêng.
 4. Thêm các dòng AI-0…AI-4, MASK-1, MASK-2 vào `TRANG-THAI.md`. Lịch giảm tỷ lệ kiểm xác suất Anh đã đồng ý (TL 48 §1.6).
 **Báo Anh khi:** AI-0 xong; cần cấp quyền thư mục.
-**Trạng thái:** ĐÃ NHẬN — cập nhật 18:51 25/10: **AI-0 XONG cả hai phần** — AI-0b bản trong repo gộp 06fa717; AI-0a bản độc lập xong (worker Claude; 18 ca test không gọi mạng; 9 test Cloud cũ của engine thất bại đúng thiết kế → xử lý ở AI-3). MASK-1, AI-1 bị dừng khi Anh mở lại phiên → giao lại (xem BAN-GIAO-PHIEN-20261025.md); dòng AI/MASK trong TRANG-THAI.md
+**Trạng thái:** ĐÃ NHẬN — cập nhật 18:51 25/10: **AI-0 XONG cả hai phần** — AI-0b bản trong repo gộp 06fa717; AI-0a bản độc lập xong (worker Claude; 18 ca test không gọi mạng; 9 test Cloud cũ của engine thất bại đúng thiết kế → xử lý ở AI-3). cập nhật 19:53: **AI-1 XONG** (gộp cfdf33c; review Opus Đạt → AI-1b đang sửa 3 điểm nhỏ); **MASK-1 XONG** (Mask v2 2.7.0, review Opus vòng 2 Đạt; QD-23/24 Anh chốt); tiếp theo MASK-2, AI-2; dòng AI/MASK trong TRANG-THAI.md
 
 ## CD-002 · 25/10/2026 18:15 · Trang chủ dạng lưới icon (phương án B) — khung dùng chung, áp CRM trước
 **Căn cứ:** Anh chốt 25/10 — `D:\Claude\Phan mem ho tro ke toan\49-trang-chu-luoi-icon.md` (§1 quy tắc, §2 CRM, §3 đặc tả khung, §4 lát + cổng A); TL 42 §0, §2, §16.2 đã sửa cùng ngày (`..\42-man-hinh-crm-ke-toan-va-giao-ket.md`); bản mẫu canvas "Trang chủ lưới icon — CRM" (bảng 1, 3, 5).
@@ -27,7 +27,7 @@
 4. Xong UI-1 + UI-2: gửi Anh phiếu cổng A theo TL 49 §4 (6 bước thử, 4 vai DEMO).
 **Ưu tiên:** sau AI-0 (CD-001); trước các lát mới chưa bắt đầu của CRM.
 **Báo Anh khi:** phiếu cổng A của UI-1 sẵn sàng; cần quyết thêm về thẻ tổng quan.
-**Trạng thái:** ĐÃ NHẬN 18:46 25/10 — xếp UI-1…UI-4 vào kế hoạch + TRANG-THAI; UI-1 bắt đầu khi có chỗ trống (sau AI-0)
+**Trạng thái:** ĐÃ NHẬN 18:46 25/10 — xếp UI-1…UI-4 vào kế hoạch + TRANG-THAI; UI-1 bắt đầu khi có chỗ trống (sau AI-0); cập nhật 21:15: **UI-2 + UI-2b đã gộp**, UI-1 + UI-1b xong (DEMO 8798, lead thử 4 vai đạt) → **phiếu cổng A gửi Anh**: `docs\46-chuyen-doi-dieu-phoi\PHIEU-CONG-A-TRANG-CHU-LUOI-ICON.md`
 
 
 ## CD-003 · 25/10/2026 19:20 · Nhật ký lát để báo cáo hiệu quả hằng ngày
@@ -49,4 +49,4 @@
 4. Điều kiện chạy song song: mỗi worker worktree + nhánh `lat/` riêng, **CSDL test và cổng web riêng theo mã lát**; khóa file chung trong `TRANG-THAI.md`; không khởi động postgres trong sandbox Codex.
 5. **Ngừng giao thêm** khi > 2 lát chờ review, chạm hạn mức gói (Claude hoặc Codex), hoặc test giữa các lát xung đột. Tăng Codex quá 4 chỉ khi Anh duyệt (đề xuất trong báo cáo ngày).
 **Báo Anh khi:** CSDL DEMO chưa chạy dịch vụ Windows (điều kiện bắt buộc trước khi lên 4 Codex); hàng chờ review dồn > 2 trong ngày.
-**Trạng thái:** ĐÃ NHẬN 19:19 25/10 — đã chép `review-lat` vào `.claude\agents\`; tiêu đề TRANG-THAI sửa theo mức mới (25/10 vẫn 3 worker; từ 26/10: 2 Claude + 4 Codex); từ nay lát Codex chưa gộp (M4-5a v3, UI-2, DA-3a v2, T-MIG2) qua `kiem-nhanh` → `review-lat` trước khi gộp; AI-1, C3c đã gộp 18:58–19:03 (trước CD-004) → review-lat sau gộp. **Báo Anh:** dịch vụ Windows PostgreSQL DEMO **chưa cài** (Anh chưa bấm `CÀI DỊCH VỤ POSTGRES DEMO.cmd`) → chưa lên 4 Codex
+**Trạng thái:** ĐÃ NHẬN 19:19 25/10 — đã chép `review-lat` vào `.claude\agents\`; tiêu đề TRANG-THAI sửa theo mức mới (25/10 vẫn 3 worker; từ 26/10: 2 Claude + 4 Codex); từ nay lát Codex chưa gộp (M4-5a v3, UI-2, DA-3a v2, T-MIG2) qua `kiem-nhanh` → `review-lat` trước khi gộp; AI-1, C3c đã gộp 18:58–19:03 (trước CD-004) → review-lat sau gộp. cập nhật 19:47: dịch vụ Windows `ktt-postgres-demo` **đã chạy** (Anh bấm 19:40, sẵn sàng 19:46) → đủ điều kiện lên 4 Codex từ 26/10

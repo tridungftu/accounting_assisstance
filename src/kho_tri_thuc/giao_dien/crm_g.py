@@ -134,6 +134,8 @@ _KHOI_TAO = threading.RLock()
 
 def la_route(post: bool, path: str) -> bool:
     """Route thuộc module này? POST /api/crm/mau (không hậu tố) KHÔNG thuộc — giữ handler #6 cũ. Tài sản /crm_g.js nằm ở static allowlist của server."""
+    if path.startswith("/api/khung/module/"):
+        return not post
     if path == "/api/crm/hop-dong":  # CRM 42 S1: chỉ đọc
         return not post
     if path == "/api/crm/mau":
@@ -466,6 +468,11 @@ def dieu_huong(h, app, post: bool, path: str, query: dict):
         return _dieu_huong_da(h, app, post, path, query)
     try:
         if not post:
+            # UI-2: khung + drill-down trạng thái G1/G2, không đổi router/tài sản server.
+            if path.startswith("/api/khung/module/") or (path in ("/api/crm/bao-gia", "/api/crm/mau")
+                    and "trang_thai" in parse_qs(urlsplit(h.path).query, keep_blank_values=True)):
+                from .khung_khai_bao import dieu_huong as khung
+                return khung(h, app, path)
             if path == "/api/crm/hop-dong":
                 from ..k2.crm_s1 import CrmDanhSachK2, bo_loc
                 # Router chung bỏ giá trị rỗng; đọc lại để bắt cả tham số lặp/rỗng.
@@ -504,6 +511,11 @@ def dieu_huong(h, app, post: bool, path: str, query: dict):
                     _, me, _ = app.crm_phien(h.crm_sid())
                     return h.send_content(200, app._crm_db(dich_vu(app).chi_tiet, me, m.group(1)))
             # --- CRM-41-03 G2/G3 (đọc: quyền hiện hành trong cùng giao dịch RR trên kết nối chủ bảng)
+            if path == "/api/crm/bao-gia/mac-dinh":  # DA-3a: mặc định dự án; thuế chỉ hiển thị
+                _chi_query(h, query, {"du_an_id", "ngay"})
+                with app.mutation_lock:
+                    _, me, _ = app.crm_phien(h.crm_sid())
+                    return h.send_content(200, app._crm_db(dich_vu_gk(app).mac_dinh_bao_gia, me, _q(query, "du_an_id"), _q(query, "ngay")))
             if path == "/api/crm/bao-gia/moc-chuan":
                 _khong_query(h, query)
                 with app.mutation_lock:
