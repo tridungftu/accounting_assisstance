@@ -22,7 +22,8 @@ from unittest.mock import patch
 
 import test_m2_00_nhan_tinh as nhan_test
 from test_m2_00_manifest_tinh import tao_run_demo
-from test_m2_00b_tinh import CAP, CTY_A, CTY_B, INST, MA_A, MA_B, PN_A, PN_B, SCOPE, SID_KT, SID_KT2, SID_XA, AppGia, KetNoiGia, NodeGia, TienTrinhGia, tao_cau_hinh
+from test_m2_00b_tinh import (CAP, CTY_A, CTY_B, INST, MA_A, MA_B, PAYLOAD, PN_A, PN_B, SCOPE, SID_KT, SID_KT2, SID_XA, AppGia, KetNoiGia, NodeGia,
+                              TienTrinhGia, tao_cau_hinh)
 
 from kho_tri_thuc.giao_dien import m2_tai_hoa_don as mod
 from kho_tri_thuc.giao_dien.server import LocalServer
@@ -657,6 +658,64 @@ class Nhan(Co):
         m = self.goi("GET", f"{TIEN_TO}/manifest?run={r['run_handle']}&run_rel={run_rel}")
         self.assertEqual((m.status, m.json["nguon"]), (200, "HOI_CUU"), m.text)
         self.assertNotIn(str(cu), m.text)
+
+    def nhan_ghi_lai(self, truoc_k2=None):
+        """nhan_vao_k2 giả CHỈ ghi nhận lời gọi (không K2): kèm trạng thái khóa app lúc gọi; lap_ke_hoach_nhan thật + móc `truoc_k2` ngay sau khi lập xong kế hoạch."""
+        goi = {"k2": [], "lap": []}
+        that = mod.lap_ke_hoach_nhan
+
+        def lap(*a, **kw):
+            goi["lap"].append(self.app.mutation_lock.locked())
+            kq = that(*a, **kw)
+            if truoc_k2:
+                truoc_k2()
+            return kq
+
+        def k2(ke_hoach, _k2, **kw):
+            goi["k2"].append({"actor": kw["actor"], "lap_lai_day_du": kw["lap_lai_day_du"], "khoa_dang_giu": self.app.mutation_lock.locked()})
+            return {"ket_qua": [], "ngoai_le": [], "chua_ro_nguon": [], "khoang_thieu_k2": []}
+        return goi, patch.object(mod, "lap_ke_hoach_nhan", lap), patch.object(mod, "nhan_vao_k2", k2)
+
+    def test_v2_nhan_lap_ke_hoach_ngoai_khoa_chi_ghi_k2_trong_khoa_voi_actor_cua_phien_hien_hanh(self):
+        r = self.tai_xong()
+        self.tao_run_tren_dia(r["run_id"])
+        goi, p_lap, p_k2 = self.nhan_ghi_lai()
+        with p_lap, p_k2:
+            p = self.goi("POST", TIEN_TO + "/nhan", {"run": r["run_handle"]})
+        self.assertEqual(p.status, 200, p.text)
+        self.assertEqual(goi["lap"], [False])  # đọc manifest/băm/parse XML: KHÔNG giữ khóa app
+        self.assertEqual(goi["k2"], [{"actor": "MO_PHONG_KE_TOAN", "lap_lai_day_du": False, "khoa_dang_giu": True}])  # chỉ phần ghi K2 trong khóa, actor = login của phiên
+
+    def _nhan_bi_doi_giua_chung(self, doi):
+        r = self.tai_xong()
+        self.tao_run_tren_dia(r["run_id"])
+        goi, p_lap, p_k2 = self.nhan_ghi_lai(truoc_k2=doi)  # đổi NGAY sau khi lập kế hoạch ngoài khóa, trước bước ghi
+        with p_lap, p_k2:
+            p = self.goi("POST", TIEN_TO + "/nhan", {"run": r["run_handle"]}, sid=SID_KT)
+        self.assertEqual(goi["k2"], [], "đã gọi K2 sau khi phiên/quyền đổi")
+        self.assertNotIn("M2_00E_NHAN_KET_QUA", self.hanh_dong(), "không được ghi nhật ký nhận khi bị từ chối")
+        self.assertNotIn("ket_qua", p.text)
+        self.assertNotIn("tom_tat", p.text)
+        return p
+
+    def test_v2_nhan_doi_vai_giua_chung_tu_choi_truoc_moi_ghi(self):
+        p = self._nhan_bi_doi_giua_chung(lambda: self.app.dat_phien(SID_KT, "MO_PHONG_XEM_A"))
+        self.assertEqual((p.status, self.ma_loi(p)), (409, "M2_00B_NGU_CANH_DOI"), p.text)
+
+    def test_v2_nhan_mat_quyen_giua_chung_tu_choi_truoc_moi_ghi(self):
+        p = self._nhan_bi_doi_giua_chung(lambda: setattr(self.conn, "phan_quyen", []))
+        self.assertEqual((p.status, self.ma_loi(p)), (403, "KHONG_CO_QUYEN_PHAP_NHAN"), p.text)
+
+    def test_v2_nhan_het_phien_giua_chung_tu_choi_truoc_moi_ghi(self):
+        p = self._nhan_bi_doi_giua_chung(lambda: self.app.bo_phien(SID_KT))
+        self.assertEqual((p.status, self.ma_loi(p)), (400, "CRM_PHIEN"), p.text)
+
+    def test_v2_nhan_doi_nguon_hoac_ho_so_nguon_giua_chung_tu_choi_truoc_moi_ghi(self):
+        def doi_profile():
+            self.conn.profile[0]["payload"] = {**PAYLOAD, "version": 2}
+        p = self._nhan_bi_doi_giua_chung(doi_profile)
+        self.assertIn(self.ma_loi(p), ("NGUON_PROFILE_DIGEST", "M2_00B_NGU_CANH_DOI"), p.text)
+        self.assertIn(p.status, (403, 409))
 
     def test_xem_manifest_chi_so_dem_khong_noi_dung_hoa_don(self):
         r = self.tai_xong()

@@ -172,6 +172,15 @@ class DieuPhoiApp(DieuPhoiTaiHoaDon):
     def ghi_nhat_ky(self, sid, run_handle, hanh_dong, them) -> str:
         return self._nhat_ky_sau(sid, self._binding_cua_phien(sid, run_handle), hanh_dong, them)
 
+    def ghi_duoi_khoa(self, sid, run_handle, ghi):
+        """Giữ khóa chung của app, KIỂM LẠI phiên + quyền + binding (như mọi thao tác điều phối) rồi gọi `ghi(actor)` với login của PHIÊN HIỆN HÀNH.
+        Mọi thay đổi phiên/vai/quyền đều đi qua cùng khóa nên không chen được giữa bước kiểm và bước ghi. Phiên/quyền/binding sai → DataError TRƯỚC khi `ghi` chạy."""
+        b = self._binding_cua_phien(sid, run_handle)
+        with self._khoa:
+            with self._kiem_lai(sid, b) as (_crm, _conn, dt):
+                actor = dt["dang_nhap"]
+            return ghi(actor)
+
 
 def dich_vu(app) -> DieuPhoiApp:
     dv = app.__dict__.get("_tai_hoa_don_dv")
@@ -406,7 +415,9 @@ def _ngoai_le_sach(e: dict) -> dict:
     return out
 
 
-def _nhan_mot_run(app, dv, sid, login, ctx, run) -> dict:
+def _nhan_mot_run(app, dv, sid, run_handle, ctx, run) -> dict:
+    """Lập kế hoạch (đọc manifest, băm, parse XML) NGOÀI khóa; chỉ phần ghi K2 nằm trong khóa, sau khi kiểm lại phiên/quyền/binding và lấy actor của phiên
+    hiện hành (đổi vai/mất quyền giữa chừng → từ chối cả yêu cầu trước mọi ghi). Trong khóa chỉ so lại hash manifest.json + hash từng XML với kế hoạch."""
     ma, goc = ctx["phap_nhan_ma"], dv.cau_hinh.goc_tai
     rel = run.get("run_rel")
     m = RE_RUN_REL.fullmatch(rel) if isinstance(rel, str) else None
@@ -416,11 +427,19 @@ def _nhan_mot_run(app, dv, sid, login, ctx, run) -> dict:
     try:
         thu_muc = kiem_khong_reparse(goc.joinpath(*rel.split("/")), la_thu_muc=True)
         ke_hoach = lap_ke_hoach_nhan(thu_muc, ma_phap_nhan=ma, goc_hoi_cuu_tin_cay=dv.goc_hoi_cuu_tin_cay)  # đọc/băm tệp NGOÀI khóa app
-        with app.mutation_lock:
-            kq = nhan_vao_k2(ke_hoach, app.m2(), actor=login, source_instance=ctx["source_instance"], scope_ref=ctx["scope_ref"],
-                             goc_hoi_cuu_tin_cay=dv.goc_hoi_cuu_tin_cay)
     except DataError as exc:
         return {**base, "loi": {"ma": _ma(exc.code) or "UNSPECIFIED", "thong_bao": str(exc)}}
+
+    def ghi(actor):  # chạy TRONG khóa, sau khi điều phối đã kiểm lại phiên/quyền/binding; lỗi nhận của riêng run này không phải lỗi phiên
+        try:
+            return {"kq": nhan_vao_k2(ke_hoach, app.m2(), actor=actor, source_instance=ctx["source_instance"], scope_ref=ctx["scope_ref"],
+                                      goc_hoi_cuu_tin_cay=dv.goc_hoi_cuu_tin_cay, lap_lai_day_du=False)}
+        except DataError as exc:
+            return {"loi": exc}
+    r = dv.ghi_duoi_khoa(sid, run_handle, ghi)  # DataError của kiểm phiên/quyền thoát ra ngoài (403/409) — trước mọi ghi, không biến thành lỗi từng run
+    if "loi" in r:
+        return {**base, "loi": {"ma": _ma(r["loi"].code) or "UNSPECIFIED", "thong_bao": str(r["loi"])}}
+    kq = r["kq"]
     return {**base, "nguon": ke_hoach["nguon"], "coverage": ke_hoach["coverage"], "so_muc": len(ke_hoach["muc"]),
             "ket_qua": [{"item_ordinal": it.get("item_ordinal"), "trang_thai": it.get("trang_thai"), "ly_do": it.get("ly_do"),
                          "thong_bao": an_toan(it["thong_bao"], 200) if isinstance(it.get("thong_bao"), str) else None,
@@ -538,9 +557,7 @@ def _nhan(h, app):
     if not kq:
         raise DataError("M2_00E_CHUA_CO_KET_QUA", "Lần tải chưa có biên nhận để nhận vào M2.")
     ctx = dv.ngu_canh(sid, run)
-    with app.mutation_lock:
-        _, login, _ = app.crm_phien(sid)
-    runs = [_nhan_mot_run(app, dv, sid, login, ctx, r) for r in kq["runs"]]
+    runs = [_nhan_mot_run(app, dv, sid, run, ctx, r) for r in kq["runs"]]
     tt = tom_tat_nhan(runs)
     nk = dv.ghi_nhat_ky(sid, run, "M2_00E_NHAN_KET_QUA", {"so_run": len(runs), "moi": tt["moi"], "doi_trang_thai": tt["doi_trang_thai"], "khong_ma": tt["khong_ma"], "loi": tt["loi"]})
     return _gui(h, 200, {"phien_ban": PHIEN_BAN, "run_handle": run, "trang_thai_tai": kq["trang_thai"], "tom_tat": tt, "runs": runs, "nhat_ky": nk})
