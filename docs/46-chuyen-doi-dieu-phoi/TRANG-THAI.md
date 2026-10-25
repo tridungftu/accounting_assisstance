@@ -67,9 +67,10 @@ Quy tắc áp cho mọi lát từ 25/10 (CD-001 việc 3): không lát nào vi�
 | MASK-2 | Claude | Opus | 20:31 | 21:06 | review vòng 1 **Không đạt** (1 Chặn: STK có nhãn + VND lọt Cloud) → vòng 2 đang sửa 21:18 | Mask v2 2.7.1: 434 đạt / 1 lỗi có sẵn; benchmark không giảm |
 | L0-10 | Codex | gpt-6.1-sol · high | 20:38 | gộp 20:51 | review-lat Opus Đạt | Xanh — 46/46; DEMO 8798 chuẩn bị CRM chế độ DICH_VU |
 | L0-8f | Codex | gpt-6.1-sol · high | 20:47 | 20:44 (v1 dừng đúng: gốc ở helper test) | — | — |
-| L0-8f v2 | Codex | gpt-6.1-sol · high | 20:50 | 20:55 | kiem-nhanh đang chạy | **PG: 03B 21/21 (c16 skip có chủ đích), 03A 13/13**; mock bộ chạy lead sửa (45/45); CSDL tạm 329/329 |
+| L0-8f v2 | Codex | gpt-6.1-sol · high | 20:50 | 20:55 | kiem-nhanh Đạt; chờ L0-8e v3 (dựng trên L0-8e) | **PG: 03B 21/21 (c16 skip có chủ đích), 03A 13/13**; mock bộ chạy lead sửa (45/45); CSDL tạm 329/329 |
 | C3d | Codex | gpt-6.1-sol · high | 21:24 | — | — | — |
-| L0-8e v2 | Codex | gpt-6.1-sol · high | 21:02 | gộp 21:20 | review-lat vòng 2 Đạt | Xanh — bộ chạy 45/45 runtime thật; CSDL tạm 329/329 |
+| L0-8e v2 | Codex | gpt-6.1-sol · high | 21:02 | gộp 21:20 → **hoàn tác 21:14** (b25ff7a) | review-lat vòng 2 Đạt | **Đỏ** — hồi quy: test tự CREATE DATABASE (CRM) bị bộ chạy từ chối 'tên đã dùng' (lead kiểm thiếu nhóm này) |
+| L0-8e v3 | Codex | gpt-6.1-sol · high | 21:16 | — | — | — |
 | AI-2a | Claude | Opus | 21:12 | — | — | — |
 | L0-10b | Codex | gpt-6.1-sol · high | 20:45 | gộp 21:00 | kiem-nhanh Đạt | Xanh — 52/52; kiểm thật dịch vụ khớp |
 | UI-1b | Codex | gpt-6.1-sol · high | 20:55 | 21:02 | lead thử DEMO | Xanh — node khung 16/16; DEMO 8798 lần tải đầu không còn lỗi phiên |
