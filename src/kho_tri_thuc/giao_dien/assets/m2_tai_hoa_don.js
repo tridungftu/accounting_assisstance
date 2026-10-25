@@ -292,7 +292,7 @@
   function layLuaChon() {
     const l = lieuChon(), m = mucChon();
     if (!l || !m || chuaSan(m)) { trangThai("Chọn một pháp nhân đã sẵn sàng.", true); return null; }
-    const mode = $("m2-tct-che-do").value;
+    const mode = $("m2-tct-che-do").value === "year" ? "year" : "month";
     let year, month = null;
     if (mode === "year") { year = parseInt($("m2-tct-nam").value, 10); }
     else { const mm = /^(\d{4})-(\d{2})$/.exec($("m2-tct-thang").value || ""); if (!mm) { trangThai("Chọn tháng cần tải.", true); return null; } year = +mm[1]; month = +mm[2]; }
