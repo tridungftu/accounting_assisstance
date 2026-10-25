@@ -22,6 +22,7 @@
   let ep = 0, gen = 0;            // epoch (đổi vai) + thế hệ GET danh sách
   let tt = null, loiTai = null, loiBoTai = null, dangMo = false, daThuMo = false;
   let run = null, abort = null, dongHo = null, logMo = false;
+  let hangDoi = null, dangGuiTatCa = false, doiGen = 0;
   const khoaMap = new Map();      // lựa chọn (JSON) → khóa thao tác: giữ tới khi lần tải kết thúc (bấm lại sau mất kết nối = cùng run, không chạy mù)
   const taoKhoa = () => "m2tct-" + ((window.crypto && crypto.randomUUID && crypto.randomUUID()) || (Date.now().toString(36) + Math.random().toString(36).slice(2)));
 
@@ -159,7 +160,9 @@
     $("m2-tct-phap-nhan").value = giu ? cu : (dau ? JSON.stringify([dau.source_instance, dau.scope_ref, dau.company_key]) : "");
     $("m2-tct-nam").classList.toggle("hidden", $("m2-tct-che-do").value !== "year");
     $("m2-tct-thang").classList.toggle("hidden", $("m2-tct-che-do").value === "year");
-    $("m2-tct-bat-dau").disabled = dangChay() || chuaSan(mucChon());
+    $("m2-tct-bat-dau").disabled = dangChay() || dangGuiTatCa || chuaSan(mucChon());
+    $("m2-tct-tat-ca").disabled = dangChay() || dangGuiTatCa || !!(hangDoi && hangDoi.dang_co_hang_doi) || !ds.some(m => m.san_sang);
+    if (hangDoi && hangDoi.dang_co_hang_doi) $("m2-tct-bat-dau").disabled = true;
   }
 
   function veTienTrinh() {
@@ -263,7 +266,47 @@
     if (nl.length || lc.length) box.append(bang(["Nhóm", "Phạm vi", "ttxly", "Mã lỗi", "HTTP"], [...nl, ...lc]));
     return box;
   }
-  function ve() { veBoTai(); veForm(); veTienTrinh(); veKetQua(); }
+  function veHangDoi() {
+    const o = $("m2-tct-hang-doi");
+    o.replaceChildren();
+    if (!hangDoi) return;
+    if (hangDoi.dang_co_hang_doi) o.append(node("p", "Đang có hàng đợi tải tất cả công ty. Các công ty được tải lần lượt.", "upload-status"));
+    if ((hangDoi.muc || []).length) o.append(bang(["Pháp nhân", "Trạng thái", "Lý do"], hangDoi.muc.map(m => [m.phap_nhan_ten, m.trang_thai, m.ly_do || ""])));
+  }
+  function ve() { veBoTai(); veForm(); veTienTrinh(); veKetQua(); veHangDoi(); }
+
+  async function theoDoiHangDoi(e = ep) {
+    const g = ++doiGen;
+    while (e === ep && g === doiGen) {
+      try {
+        const q = await getJson(API + "/hang-doi");
+        if (e !== ep || g !== doiGen) return;
+        hangDoi = q; ve();
+        if (!q.dang_co_hang_doi) return;
+      } catch (err) {
+        if (e !== ep || g !== doiGen) return;
+        trangThai(err.message, true);
+        if (err.status === 403 || err.status === 409) return;
+      }
+      await cho(1500);
+    }
+  }
+  async function taiTatCa() {
+    if (dangChay() || dangGuiTatCa || (hangDoi && hangDoi.dang_co_hang_doi)) return;
+    const sel = layLuaChon(); if (!sel) return;
+    const {mode, year, month, types, formats} = sel, e = ep;
+    dangGuiTatCa = true; trangThai(""); ve();
+    try {
+      const q = await postJson(API + "/tai-tat-ca", {mode, year, month, types, formats});
+      if (e !== ep) return;
+      hangDoi = q; theoDoiHangDoi(e);
+    } catch (err) {
+      if (e !== ep) return;
+      trangThai(err.message, true);
+      // Mất phản hồi POST có thể đã tạo hàng đợi: đọc trạng thái máy chủ, không gửi lại mù.
+      theoDoiHangDoi(e);
+    } finally { if (e === ep) { dangGuiTatCa = false; ve(); } }
+  }
 
   // ------------------------------------------------------------------ nạp / mở bộ tải
   async function napTrangThai() {
@@ -272,7 +315,8 @@
     try {
       const s = await getJson(API);
       if (e !== ep || g !== gen) return;
-      tt = s; loiTai = null; ve();
+      tt = s; hangDoi = s.hang_doi || null; loiTai = null; ve();
+      if (hangDoi && hangDoi.dang_co_hang_doi) theoDoiHangDoi(e);
       if (s.cau_hinh && (s.muc || []).length && !(s.bo_tai || {}).san_sang && !daThuMo) { daThuMo = true; moBoTai(); }  // TL 43 §3 bước 1: mở M2 → bộ tải chạy ngầm
     } catch (err) { if (e === ep && g === gen) { loiTai = err; ve(); } }
   }
@@ -302,7 +346,7 @@
     return {source_instance: l[0], scope_ref: l[1], company_key: l[2], mode, year, month, types, formats};
   }
   async function batDau() {
-    if (dangChay()) return;
+    if (dangChay() || dangGuiTatCa || (hangDoi && hangDoi.dang_co_hang_doi)) return;
     trangThai("");
     const sel = layLuaChon();
     if (!sel) return;
@@ -420,9 +464,10 @@
   // ------------------------------------------------------------------ đổi vai + khởi tạo
   function xoa() {
     ep += 1;
+    doiGen += 1; hangDoi = null; dangGuiTatCa = false;
     if (abort) { try { abort.abort(); } catch (_) {} abort = null; }
     run = null; tt = null; loiTai = null; loiBoTai = null; dangMo = false; daThuMo = false; dungDongHo();
-    for (const id of ["m2-tct-bo-tai", "m2-tct-tien-trinh", "m2-tct-ket-qua"]) { const o = $(id); if (o) o.replaceChildren(); }
+    for (const id of ["m2-tct-bo-tai", "m2-tct-tien-trinh", "m2-tct-ket-qua", "m2-tct-hang-doi"]) { const o = $(id); if (o) o.replaceChildren(); }
     const f = $("m2-tct-form"); if (f) f.classList.add("hidden");
     trangThai("");
     // Cổng đổi vai chỉ nạp lại module đã "xin nạp" trong lúc barrier (hoặc module khởi tạo): đang xem màn này thì xin ngay để được nạp theo vai mới.
@@ -437,6 +482,9 @@
     if (!$("m2-tct-thang").value) $("m2-tct-thang").value = `${y}-${String(m).padStart(2, "0")}`;
     if (!$("m2-tct-nam").value) $("m2-tct-nam").value = String(d.getUTCFullYear());
   }
+  const tatCa = nut("Tải tất cả công ty", taiTatCa); tatCa.id = "m2-tct-tat-ca";
+  $("m2-tct-form").append(tatCa);
+  const bangDoi = node("div"); bangDoi.id = "m2-tct-hang-doi"; goc.append(bangDoi);
   macDinhKy();
   $("m2-tct-form").addEventListener("submit", ev => { ev.preventDefault(); batDau(); });
   for (const id of ["m2-tct-phap-nhan", "m2-tct-che-do"]) $(id).addEventListener("change", () => veForm());
