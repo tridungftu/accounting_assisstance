@@ -194,3 +194,13 @@ H3 phân loại 36 đầu việc: 19 gói đã nhập `hop-nhat`, 13 xung đột
 
 **Tiếp theo:** Anh xem các nhánh `hop-nhat` và `luu/*`, cùng log H4; sau đó chốt hướng phân tích lại. Chưa làm H5, không push GitHub và không di chuyển thư mục.
 | PostgreSQL DEMO (sự cố 25/10) | Anh chọn: **dịch vụ Windows** + **dọn 323 CSDL test** — chờ Anh bấm `DỌN CSDL TEST CŨ.cmd` rồi `CÀI DỊCH VỤ POSTGRES DEMO.cmd` (`SU-CO-POSTGRES-DEMO.md`) |
+
+
+## Chạy đêm 25→26/10 (CD-008) — DỪNG do hạn mức
+
+- 22:25 nhận CD-006, CD-007, CD-008. 22:30 lead Claude chạm hạn mức gói: không giao lát mới, không gộp, không viết báo cáo đêm.
+- Đang chạy, để chạy hết: Codex BG-e2 (lat/bg-e2), BG-e4 v2 (lat/bg-e4) — chưa commit, chưa kiểm.
+- Lát Claude dở (KY-DOCX ở lat-t-pdf; kiem-nhanh T-NEN-a/b/c) có thể bị ngắt; tệp đã ghi còn trong worktree, chưa commit.
+- T-NEN-a/b test PG xanh; T-NEN-c có 1 lỗi mới test_source6_lazy_excel (SETUP NOT_VERIFIED, nghi do worktree thiếu master_hd.py chưa vào git) — cần lead kiểm trước khi gộp.
+- DEMO đang mở: 8798 (lat/ui-1, Trang chủ lưới icon), 8791 (lat/bg-1d, Báo giá).
+- Việc tiếp theo khi có hạn mức: theo thứ tự CD-008 (gộp bg-1d + da-2 → BG-e1…e4 + phiếu cổng A lần 2 → mốc dự án CD-006/007 → UI-2b/UI-3 → hàng đợi).

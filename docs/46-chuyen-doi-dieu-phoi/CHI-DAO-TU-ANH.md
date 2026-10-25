@@ -71,7 +71,7 @@
 3. Báo giá: ô Mốc thời gian lấy danh sách **mốc cơ bản + mốc của dự án đã chọn**; nhận gõ tắt không dấu khớp tên mốc của dự án (vd `cndt`/`CNĐT` → "Xong chứng nhận đầu tư" nếu dự án đã khai); báo lỗi theo BG-23.
 4. DEMO: khai mẫu mốc "Xong chứng nhận đầu tư" cho một dự án KCN DEMO để Anh thử.
 **Báo Anh khi:** DEMO đã có màn Dự án đang bán; lát mốc dự án sẵn sàng thử.
-**Trạng thái:** MỚI
+**Trạng thái:** ĐÃ NHẬN 22:25 25/10 — lead (Claude) chạm hạn mức gói lúc 22:30, vòng chạy đêm dừng ngay khi nhận; Codex chạy tiếp lát đã giao (BG-e2, BG-e4 v2). Chưa làm: gộp bg-1d + da-2, mốc thanh toán theo dự án, phiếu cổng A lần 2 Báo giá, báo cáo đêm.
 
 ## CD-007 · 25/10/2026 22:20 · Mốc dự án có ngày dự kiến và ngày thực tế (bổ sung CD-006 mục 2)
 **Căn cứ:** Anh chốt 25/10 22:10: "nếu mốc chưa có ngày thì không đếm được quá hạn, khi đó nêu ngày dự kiến, khi hết ngày dự kiến vẫn chưa làm xong thì sẽ cho chỉnh ngày dự kiến đó"; TL 45 §7 mục 5.
@@ -81,7 +81,7 @@
 3. Qua ngày dự kiến mà chưa có ngày thực tế: tạo việc chờ "Chỉnh ngày dự kiến mốc …" cho người phụ trách dự án (đếm vào số trên icon theo TL 49); chỉnh ngày dự kiến bắt buộc lý do, ghi nhật ký cũ → mới, ai, lúc nào.
 4. Ghi ngày thực tế: đợt gắn mốc có ngày đến hạn = ngày thực tế (+ n ngày nếu đợt khai) → đếm đến hạn/quá hạn như đợt ngày cố định; ghi nhật ký.
 5. Test: mốc chưa có ngày thực tế không vào danh sách quá hạn; qua ngày dự kiến sinh đúng 1 việc chờ; ghi ngày thực tế → đợt đổi trạng thái đúng.
-**Trạng thái:** MỚI
+**Trạng thái:** ĐÃ NHẬN 22:25 25/10 — lead (Claude) chạm hạn mức gói lúc 22:30, vòng chạy đêm dừng ngay khi nhận; Codex chạy tiếp lát đã giao (BG-e2, BG-e4 v2). Chưa làm: gộp bg-1d + da-2, mốc thanh toán theo dự án, phiếu cổng A lần 2 Báo giá, báo cáo đêm.
 
 ## CD-008 · 25/10/2026 22:25 · CHẠY ĐÊM 25→26/10 (không có Anh), báo cáo lúc 05:45
 **Căn cứ:** Anh yêu cầu 25/10 22:13 "điều phối máy chạy đêm nay, các module và lát cắt thực hiện tuần tự, sáng mai 6h báo cáo điều phối, việc đã làm và chưa làm"; Anh chốt 22:20 dùng **mức 6 worker như CD-004** cả đêm.
@@ -101,4 +101,4 @@
 - Không khởi động lại máy, không cập nhật phần mềm, không dừng dịch vụ PostgreSQL.
 - Nhật ký CD-003 đủ từng lát (worker, model, giờ, vòng review, test).
 **05:45 viết `docs\46-chuyen-doi-dieu-phoi\bao-cao-ngay\BAO-CAO-DEM-20261026.md`:** §1 Kết luận (≤ 5 dòng) · §2 Đã xong (lát, commit, test so nền, gộp chưa) · §3 Chưa xong / bị chặn + lý do · §4 Cần Anh quyết · §5 Anh kiểm gì lúc 6h (cổng A nào, DEMO cổng nào, phiếu nào) · §6 Số liệu (giờ chạy từng khối, số worker cao nhất, Claude/Codex, model, vòng review, `/usage` nếu có). Cập nhật dòng Trạng thái của CD-005…CD-008.
-**Trạng thái:** MỚI
+**Trạng thái:** ĐÃ NHẬN 22:25 25/10 — lead (Claude) chạm hạn mức gói lúc 22:30, vòng chạy đêm dừng ngay khi nhận; Codex chạy tiếp lát đã giao (BG-e2, BG-e4 v2). Chưa làm: gộp bg-1d + da-2, mốc thanh toán theo dự án, phiếu cổng A lần 2 Báo giá, báo cáo đêm.
