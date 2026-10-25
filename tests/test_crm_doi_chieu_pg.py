@@ -137,6 +137,8 @@ class CrmDoiChieuBanSao(unittest.TestCase):
     # ------------------------------------------------------------------ helpers
     def dung_hop_dong(self, tag, *, co_sua, pb):
         """Báo giá → soạn → xuất G3 (PDF_DAT THẬT) → G4 ký (BH) qua HTTP; khai Có/Không theo co_sua. Thiếu Word/pypdfium2 → NOT_VERIFIED."""
+        if not self.co_word:
+            self.skipTest("Chỉ chạy khi bật KHO_TEST_WORD_THAT=1 (không tự mở Word COM)")
         r = self.ok(BH, "bao-gia/luu", {"bao_gia_id": None, "expected_revision": None, "khoa": self.K("bg-" + tag),
                                         "du_lieu": self.bao_gia(don_vi={"ma": f"LO-G5B-{tag}-{self.run_id}"}, lich=LICH)})
         a = self.ok(BH, "bao-gia/chuyen", {"bao_gia_id": r["bao_gia_id"], "expected_revision": 1, "mau_phien_ban_id": pb,
