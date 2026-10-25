@@ -1061,7 +1061,8 @@
   // M2j: bộ lọc sống cùng phiên/vai, chỉ giữ handle do luồng tải cung cấp.
   const m2LocLanTai = node("select"); m2LocLanTai.id = "m2-loc-lan-tai";
   const m2LocLanTaiNhan = node("label", "Lần tải"); m2LocLanTaiNhan.htmlFor = m2LocLanTai.id;
-  $("m2-loc").parentNode.append(m2LocLanTaiNhan, m2LocLanTai);
+  const m2LocCha = $("m2-loc") && $("m2-loc").parentNode;  // DOM giả trong test node có thể không có phần tử cha
+  if (m2LocCha) m2LocCha.append(m2LocLanTaiNhan, m2LocLanTai);
   function m2XoaLanTai() {
     delete $("m2-loc").dataset.run;
     delete $("m2-loc").dataset.chonLanTai;

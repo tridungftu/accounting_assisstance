@@ -13,6 +13,11 @@
 /tests/fixtures/l11_quantity/manifest.json text eol=crlf
 /tests/fixtures/l11_quantity/warehouse_split/**/*.json text eol=crlf
 /tests/fixtures/l11_quantity/native/new-thung-one.xml text eol=lf
+# L0-9b (25/10): 8 tệp L11 ghim SHA trên byte gốc trộn CRLF/LF (manifest l11_quantity) → eol=lf hay eol=crlf đều lệch ghim; giữ nguyên byte
+/tests/fixtures/l11_quantity/candidate-line-facts-r16-v2.json -text
+/tests/fixtures/l11_quantity/shared-unit-definitions-v2.json -text
+/tests/fixtures/l11_quantity/proofs/*-v2.json -text
+/tests/fixtures/l11_quantity/unit-declarations/*.json -text
 /tests/fixtures/m2_invoice_xml/**/*.json text eol=lf
 /tests/fixtures/m2_invoice_xml/inputs/*.xml text eol=lf
 /tests/fixtures/m2_invoice_xml/inputs/*.zip -text
