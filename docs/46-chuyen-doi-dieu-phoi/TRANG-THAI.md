@@ -9,7 +9,7 @@ Trạng thái lát: Đang code → Chờ kiểm → Chờ Anh (cổng A/B) → S
 | BG-1d | CRM · Báo giá màn hình 2 bước (BG-1b + BG-1d) | Claude Sonnet · review Codex | `lat/bg-1d` · DEMO 8791 | 25/10 | Chờ Anh — cổng A xem lại (`PHIEU-CONG-A-BAO-GIA-XEM-LAI.md`) |
 | DA-2 | CRM · màn Dự án đang bán (xem + thêm/sửa; ẩn luồng CFO) | Codex · review Claude | `lat/da-2` (= bg-1d + da-1) | 25/10 | Xong code đến DA-2c (33a2e29); review Đạt; chờ BG-1d qua cổng A để gộp |
 | M4-5a | M4 · Nghiệm thu & chi phí dự án · 03B máy chủ: khai một phần bằng số tiền + gợi ý hóa đơn — **M0033** | Codex · review Claude | `lat/m4-5a` | 25/10 19:16 (vòng 3) | **Đã gộp 834a53c** (M0033; chuỗi 33): review vòng 1 Đạt, vòng 3 sửa A1/A2/A4, `kiem-nhanh` Đạt, bộ M4/CRM PG không thêm mã lỗi. **Còn nợ:** 18 ca PG `test_m4_03b_common_pg` (gồm c11–c18 M0033) chưa chạy — bộ chạy chưa dựng được họ bản sao `03a` → lát **L0-8d** (ưu tiên kế tiếp), lead chạy ngay khi xong; lỗi → sửa trước nghiệm thu |
-| DA-3a | CRM · Báo giá nạp mặc định từ Dự án đang bán, ghi nhận khác tiêu chuẩn | Codex · review Claude | `lat/da-3a` (c077a83) | 25/10 | Review Đạt → **vòng 2 đang code** (Codex 19:33): B1 — chỉ chặn dự án Ngừng bán khi tạo mới/đổi dự án/có lô; sau đó lead chạy ca PostgreSQL |
+| DA-3a | CRM · Báo giá nạp mặc định từ Dự án đang bán, ghi nhận khác tiêu chuẩn | Codex · review Claude | `lat/da-3a` (c077a83) | 25/10 | Vòng 2 xong (fadd866; Codex 19:38): B1 sửa; PG 29/29 + 16/16 → `kiem-nhanh` → gộp |
 | T-MIG2 | Test PostgreSQL theo chuỗi migration mới | Codex | `lat/t-mig2` (26e9c35) | 25/10 | `t21` hết sau **L0-9b** (gốc: 8 fixture L11 bị L0-9 ép LF, lệch ghim SHA) — `test_crm_k2` chỉ còn lỗi có sẵn của nền; chờ chạy lại cả bộ PG → `kiem-nhanh` → `review-lat` → gộp |
 | UI-1 | Khung lưới icon dùng chung + áp CRM 6 phần (CD-002) | Claude Sonnet | `lat/ui-1` (= da-2 + hop-nhat) | 25/10 | **Đang code** (worker Claude Sonnet, giao 19:21) |
 | UI-2 | Máy chủ `GET /api/khung/module/crm` (CD-002) | Codex | `lat/ui-2` | 25/10 19:16 | **XONG — đã gộp af7c389**: kiem-nhanh Đạt, review-lat Opus Đạt (3 Nên sửa → **UI-2b** chờ chỗ trống: số icon theo TL 42 §3, không trả tổng cắt); lead còn gọi thử `/api/khung/module/crm` 4 vai trên DEMO khi chuẩn bị cổng A |
@@ -57,10 +57,13 @@ Quy tắc áp cho mọi lát từ 25/10 (CD-001 việc 3): không lát nào vi�
 | Review MASK-1 | Claude | Opus | 19:17 | 19:26 | vòng 1 | Không đạt — 1 Chặn |
 | MASK-1 vòng 2 | Claude | Opus | 19:35 | 19:48 | review vòng 2 đang chạy | Mask v2: 387 đạt / 1 lỗi có sẵn; benchmark không giảm |
 | Review MASK-1 vòng 2 | Claude | Opus | 19:48 | 19:52 | vòng 2 | **Đạt** — 2 Nên sửa → MASK-2 |
-| AI-1b | Codex | gpt-6.1-sol · high | 19:49 | — | — | — |
+| AI-1b | Codex | gpt-6.1-sol · high | 19:49 | 19:55 | (review sau gộp AI-1) → kiem-nhanh | Xanh — 101/101 |
+| L0-8d | Codex | gpt-6.1-sol · high | 20:07 | — | — | — |
+| UI-2b | Codex | gpt-6.1-sol · high | 20:07 | — | — | — |
+| kiem-nhanh DA-3a v2 + AI-1b | Claude | Haiku | 20:12 | — | — | — |
 | kiem-nhanh UI-2 + M4-5a v3 | Claude | Haiku | 19:51 | 19:55 | — | Đạt cả hai |
 | review-lat UI-2 | Claude | Opus | 19:56 | 20:02 | vòng 1 | Đạt — 3 Nên sửa → UI-2b |
-| DA-3a v2 | Codex | gpt-6.1-sol · high | 19:33 | — | — | — |
+| DA-3a v2 | Codex | gpt-6.1-sol · high | 19:33 | 19:38 | (vòng 1 Đạt) → kiem-nhanh | Xanh — 0 mã lỗi mới; PG mặc định báo giá 29/29, dự án đang bán 16/16 (0 skip) |
 | L0-9b (fixture L11 đúng byte ghim) | Lead | Opus | 19:24 | 19:31 | 0 | Xanh — checkout mới 19/19 ghim; `t21` hết |
 | UI-1 | Claude | Sonnet | 19:21 | — | — | — |
 | review-lat sau gộp AI-1 + C3c | Claude | Opus | 19:22 | 19:29 | vòng 1 | Đạt cả hai; AI-1: 3 Nên sửa (→ AI-1b); C3c: Nên sửa test quá hạn PG (→ C3d) |
