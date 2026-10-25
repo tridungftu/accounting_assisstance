@@ -66,6 +66,18 @@ class LocalApp:
             with Store(self.demo_config):
                 pass
 
+    def gan_request_nhap(self, cau_hinh, transport):
+        """M4-6 · seam Request nháp (không bí mật, không đọc .env/khóa): máy chủ tiêm cấu hình + transport cho `giao_dien/m4_request.py`.
+        Mặc định KHÔNG gắn gì = 503 CHUA_CAU_HINH, 0 mạng. Transport tự nó có thể đang TẮT (`kich_hoat=False`) — seam không bật hộ."""
+        from ..m4.request_nhap import CauHinhRequest
+        if not isinstance(cau_hinh, CauHinhRequest) or not callable(getattr(transport, "gui", None)):
+            raise DataError("M4_REQUEST_CAU_HINH_SAI", "Cấu hình Request phải là CauHinhRequest và transport phải có phương thức gui.")
+        self.__dict__["_m4_request"] = {"cau_hinh": cau_hinh, "transport": transport}
+
+    def go_request_nhap(self):
+        """Gỡ seam Request nháp: về mặc định vắng (CHUA_CAU_HINH). Gỡ khi chưa gắn là không việc gì."""
+        self.__dict__.pop("_m4_request", None)
+
     def state(self):
         if self.is_that:
             return {**self.operations.state(), "storage_path": str(self.operations.config.data_dir), "max_file_bytes": MAX_FILE_SIZE,
@@ -933,6 +945,10 @@ class Handler(BaseHTTPRequestHandler):
             query = parse_qs(urlsplit(self.path).query)
             self.authorize(private=post or path.startswith("/api/") and path != "/api/health")
             app = self.server.app
+            if path.startswith("/api/m4-request"):  # M4-6: ĐÚNG ba route Request nháp, TRƯỚC dispatcher /api/m4* chung; route lạ cùng tiền tố rơi xuống đó → 404
+                from . import m4_request as m4_request_http
+                if path in m4_request_http.ROUTE:  # query THÔ giữ giá trị rỗng (x=, version_id=, lặp có rỗng) để dieu_huong từ chối 400 — parse_qs mặc định sẽ nuốt chúng
+                    return m4_request_http.dieu_huong(self, app, post, path, parse_qs(urlsplit(self.path).query, keep_blank_values=True))
             if path.startswith(("/api/m4", "/m4")):  # M4-01: HTTP mỏng riêng (giao_dien/m4.py), cùng token/phiên/mutation lock
                 from . import m4 as m4_http
                 return m4_http.dieu_huong(self, app, post, path, query)
