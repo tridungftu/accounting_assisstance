@@ -250,15 +250,19 @@
       const ten = `${CHIEU[r.chieu] || ""} ${r.ky || ""}`.trim();
       acts.append(nut("Mở thư mục " + ten, () => moThuMuc(run, r.run_rel)), nut("Xem manifest " + ten, () => xemManifest(run, r.run_rel)));
     }
-    if (run.nhan) acts.append(nut("Xem hóa đơn của kỳ", () => xemHoaDon(run)));
+    if (run.nhan) acts.append(nut("Xem hóa đơn mới", () => xemHoaDon(run)));
     if (acts.children.length) kids.push(acts);
     if (run.manifest) kids.push(veManifest(run.manifest));
     o.replaceChildren(...kids);
   }
   function veManifest(m) {
     const box = node("div"), t = m.tong || {};
-    box.append(node("h3", `Manifest ${CHIEU[m.chieu === "purchase" ? "purchase" : "sold"]} ${m.ky} — ${m.trang_thai} (${m.nguon === "HOI_CUU" ? "hồi cứu, xấp xỉ" : "tải mới"})`));
-    box.append(bang(["Tổng HĐ", "Có XML", "Không mã (bảng kê)", "XML lỗi", "PDF lỗi", "Bảng kê"], [[t.tong_hd, t.xml_ok, t.khong_xml_goc, t.xml_loi, t.pdf_loi, t.bang_ke_trang_thai]]));
+    const trangThai = {COMPLETE: "Hoàn tất", HOAN_TAT: "Hoàn tất", PARTIAL: "Hoàn tất một phần", FAILED: "Thất bại", CONFLICT: "Xung đột"};
+    const bangKe = {OK: "Đã tải", LOI: "Lỗi", KHONG_YEU_CAU: "Không yêu cầu"};
+    box.append(node("h3", `Manifest ${CHIEU[m.chieu === "purchase" ? "purchase" : "sold"]} ${m.ky} — ${trangThai[m.trang_thai] || "Chưa rõ"} (${m.nguon === "HOI_CUU" ? "hồi cứu, xấp xỉ" : "tải mới"})`));
+    box.append(bang(["Tổng HĐ", "Có XML", "Không mã (bảng kê)", "XML lỗi", "PDF lỗi", "Bảng kê"], [[t.tong_hd, t.xml_ok, t.khong_xml_goc, t.xml_loi, t.pdf_loi, bangKe[t.bang_ke_trang_thai] || "Chưa rõ"]]));
+    const ngay = m.khoang_ngay || {};
+    box.append(node("p", `Số tệp dữ liệu: ${m.so_tep ?? "chưa đo"} · Khoảng ngày tải: ${ngay.tu || "chưa rõ"} – ${ngay.den || "chưa rõ"}`));
     const dn = m.dang_nhap || {}, gt = k => dn[k] && dn[k].gia_tri !== null && dn[k].gia_tri !== undefined ? String(dn[k].gia_tri) : "chưa đo";
     box.append(node("p", `Đăng nhập: gõ captcha = ${gt("captcha_da_go")} · dùng lại token = ${gt("token_tai_su_dung")} · chờ đăng nhập (giây) = ${gt("thoi_gian_cho_dang_nhap_giay")}`, "upload-status"));
     const nl = (m.nhom || []).filter(g => g.loi).map(g => [g.thu_tu, g.scope, g.ttxly, g.loi.code, g.loi.http_status === null ? "" : g.loi.http_status]);
@@ -464,6 +468,7 @@
       const kq = await postJson(API + "/nhan", {run: r.handle});
       if (!conHop(r, e)) return;
       r.nhan = kq; r.dangNhan = false; r.xong = true; r.giaiDoan = "XONG"; ve();
+      const loc = $("m2-loc"); if (loc) loc.dataset.run = r.handle;
       const lm = $("m2-refresh"); if (lm) lm.click();  // danh sách hóa đơn M2 bên dưới tự làm mới
     } catch (err) {
       if (!conHop(r, e)) return;
@@ -484,7 +489,11 @@
     const ma = (tt && mucChon0(r)) || null, ky = r.sel.mode === "month" ? `${r.sel.year}-${String(r.sel.month).padStart(2, "0")}` : "";
     if ($("m2-loc-pn")) $("m2-loc-pn").value = ma || "";
     if ($("m2-loc-ky")) $("m2-loc-ky").value = ky;
-    const b = $("m2-loc"); if (b) b.click();
+    const b = $("m2-loc"); if (b) {
+      b.dataset.run = r.handle;
+      b.dataset.chonLanTai = "1";  // bấm lại sau khi bỏ lọc vẫn mở đúng lần tải này
+      b.click();
+    }
     const l = $("m2-hoa-don"); if (l && l.scrollIntoView) l.scrollIntoView();
   }
   function mucChon0(r) { const m = ((tt && tt.muc) || []).find(x => x.source_instance === r.sel.source_instance && x.scope_ref === r.sel.scope_ref && x.company_key === r.sel.company_key); return m ? m.phap_nhan_ma : null; }
