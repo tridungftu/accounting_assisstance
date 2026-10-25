@@ -10,8 +10,11 @@ from __future__ import annotations
 
 import hashlib
 import importlib.util
+import json
 import re
+import sqlite3
 import tempfile
+from contextlib import closing
 from pathlib import Path
 
 KT1, KT2, KT_KHAC = "MO_PHONG_KT1_03A", "MO_PHONG_KT2_03A", "MO_PHONG_KT_M4"
@@ -95,6 +98,33 @@ def _nhan_hoa_don(admin, svc) -> dict:
     return env
 
 
+def _seed_doi_tac(admin) -> dict:
+    """Nhập COUNTERPARTY DEMO bằng bộ chuyển danh mục hiện có, không sửa MST/hợp đồng có sẵn."""
+    from tools.chuyen_sqlite_sang_pg import _doi_tac
+
+    mst, ma = "DEMO_M2_SUPPLIER", "331.DEMO_M2_SUPPLIER"
+    pn = admin.execute("SELECT id FROM master.phap_nhan WHERE ma = %s", ("PN_DEMO_A",)).fetchone()
+    if pn is None:
+        raise ValueError("Clone thiếu PN_DEMO_A cho đối tác DEMO 03B.")
+    # Nguồn chỉ trong memory, không mở kho SQLite/file dữ liệu thật.
+    with closing(sqlite3.connect(":memory:")) as src:
+        src.row_factory = sqlite3.Row
+        src.execute("CREATE TABLE documents (id TEXT, kind TEXT, core_json TEXT, business_date TEXT)")
+        src.execute("INSERT INTO documents VALUES (?, 'COUNTERPARTY', ?, ?)",
+                    ("DEMO_03B_SUPPLIER", json.dumps({"code": ma, "name": "Nhà cung cấp DEMO M2 G01", "tax_id": mst}), "2026-01-01"))
+        with admin.transaction(), admin.cursor() as cur:
+            _doi_tac(src, cur, pn[0], {})
+    dt = admin.execute("""SELECT t.id::text FROM master.doi_tac t
+                          JOIN master.doi_tac_ma_junsky m ON m.doi_tac_id = t.id
+                          WHERE t.mst = %s AND t.trang_thai = 'HOAT_DONG'
+                            AND m.phap_nhan_id = %s AND m.object_id_junsky = %s
+                            AND m.valid_to IS NULL AND NOT m.khoa AND NOT m.dong AND m.valid_from <= now()""",
+                       (mst, pn[0], ma)).fetchone()
+    if dt is None:
+        raise ValueError("Đối tác DEMO 03B chưa có mapping hiện hành; không cấp biến đối tác.")
+    return {"KHO_M4_03B_DOI_TAC": dt[0]}
+
+
 def dung_du_lieu(admin_dsn: str, app_dsn: str, db: str) -> dict:
     """Chỉ bản sao kho_test_pgd_* mới của runner; DSN không đi vào kết quả/nhật ký."""
     from kho_tri_thuc.k2 import crm_khoi_dong as KD
@@ -115,4 +145,6 @@ def dung_du_lieu(admin_dsn: str, app_dsn: str, db: str) -> dict:
                 psycopg.connect(cap["admin"]["conninfo"], autocommit=True, row_factory=dict_row) as chu:
             KD.kiem_ket_noi_chu(chu, app)
             root = Path(tempfile.mkdtemp(prefix="ktt_pg_demo_03a_"))
-            return _nhan_hoa_don(admin, HoaDonK2(app, root, conn_chu=chu))
+            env = _nhan_hoa_don(admin, HoaDonK2(app, root, conn_chu=chu))
+            env.update(_seed_doi_tac(admin))
+            return env

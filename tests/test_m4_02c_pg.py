@@ -145,9 +145,10 @@ def chuan_bi_duyet_vien(chu) -> dict:
 
 
 # ================================================================================================== dựng hồ sơ DEMO (dùng chung với test_m4_02c_http)
-def dung_ho_so(svc, admin, K, nhan: str, run_id: str) -> dict:
+def dung_ho_so(svc, admin, K, nhan: str, run_id: str, *, gan_doi_tac: str | None = None) -> dict:
     """HĐ DEMO MỚI (số riêng của lượt) → trích #6 → tham số/xác nhận/khai PL → BOQ → đợt 1 + hồ sơ + chứng từ → NỘP (bản 1) → L3 công bố (SOAN).
-    Bytes mỗi hồ sơ khác nhau (nhãn) để không dùng chung tệp giữa các HĐ. Trả định danh. Mẫu bước theo tests/test_m4_02b_k2.py K01/K02."""
+    Bytes mỗi hồ sơ khác nhau (nhãn) để không dùng chung tệp giữa các HĐ. Trả định danh. Mẫu bước theo tests/test_m4_02b_k2.py K01/K02.
+    gan_doi_tac tùy chọn là UUID đối tác DEMO: gắn bằng lệnh M4 thật khi còn nháp; None giữ nguyên luồng cũ."""
     from tests.test_m4_01b_pg import PHIEU_THAM_SO, VANG
     from tests.test_m4_02b_k2 import GN, NT_BANG, NT_DAU
     from tests.test_m4_02b_pure import _docx_bytes, _xlsx_bytes
@@ -165,6 +166,21 @@ def dung_ho_so(svc, admin, K, nhan: str, run_id: str) -> dict:
         return svc.tai_tep(A1, raw, du_an_id=du_an, vai_tro=vai, ten=ten, media_type=media, khoa=K(f"{nhan}-{khoa}"))["tep_id"]
     s["hd"] = svc.tao_hop_dong(A1, du_an_id=du_an, so_hop_dong=f"123/2025-{run_id}-{nhan}", ten=f"Gói duyệt DEMO {nhan}",
                                khoa=K(f"{nhan}-hd"))["hop_dong_id"]
+    if gan_doi_tac is not None:
+        # Đọc đúng mapping của đối tác trong PN dự án, không đoán UUID/mapping từ hóa đơn.
+        ma = _q1(admin, """SELECT m.object_id_junsky FROM master.doi_tac_ma_junsky m
+                           JOIN master.du_an d ON d.phap_nhan_id = m.phap_nhan_id
+                           WHERE d.id = %s AND m.doi_tac_id = %s AND m.valid_to IS NULL
+                             AND NOT m.khoa AND NOT m.dong AND m.valid_from <= now()
+                           ORDER BY m.id LIMIT 1""", (du_an, gan_doi_tac))
+        ds = svc.master_doi_tac(A1, du_an_id=du_an, q=ma, limit=50)["items"] if ma else []
+        dt = next((x for x in ds if str(x["doi_tac_id"]) == gan_doi_tac), None)
+        if dt is None or not dt.get("mapping_id") or not dt.get("expected_mapping"):
+            raise AssertionError("Đối tác DEMO được cấp thiếu mapping M4 hiện hành duy nhất trong PN dự án")
+        mc = svc.chi_tiet(A1, s["hd"])["master_can_cu"]
+        svc.gan_doi_tac_hop_dong(A1, hop_dong_id=s["hd"], doi_tac_id=gan_doi_tac, mapping_id=dt["mapping_id"],
+                                 revision=mc["revision"], expected_master=mc["expected_master"], expected_mapping=dt["expected_mapping"],
+                                 ly_do="Gắn đối tác DEMO của bản sao trước khi nộp hồ sơ test 03B", khoa=K(f"{nhan}-gan-doi-tac"))
     dong_hd = tuple(f"Căn cứ Luật Xây dựng (văn bản DEMO {nhan});" if x.startswith("Căn cứ Luật") else x for x in F.DONG_HOP_DONG)
     tep_hd = tai(F.hop_dong_docx(dong_hd), f"Hợp đồng DEMO {nhan}.docx", F.MEDIA_DOCX, "HOP_DONG", "tep-hd")
     svc.gan_tep_hop_dong(A1, hop_dong_id=s["hd"], revision=rev(), tep_id=tep_hd, khoa=K(f"{nhan}-gan-hd"))
@@ -635,6 +651,49 @@ class M4DuyetPG(unittest.TestCase):
         self.assertEqual(self.dem(), truoc)
         self.assertEqual(self.svc.duyet_pdf_tai(A1, e["v1"], e["pdf"])[2], e["raw"])  # SOAN vẫn tải được
         self.assertEqual(self.q("SELECT trang_thai FROM master.nguoi_dung WHERE dang_nhap = %s", (DUYET,)), "HOAT_DONG")
+
+
+class DungHoSoDoiTacThuanTests(unittest.TestCase):
+    """Chỉ kiểm bước nháp mới của helper; chặn tại trích, không nối PG/engine #6."""
+
+    def dung_den_trich(self, doi_tac=None, *, mapping=True):
+        from unittest.mock import Mock, patch
+        svc, admin = Mock(), Mock()
+        svc.tao_hop_dong.return_value = {"hop_dong_id": "hd-demo"}
+        svc.tai_tep.return_value = {"tep_id": "tep-demo"}
+        svc.master_doi_tac.return_value = {"items": [{"doi_tac_id": "dt-demo", "mapping_id": "map-demo" if mapping else None,
+                                                    "expected_mapping": "a" * 64}]}
+        svc.chi_tiet.return_value = {"master_can_cu": {"revision": 1, "expected_master": "b" * 64}}
+        svc.trich.side_effect = unittest.SkipTest("CHAN_TRICH_THUAN")
+        q = ["du-an-demo", "331.DEMO_M2_SUPPLIER", 2, 2] if doi_tac is not None else ["du-an-demo", 1, 1]
+        with patch(__name__ + "._q1", side_effect=q), patch.object(F, "hop_dong_docx", return_value=b"demo"):
+            with self.assertRaisesRegex(unittest.SkipTest if mapping else AssertionError,
+                                        "CHAN_TRICH_THUAN" if mapping else "thiếu mapping"):
+                dung_ho_so(svc, admin, lambda x: x, "DC1", "luot-demo", gan_doi_tac=doi_tac)
+        return svc
+
+    def test_mac_dinh_none_khong_doc_hay_gan_doi_tac(self):
+        svc = self.dung_den_trich()
+        svc.master_doi_tac.assert_not_called()
+        svc.chi_tiet.assert_not_called()
+        svc.gan_doi_tac_hop_dong.assert_not_called()
+
+    def test_gan_bang_actor_demo_va_cas_truoc_trich_nop(self):
+        svc = self.dung_den_trich("dt-demo")
+        svc.gan_doi_tac_hop_dong.assert_called_once_with(
+            A1, hop_dong_id="hd-demo", doi_tac_id="dt-demo", mapping_id="map-demo", revision=1,
+            expected_master="b" * 64, expected_mapping="a" * 64,
+            ly_do="Gắn đối tác DEMO của bản sao trước khi nộp hồ sơ test 03B", khoa="DC1-gan-doi-tac")
+        ten = [c[0] for c in svc.mock_calls]
+        self.assertLess(ten.index("gan_doi_tac_hop_dong"), ten.index("trich"))
+        self.assertEqual(svc.gan_tep_hop_dong.call_args.kwargs["revision"], 2)
+        svc.nop.assert_not_called()
+
+    def test_mapping_mo_ho_khong_tu_chon_de_gan(self):
+        svc = self.dung_den_trich("dt-demo", mapping=False)
+        svc.gan_doi_tac_hop_dong.assert_not_called()
+        svc.trich.assert_not_called()
+        svc.nop.assert_not_called()
 
 
 if __name__ == "__main__":
