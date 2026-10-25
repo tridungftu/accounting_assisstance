@@ -225,3 +225,6 @@ H3 phân loại 36 đầu việc: 19 gói đã nhập `hop-nhat`, 13 xung đột
 | AI-3 | Codex | 23:00 → 23:06 dừng (PIN) → v2 23:17 → v3 23:32 | lat/ai-3 fd4b95f | review-lat Đạt (3 Nên sửa → v3) | thuần cả bộ: 0 mã mới (8 lỗi có sẵn ở hợp nhất) | chờ v3 |
 | T-WORD | Codex | 23:15 → 23:24 | lat/t-word → lat/t-pdf | — | giao_ket 62/64, 2 skip | — |
 | DA-4a / DA-4b (phần Dự án đang bán trên lưới) | Codex | 23:20 → 23:23; 4b 23:25 → | lat/da-4a cbfd2e0; lat/da-4b | — | khung 21/21 | — |
+- 23:55 **KY-DOCX DỪNG (CD-008: không đạt 2 lần)** — PG: v1 k10 lệch trạng thái (`CHO_CAU_HINH` vs `CHO`, sửa test ở v2 9121660); v2 k10 lệch lý do `crm_g5_nhan` (`KHONG_DEN_HAN` vs `G5_BAN_SINH_CHI_DOCX`) → nghi M0035 kiểm "chưa đến hạn" trước "bản chỉ DOCX". Giữ `lat/t-pdf`, không gộp; review-lat Opus vòng 1 đang chạy làm căn cứ sửa sáng 26/10.
+- 23:40 gộp `lat/da-2` + T-DA2 vào hợp nhất (6998a79; PG cả bộ: 0 mã mới sau T-DA2) — **CD-006 mục 1 xong phần gộp**. 23:45 gộp AI-3 (30d5478).
+- Dòng giao diện DEMO sáng 26/10: `lat/ui-dem` = DA-4b (lưới 7 phần) + hợp nhất mới + MDA (1a/1b/3s/4a) + BG-e6s/u + MDA-4b; MDA-2 (mục mốc trong Dự án đang bán) và UI-3a (trang chủ hệ thống, máy chủ) đang code.

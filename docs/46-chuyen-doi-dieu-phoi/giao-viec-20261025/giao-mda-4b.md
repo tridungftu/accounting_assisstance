@@ -1,0 +1,9 @@
+# MDA-4b — Lưới CRM: số việc chờ "Chỉnh ngày dự kiến mốc" trên icon Dự án đang bán (CD-007 mục 3, TL 49)
+
+Bạn là worker Codex, chạy không tương tác. Căn cứ: **CD-007** mục 3 (qua ngày dự kiến mà chưa có ngày thực tế → việc chờ cho người phụ trách dự án, đếm vào số trên icon theo TL 49); thiết kế `docs\46-chuyen-doi-dieu-phoi\THIET-KE-MOC-DU-AN.md` §1 ("Việc chờ": tính khi đọc; **[Mặc định lead]** hiện cho vai **Bán hàng**). **Làm ngay, không hỏi lại.** UTF-8 không BOM. Worktree hiện tại, nhánh `lat/mda-4b` (`lat/ui-dem`: có phần `du_an_ban` (DA-4a) và dịch vụ mốc `k2/crm_du_an_ban.py` `moc_ds` → `so_viec_cho` (MDA-1b)). Sandbox không ghi `.git`: **không commit**. Không mở server/PostgreSQL.
+
+**Việc — `src/kho_tri_thuc/giao_dien/khung_khai_bao.py`:** phần `du_an_ban` thêm bộ đếm `moc_cho` (vào `DEM_PHAN`): vai `BAN_HANG` → tổng `so_viec_cho` của các dự án **đang bán** trong phạm vi đọc (qua `CrmDuAnBanK2(mau).danh_sach(me, dang_ban=True)` rồi `moc_ds` từng dự án — dùng chung cache `dem` của một lần đọc khung; lỗi quyền → không có số, như các bộ đếm khác), trả `{"so_viec": n, "qua_han": n > 0}`; vai khác → `{}`. Thêm thẻ cho vai Bán hàng: "Mốc dự án quá ngày dự kiến" (giải thích: "Đếm mốc riêng của dự án đã qua ngày dự kiến mà chưa ghi ngày thực tế — cần chỉnh ngày dự kiến."), bấm → `#crm/du-an-ban` (nếu hợp đồng dữ liệu thẻ hiện chỉ cho phép `loc` theo danh sách có bộ lọc thì **không** thêm thẻ, chỉ đếm trên icon — ghi rõ lý do trong báo cáo). Không đổi bộ đếm khác.
+**Test — `tests/test_khung_luoi_crm.py`:** giả lập dịch vụ: 2 dự án, 1 mốc quá dự kiến → icon Dự án đang bán `so_viec = 1`, `qua_han = true` cho Bán hàng; Kế toán/CFO/Người xem không có `so_viec`; lỗi quyền → không số.
+**File (≤ 2):** `khung_khai_bao.py`, `tests/test_khung_luoi_crm.py`. Không xóa file.
+**Chạy test:** `python -X utf8 -m unittest tests.test_khung_luoi_crm` — ghi số trước/sau.
+**Báo cáo (≤ ¼ trang):** sửa ở file:dòng · số test · thông điệp commit `[MDA-4b] …`.

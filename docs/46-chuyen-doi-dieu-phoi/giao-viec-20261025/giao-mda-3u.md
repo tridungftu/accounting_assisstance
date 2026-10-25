@@ -1,0 +1,15 @@
+# MDA-3u — Báo giá: ô Mốc lấy danh sách mốc cơ bản + mốc riêng của dự án đã chọn; gõ tắt không dấu (CD-006 mục 3, BG-23)
+
+Bạn là worker Codex, chạy không tương tác. Căn cứ: hộp thư **CD-006** mục 3; thiết kế `docs\46-chuyen-doi-dieu-phoi\THIET-KE-MOC-DU-AN.md` §2 (quy tắc khớp); BG-e3 đã làm danh sách mốc bấm chọn đọc từ `mocChuan` (`crm_g.js`: `bangMoc`, `docMoc`, `mocCuaDong`, `napMocChuan`). **Làm ngay, không hỏi lại.** UTF-8 không BOM — ghi tệp bằng UTF-8. Worktree hiện tại, nhánh `lat/mda-3u` (dòng giao diện sau MDA-2). Sandbox không ghi `.git`: **không commit**. Không mở server/PostgreSQL.
+
+**API (MDA-1b):** `GET /api/crm/bao-gia/moc-chuan?du_an_id=<uuid>` → `moc` gồm mốc chuẩn + mốc riêng `{ma: "DAM-…", nhan, ten_tat, du_kien, thuc_te, rieng: true}`; `moc_tham_so` thêm `{mau_ma: "DAM-…_<n>", nhan: "<tên> + n ngày", tham_so: "n", toi_thieu: 1}`. Không có `du_an_id` → chỉ mốc chuẩn. Máy chủ kiểm mã `DAM-…` khi lưu (MDA-3s: lỗi theo trường `lich.<i>.moc_su_kien`).
+
+**Việc — `src/kho_tri_thuc/giao_dien/assets/crm_g.js`:**
+1. `napMocChuan` theo **dự án đang chọn** của báo giá: cache theo `du_an_id` (khóa rỗng = chỉ mốc chuẩn); đổi dự án → nạp lại danh mục, `bangMocDem = null`, vẽ lại; phản hồi cũ của dự án khác không được ghi đè (dùng thế hệ/fence như các nạp khác). Dòng lịch đã có mốc riêng của dự án cũ → hiện lỗi BG-23 ở dòng đó sau khi đổi dự án (không tự xóa).
+2. Khớp khi gõ (không dấu, không phân biệt hoa thường, `đ`→`d`, qua `chuanTim`): đúng tên; đúng **tên tắt** (`ten_tat`, vd `CNĐT`/`cndt`); **chữ cái đầu** của tên hoặc của một dãy ≥ 2 từ liền nhau trong tên (vd `cndt` → "Xong chứng nhận đầu tư"); "<tên hoặc tên tắt> + n ngày" / "<tắt> + n" → mã tham số `DAM-…_<n>`. Chỉ áp chữ đầu/tên tắt cho **mốc riêng**; mốc chuẩn giữ cách khớp hiện có. Khớp **> 1 mốc** → lỗi "Dòng N: "…" khớp nhiều mốc — chọn một mốc bên dưới." kèm danh sách **chỉ các mốc khớp** bấm chọn. Không khớp → lỗi BG-23 hiện có kèm toàn bộ danh sách.
+3. Danh sách bấm chọn hiện mốc riêng có ghi chú ngày: "Xong chứng nhận đầu tư · dự kiến dd/mm/yyyy" hoặc "· đã xong dd/mm/yyyy". Không hiện mã `DAM-…`.
+4. Bản in sơ bộ/ô hiển thị mốc của dòng đã lưu: nhãn lấy từ danh mục dự án (tên mốc; "+ n ngày"); mã không có trong danh mục → "Mốc riêng của dự án (đã ngừng dùng)".
+**Test — `tests/crm_giao_ket_async.cjs`:** máy chủ giả trả danh mục theo `du_an_id`: (a) chọn dự án KCN DEMO → yêu cầu có `?du_an_id=`; gõ `cndt` → khớp "Xong chứng nhận đầu tư", gửi `moc_su_kien` = `DAM-…`; (b) `CNĐT + 30` → `DAM-…_30`; (c) hai mốc cùng chữ đầu → lỗi khớp nhiều, danh sách 2 mốc; (d) đổi sang dự án khác → nạp lại danh mục, dòng mốc riêng cũ báo lỗi; phản hồi chậm của dự án cũ không ghi đè; (e) không chuỗi `DAM-` trong DOM.
+**File (≤ 2):** `crm_g.js`, `tests/crm_giao_ket_async.cjs`. Không sửa máy chủ. Không xóa file.
+**Chạy node:** `node tests/crm_giao_ket_async.cjs`, `node tests/crm_du_an_ban_async.cjs`, `node tests/khung_luoi_async.cjs`, `node tests/crm_ky_ket_async.cjs` (+ 20 bộ: lỗi nền như trước) — ghi số trước/sau.
+**Báo cáo (≤ ⅓ trang):** sửa ở file:dòng · 5 ca · node trước/sau · thông điệp commit `[MDA-3u] …`.
