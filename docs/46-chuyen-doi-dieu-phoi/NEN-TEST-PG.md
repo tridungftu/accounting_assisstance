@@ -51,3 +51,14 @@ Lệnh: `--runtime var\web\crm-demo\runtime.local.json --pg-demo …ket-noi.loca
 | Hook "không xóa" trong tiến trình test (giống DEMO thật) | `test_e1_mua_danh_muc_sua`, `test_e1_mua_trich_phien_ban` (thư mục tạm giữ lại), `test_m1.test_backup_does_not_succeed_without_referenced_raw` | test nhận biết guard (T-NEN-b) |
 | Cần điều tra | `test_m4_master_dung_chung_pg.g02` (TypeError `expected_master`, thấy từ 19:36), `test_source6_lazy_excel` ×3 (bố cục đóng băng) | T-NEN-c |
 | Chập chờn đã biết | `test_trich6_host.HandlerSoHuuTests.test_cong_chan_truoc_handler_goc` | — |
+
+## Nền PG v3 — 26/10/2026 01:28 · hop-nhat 7e9b915 (sau gộp đêm: da-2 + T-DA2, AI-3, MDA M0035, M4-5b)
+
+Lệnh: `tools\chay_test_theo_module.py --runtime … --pg-demo … --gioi-han 900` trên bản tách `kiem-hn-dem` (có 2 tệp ghim lõi Review). Tệp số đo: `nen-test-hop-nhat-pg-v3.json`.
+
+| | ok | ERROR | FAIL | skip | module | TREO |
+|---|---|---|---|---|---|---|
+| PG v2 (25/10 22:05, ec3d7d2) | 2327 | 21 | 66 | 67 | 126 | 0 |
+| **PG v3 (26/10 01:28, 7e9b915)** | **2433** | **20** | **66** | **66** | **132** | **0** |
+
+So v2: **0 mã lỗi mới**; +106 ok (module mới: mốc dự án, 03B HTTP, AI-3…). Node: 13 bộ đạt (v2: 11; T-DA2 sửa `crm_ky_ket_async`). Lỗi còn lại như triage v2 (thiếu `KTT_G6A_CLONE_*`, `test_source6_lazy_excel` thiếu bản candidate — T-NEN-c2 bị chặn, `test_web` chập chờn…). Từ 26/10: so lát mới với **PG v3**.
