@@ -4,6 +4,7 @@ Chạy khi Root cấp KHO_PG_DSN_TEST qua env lúc chạy (không đọc .env/va
 seed CRM DEMO + M4 DEMO; login ứng dụng tạm (NOSUPERUSER NOBYPASSRLS IN ROLE app_web) + admin DSN cho factory đường ghi nguồn tin cậy hiện hành.
 HTTP loopback cổng ngẫu nhiên, cùng token/cookie như trình duyệt. Không DROP/DELETE/TRUNCATE/cleanup — DB/role/thư mục giữ làm bằng chứng.
 Thiếu driver/DSN → skip = NOT_RUN. Ca cần lõi nguồn đã nạp (trích/BOQ) skip riêng khi chưa nạp. Không chứng minh trình duyệt/hiển thị (Root kiểm 18 ca GUI).
+Client #6 giả trong tiến trình dùng chung với M4-01B; không gọi engine/AI thật.
 
 Ánh xạ ca GUI (phần quan sát được qua HTTP): C01 tài sản/trạng thái; C02 thiếu căn cứ + Nộp bị chặn trực tiếp; C03/C04 nguồn→trích→sửa có căn cứ→xác nhận
 (KT/reviewer không xác nhận thay); C05 Track Changes; C06 PL; C07 BOQ phát hiện 999 không chặn; C08 tệp rỗng/media/đường dẫn; C09 Nộp + reviewer
@@ -84,6 +85,11 @@ class M4CongHttp(unittest.TestCase):
         tam = Path(tempfile.mkdtemp(prefix="ktt_m4c_http_"))  # giữ lại
         (tam / "cau_hinh_fixture.toml").write_text(CAU_HINH_FIXTURE, encoding="utf-8")
         cls.app = LocalApp(tam / "cau_hinh_fixture.toml", tam / "web")
+        from tests.test_m4_01b_pg import _Trich6Gia
+        cls.trich6 = _Trich6Gia()
+        cls.client_patch = patch.object(cls.app, "trich6_client", return_value=cls.trich6)
+        cls.client_patch.start()
+        cls.addClassCleanup(cls.client_patch.stop)
         cls.server = LocalServer(cls.app, 0)
         cls.thread = threading.Thread(target=cls.server.serve_forever, kwargs={"poll_interval": 0.01}, daemon=True)
         cls.thread.start()
@@ -266,8 +272,10 @@ class M4CongHttp(unittest.TestCase):
         st, b, _, _ = self.goi("/api/m4/tep/" + t["tep_id"], cookie=sid)
         self.assertEqual(b, raw)  # nguồn giữ nguyên
         if _nguon_da_nap():
+            so_goi = len(self.trich6.goi)
             r = self.ok(sid, "hop-dong/trich", {"hop_dong_id": hd, "revision": 2, "khoa": self.K("trich-tc")})
             self.assertEqual(r["trang_thai"], "KHONG_HO_TRO", r)  # entrypoint thứ hai: không đánh dấu đã trích
+            self.assertEqual(len(self.trich6.goi), so_goi)  # chặn trước client #6
 
     # ------------------------------------------------------------------ C03/C04/C06/C07/C09/C10/C11 (cần lõi nguồn)
     def test_h06_luong_day_du_den_nop_va_reviewer(self):

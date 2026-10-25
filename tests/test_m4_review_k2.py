@@ -29,7 +29,7 @@ F4 R07e — rào có kiểm soát: lệnh M17 cùng khóa commit khi Review đã
 FIX03 (docs/GIAO-SUA-M4-02A-03-GUARD-CHILD-VA-REFRESH.md): F1 trong R02 — worker thật (cwd riêng, khác cwd máy chủ) không bị từ chối guard.
 FIX04 (docs/GIAO-SUA-M4-02A-04-PHAM-VI-VA-KIEM-THU.md):
 R00 — DB riêng migrate tới 19 (trạng thái DEMO đã áp M19) + seed → nâng lên 20: lịch sử 1–19 (version/checksum/thời điểm) và dữ liệu nguyên
-   trạng, ACL/chủ/SECURITY DEFINER/STABLE/search_path của review_quyen giữ nguyên, migrate lại không đổi. R01 — DB mới lên đúng 1–20.
+   trạng, ACL/chủ/SECURITY DEFINER/STABLE/search_path của review_quyen giữ nguyên, migrate lại không đổi. R01 — DB mới có đủ 1–20, hàm hiện hành là M20.
 R01b — mỗi ca trên cặp kết nối MỚI, không đợt: A1 soạn → SOAN; B1 ngoài dự án → M4_KHONG_CO_QUYEN_DU_AN; reviewer → M4_REVIEW_PHAM_VI (không
    SQLSTATE 55000); qua dịch vụ cũng 0 delta. R07d — khóa tải BOQ gốc/phụ lục khác khóa nhập BOQ của từng tệp.
 """
@@ -121,7 +121,8 @@ class M4ReviewPG(unittest.TestCase):
         cls.web = psycopg.connect(cls.app_dsn, autocommit=True, row_factory=dict_row)
         cls.chu = psycopg.connect(cls.dsn, autocommit=True, row_factory=dict_row)
         cls.goc = Path(tempfile.mkdtemp(prefix="ktt_m4r_pg_"))  # giữ lại
-        cls.svc = XayDungK2(cls.web, cls.goc / "m4-k2", conn_tin_cay=cls.chu)
+        from tests.test_m4_01b_pg import _Trich6Gia
+        cls.svc = XayDungK2(cls.web, cls.goc / "m4-k2", conn_tin_cay=cls.chu, trich6=_Trich6Gia())
         cls.XayDungK2 = XayDungK2
         cls.run_id = uuid.uuid4().hex[:8]
         cls.s = {}
@@ -185,9 +186,13 @@ class M4ReviewPG(unittest.TestCase):
 
     # ------------------------------------------------------------------ R01
     def test_r01_dung_ho_so(self):
+        from kho_tri_thuc.ha_tang import pg_migrations as PM
+        from kho_tri_thuc.ha_tang.primitives import sha256
         from tests.test_m4_01b_pg import PHIEU_THAM_SO, VANG  # oracle thủ công từ DOCX nguồn + danh mục (không lấy từ parser)
-        self.assertEqual(self.version, 20)  # FIX04: DB mới lên đúng 1–20 (M20 cuối)
-        self.assertEqual([r[0] for r in self.admin.execute("SELECT version FROM master.schema_migrations ORDER BY version")], list(range(1, 21)))
+        lich_su = list(self.admin.execute("SELECT version, checksum FROM master.schema_migrations WHERE version <= 20 ORDER BY version"))
+        self.assertEqual(lich_su, [(i + 1, sha256("\n".join(PM.PG_MIGRATIONS[i]).encode("utf-8"))) for i in range(20)])
+        than_ham = self.q("SELECT prosrc FROM pg_proc WHERE oid = 'm4.review_quyen(uuid, uuid, uuid)'::regprocedure")
+        self.assertEqual(than_ham.strip(), PM.M0020_M4_REVIEW_QUYEN[0].split("$$")[1].strip())
         self.assertEqual(self.seed["trang_thai"], "DU", self.seed)
         sv, du_an = self.svc, self.du_an("DA_XD_A1")
         hd = sv.tao_hop_dong(A1, du_an_id=du_an, so_hop_dong=f"HDXD-RV-{self.run_id}", ten="Gói thầu Review DEMO", khoa=self.K("hd"))["hop_dong_id"]
@@ -291,13 +296,13 @@ class M4ReviewPG(unittest.TestCase):
                                    WHERE p.oid = 'm4.review_quyen(uuid, uuid, uuid)'::regprocedure""").fetchone()  # noqa: E731
         ls19, dem19, acl19 = lich_su(), dem(), acl()
         self.assertEqual([r[:2] for r in ls19], [(i + 1, sha256("\n".join(PM.PG_MIGRATIONS[i]).encode())) for i in range(19)])
-        self.assertEqual(pg.migrate(c), 20)
+        self.assertEqual(pg.migrate(c, 20), 20)
         ls20 = lich_su()
         self.assertEqual(ls20[:19], ls19)  # 1–19: version/checksum/thời điểm áp dụng nguyên trạng
         self.assertEqual(ls20[19][:2], (20, sha256("\n".join(PM.M0020_M4_REVIEW_QUYEN).encode())))
         self.assertEqual(dem(), dem19)  # dữ liệu/hồ sơ/lịch sử cũ không đổi
         self.assertEqual(acl(), acl19)  # chủ sở hữu/ACL/SECURITY DEFINER/STABLE/search_path giữ nguyên
-        self.assertEqual(pg.migrate(c), 20)  # chạy lại: không đổi
+        self.assertEqual(pg.migrate(c, 20), 20)  # chạy lại đúng mốc: không đổi
         self.assertEqual(lich_su(), ls20)
         self.assertIn("%ROWTYPE", c.execute("SELECT pg_get_functiondef('m4.review_quyen(uuid, uuid, uuid)'::regprocedure)").fetchone()[0])
 
