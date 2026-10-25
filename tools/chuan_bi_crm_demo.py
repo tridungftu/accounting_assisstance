@@ -5,7 +5,8 @@ Dùng: python -X utf8 tools/chuan_bi_crm_demo.py --config <cau_hinh.toml> --root
 - environment = that → BO_QUA (mã 0), không đọc cấu hình kết nối, không đụng cluster.
 - Có cấu hình: kiểm cả hai DSN → bảo đảm cluster PostgreSQL ĐÃ CÓ chạy (ha_tang/pg_cum.py: dùng lại đúng cluster hoặc pg_ctl start
   cluster đang dừng; không stop/kill/xóa/initdb/cài) → tạo DB nếu thiếu, migrate, seed, kiểm login ứng dụng.
-  Seed gồm cả duyệt viên M4 DEMO (`m4_demo.khoi_tao_duyet`, L0-7: một lần, chỉ DB DEMO; lỗi bước này chỉ ghi `m4_duyet_seed`, không chặn mở DEMO).
+  Seed gồm cả duyệt viên M4 DEMO (`m4_demo.khoi_tao_duyet`, L0-7: một lần, chỉ DB DEMO; lỗi bước này chỉ ghi `m4_duyet_seed`, không chặn mở DEMO)
+  và dự án đang bán DEMO (`crm_du_an_ban.khoi_tao_demo`, DA-1: qua hàm lệnh M0031, idempotent; lỗi chỉ ghi `du_an_ban_seed`).
 - Chưa có tệp kết nối cục bộ → CHUA_CAU_HINH (mã 2): app vẫn mở, trang CRM báo chưa cấu hình.
 - Lỗi → mã 3, chỉ thông điệp đã làm sạch (không DSN/mật khẩu/giá trị dòng).
 Mỗi lần chạy ghi một tệp trạng thái RIÊNG `<root>/crm-demo/chuan-bi-<UTC>-<pid>.json` (không ghi đè, không xóa tệp cũ) và in đúng một
@@ -55,10 +56,35 @@ def bo_sung_duyet_vien_m4(kn: dict) -> dict:
         return {"trang_thai": "LOI", **loi_sach(exc)}
 
 
+def bo_sung_du_an_ban(kn: dict) -> dict:
+    """DA-1: seed DEMO dự án đang bán (`crm_du_an_ban.khoi_tao_demo`: 2 dự án DEMO, phí khác đơn vị tính, lô/căn, tiến độ tiêu chuẩn áp dụng ngay).
+    QD-20261025-20: giá/phí chưa VAT, thuế suất 10; KCN trừ đất 24/120 USD/m², nhà ở trừ đất 0 VND/m².
+    QUA CHÍNH hàm lệnh M0031 dưới danh tính bán hàng DEMO, khóa idempotent cố định (mở lại → replay, không thêm phiên bản). CHỈ DB DEMO: DSN quản
+    trị kiểm lại là loopback + tiền tố DEMO (`chuan_hoa_dsn`) trước khi kết nối. Không bao giờ ném lỗi: thất bại chỉ ghi trạng thái."""
+    from kho_tri_thuc.k2 import crm_du_an_ban
+    try:
+        admin_dsn = kn.get("admin_dsn")
+        if not admin_dsn:
+            return {"trang_thai": "BO_QUA", "ly_do": "Không có kết nối quản trị cục bộ."}
+        conninfo = chuan_hoa_dsn(admin_dsn)["conninfo"]
+        psycopg = nap_driver()
+        admin = psycopg.connect(conninfo, autocommit=True)
+        try:
+            kq = crm_du_an_ban.khoi_tao_demo(admin)
+        finally:
+            admin.close()
+        return {"trang_thai": kq.get("trang_thai"), "ly_do": kq.get("ly_do"), "du_an": kq.get("du_an")}
+    except Exception as exc:  # noqa: BLE001 — biên CLI: chỉ lỗi đã làm sạch, không chặn mở DEMO
+        return {"trang_thai": "LOI", **loi_sach(exc)}
+
+
 def chuan_bi_day_du(kn: dict) -> dict:
-    """Bootstrap mặc định của `chay`: seed DEMO chuẩn rồi bổ sung duyệt viên M4 (L0-7)."""
+    """Bootstrap mặc định của `chay`: seed DEMO chuẩn rồi bổ sung duyệt viên M4 (L0-7) và dự án đang bán DEMO (DA-1, chỉ khi bước chuẩn bị đã
+    migrate xong — có `schema_sau`)."""
     kq = chuan_bi(kn)
     kq["m4_duyet_seed"] = bo_sung_duyet_vien_m4(kn)
+    kq["du_an_ban_seed"] = (bo_sung_du_an_ban(kn) if isinstance(kq.get("schema_sau"), int)
+                            else {"trang_thai": "BO_QUA", "ly_do": "Bước chuẩn bị CRM chưa báo schema đã migrate."})
     return kq
 
 

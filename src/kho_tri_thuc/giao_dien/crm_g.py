@@ -33,6 +33,11 @@ CRM G5-B (đối chiếu bản ký ↔ bản sinh; cùng prefix giao-ket, cùng 
        không phải hook khởi động toàn máy chủ — worker chỉ có từ lần đầu factory G được dùng trong tiến trình.
   FIX02: factory Gk/Ky/Kiem/G5 lấy service cha TRƯỚC rồi đọc lại cache dưới `_KHOI_TAO` — khởi tạo G (qua G5) có thể đã dựng chính đối tượng
        đó; constructor ngoài không bao giờ ghi đè → một chuỗi G→Gk→Ky→Kiem→G5 duy nhất bất kể factory nào được gọi đầu tiên.
+
+DA-1 CRM · Dự án đang bán (QD-20261025-05…09; M0031; khối riêng cuối tệp `_dieu_huong_da`, cùng phiên/token/factory G, không router thứ hai):
+  GET  /api/crm/du-an-ban[?dang_ban=1] · /api/crm/du-an-ban/anh-chup?du_an_id=&ngay= · /api/crm/du-an-ban/{da_ban_id}[?phien_ban=&ngay=]
+       · /api/crm/du-an-ban/{da_ban_id}/lich-su
+  POST /api/crm/du-an-ban/{bat-ban, cap-nhat, phi, lo, ngung-ban, mo-ban-lai, tien-do}   (lệnh ngắn dưới mutation lock; tham số truy vấn lạ → 400)
 """
 
 from __future__ import annotations
@@ -131,6 +136,8 @@ def la_route(post: bool, path: str) -> bool:
     if path == "/api/crm/mau":
         return not post
     if path == "/api/crm/bao-gia" or path.startswith(("/api/crm/bao-gia/", "/api/crm/soan/", "/api/crm/giao-ket/")):  # CRM-41-03 G2/G3
+        return True
+    if _la_route_da(path):  # DA-1 dự án đang bán
         return True
     return path.startswith(("/api/crm/mau/", "/api/crm/bo-chuan/")) or path == "/api/crm/bo-chuan"
 
@@ -427,6 +434,8 @@ def _lenh(svc, me, ten: str, p: dict):
 
 def dieu_huong(h, app, post: bool, path: str, query: dict):
     """Một điểm vào cho route G (la_route). Tự trả lỗi có mã: 403 quyền / 404 đích ẩn / 409 CAS-idempotency-trạng thái / 413 / 400 / 503 cấu hình."""
+    if _la_route_da(path):  # DA-1: khối riêng (cùng phiên/token/factory), lỗi map cùng quy tắc
+        return _dieu_huong_da(h, app, post, path, query)
     try:
         if not post:
             if path == "/api/crm/mau":
@@ -620,3 +629,141 @@ def dieu_huong(h, app, post: bool, path: str, query: dict):
         return h.send_content(400, {"error": "INVALID_REQUEST", "message": "Thông tin gửi lên không hợp lệ; chưa xử lý."})
     except OSError:
         return h.send_content(500, {"error": "LOCAL_STORAGE_ERROR", "message": "Không đọc/ghi được kho trên máy. Tệp đã lưu vẫn được giữ."})
+
+
+# ================================================================================================== DA-1 CRM · Dự án đang bán (QD-20261025-05…09)
+# Khối riêng (lát C3 thêm route hợp đồng ở chỗ khác của tệp): cùng phiên cookie/token/mutation lock/factory G (`dich_vu`), không router thứ hai.
+# Trình duyệt không gửi actor/pháp nhân/trạng thái/kết quả (KHONG_NHAN); ghi chỉ bán hàng/kế toán có module CRM — cổng thật ở CSDL (M0031).
+TRUONG_DA = {
+    "du-an-ban/bat-ban": {"du_an_id", "thong_tin", "phi", "ly_do", "khoa"},
+    "du-an-ban/cap-nhat": {"da_ban_id", "expected_phien_ban", "thong_tin", "phi", "ly_do", "khoa"},
+    "du-an-ban/phi": {"da_ban_id", "expected_phien_ban", "phi", "ly_do", "khoa"},
+    "du-an-ban/lo": {"da_ban_id", "lo", "ly_do", "khoa"},
+    "du-an-ban/ngung-ban": {"da_ban_id", "expected_phien_ban", "ly_do", "khoa"},
+    "du-an-ban/mo-ban-lai": {"da_ban_id", "expected_phien_ban", "ly_do", "khoa"},
+    "du-an-ban/tien-do": {"du_an_id", "expected_version", "giai_doan", "dong", "khoa"},  # G7 áp dụng ngay (bỏ CFO, QD-20261025-07)
+}
+MA_409_DA = frozenset({"CRM_DA_DA_CO", "CRM_DA_PHIEN_BAN_CU", "CRM_DA_LO_LAN_CU", "CRM_DA_TRANG_THAI", "CRM_DA_CHUA_BAT_BAN", "CRM_DA_NGAY_LUI",
+                       "CRM_DA_DU_AN_DONG"})
+
+
+def _la_route_da(path: str) -> bool:
+    return path == "/api/crm/du-an-ban" or path.startswith("/api/crm/du-an-ban/")
+
+
+def dich_vu_da(app):
+    """DA-1: service dự án đang bán trên CHÍNH service G (cùng kết nối chủ bảng đã kiểm) — không factory/IAM thứ hai."""
+    da = app.__dict__.get("_crm_da")
+    if da is not None:
+        return da
+    with _KHOI_TAO:
+        da = app.__dict__.get("_crm_da")
+        if da is None:
+            from ..k2.crm_du_an_ban import CrmDuAnBanK2
+            cha = dich_vu(app)  # FIX02: cha trước, rồi đọc lại cache
+            da = app.__dict__.get("_crm_da")
+            if da is None:
+                da = CrmDuAnBanK2(cha)
+                app.__dict__["_crm_da"] = da
+    return da
+
+
+def _chi_query(h, query, cho_phep: set) -> None:
+    """Kiểm cả query thô giữ giá trị rỗng: đúng khóa, tối đa một giá trị/khóa, đúng định dạng và độ dài trước khi chuyển kiểu."""
+    from urllib.parse import parse_qs
+    tho = urlsplit(str(getattr(h, "path", "") or "")).query
+    du_lieu_tho = parse_qs(tho, keep_blank_values=True)
+    la = (set(query or {}) | set(du_lieu_tho)) - set(cho_phep)
+    if la:
+        raise DataError("CRM_G_YEU_CAU_SAI", "Không nhận tham số truy vấn: " + ", ".join(sorted(la)[:5]))
+    mau = {"dang_ban": r"[01]", "phien_ban": r"[0-9]{1,9}", "du_an_id": "(?i:" + _UUID + ")", "ngay": r"[0-9]{4}-[0-9]{2}-[0-9]{2}"}
+    for nguon in (du_lieu_tho, query or {}):
+        for ten, ds in nguon.items():
+            if (not isinstance(ds, list) or len(ds) != 1 or not isinstance(ds[0], str)
+                    or not re.fullmatch(mau[ten], ds[0]) or (ten == "phien_ban" and int(ds[0]) == 0)):
+                raise DataError("CRM_G_YEU_CAU_SAI", "Tham số truy vấn không hợp lệ hoặc bị lặp: " + ten)
+
+
+def _lenh_da(da, me, ten: str, p: dict):
+    g = p.get
+    if ten == "du-an-ban/bat-ban":
+        return da.bat_ban(me, du_an_id=g("du_an_id"), thong_tin=g("thong_tin"), phi=g("phi"), ly_do=g("ly_do"), khoa=g("khoa"))
+    if ten == "du-an-ban/cap-nhat":
+        return da.cap_nhat(me, da_ban_id=g("da_ban_id"), expected_phien_ban=g("expected_phien_ban"), thong_tin=g("thong_tin"), phi=g("phi"),
+                           ly_do=g("ly_do"), khoa=g("khoa"))
+    if ten == "du-an-ban/phi":
+        return da.sua_phi(me, da_ban_id=g("da_ban_id"), expected_phien_ban=g("expected_phien_ban"), phi=g("phi"), ly_do=g("ly_do"), khoa=g("khoa"))
+    if ten == "du-an-ban/lo":
+        return da.ghi_lo(me, da_ban_id=g("da_ban_id"), lo=g("lo"), ly_do=g("ly_do"), khoa=g("khoa"))
+    if ten == "du-an-ban/ngung-ban":
+        return da.ngung_ban(me, da_ban_id=g("da_ban_id"), expected_phien_ban=g("expected_phien_ban"), ly_do=g("ly_do"), khoa=g("khoa"))
+    if ten == "du-an-ban/mo-ban-lai":
+        return da.mo_ban_lai(me, da_ban_id=g("da_ban_id"), expected_phien_ban=g("expected_phien_ban"), ly_do=g("ly_do"), khoa=g("khoa"))
+    if ten == "du-an-ban/tien-do":
+        return da.ap_dung_tien_do(me, du_an_id=g("du_an_id"), expected_version=g("expected_version"), giai_doan=g("giai_doan"), dong=g("dong"), khoa=g("khoa"))
+    raise DataError("NOT_FOUND", "Không có thao tác dự án đang bán này.")
+
+
+def _ma_http_da(code: str) -> int:
+    if code.startswith("CRM_MAU_") and code not in MA_413:
+        return 400
+    return (403 if code in MA_403 or code in MA_403_GK else 404 if code in MA_404
+            else 409 if code in MA_409 or code in MA_409_GK or code in MA_409_DA else 413 if code in MA_413 else 503 if code in MA_503 else 400)
+
+
+def _dieu_huong_da(h, app, post: bool, path: str, query: dict):
+    """Route dự án đang bán. Lỗi có mã: 403 quyền / 404 không thấy / 409 phiên bản cũ-trạng thái-idempotency / 503 cấu hình / 400 nhập (kèm `truong`)."""
+    try:
+        if not post:
+            if path == "/api/crm/du-an-ban":
+                _chi_query(h, query, {"dang_ban"})
+                dang_ban = _q(query, "dang_ban")
+                if dang_ban not in (None, "0", "1"):
+                    raise DataError("CRM_G_YEU_CAU_SAI", "Tham số dang_ban chỉ nhận 0 hoặc 1.")
+                with app.mutation_lock:
+                    _, me, _ = app.crm_phien(h.crm_sid())
+                    da = dich_vu_da(app)
+                    return h.send_content(200, {**app._crm_db(lambda: da.danh_sach(me, dang_ban=dang_ban == "1")),
+                                                "ly_do_chua_san_sang": getattr(da.mau, "ly_do_chua_san_sang", None)})
+            if path == "/api/crm/du-an-ban/anh-chup":
+                _chi_query(h, query, {"du_an_id", "ngay"})
+                with app.mutation_lock:
+                    _, me, _ = app.crm_phien(h.crm_sid())
+                    return h.send_content(200, app._crm_db(dich_vu_da(app).anh_chup_mac_dinh, me, _q(query, "du_an_id"), _q(query, "ngay")))
+            m = re.fullmatch(r"/api/crm/du-an-ban/(" + _UUID + ")", path)
+            if m:
+                _chi_query(h, query, {"phien_ban", "ngay"})
+                with app.mutation_lock:
+                    _, me, _ = app.crm_phien(h.crm_sid())
+                    return h.send_content(200, app._crm_db(lambda: dich_vu_da(app).chi_tiet(me, m.group(1), phien_ban=_q(query, "phien_ban"),
+                                                                                             ngay=_q(query, "ngay"))))
+            m = re.fullmatch(r"/api/crm/du-an-ban/(" + _UUID + ")/lich-su", path)
+            if m:
+                _chi_query(h, query, set())
+                with app.mutation_lock:
+                    _, me, _ = app.crm_phien(h.crm_sid())
+                    return h.send_content(200, app._crm_db(dich_vu_da(app).lich_su, me, m.group(1)))
+        else:
+            ten = path[len("/api/crm/"):]
+            if ten in TRUONG_DA:
+                _chi_query(h, query, set())
+                body = h.json_body()
+                if not isinstance(body, dict):
+                    raise DataError("CRM_G_YEU_CAU_SAI", "Thân yêu cầu phải là object.")
+                payload = _than(body, TRUONG_DA[ten])
+                if "thong_tin" in payload and payload["thong_tin"] is not None:
+                    from ..k2.crm_du_an_ban import chuan_hoa_thong_tin
+                    payload["thong_tin"] = chuan_hoa_thong_tin(payload["thong_tin"])
+                with app.mutation_lock:
+                    _, me, _ = app.crm_phien(h.crm_sid())
+                    return h.send_content(200, app._crm_db(_lenh_da, dich_vu_da(app), me, ten, payload))
+        return h.send_content(404, {"error": "NOT_FOUND", "message": "Không tìm thấy chức năng này."})
+    except DataError as exc:
+        loi = {"error": exc.code, "message": str(exc)}
+        if getattr(exc, "locator", "$") not in (None, "", "$"):  # lỗi theo trường (vd thong_tin.don_gia_niem_yet, phi.0.muc, lo.2.dien_tich)
+            loi["truong"] = exc.locator
+        return h.send_content(_ma_http_da(exc.code), loi)
+    except (ValueError, TypeError, KeyError, RecursionError):
+        return h.send_content(400, {"error": "INVALID_REQUEST", "message": "Thông tin gửi lên không hợp lệ; chưa xử lý."})
+    except OSError:
+        return h.send_content(500, {"error": "LOCAL_STORAGE_ERROR", "message": "Không đọc/ghi được kho trên máy."})
