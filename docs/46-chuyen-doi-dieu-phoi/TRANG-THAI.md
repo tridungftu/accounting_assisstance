@@ -11,9 +11,9 @@ Trạng thái lát: Đang code → Chờ kiểm → Chờ Anh (cổng A/B) → S
 | M4-5a | M4 · Nghiệm thu & chi phí dự án · 03B máy chủ: khai một phần bằng số tiền + gợi ý hóa đơn — **M0033** | Codex · review Claude | `lat/m4-5a` | 25/10 19:16 (vòng 3) | **Đã gộp 834a53c** (M0033; chuỗi 33): review vòng 1 Đạt, vòng 3 sửa A1/A2/A4, `kiem-nhanh` Đạt, bộ M4/CRM PG không thêm mã lỗi. **Còn nợ:** 18 ca PG `test_m4_03b_common_pg` (gồm c11–c18 M0033) chưa chạy — bộ chạy chưa dựng được họ bản sao `03a` → lát **L0-8d** (ưu tiên kế tiếp), lead chạy ngay khi xong; lỗi → sửa trước nghiệm thu |
 | DA-3a | CRM · Báo giá nạp mặc định từ Dự án đang bán, ghi nhận khác tiêu chuẩn | Codex · review Claude | `lat/da-3a` (c077a83) | 25/10 | **XONG — đã gộp** (vòng 2 B1; kiem-nhanh Đạt; PG 29/29 + 16/16) |
 | T-MIG2 | Test PostgreSQL theo chuỗi migration mới | Codex | `lat/t-mig2` (26e9c35) | 25/10 | `t21` hết sau **L0-9b** (gốc: 8 fixture L11 bị L0-9 ép LF, lệch ghim SHA) — `test_crm_k2` chỉ còn lỗi có sẵn của nền; chờ chạy lại cả bộ PG → `kiem-nhanh` → `review-lat` → gộp |
-| UI-1 | Khung lưới icon dùng chung + áp CRM 6 phần (CD-002) | Claude Sonnet | `lat/ui-1` (= da-2 + hop-nhat) | 25/10 | Xong code + kiem-nhanh; DEMO 8798 lên nhưng **CRM chưa nối được** (bị chặn bởi L0-10: `pg_cum` chưa nhận cụm chạy dịch vụ Windows) → chờ L0-10 rồi thử 4 vai, soạn phiếu cổng A |
+| UI-1 | Khung lưới icon dùng chung + áp CRM 6 phần (CD-002) | Claude Sonnet | `lat/ui-1` (= da-2 + hop-nhat) | 25/10 | DEMO 8798 (có L0-10) **chạy được**: lead thử 4 vai — thẻ/icon đúng TL 49 §2, thanh icon trái + đường dẫn đúng; **lỗi tìm thấy:** lần tải đầu báo 'Phiên CRM chưa có' (khung gọi trước /api/crm) → **UI-1b** (chờ suất trống); sau đó gửi phiếu cổng A |
 | UI-2 | Máy chủ `GET /api/khung/module/crm` (CD-002) | Codex | `lat/ui-2` | 25/10 19:16 | **XONG — đã gộp af7c389**: kiem-nhanh Đạt, review-lat Opus Đạt (3 Nên sửa → **UI-2b** chờ chỗ trống: số icon theo TL 42 §3, không trả tổng cắt); lead còn gọi thử `/api/khung/module/crm` 4 vai trên DEMO khi chuẩn bị cổng A |
-| L0-10 | **Bị chặn mở DEMO có CRM** từ 19:46 (sau khi cụm chạy dịch vụ Windows): `pg_ctl status` dưới tài khoản người dùng báo 3, không đọc được tiến trình dịch vụ → `pg_cum.bao_dam_cum` báo CUM_CONG_BI_CHIEM; ảnh hưởng `mo_demo_worktree.ps1` và `MỞ BẢN DEMO.cmd` | Codex | `lat/l0-10` | 25/10 20:38 | Đang code (nhận diện bằng postmaster.pid + dịch vụ RUNNING, không giành tiến trình) |
+| L0-10 | **Bị chặn mở DEMO có CRM** từ 19:46 (sau khi cụm chạy dịch vụ Windows): `pg_ctl status` dưới tài khoản người dùng báo 3, không đọc được tiến trình dịch vụ → `pg_cum.bao_dam_cum` báo CUM_CONG_BI_CHIEM; ảnh hưởng `mo_demo_worktree.ps1` và `MỞ BẢN DEMO.cmd` | Codex | `lat/l0-10` | 25/10 20:38 | **XONG — đã gộp c199a05** (review Opus Đạt); điểm Nên sửa/Để sau → L0-10b đang code |
 | M2j-b | Sửa nóng `app.js`: bộ lọc "Lần tải" (M2j) làm vỡ 16 bộ test node (DOM giả không có phần tử cha) | Lead | `hop-nhat` | 25/10 19:08 | **Xong** — sửa 1 dòng; 16 → 7 bộ node không đạt, cả 7 cũng không đạt trên nền v4 (lỗi có sẵn) |
 
 ## Cổng AI (CD-001, TL 48 — Anh chốt 25/10: Local luôn có, Cloud chỉ qua Mask file v2)
@@ -65,8 +65,10 @@ Quy tắc áp cho mọi lát từ 25/10 (CD-001 việc 3): không lát nào vi�
 | UI-1 | Claude | Sonnet | 19:21 | 20:15 | kiem-nhanh Đạt có điều kiện (giấy phép icon → lead sửa) | node 12/12 ca mới; 8 bộ node lỗi có sẵn |
 | L0-8e | Codex | gpt-6.1-sol · high | 20:28 | 20:38 | review-lat Opus đang chạy | Xanh — test_trich6_host 22/22 (hết 4 lỗi nền), 03A PG 13/13 |
 | MASK-2 | Claude | Opus | 20:31 | — | — | — |
-| L0-10 | Codex | gpt-6.1-sol · high | 20:38 | 20:38 | review-lat Opus đang chạy | Xanh — 46/46; kiểm thật dịch vụ khớp |
-| L0-8f | Codex | gpt-6.1-sol · high | 20:47 | — | — | — |
+| L0-10 | Codex | gpt-6.1-sol · high | 20:38 | gộp 20:51 | review-lat Opus Đạt | Xanh — 46/46; DEMO 8798 chuẩn bị CRM chế độ DICH_VU |
+| L0-8f | Codex | gpt-6.1-sol · high | 20:47 | 20:44 (v1 dừng đúng: gốc ở helper test) | — | — |
+| L0-8f v2 | Codex | gpt-6.1-sol · high | 20:50 | — | — | — |
+| L0-10b | Codex | gpt-6.1-sol · high | 20:52 | — | — | — |
 | kiem-nhanh DA-3a v2 + AI-1b | Claude | Haiku | 20:12 | 20:15 | — | Đạt cả hai → gộp |
 | kiem-nhanh UI-2 + M4-5a v3 | Claude | Haiku | 19:51 | 19:55 | — | Đạt cả hai |
 | review-lat UI-2 | Claude | Opus | 19:56 | 20:02 | vòng 1 | Đạt — 3 Nên sửa → UI-2b |
