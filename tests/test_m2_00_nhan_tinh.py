@@ -222,6 +222,43 @@ class NhanTinh(unittest.TestCase):
             self.assertEqual(len(next(iter(conn.identities.values()))), 1)
             self.assertIn('K2_REVISION_THEO_SEMANTIC_KHONG_THEO_HASH_BYTES', r['khoang_thieu_k2'])
 
+    def hoi_cuu_ngoai_run(self):
+        """Chuyển run DEMO sang HOI_CUU: XML/PDF/bảng kê để tại chỗ ở thư mục dữ liệu cũ (đường dẫn tuyệt đối). Trả (thư mục cũ, gốc tin cậy nằm trong nó)."""
+        cu = self.root / 'nguon-cu'
+        goc = cu / 'goc'
+        goc.mkdir(parents=True)
+        h, bk = self.m['hoa_don'][0], self.m['tong']['bang_ke']
+        for ten in (h['file_xml'], h['file_pdf'], bk['file']):
+            (goc / ten).write_bytes((self.run / ten).read_bytes())
+        h['file_xml'] = h['xml_tep'][0]['file'] = str(goc / h['file_xml'])
+        h['file_pdf'] = str(goc / h['file_pdf'])
+        bk.update(file=str(goc / bk['file']), so_cot=15)
+        self.m.update(nguon='HOI_CUU', xap_xi=True, thu_muc_tep_goc=str(goc))
+        self.ghi(self.run, self.m)
+        return cu, goc
+
+    def test_nhan_vao_k2_truyen_goc_hoi_cuu_tin_cay_xuong_lan_lap_lai(self):
+        cu, goc = self.hoi_cuu_ngoai_run()
+        p = lap_ke_hoach_nhan(self.run, ma_phap_nhan='DEMO', goc_hoi_cuu_tin_cay=goc)
+        # manifest đổi giữa hai lần đọc: khai gốc rộng hơn (cha của gốc tin cậy). Đường dẫn tệp không đổi, thư mục cha không thêm tệp lạ
+        # → lần lập lại KHÔNG kiểm gốc vẫn ra đúng kế hoạch cũ (đó là lỗ hổng của gốc None).
+        self.m['thu_muc_tep_goc'] = str(cu)
+        self.ghi(self.run, self.m)
+        self.assertEqual(lap_ke_hoach_nhan(self.run, ma_phap_nhan='DEMO'), p)
+        service = Mock()
+        service.nhan_theo_manifest.return_value = {'lan_tiep_nhan_id': 'DEMO_RECEIPT', 'lap_lai': False, 'promote': {'items': []}}
+        with self.assertRaises(DataError) as ctx:
+            nhan_vao_k2(p, service, actor='DEMO_ACTOR', source_instance='DEMO', scope_ref='DEMO', goc_hoi_cuu_tin_cay=goc)
+        self.assertEqual(ctx.exception.code, 'M2_00_MANIFEST_HOI_CUU_GOC_KHONG_TIN_CAY')
+        service.nhan_theo_manifest.assert_not_called()
+        (self.root / 'khac').mkdir()
+        for danh_sach in ([goc], str(goc), (self.root / 'khac', goc)):  # nhiều gốc hoặc một chuỗi: chỉ cần gốc khai trong manifest nằm trong một gốc tin cậy
+            with self.subTest(goc=danh_sach):
+                self.m['thu_muc_tep_goc'] = str(goc)
+                self.ghi(self.run, self.m)
+                nhan_vao_k2(p, service, actor='DEMO_ACTOR', source_instance='DEMO', scope_ref='DEMO', goc_hoi_cuu_tin_cay=danh_sach)
+        self.assertEqual(service.nhan_theo_manifest.call_count, 3)
+
     def test_04_khong_xml_goc_la_bang_ke_khong_phai_tai_loi(self):
         self.khong_xml('KHONG_XML_GOC')
         p = self.plan()

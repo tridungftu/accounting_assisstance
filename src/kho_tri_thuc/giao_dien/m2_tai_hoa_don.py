@@ -417,7 +417,8 @@ def _nhan_mot_run(app, dv, sid, login, ctx, run) -> dict:
         thu_muc = kiem_khong_reparse(goc.joinpath(*rel.split("/")), la_thu_muc=True)
         ke_hoach = lap_ke_hoach_nhan(thu_muc, ma_phap_nhan=ma, goc_hoi_cuu_tin_cay=dv.goc_hoi_cuu_tin_cay)  # đọc/băm tệp NGOÀI khóa app
         with app.mutation_lock:
-            kq = nhan_vao_k2(ke_hoach, app.m2(), actor=login, source_instance=ctx["source_instance"], scope_ref=ctx["scope_ref"])
+            kq = nhan_vao_k2(ke_hoach, app.m2(), actor=login, source_instance=ctx["source_instance"], scope_ref=ctx["scope_ref"],
+                             goc_hoi_cuu_tin_cay=dv.goc_hoi_cuu_tin_cay)
     except DataError as exc:
         return {**base, "loi": {"ma": _ma(exc.code) or "UNSPECIFIED", "thong_bao": str(exc)}}
     return {**base, "nguon": ke_hoach["nguon"], "coverage": ke_hoach["coverage"], "so_muc": len(ke_hoach["muc"]),

@@ -216,15 +216,20 @@ def lap_ke_hoach_nhan(thu_muc_run, *, ma_phap_nhan: str, goc_hoi_cuu_tin_cay=Non
 
 
 def nhan_vao_k2(ke_hoach: dict, hoa_don_k2: HoaDonK2, *, actor: str,
-                source_instance: str, scope_ref: str) -> dict:
+                source_instance: str, scope_ref: str, goc_hoi_cuu_tin_cay=None) -> dict:
     """Mỗi XML đi qua API công khai → stage/capture → m2_tieu_thu_quan_sat.
 
     Instance/scope/actor do caller tin cậy cung cấp; không cấp quyền bằng context
     manifest. Replay dùng key ổn định theo run + item + entry; không chứa hash
     nội dung để sửa cùng run không lách thành thao tác mới. CROSSWALK chỉ là
     provenance, không làm authority/promotion. BANG_KE giữ chờ vì API chưa nhận.
+    goc_hoi_cuu_tin_cay: gốc tin cậy từ cấu hình, truyền xuống lần lập kế hoạch lại bên dưới.
+    Không truyền thì lần đọc lại KHÔNG kiểm gốc: manifest đổi giữa hai lần đọc để trỏ
+    gốc hồi cứu ra ngoài vẫn lọt nếu các đường dẫn tệp trùng kế hoạch. Đường nhận tự
+    động (M2e/M2f) PHẢI truyền.
     """
-    moi = lap_ke_hoach_nhan(ke_hoach["thu_muc_run"], ma_phap_nhan=ke_hoach["ma_phap_nhan"])
+    moi = lap_ke_hoach_nhan(ke_hoach["thu_muc_run"], ma_phap_nhan=ke_hoach["ma_phap_nhan"],
+                            goc_hoi_cuu_tin_cay=goc_hoi_cuu_tin_cay)
     if moi != ke_hoach:
         _loi("KE_HOACH_DA_DOI")
     if (source_instance, scope_ref) != (moi["context"]["source_instance"], moi["context"]["scope_ref"]):

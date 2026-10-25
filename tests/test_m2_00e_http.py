@@ -625,10 +625,16 @@ class Nhan(Co):
         def ghi_nhan(*a, **kw):
             goi.append(kw.get("goc_hoi_cuu_tin_cay"))
             return that(*a, **kw)
-        with patch.object(mod, "lap_ke_hoach_nhan", ghi_nhan):
+        goi_k2 = []
+
+        def ghi_k2(ke_hoach, k2, **kw):  # K2 giả: chỉ ghi nhận tham số gốc tin cậy mà đường nhận truyền cho lần lập kế hoạch lại của nhan_vao_k2
+            goi_k2.append(kw.get("goc_hoi_cuu_tin_cay"))
+            return {"ket_qua": [], "ngoai_le": [], "chua_ro_nguon": [], "khoang_thieu_k2": []}
+        with patch.object(mod, "lap_ke_hoach_nhan", ghi_nhan), patch.object(mod, "nhan_vao_k2", ghi_k2):
             self.goi("POST", TIEN_TO + "/nhan", {"run": r["run_handle"]})
             self.goi("GET", f"{TIEN_TO}/manifest?run={r['run_handle']}&run_rel={MA_A}/2026-09/mua_vao/{r['run_id']}")
         self.assertEqual(goi, [(str(self.cfg.goc_tai), str(cu))])  # không bao giờ để trống; luôn gồm thư mục tải
+        self.assertEqual(goi_k2, [(str(self.cfg.goc_tai), str(cu))])  # nhan_vao_k2 cũng nhận gốc tin cậy cho lần lập lại bên trong
         self.assertEqual(mod.dich_vu(self.app).goc_hoi_cuu_tin_cay, (str(self.cfg.goc_tai), str(cu)))
 
     def test_hoi_cuu_chi_nhan_khi_goc_cu_nam_trong_cau_hinh(self):
