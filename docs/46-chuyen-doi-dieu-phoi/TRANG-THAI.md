@@ -58,9 +58,9 @@ Quy tắc áp cho mọi lát từ 25/10 (CD-001 việc 3): không lát nào vi�
 | MASK-1 vòng 2 | Claude | Opus | 19:35 | 19:48 | review vòng 2 đang chạy | Mask v2: 387 đạt / 1 lỗi có sẵn; benchmark không giảm |
 | Review MASK-1 vòng 2 | Claude | Opus | 19:48 | 19:52 | vòng 2 | **Đạt** — 2 Nên sửa → MASK-2 |
 | AI-1b | Codex | gpt-6.1-sol · high | 19:49 | 19:55 | (review sau gộp AI-1) → kiem-nhanh | Xanh — 101/101 |
-| L0-8d | Codex | gpt-6.1-sol · high | 20:07 | 20:21 | kiem-nhanh | họ 03a dựng được; 03A/03B vẫn skip: host #6 GUARD_KHONG_NAP → L0-8e |
+| L0-8d | Codex | gpt-6.1-sol · high | 20:07 | gộp 20:31 | kiem-nhanh Đạt | họ 03a dựng được; 03A/03B vẫn skip: host #6 GUARD_KHONG_NAP → L0-8e |
 | UI-2b | Codex | gpt-6.1-sol · high | 20:07 | gộp 20:17 | kiem-nhanh Đạt | Xanh — khung 20/20 |
-| T-M4a | Codex | gpt-6.1-sol · high | 20:16 | 20:22 | kiem-nhanh | Xanh — 01b/01c/review_k2 hết lỗi (18 đạt) |
+| T-M4a | Codex | gpt-6.1-sol · high | 20:16 | gộp 20:31 | kiem-nhanh Đạt | Xanh — 01b 12/12, 01c 8/8, review_k2 14/14, 0 skip (đủ tệp ghim) |
 | UI-1 | Claude | Sonnet | 19:21 | 20:15 | kiem-nhanh Đạt có điều kiện (giấy phép icon → lead sửa) | node 12/12 ca mới; 8 bộ node lỗi có sẵn |
 | L0-8e | Codex | gpt-6.1-sol · high | 20:28 | — | — | — |
 | MASK-2 | Claude | Opus | 20:31 | — | — | — |
