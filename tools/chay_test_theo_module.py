@@ -227,8 +227,14 @@ def _dac_ta_ho(ho: str, db: str) -> tuple[dict, dict]:
 
 
 # ---- việc chạy trong tiến trình con riêng (python của runtime có psycopg): in đúng một dòng JSON ASCII, không bao giờ in DSN
+class LoiPgViec(RuntimeError):
+    """Việc PostgreSQL ở tiến trình con thất bại; thông điệp chỉ gồm tên việc + loại lỗi/mã do con báo (đã làm sạch)."""
+
+
 def _loi_pg_sach(exc: BaseException) -> str:
     """Chỉ tên loại lỗi + mã (DataError.code / sqlstate): thông điệp ngoại lệ có thể chứa nội dung chuỗi kết nối."""
+    if isinstance(exc, LoiPgViec):
+        return str(exc)
     ma = getattr(exc, "code", None) or getattr(exc, "sqlstate", None) or ""
     return type(exc).__name__ + (f"({ma})" if isinstance(ma, str) and re.fullmatch(r"[A-Za-z0-9_]{1,60}", ma) else "")
 
@@ -380,9 +386,9 @@ class _PgDemo:
         try:
             kq = json.loads(dong[-1])
         except (IndexError, ValueError):
-            raise RuntimeError(f"pg-demo '{viec}': tiến trình con thoát mã {r.returncode} không có kết quả") from None
+            raise LoiPgViec(f"{viec}: tiến trình con thoát mã {r.returncode} không có kết quả") from None
         if not kq.get("ok"):
-            raise RuntimeError(f"pg-demo '{viec}': {kq.get('loi', 'lỗi')}")
+            raise LoiPgViec(f"{viec}: {str(kq.get('loi', 'lỗi'))[:120]}")
         return kq
 
     def _ghi_so(self):
@@ -721,7 +727,7 @@ def main(argv=None) -> int:
                     help="chỉ với --pg-demo: không chạy test, dọn các CSDL kho_test_* còn trong sổ ghi của một lần chạy bị chết giữa chừng")
     runtime = ap.add_mutually_exclusive_group()
     runtime.add_argument("--python", default=sys.executable, help="python.exe dùng chạy test (mặc định: chính python đang chạy script)")
-    runtime.add_argument("--runtime", type=Path, help="runtime.local.json: dùng python và duong_dan_phu_thuoc, không dùng kết nối PostgreSQL")
+    runtime.add_argument("--runtime", type=Path, help="runtime.local.json: dùng python và duong_dan_phu_thuoc; kết nối PostgreSQL chỉ đến từ --pg-demo")
     args = ap.parse_args(argv)
 
     phu_thuoc = ()
