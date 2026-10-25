@@ -4,8 +4,9 @@ NOT_RUN_CODE_ONLY).
 Chạy khi Root cấp KHO_PG_DSN_TEST lúc chạy (DSN chủ CSDL; không đọc .env/var, không hardcode credentials). DB MỚI `kho_test_crmgk_*` migrate mặc
 định (tối thiểu M0021), seed CRM DEMO + crm_g_demo (actor/danh mục/phân công + điều khoản tham chiếu DEMO — KHÔNG seed M9, KHÔNG bootstrap chung kéo theo
 module vay). Mẫu hợp đồng và bộ chuẩn G7 được dựng bằng LUỒNG DỊCH VỤ THẬT qua HTTP (tải → ánh xạ → gửi kiểm → KT kiểm → CFO duyệt; KT lập/gửi →
-CFO duyệt) — không owner INSERT đối tượng đã duyệt. Word/PDF: có Word đã ghim + guard → PDF_DAT/CHO_KY phải đạt; không có → PDF_CHUA_SAN_SANG,
-DOCX vẫn giữ, KHÔNG CHO_KY (cả hai nhánh đều assert, ghi rõ nhánh đã chạy). Không DROP/DELETE/cleanup — DB/role/thư mục giữ làm bằng chứng.
+CFO duyệt) — không owner INSERT đối tượng đã duyệt. Word/PDF: metadata Word/guard không chứng minh worker được phép chạy COM; PDF_DAT cần
+bằng chứng Word sở hữu đã dừng. Guard/PermissionError → PDF_CHUA_SAN_SANG có lý do cụ thể, DOCX vẫn giữ, KHÔNG CHO_KY giả.
+Không DROP/DELETE/cleanup — DB/role/thư mục giữ làm bằng chứng.
 Thiếu driver/DSN → skip = NOT_RUN (không tính đạt). Không chứng minh GUI/1440 click (Root chạy riêng).
 Ánh xạ ca nghiệm thu §8: c1 → g02/g03 · c2 → g04 · c3 → g05 · c4 → g01 · c5 → g06 · c6 → g02/g07 · c7 (async) → tests/crm_giao_ket_async.cjs.
 FIX01: g07 fixture (PDF lỗi sau CHO_KY không hạ trạng thái) · #5 → g08 (đặt chỗ bền, đếm render/chỗ đặt/thư mục, 409 đang xử lý/khác body) ·
@@ -68,6 +69,33 @@ def ngay(d=0):
 def _dong(c):
     if c is not None and not c.closed:
         c.close()
+
+
+def kiem_ket_qua_pdf(ca, x, ly_do, kiem, word_san_sang):
+    """Chỉ nhận PDF đạt có bằng chứng; không coi mọi lỗi chuyển PDF là do chính sách/guard."""
+    if x["trang_thai"] == "PDF_DAT":
+        ca.assertTrue(word_san_sang, x)
+        ca.assertIsNone(ly_do)
+        word = kiem.get("word") or {}
+        ca.assertIs(word.get("gan_job"), True, kiem)
+        ca.assertIs(word.get("da_dung"), True, kiem)
+        ca.assertIs(type(word.get("pid")), int, kiem)
+        ca.assertGreater(word["pid"], 0, kiem)
+        ca.assertTrue(x["pdf_sha256"], x)
+        ca.assertGreater(x["pdf_len"], 0, x)
+        return True
+    ca.assertEqual(x["trang_thai"], "PDF_CHUA_SAN_SANG", x)
+    # crm_docx: kiểm nhà cung cấp/guard trước spawn, hoặc worker bị chặn quyền tại một pha COM.
+    ca.assertTrue(ly_do in {
+        "KHONG_PHAI_WINDOWS", "WORD_KHONG_CO", "WORD_KHAC_BAN_GHIM",
+        "GUARD_KHONG_NAP", "GUARD_SHA_SAI", "GUARD_CO_TAT", "GUARD_KHONG_HOOK", "GUARD_BYTECODE_BAT",
+    } or re.fullmatch(r"COM_(?:TAO_WORD|CHUNG_MINH_SO_HUU|TUY_CHON|MO|XUAT):PermissionError", ly_do or ""),
+                  (ly_do, kiem, x))
+    ca.assertIsNone(x["pdf_sha256"], x)
+    ca.assertIsNone(x["pdf_len"], x)
+    ca.assertTrue(x["docx_sha256"], x)
+    ca.assertGreater(x["docx_len"], 0, x)
+    return False
 
 
 @unittest.skipUnless(psycopg is not None and ADMIN_DSN, "Không có psycopg hoặc KHO_PG_DSN_TEST — HTTP CRM-41-03 không chạy (NOT_RUN, không tính đạt)")
@@ -164,6 +192,10 @@ class CrmGiaoKetHttp(unittest.TestCase):
     def q(self, sql, params=()):
         return self.admin.execute(sql, params).fetchone()[0]
 
+    def pdf_dat(self, x):
+        ly_do, kiem = self.admin.execute("SELECT ly_do, kiem_pdf FROM master.crm_gk_xuat WHERE id = %s", (x["xuat_id"],)).fetchone()
+        return kiem_ket_qua_pdf(self, x, ly_do, kiem, self.co_word)
+
     def loai_a(self):
         return str(self.q("""SELECT l.id FROM master.loai_hinh_doanh_thu l JOIN master.phap_nhan p ON p.id = l.phap_nhan_id
                              WHERE p.ma = 'PN_DEMO_A' AND l.ma = 'DT-KCN-THUE-DAT-DEMO' AND l.phien_ban = 2"""))
@@ -255,10 +287,10 @@ class CrmGiaoKetHttp(unittest.TestCase):
         x = self.ok(BH, "bao-gia/in", {"bao_gia_id": r["bao_gia_id"], "expected_revision": 1, "khoa": self.K("in1")})
         sau = self.dem()
         self.assertEqual((sau["xuat"] - trc["xuat"], sau["lich_thu"] - trc["lich_thu"], sau["hd"] - trc["hd"]), (1, 0, 0))
-        self.assertEqual(x["trang_thai"], "PDF_DAT" if self.co_word else "PDF_CHUA_SAN_SANG", x)
+        pdf_dat = self.pdf_dat(x)
         st, docx_b, _ = self.goi(f"/api/crm/giao-ket/tep/{x['xuat_id']}/docx", cookie=self.sid(BH))
         self.assertEqual((st, hashlib.sha256(docx_b).hexdigest(), len(docx_b)), (200, x["docx_sha256"], x["docx_len"]))
-        if self.co_word:
+        if pdf_dat:
             import pdfplumber
             st, pdf_b, _ = self.goi(f"/api/crm/giao-ket/tep/{x['xuat_id']}/pdf", cookie=self.sid(BH))
             self.assertTrue(pdf_b.startswith(b"%PDF-"))
@@ -394,9 +426,9 @@ class CrmGiaoKetHttp(unittest.TestCase):
         r = self.ok(BH, "soan/luu", {"soan_id": sid, "expected_revision": 1, "gia_tri_truong": gt, "bao_gia": bg, "khoa": self.K("so-2")})
         self.assertEqual(r["revision"], 2)
         x = self.ok(BH, "soan/xuat", {"soan_id": sid, "expected_revision": 2, "khoa": self.K("x1")})
-        self.assertEqual(x["trang_thai"], "PDF_DAT" if self.co_word else "PDF_CHUA_SAN_SANG")
+        self.s["soan_pdf_dat"] = self.pdf_dat(x)
         tt = self.q("SELECT trang_thai FROM master.crm_hd_soan WHERE id = %s", (sid,))
-        self.assertEqual(tt, "CHO_KY" if self.co_word else "SOAN_THAO")  # PDF chưa sẵn sàng → KHÔNG CHO_KY
+        self.assertEqual(tt, "CHO_KY" if self.s["soan_pdf_dat"] else "SOAN_THAO")  # PDF chưa sẵn sàng → KHÔNG CHO_KY
         docx1 = self.goi(f"/api/crm/giao-ket/tep/{x['xuat_id']}/docx", cookie=self.sid(BH))[1]
         self.assertEqual(hashlib.sha256(docx1).hexdigest(), x["docx_sha256"])
         v2, v2_sha = self.mau_hieu_luc("HD_GK_" + self.run_id, ngay(-1), "MAU V2")  # cùng mã mẫu → v2; đóng v1
@@ -405,6 +437,7 @@ class CrmGiaoKetHttp(unittest.TestCase):
         self.assertEqual([m["mau_phien_ban_id"] for m in so["mau_hieu_luc"]], [v2])  # picker chỉ mẫu hiệu lực
         r = self.ok(BH, "soan/luu", {"soan_id": sid, "expected_revision": 2, "gia_tri_truong": gt, "khoa": self.K("so-3")})  # sửa → rev mới vẫn v1
         x2 = self.ok(BH, "soan/xuat", {"soan_id": sid, "expected_revision": 3, "khoa": self.K("x2")})
+        self.s["soan_pdf_dat"] = self.pdf_dat(x2)  # lưu revision mới đã đưa bản soạn về SOAN_THAO
         doc_xml = lambda b: zipfile.ZipFile(io.BytesIO(b)).read("word/document.xml")  # noqa: E731 — zip có dấu thời gian; so nội dung phần
         docx2 = self.goi(f"/api/crm/giao-ket/tep/{x2['xuat_id']}/docx", cookie=self.sid(BH))[1]
         self.assertEqual(doc_xml(docx2), doc_xml(docx1))  # vẫn render từ mẫu v1 đã ghim
@@ -416,6 +449,7 @@ class CrmGiaoKetHttp(unittest.TestCase):
         so = self.get(BH, "soan/" + sid)
         self.assertEqual((so["mau"]["mau_phien_ban_id"], so["mau"]["raw_sha256"], so["soan"]["revision_hien_hanh"]), (v2, v2_sha, 4))
         x3 = self.ok(BH, "soan/xuat", {"soan_id": sid, "expected_revision": 4, "khoa": self.K("x3")})
+        self.s["soan_pdf_dat"] = self.pdf_dat(x3)
         docx3 = self.goi(f"/api/crm/giao-ket/tep/{x3['xuat_id']}/docx", cookie=self.sid(BH))[1]
         self.assertIn("MAU V2".encode(), doc_xml(docx3))  # mẫu mới → tệp mới
         self.assertNotEqual(x3["docx_sha256"], x["docx_sha256"])
@@ -434,7 +468,7 @@ class CrmGiaoKetHttp(unittest.TestCase):
         # hướng nào: không CHO_KY giả, cũng không hạ về SOAN_THAO — trạng thái/discriminator trước đó giữ nguyên.
         truoc = tuple(self.admin.execute("""SELECT s.trang_thai, h.trang_thai, h.crm_giao_ket FROM master.crm_hd_soan s JOIN master.hop_dong h
                                              ON h.id = s.hop_dong_id WHERE s.id = %s""", (sid,)).fetchone())
-        self.assertEqual(truoc[0], "CHO_KY" if self.co_word else "SOAN_THAO", truoc)  # ghi rõ nhánh đã chạy
+        self.assertEqual(truoc[0], "CHO_KY" if self.s["soan_pdf_dat"] else "SOAN_THAO", truoc)  # kết quả xuất thực tế ở g06
         with patch.object(R, "chuyen_pdf", lambda lan, p, han=0: {"trang_thai": "PDF_LOI", "ly_do": "GIA_LAP_LOI", "pha": "XUAT"}):
             x = self.ok(BH, "soan/xuat", {"soan_id": sid, "expected_revision": rev, "khoa": self.K("pdfloi")})
         self.assertEqual((x["trang_thai"], x["pdf_sha256"]), ("PDF_LOI", None))
@@ -609,6 +643,62 @@ class CrmGiaoKetHttp(unittest.TestCase):
         so = self.get(BH, "soan/" + sid)
         self.assertIn("CO_SO_TONG_KHONG_KHOP", [c["ma"] for c in so["kiem"]["chan_xuat"]])
         self.loi(BH, "soan/xuat", {"soan_id": sid, "expected_revision": s["revision"], "khoa": self.K("g10-x2")}, 409, "CRM_GK_CHAN_XUAT")
+
+
+class PdfGuard(unittest.TestCase):
+    """Hồi quy thuần: không PostgreSQL/server/Word; guard và lỗi quyền phải giữ DOCX thật."""
+
+    def test_guard_chan_truoc_spawn_giu_docx(self):
+        from kho_tri_thuc.k2 import crm_giao_ket as GK
+        from kho_tri_thuc.nguon import crm_docx as R, trich6_host as H
+        root = Path(tempfile.mkdtemp(prefix="ktt_t_pdf_"))  # giữ bằng chứng, không cleanup
+        mau = type("MauGia", (), {"root": root})()
+        gk = GK.CrmGiaoKetK2(mau)
+        nd = {"so_bao_gia": "BG-DEMO", "ngay": "25/10/2026", "nguoi_lap": BH, "khach": "KHÁCH DEMO"}
+        with patch.object(R, "_winword_ok", return_value=None), \
+                patch.object(H, "chung_cu_guard", return_value={"module": False}), \
+                patch.object(H, "_JobWindows") as job, patch.object(R.subprocess, "Popen") as popen:
+            kq = gk.render({"loai": "BAO_GIA", "nd": nd, "mong_doi": [], "ten": "BG-DEMO", "lan_id": str(uuid.uuid4())})
+        job.assert_not_called()
+        popen.assert_not_called()
+        self.assertEqual((kq["ly_do"], kq["kiem"]["pha"]), ("GUARD_KHONG_NAP", "KIEM_GUARD"))
+        x = {**kq, "docx_sha256": kq["docx_sha"], "pdf_sha256": kq["pdf_sha"]}
+        self.assertFalse(kiem_ket_qua_pdf(self, x, kq["ly_do"], kq["kiem"], True))  # metadata Word đủ vẫn bị guard chặn
+        docx_b = (gk.kho / "tep" / kq["docx_sha"]).read_bytes()
+        self.assertEqual((hashlib.sha256(docx_b).hexdigest(), len(docx_b)), (kq["docx_sha"], kq["docx_len"]))
+        with zipfile.ZipFile(io.BytesIO(docx_b)) as z:
+            self.assertIn("BÁO GIÁ", z.read("word/document.xml").decode("utf-8"))
+
+    def test_worker_bi_chan_quyen_khong_thanh_pdf_dat(self):
+        from kho_tri_thuc.nguon import crm_docx as R, trich6_host as H
+        lan = Path(tempfile.mkdtemp(prefix="ktt_t_pdf_worker_"))
+        vao = lan / "bao-gia.docx"
+        raw = mau_docx()
+        vao.write_bytes(raw)
+        cfg = {"goc": str(lan), "vao": str(vao), "ra": str(lan / "bao-gia.pdf"),
+               "vao_sha256": hashlib.sha256(raw).hexdigest(), "winword": str(R.WINWORD_GHIM)}
+        kenh = io.StringIO()
+        with patch.object(H, "guard_hop_le", return_value=None), patch.object(R, "_winword_ok", return_value=None), \
+                patch.object(R.WordSoHuu, "tao", side_effect=PermissionError("guard")), \
+                patch.object(R, "_k32") as native:
+            self.assertEqual(R._worker(io.BytesIO(json.dumps(cfg).encode("utf-8") + b"\n"), kenh), 5)
+        native.assert_not_called()  # không CreateProcessW/Word
+        xong = json.loads(kenh.getvalue())
+        kq = R._ket_luan(xong, {}, 5, True, lan / "bao-gia.pdf", "CHO_WORKER")
+        self.assertEqual(kq["ly_do"], "COM_TAO_WORD:PermissionError")
+        x = {**kq, "pdf_sha256": None, "pdf_len": None, "docx_sha256": cfg["vao_sha256"], "docx_len": len(raw)}
+        self.assertFalse(kiem_ket_qua_pdf(self, x, kq["ly_do"], {"word": kq["word"]}, True))
+        self.assertEqual(vao.read_bytes(), raw)
+        for ly_do in ("COM_XUAT:ValueError", "WORD_CHUA_XAC_NHAN_DUNG", "LOI_KHONG_RO"):
+            with self.subTest(ly_do=ly_do), self.assertRaises(AssertionError):
+                kiem_ket_qua_pdf(self, x, ly_do, {}, True)  # không nuốt lỗi sản phẩm thành policy
+        with self.assertRaises(AssertionError):
+            kiem_ket_qua_pdf(self, {**x, "trang_thai": "PDF_DAT"}, None, {"word": {"pid": 1, "gan_job": True, "da_dung": None}}, True)
+        dat = {**x, "trang_thai": "PDF_DAT", "pdf_sha256": "a" * 64, "pdf_len": 100}
+        chung_cu = {"word": {"pid": 1, "gan_job": True, "da_dung": True}}  # fixture, không phải Word thật
+        self.assertTrue(kiem_ket_qua_pdf(self, dat, None, chung_cu, True))
+        with self.assertRaises(AssertionError):
+            kiem_ket_qua_pdf(self, dat, None, chung_cu, False)  # có kết quả nhưng metadata/guard không đủ → không nhận
 
 
 if __name__ == "__main__":
