@@ -288,6 +288,63 @@ class MacDinh(unittest.TestCase):
             self.luu()
         self.assertEqual(self.m.luu, [])
 
+    def test_nhap_cu_cung_du_an_ngung_ban_khong_lo_giu_tien_va_ghi_khac_chuan(self):
+        d = bao_gia()
+        d.pop("lo_id")
+        d["gia"].update(don_gia="135", dien_tich="99")
+        d["phi"][0]["muc"] = "0.6"
+        self.luu(d)
+        truoc, tinh_truoc = copy.deepcopy(self.m.luu[-1])
+        self.g._bao_gia = Mock(return_value={"du_lieu": truoc, "trang_thai": "NHAP"})
+        self.m.s.update(trang_thai="NGUNG_BAN", don_gia="999")
+        self.m.s["phi"][0]["muc"] = "9"
+        self.m.luu.clear()
+        self.m.nk.clear()
+        d["lich"] = copy.deepcopy(truoc["lich"])
+        d["nguon_tieu_chuan"] = truoc["nguon_tieu_chuan"]
+
+        r = self.g.luu(ME, bao_gia_id=BG, expected_revision=1, du_lieu=d, khoa="da3a-nhap-cu")
+
+        self.assertEqual(r["bao_gia_id"], BG)
+        dl, tinh = self.m.luu[-1]
+        for truong in ("gia", "fx", "phi", "phi_bao_tri", "lich"):
+            self.assertEqual(dl[truong], truoc[truong])
+        self.assertEqual(tinh, tinh_truoc)
+        self.assertIsNone(dl["nguon_tieu_chuan"])
+        self.assertEqual(dl["khac_tieu_chuan"], [{"truong": "du_an_id", "nhan": "Dự án không có tiêu chuẩn đang bán",
+                                                "tieu_chuan": None, "bao_gia": DA}])
+        self.assertEqual(len(self.m.nk), 1)
+        self.assertEqual(json.loads(self.m.nk[0][1][2])["khac_tieu_chuan"], dl["khac_tieu_chuan"])
+
+    def test_tao_moi_du_an_ngung_ban_khong_lo_bi_tu_choi(self):
+        self.m.s["trang_thai"] = "NGUNG_BAN"
+        d = bao_gia()
+        d.pop("lo_id")
+        with self.assertRaisesRegex(DataError, "ngừng bán") as cm:
+            self.luu(d)
+        self.assertEqual((cm.exception.code, cm.exception.locator), ("CRM_GK_TRANG_THAI", "du_an_id"))
+        self.assertEqual((self.m.luu, self.m.nk), ([], []))
+
+    def test_nhap_cu_doi_sang_du_an_ngung_ban_bi_tu_choi(self):
+        self.m.s["trang_thai"] = "NGUNG_BAN"
+        d = bao_gia()
+        d.pop("lo_id")
+        truoc = {**d, "du_an_id": KHAC}
+        self.g._bao_gia = Mock(return_value={"du_lieu": truoc, "trang_thai": "NHAP"})
+        with self.assertRaisesRegex(DataError, "ngừng bán") as cm:
+            self.g.luu(ME, bao_gia_id=BG, expected_revision=1, du_lieu=d, khoa="da3a-doi-du-an")
+        self.assertEqual((cm.exception.code, cm.exception.locator), ("CRM_GK_TRANG_THAI", "du_an_id"))
+        self.assertEqual((self.m.luu, self.m.nk), ([], []))
+
+    def test_nhap_cu_cung_du_an_ngung_ban_co_lo_bi_tu_choi(self):
+        self.m.s["trang_thai"] = "NGUNG_BAN"
+        d = bao_gia()
+        self.g._bao_gia = Mock(return_value={"du_lieu": copy.deepcopy(d), "trang_thai": "NHAP"})
+        with self.assertRaisesRegex(DataError, "ngừng bán") as cm:
+            self.g.luu(ME, bao_gia_id=BG, expected_revision=1, du_lieu=d, khoa="da3a-nhap-co-lo")
+        self.assertEqual((cm.exception.code, cm.exception.locator), ("CRM_GK_TRANG_THAI", "du_an_id"))
+        self.assertEqual((self.m.luu, self.m.nk), ([], []))
+
     def test_ma_go_tay_va_dien_tich_so_voi_danh_muc(self):
         d = bao_gia()
         d.pop("lo_id")

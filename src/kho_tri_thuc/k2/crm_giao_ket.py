@@ -868,10 +868,10 @@ class CrmGiaoKetK2:
         x.pop("id")
         return {**x, "cap": "USD/VND", "khoa": KHOA_TY_GIA_MAC_DINH, "duoc_sua": True, "da_doi": doi}
 
-    def _chuan_du_an(self, c, du_an_id, ngay, *, bat_buoc=False):
+    def _chuan_du_an(self, c, du_an_id, ngay, *, bat_buoc=False, cho_ngung_ban=False):
         from .crm_du_an_ban import CrmDuAnBanK2
         s = CrmDuAnBanK2.anh_chup_trong(c, du_an_id, ngay)
-        if s["trang_thai"] == "NGUNG_BAN":
+        if s["trang_thai"] == "NGUNG_BAN" and not cho_ngung_ban:
             _loi("CRM_GK_TRANG_THAI", "Dự án đã ngừng bán.", "du_an_id")
         if s["trang_thai"] != "DANG_BAN":
             if bat_buoc:
@@ -898,15 +898,21 @@ class CrmGiaoKetK2:
                 "phi": chuan_hoa_phi([{k: x.get(k) for k in TRUONG_PHI} for x in s["phi"]]),
                 "anh_chup_sha256": s["anh_chup_sha256"], "phien_ban": s["phien_ban"]}
 
-    def _gan_tieu_chuan(self, c, d, ngay):
+    def _gan_tieu_chuan(self, c, d, ngay, *, cho_ngung_ban=False):
         """Chụp lại trong giao dịch lưu RR; chỉ lấy lô của đúng dự án, còn trống. Không đổi phép tính thuế."""
         from .crm_du_an_ban import TRUONG_PHI, chuan_hoa_phi
         if not d["du_an_id"]:
             if d.get("lo_id"):
                 _loi("CRM_GK_YEU_CAU_SAI", "Cần chọn dự án của lô/căn.", "lo_id")
             return
-        s = self._chuan_du_an(c, d["du_an_id"], ngay, bat_buoc=bool(d.get("lo_id")))
+        s = self._chuan_du_an(c, d["du_an_id"], ngay, bat_buoc=bool(d.get("lo_id")),
+                              cho_ngung_ban=cho_ngung_ban and not d.get("lo_id"))
         if s is None:
+            if cho_ngung_ban:
+                # Nháp cũ cùng dự án, không chọn lô: giữ giá/phí nhập tay khi không còn chuẩn đang bán.
+                d["nguon_tieu_chuan"] = None
+                d["khac_tieu_chuan"] = [{"truong": "du_an_id", "nhan": "Dự án không có tiêu chuẩn đang bán",
+                                         "tieu_chuan": None, "bao_gia": d["du_an_id"]}]
             return
         khac = []
 
@@ -1063,7 +1069,8 @@ class CrmGiaoKetK2:
             # vào báo giá (đổi cấu hình sau không đổi báo giá đã lưu)
             d = chuan_hoa_bao_gia(du_lieu, fx_mac_dinh=self._fx_mac_dinh(c, truoc) if self._can_fx_mac_dinh(d0) else None,
                                   hom_nay=m.hom_nay().isoformat())
-            self._gan_tieu_chuan(c, d, m.hom_nay().isoformat())
+            self._gan_tieu_chuan(c, d, m.hom_nay().isoformat(),
+                                 cho_ngung_ban=truoc is not None and truoc.get("du_an_id") == d["du_an_id"] and not d.get("lo_id"))
             for r in d["lich"]:  # row ID logic giữ qua revision/chuyển; dòng mới nhận ID máy chủ
                 r["dong_id"] = r["dong_id"] or str(uuid.uuid4())
             if d["fx"]:  # người nhập/ngày nhập do máy chủ ghi; giữ nguyên khi tỷ giá không đổi
