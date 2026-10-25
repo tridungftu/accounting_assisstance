@@ -44,7 +44,7 @@ Worktree đo nền: `.claude/worktrees/nen-chinh-59b7d8e` (chinh) · `.claude/wo
 |---|---|
 | `src\kho_tri_thuc\giao_dien\server.py` | M2e |
 | `giao_dien\m4.py` | — |
-| `nguon\trich6_host.py`, `tools\chuan_bi_crm_demo.py`, `.gitattributes` | L0-7 |
+| `nguon\trich6_host.py`, `tools\chuan_bi_crm_demo.py`, `.gitattributes` | — |
 | `giao_dien\assets\app.js`, `index.html`, `ha_tang\config.py` | M2e |
 | `ha_tang\pg_migrations.py` | M4-4/7 (chỉ append M0028, M0029) |
 | `giao_dien\crm_g.py`, `k2\crm_giao_ket.py` | — |
