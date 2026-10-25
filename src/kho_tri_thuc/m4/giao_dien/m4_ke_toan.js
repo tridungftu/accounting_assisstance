@@ -965,7 +965,7 @@
       ct.append(...veHoSo());
     } else if (dto) ct.append(nho("Dữ liệu đang hiện có thể chưa mới nhất — bấm ↻ Làm mới."));
     ct.append(...veYDinh());
-    out.push(ct, nho("Gói M4-03A: chỉ xác nhận nguồn nghiệm thu cho kế toán. Chưa ghi công nợ/AP (M4-03B), chưa tạo/gửi Request (M4-04)."));
+    out.push(ct, nho("Gói M4-03A: chỉ xác nhận nguồn nghiệm thu cho kế toán. Chưa ghi công nợ/AP (gói sau), chưa tạo/gửi Request (M4-04)."));
     box.replaceChildren(...out);
   }
 
