@@ -45,7 +45,7 @@ const phi = [{ten: "Phí <b>bảo trì</b>", loai: "BAO_TRI", muc: "0.5", don_vi
 const ct = (n = 2, da = A) => ({da_ban_id: da, du_an_id: "da-id-ky-thuat", danh_muc: DM, phien_ban_ds: pbs, duoc_sua: false,
   anh_chup: {du_an: {ma: "MA_DU_AN_KY_THUAT", ten: TITLE}, phien_ban: {id: "pb-id-" + n, so: n}, trang_thai: "DANG_BAN", thong_tin: {vi_tri: n === 1 ? "Vị trí cũ" : "Khu A <b>vị trí</b>", mo_ta: "Mô tả <b>nguyên văn</b>"}, don_gia: "999", tien_te: "USD", loai_hinh: {id: LH, ma: "MA_LOAI_HINH_KY_THUAT"}, thue: {thue_suat: n === 1 ? "KCT" : "10", gia_chua_gom_vat: true}, gia_dat_tru: "999", phi: phi.map((r, i) => ({...r, thu_tu: i + 1, co_so_tinh: i ? null : r.co_so_tinh})),
     lo: DM.trang_thai_lo.map((v, i) => ({id: "lo-id-" + i, ma: "A-0" + i, dien_tich: "1234.5", trang_thai: v.ma, lan: i + 1})),
-    bo_chuan: {trang_thai: "HIEU_LUC", nguon: "AP_DUNG_NGAY", giai_doan: "GD_MA_KY_THUAT", version: {id: "g7-id", phien_ban: n, valid_from: n === 1 ? "2026-09-01" : "2026-10-25", valid_to: n === 1 ? "2026-10-25" : null},
+    bo_chuan: {trang_thai: "HIEU_LUC", nguon: "AP_DUNG_NGAY", giai_doan: "GD_MA_KY_THUAT", giai_doan_hien_thi: "Thanh toán khi bàn giao", version: {id: "g7-id", phien_ban: n, valid_from: n === 1 ? "2026-09-01" : "2026-10-25", valid_to: n === 1 ? "2026-10-25" : null},
       rows: [{lan: "1", gia_tri_loai: "PERCENT", gia_tri_thap_phan: "30", moc_loai: "NGAY", moc_ngay: "2026-11-05", ghi_chu: "Đợt <b>một</b>"}, {lan: "2", gia_tri_loai: "PERCENT", gia_tri_thap_phan: "70", moc_loai: "SU_KIEN", moc_su_kien: "SAU_KY_90"}, {lan: "3", gia_tri_loai: "AMOUNT", so_tien_minor: "5", tien_te: "USD", moc_loai: "SU_KIEN", moc_su_kien: "BAN_GIAO"}, {lan: "4", gia_tri_loai: "AMOUNT", so_tien_minor: "123456789012345678901234", tien_te: "VND", moc_loai: "SU_KIEN", moc_su_kien: "SU_KIEN_CHUA_CO_NHAN"}, {lan: "5", gia_tri_loai: "AMOUNT", so_tien_minor: "1500000000", tien_te: "VND"}]}} ,
   hien_thi: {trang_thai: "Đang bán", don_gia: n === 1 ? "100 USD/m²" : "120 USD/m²", thue: "Giá chưa gồm VAT · Thuế suất 10%", gia_dat_tru: "24 USD/m²", bo_chuan_dong: ["30%", "70%", "0,05 USD", "123.456.789.012.345.678.901.234 đ", "1.500.000.000 đ"].map(gia_tri_hien_thi => ({gia_tri_hien_thi})), loai_hinh: "Cho thuê đất", phien_ban: `Phiên bản ${n} — hiệu lực từ ${n === 1 ? "01/09/2026" : "25/10/2026"}`, phi: [{loai: "Phí bảo trì", muc: "0,5 USD/m²/năm"}, {loai: "Phí sử dụng", muc: "15.000 đ/m²/tháng"}], lo: DM.trang_thai_lo.map((v, i) => ({ma: "A-0" + i, dien_tich: "1.234,5 m²", trang_thai: v.nhan}))}});
 const MOC = {moc: [{ma: "BAN_GIAO", nhan: "Bàn giao"}], moc_tham_so: [{mau_ma: "SAU_KY_<n>", nhan: "Sau ký + n ngày"}]};
@@ -96,6 +96,22 @@ async function kiemGhi(dat) {
   assert.deepEqual(moi, {du_an_id: "du-an-moi-id", thong_tin: {vi_tri: "Vị trí mới", mo_ta: "Mô tả <b>an toàn</b>", don_gia_niem_yet: "1234.5", tien_te: "VND", loai_hinh_id: LH, thue_suat: "10", gia_dat_tru: "1000.25", giai_doan_g7: "GD1"}, phi: [], ly_do: "Bắt đầu bán", khoa: "crmg-uuid-thu"});
   await sauLuu(3); assert.equal($("crmg-da-form"), null); assert.equal($("crmg-da-phien-ban").value, "3");
   dat("Bật bán: form đúng, lý do bắt buộc, thuế mặc định 10, số Việt thành chuỗi ASCII, tải phiên bản mới");
+
+  nut(goc(), "↻ Làm mới").click();
+  const loaiMoi = dsGhi(3); loaiMoi.loai_hinh[0].id = LH + "-moi";
+  await tra(URL_DA, loaiMoi); await tra(URL_DA + "/" + A, ctGhi(3));
+  click("Sửa thông tin"); assert.equal($("crmg-da-f-loai_hinh_id").value, "");
+  nhap("ly_do", "Chọn phiên bản loại hình mới");
+  const truocLoai = lenh().length;
+  for (const v of ["", LH]) {
+    nhap("loai_hinh_id", v); click("Lưu thông tin"); assert.equal(lenh().length, truocLoai);
+    assert.equal($("crmg-da-f-loai_hinh_id").getAttribute("aria-invalid"), "true");
+    assert.equal($("crmg-da-f-loai_hinh_id-loi").textContent, "Cần chọn loại hình.");
+  }
+  nhap("loai_hinh_id", LH + "-moi"); click("Lưu thông tin");
+  assert.equal((await ghi("cap-nhat", {error: "CRM_DA_YEU_CAU_SAI", truong: "ly_do", message: "Thử danh mục"}, 400)).thong_tin.loai_hinh_id, LH + "-moi");
+  click("Hủy"); nut(goc(), "↻ Làm mới").click(); await sauLuu(3);
+  dat("Loại hình cũ về rỗng, chặn cả id ngoài danh mục; chỉ gửi phiên bản mới đã chọn");
 
   click("Sửa thông tin");
   assert.equal($("crmg-da-f-don_gia_niem_yet").value, "1.234,5"); assert.equal($("crmg-da-f-gia_dat_tru").value, "1.000,25"); assert.equal($("crmg-da-f-giai_doan_g7").value, "GD1");
@@ -194,7 +210,18 @@ async function kiemGhi(dat) {
   dat("Lô/căn: bỏ dòng mới chưa lưu, lưu thành công và nạp lại chi tiết");
 
   click("Sửa tiến độ tiêu chuẩn");
-  assert.ok($("crmg-da-form").textContent.includes("Áp dụng ngay — QD-20261025-07"));
+  assert.ok($("crmg-da-form").textContent.includes("Áp dụng ngay, không cần CFO duyệt"));
+  assert.ok($("crmg-da-form").textContent.includes("Giai đoạn đang sửa: Thanh toán khi bàn giao"));
+  assert.ok(!$("crmg-da-form").textContent.includes("QD-") && !$("crmg-da-form").textContent.includes("GD_MA_KY_THUAT"));
+  for (const [api, o] of [["lan", "lan"], ["gia_tri_loai", "gl"], ["gia_tri_thap_phan", "tp"], ["so_tien_minor", "st"], ["tien_te", "tt"], ["moc_loai", "ml"], ["moc_ngay", "mn"], ["moc_su_kien", "ms"], ["ghi_chu", "gc"]]) {
+    click("Áp dụng tiến độ");
+    await ghi("tien-do", {error: "CRM_G_YEU_CAU_SAI", truong: "dong.0." + api, message: "Cần kiểm tra dòng đầu."}, 400);
+    assert.equal($("crmg-da-f-dong.0." + o).getAttribute("aria-invalid"), "true", api);
+    assert.equal($("crmg-da-f-dong.0." + o + "-loi").textContent, "Cần kiểm tra dòng đầu.");
+    assert.equal($("crmg-da-f-dong.1." + o).getAttribute("aria-invalid"), "false", "Không đỏ dòng khác");
+    assert.equal($("crmg-da-f-dong.0.tp").value, "30");
+  }
+  dat("Tiến độ: hiện giai đoạn đang sửa, không mã quyết định; 400 dong.0.* đỏ đúng ô và giữ nháp");
   assert.equal($("crmg-da-f-dong.2.st").value, "0,05");
   assert.equal($("crmg-da-f-dong.3.st").value, "123.456.789.012.345.678.901.234");
   assert.ok($("crmg-da-f-dong.1.ms").textContent.includes("Sau ký + 90 ngày"));
@@ -226,6 +253,26 @@ async function kiemGhi(dat) {
   laiTd.resolve(phanHoi({du_an_id: "da-id-ky-thuat", lap_lai: true})); await chay(); await sauLuu(8);
   dat("Tiến độ chưa có: expected_version=0, giai đoạn mặc định; mất mạng gửi lại nguyên body và khóa");
 
+  nut(goc(), "↻ Làm mới").click(); await tra(URL_DA, dsGhi(8));
+  const thieuGiaiDoan = ctGhi(8); thieuGiaiDoan.anh_chup.bo_chuan = null; thieuGiaiDoan.anh_chup.giai_doan_g7 = null;
+  await tra(URL_DA + "/" + A, thieuGiaiDoan);
+  const truocThieu = lenh().length; click("Sửa tiến độ tiêu chuẩn");
+  assert.equal($("crmg-da-form"), null); assert.equal(lenh().length, truocThieu);
+  assert.ok(goc().textContent.includes("Cần đặt giai đoạn tiến độ mặc định trong Sửa thông tin"));
+  nut(goc(), "↻ Làm mới").click(); await sauLuu(8);
+  dat("Thiếu giai đoạn mặc định: báo trước khi mở form tiến độ, không gửi lệnh");
+
+  for (const code of ["CRM_DA_TRANG_THAI", "CRM_DA_DA_CO", "CRM_XUNG_DOT_KHAC"]) {
+    click("Sửa thông tin"); nhap("ly_do", "Nháp khi xung đột"); nhap("vi_tri", "Giữ nội dung " + code); click("Lưu thông tin");
+    await ghi("cap-nhat", {error: code, message: "Dữ liệu vừa thay đổi."}, 409);
+    assert.ok(nut(da(), "Tải lại bản mới")); assert.ok(nut(da(), "Lưu thông tin").disabled);
+    assert.equal($("crmg-da-f-vi_tri").value, "Giữ nội dung " + code);
+    assert.ok(!calls.some(c => !c.xong && c.url === URL_DA));
+    click("Tải lại bản mới"); await sauLuu(8);
+    assert.equal($("crmg-da-f-vi_tri").value, "Giữ nội dung " + code); assert.ok(nut(da(), "Lưu thông tin").disabled); click("Hủy");
+  }
+  dat("Mọi 409: trạng thái/đã có/mã khác đều giữ nháp, chặn lưu và có Tải lại bản mới");
+
   // Đọc phiên bản cũ rồi Sửa phải nạp lại hiện hành, không ghi từ ảnh chụp lịch sử.
   $("crmg-da-phien-ban").value = "1"; $("crmg-da-phien-ban").dispatch("change"); await tra(URL_DA + "/" + A + "?phien_ban=1", {...ct(1), duoc_sua: true});
   assert.equal(nut(da(), "Ngừng bán"), undefined); click("Sửa thông tin"); await sauLuu(8);
@@ -253,7 +300,11 @@ async function kiemG7(dat) {
   cho("/api/crm/bo-chuan").resolve(phanHoi({du_an: [{id: A, ma_junsky: "DEMO", phap_nhan: "DEMO", duoc_lap: true}], cot: ["Lần", "Giá trị", "Mốc", "Ghi chú"],
     phien_ban: ["DRAFT", "CHO_CFO", "HIEU_LUC"].map((tt, i) => ({id: "g7-" + i, du_an_id: A, giai_doan: "GD1", phien_ban: i + 1, trang_thai: tt, duoc_gui: true, duoc_duyet: true, lap_boi: "DEMO_KT", duyet_boi: tt === "HIEU_LUC" ? "DEMO_CFO" : null, valid_from: tt === "HIEU_LUC" ? "2026-09-01" : null, dong}))}));
   await chay();
-  assert.ok(goc().textContent.includes("Tiến độ tiêu chuẩn sửa trong Dự án đang bán, áp dụng ngay"));
+  assert.ok(goc().textContent.includes("Dự án đang bán → Sửa tiến độ tiêu chuẩn"));
+  assert.ok(!goc().textContent.includes("Lập bộ chuẩn (nháp)") && !goc().textContent.includes("QD-"));
+  assert.equal(nut(goc(), "Lập bộ chuẩn (nháp)"), undefined); assert.equal($("crmg-lap-du-an"), null);
+  assert.equal($("crmg-lap-giai-doan"), null); assert.equal($("crmg-l-tp-0"), null);
+  assert.ok(goc().textContent.includes("Phiên bản bộ chuẩn"));
   assert.equal(nut(goc(), "Gửi CFO duyệt"), undefined); assert.equal(nut(goc(), "CFO duyệt (V4)"), undefined);
   assert.ok(goc().textContent.includes("Tiến độ CFO cũ") && goc().textContent.includes("duyệt bởi DEMO_CFO"));
   $("crmg-doc-giai-doan").value = "GD1"; $("crmg-doc-giai-doan").dispatch("input"); nut(goc(), "Xem bộ chuẩn hiệu lực").click();
@@ -302,8 +353,8 @@ async function main() {
 
   nut(da(), "Lịch sử").click(); await tra(URL_DA + "/" + A + "/lich-su", ls());
   const hist = $("crmg-da-lich-su").textContent;
-  for (const x of ["Phiên bản 1", "Phiên bản 2", "Chị Lan", "Sửa phí <b>giữ nguyên</b>", "Đơn giá niêm yết", "Phí tiêu chuẩn", "Trạng thái bán", "Ngừng bán", "Mở bán lại", "01/09/2026 → trước 25/10/2026", "Người dùng mô phỏng", "Lô <b>nguyên văn</b>", "Đang giữ chỗ", "1.234,5 m²", "Thuế suất", "Giá đất được trừ", "Tiến độ tiêu chuẩn đã áp dụng", "GD1", "Bán hàng áp dụng ngay — QD-20261025-07", "CFO duyệt (bản cũ)", "Áp dụng tiến độ thanh toán tiêu chuẩn", "Áp dụng theo quyết định"]) assert.ok(hist.includes(x), "Lịch sử thiếu " + x);
-  assert.ok(!hist.includes("999") && !hist.includes("NHAP_KHONG_HIEN") && !hist.includes("CUNG_NGAY_KHONG_HIEN"));
+  for (const x of ["Phiên bản 1", "Phiên bản 2", "Chị Lan", "Sửa phí <b>giữ nguyên</b>", "Đơn giá niêm yết", "Phí tiêu chuẩn", "Trạng thái bán", "Ngừng bán", "Mở bán lại", "01/09/2026 → trước 25/10/2026", "Người dùng mô phỏng", "Lô <b>nguyên văn</b>", "Đang giữ chỗ", "1.234,5 m²", "Thuế suất", "Giá đất được trừ", "Tiến độ tiêu chuẩn đã áp dụng", "GD1", "Bán hàng/kế toán áp dụng ngay", "CFO duyệt (bản cũ)", "Áp dụng tiến độ thanh toán tiêu chuẩn", "Áp dụng theo quyết định"]) assert.ok(hist.includes(x), "Lịch sử thiếu " + x);
+  assert.ok(!hist.includes("QD-") && !hist.includes("999") && !hist.includes("NHAP_KHONG_HIEN") && !hist.includes("CUNG_NGAY_KHONG_HIEN"));
   assert.ok(hist.indexOf("Phiên bản 1") < hist.indexOf("Phiên bản 2"), "Đối chiếu theo thứ tự phiên bản");
   const eventTable = ALL($("crmg-da-lich-su"), e => e.tagName === "TABLE" && e.textContent.includes("Người thực hiện"))[0];
   assert.ok(eventTable.textContent.includes("25/10/2026"), "Ngày UTC được đổi giờ Việt Nam");

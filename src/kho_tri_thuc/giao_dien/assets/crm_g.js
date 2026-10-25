@@ -385,17 +385,22 @@
         if (hanh === "bat-ban" ? !themDuoc() : !chiTiet?.duoc_sua) return;
       }
       const s = chiTiet?.anh_chup || {}, tt = s.thong_tin || {}, moi = hanh === "bat-ban";
+      const giaiDoan = s.bo_chuan?.giai_doan || s.giai_doan_g7 || null;
+      if (hanh === "tien-do" && !giaiDoan) {
+        trangThai("Cần đặt giai đoạn tiến độ mặc định trong Sửa thông tin trước khi sửa tiến độ tiêu chuẩn.", true); return;
+      }
       form = {hanh, da: moi ? null : id, expected: moi ? null : s.phien_ban?.so, ban: false, loi: {}, msg: "", cu: false,
         v: {du_an_id: "", vi_tri: moi ? "" : tt.vi_tri || "", mo_ta: moi ? "" : tt.mo_ta || "",
           don_gia_niem_yet: moi ? "" : hienSo(s.don_gia), tien_te: moi ? "VND" : s.tien_te,
-          loai_hinh_id: moi ? "" : s.loai_hinh?.id || "", thue_suat: moi ? "10" : s.thue?.thue_suat || "10",
+          loai_hinh_id: !moi && (danhSach?.loai_hinh || []).some(v => v.id === s.loai_hinh?.id) ? s.loai_hinh.id : "", thue_suat: moi ? "10" : s.thue?.thue_suat || "10",
           gia_dat_tru: moi ? "0" : hienSo(s.gia_dat_tru ?? "0"), giai_doan_g7: moi ? "" : s.giai_doan_g7 || "", ly_do: ""}};
       if (hanh === "phi") form.rows = (s.phi || []).map(r => ({ten: r.ten, loai: r.loai, muc: hienSo(r.muc), don_vi_tinh: r.don_vi_tinh, tien_te: r.tien_te, co_so_tinh: r.co_so_tinh || ""}));
       if (hanh === "lo") form.rows = (s.lo || []).map(r => ({ma: r.ma, dien_tich: hienSo(r.dien_tich), trang_thai: r.trang_thai, ghi_chu: r.ghi_chu || "", expected_lan: r.lan}));
       if (hanh === "tien-do") {
         form.duAn = chiTiet.du_an_id;
         form.expected = s.bo_chuan?.trang_thai === "HIEU_LUC" ? s.bo_chuan.version.phien_ban : 0;
-        form.giaiDoan = s.bo_chuan?.giai_doan || s.giai_doan_g7 || null;
+        form.giaiDoan = giaiDoan;
+        form.tenGiaiDoan = s.bo_chuan?.giai_doan_hien_thi || giaiDoan;
         form.rows = (s.bo_chuan?.rows || []).map(r => ({lan: r.lan, gl: r.gia_tri_loai || "", tp: hienSo(r.gia_tri_thap_phan ?? ""),
           st: r.so_tien_minor == null ? "" : hienSo(r.tien_te === "USD" ? String(r.so_tien_minor).padStart(3, "0").replace(/(..)$/, ".$1") : r.so_tien_minor),
           tt: r.tien_te || s.tien_te || "VND", ml: r.moc_loai || "", mn: r.moc_ngay || "", ms: r.moc_su_kien || "", gc: r.ghi_chu || ""}));
@@ -436,7 +441,7 @@
             tt[k] = docSo(f.v[k]);
             if (tt[k] === null && (k === "gia_dat_tru" || f.v[k].trim())) f.loi[k] = "Nhập số kiểu Việt, ví dụ 1.234,5.";
           }
-          if (!tt.loai_hinh_id) f.loi.loai_hinh_id = "Cần chọn loại hình.";
+          if (!(danhSach?.loai_hinh || []).some(v => v.id === tt.loai_hinh_id)) f.loi.loai_hinh_id = "Cần chọn loại hình.";
           body.thong_tin = tt;
         }
         const soNhap = (v, k) => { const s = docSo(v); if (s === null) f.loi[k] = "Nhập số kiểu Việt, ví dụ 1.234,5."; return s; };
@@ -485,8 +490,12 @@
         if (!dung()) return;
         if (loiAnNinh(err)) { loiDs = loiDoc(err); ve(); return; }
         f.ban = false;
-        if (err.status === 400 && err.truong) f.loi[err.truong.replace(/^thong_tin\./, "")] = err.message;
-        if (err.status === 409 && ["CRM_DA_PHIEN_BAN_CU", "CRM_DA_LO_LAN_CU"].includes(err.code)) {
+        if (err.status === 400 && err.truong) {
+          const cotDong = {gia_tri_loai: "gl", gia_tri_thap_phan: "tp", so_tien_minor: "st", tien_te: "tt", moc_loai: "ml", moc_ngay: "mn", moc_su_kien: "ms", ghi_chu: "gc"};
+          const truong = err.truong.replace(/^thong_tin\./, "").replace(/^(dong\.\d+\.)([^.]+)$/, (_, dau, cot) => dau + (cotDong[cot] || cot));
+          f.loi[truong] = err.message;
+        }
+        if (err.status === 409) {
           f.cu = true;
           f.msg = f.hanh === "lo" ? "Lô/căn vừa được người khác đổi. " + err.message : f.hanh === "tien-do" ? "Tiến độ tiêu chuẩn vừa được người khác sửa — tải lại để xem bản mới" : "Dự án vừa được người khác sửa — tải lại để xem bản mới";
         } else if (!xong) { f.lai = body; f.msg = "Chưa rõ kết quả lưu. Gửi lại y nguyên để kiểm tra bằng cùng khóa."; }
@@ -542,7 +551,7 @@
         } else if (f.hanh === "lo") {
           box.append(bang(["Mã lô/căn", "Diện tích (m²)", "Trạng thái", "Ghi chú", ""], f.rows.map((r, i) => [cell(i, "ma", "Mã lô/căn"), cell(i, "dien_tich", "Diện tích (m²)"), cell(i, "trang_thai", "Trạng thái", options("trang_thai_lo")), cell(i, "ghi_chu", "Ghi chú"), r.expected_lan === undefined ? bo(i) : ""])));
         } else {
-          box.append(node("p", "Áp dụng ngay — QD-20261025-07"), bangNhapChuan(f.rows.length, (i, c, label, opts) => {
+          box.append(node("p", "Giai đoạn đang sửa: " + f.tenGiaiDoan), node("p", "Áp dụng ngay, không cần CFO duyệt"), bangNhapChuan(f.rows.length, (i, c, label, opts) => {
             const r = f.rows[i];
             if (c === "tt") opts = options("tien_te");
             if (c === "ms") {
@@ -682,7 +691,7 @@
         return ["Phiên bản " + v.phien_ban, khoang(v), nguoi(v.lap_boi_ten || v.lap_boi), v.ly_do || "—", doi];
       }), "Chưa có phiên bản."));
       box.append(node("h4", "Sự kiện bán hàng và áp dụng tiến độ"), bangRong(["Ngày", "Thao tác", "Người thực hiện", "Lý do"], (lichSu.su_kien || []).filter(x => ["CRM_DA_BAT_BAN", "CRM_DA_NGUNG_BAN", "CRM_DA_MO_BAN_LAI", "CRM_CHUAN_AP_DUNG"].includes(x.hanh_dong)).map(x => [ngay(null, x.luc), x.hanh_dong_hien_thi || ({CRM_DA_BAT_BAN: "Bật bán", CRM_DA_NGUNG_BAN: "Ngừng bán", CRM_DA_MO_BAN_LAI: "Mở bán lại", CRM_CHUAN_AP_DUNG: "Áp dụng tiến độ thanh toán tiêu chuẩn"})[x.hanh_dong], nguoi(x.nguoi_ten || x.nguoi), x.ly_do || "—"]), "Chưa có sự kiện bán hàng hoặc áp dụng tiến độ."));
-      box.append(node("h4", "Tiến độ tiêu chuẩn đã áp dụng"), bangRong(["Giai đoạn", "Phiên bản", "Hiệu lực từ", "Người áp dụng", "Căn cứ"], (lichSu.tien_do || []).filter(v => v.trang_thai === "HIEU_LUC" && !v.khoang_rong).map(v => [v.giai_doan_hien_thi || v.giai_doan || "Toàn dự án", v.phien_ban, ngay(v.valid_from_hien_thi, v.valid_from), nguoi(v.ap_dung_boi_ten || v.ap_dung_boi || v.duyet_boi_ten || v.duyet_boi), v.nguon === "AP_DUNG_NGAY" ? "Bán hàng áp dụng ngay — " + (v.can_cu || "Chưa có căn cứ") : v.nguon === "CFO_DUYET" ? "CFO duyệt (bản cũ)" : "Chưa có thông tin"]), "Chưa có tiến độ tiêu chuẩn đã áp dụng."));
+      box.append(node("h4", "Tiến độ tiêu chuẩn đã áp dụng"), bangRong(["Giai đoạn", "Phiên bản", "Hiệu lực từ", "Người áp dụng", "Căn cứ"], (lichSu.tien_do || []).filter(v => v.trang_thai === "HIEU_LUC" && !v.khoang_rong).map(v => [v.giai_doan_hien_thi || v.giai_doan || "Toàn dự án", v.phien_ban, ngay(v.valid_from_hien_thi, v.valid_from), nguoi(v.ap_dung_boi_ten || v.ap_dung_boi || v.duyet_boi_ten || v.duyet_boi), v.nguon === "AP_DUNG_NGAY" ? "Bán hàng/kế toán áp dụng ngay" : v.nguon === "CFO_DUYET" ? "CFO duyệt (bản cũ)" : "Chưa có thông tin"]), "Chưa có tiến độ tiêu chuẩn đã áp dụng."));
       box.append(node("h4", "Lịch sử lô/căn"), bangRong(["Mã lô/căn", "Lần", "Hiệu lực từ → đến", "Diện tích (m²)", "Trạng thái", "Người lập", "Ghi chú"], (lichSu.lo || []).flatMap(l => (l.lich_su || []).map(v => [l.ma, v.lan, khoang(v), v.dien_tich_hien_thi || "Chưa có thông tin", v.trang_thai_hien_thi || nhan("trang_thai_lo", v.trang_thai), nguoi(v.tao_boi_ten || v.tao_boi), v.ghi_chu || "—"])), "Chưa có lịch sử lô/căn."));
       return box;
     }
@@ -870,7 +879,7 @@
 
   // ------------------------------------------------------------------ G7
   function veChuan() {
-    const chuThich = node("p", "Tiến độ tiêu chuẩn sửa trong Dự án đang bán, áp dụng ngay");
+    const chuThich = node("p", "Sửa tiến độ tiêu chuẩn tại Dự án đang bán → Sửa tiến độ tiêu chuẩn. Áp dụng ngay, không cần CFO duyệt.");
     if (!bc) return [chuThich, K.empty("Chưa tải bộ chuẩn", "Bấm ↻ Làm mới.")];
     const out = [chuThich], duAn = bc.du_an || [];
     if (!duAn.length) return [chuThich, K.empty("Không có dự án trong phạm vi CRM của vai này", "")];
@@ -883,8 +892,6 @@
       if (bcDoc.trang_thai === "CHUA_CO") out.push(K.empty(`Chưa có bộ chuẩn hiệu lực (${bcDoc.giai_doan} tại ${bcDoc.as_of})`, "Không suy ra lệch hay lịch thu khi chưa có bộ chuẩn."));
       else { const d = node("div"); d.append(node("p", `v${bcDoc.version.phien_ban} · hiệu lực ${bcDoc.version.valid_from} → ${bcDoc.version.valid_to || "…"}`), bangChuan(bcDoc.cot, bcDoc.rows)); out.push(d); }
     }
-    const lap = duAn.filter(a => a.duoc_lap);
-    if (lap.length) out.push(node("h3", "Lập bộ chuẩn (nháp) — kế toán"), ...veLap(lap));
     const pb = bc.phien_ban || [];
     if (pb.length) {
       out.push(node("h3", "Phiên bản bộ chuẩn"));
