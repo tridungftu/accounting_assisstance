@@ -1,7 +1,9 @@
-"""L0-8 vòng 2: test thuần sổ sở hữu/biên xuất, tuyệt đối không nối PostgreSQL."""
+"""L0-8: test thuần sổ sở hữu/biên xuất, tuyệt đối không nối PostgreSQL."""
 from __future__ import annotations
 
 import contextlib
+import functools
+import importlib.util
 import io
 import json
 import os
@@ -18,6 +20,18 @@ from unittest.mock import Mock, patch
 
 from tools import chay_test_theo_module as R
 from tools import pg_demo_ho_03a as H03
+
+
+def _co_lap_provider(test):
+    """Chỉ tiến trình thử dùng provider tự dựng; không đổi hook đã nạp của caller."""
+    @functools.wraps(test)
+    def chay(self):
+        with patch.dict(sys.modules, {"sitecustomize": None}), patch.dict(os.environ, {
+                "PYTHONPATH": str(self.repo / "src"),
+                "PYTHONUSERBASE": str(self.root / "userbase-trong"),
+                "PYTHONNOUSERSITE": ""}):
+            return test(self)
+    return chay
 
 
 class _Sql(str):
@@ -92,6 +106,7 @@ class PgDemoThuanTests(unittest.TestCase):
         self.so = R._SoHuuPg.tao_moi(self.tep, self.ma, self.cum, self.c.databases)
         fake_pg = types.ModuleType("psycopg")
         fake_pg.Cursor = _Cursor
+        fake_pg.Connection = _Connection
         fake_pg.Error = _PgError
         fake_pg.errors = types.SimpleNamespace(ObjectInUse=type("Busy", (_PgError,), {}), DuplicateDatabase=_Duplicate)
         fake_pg.sql = types.SimpleNamespace(SQL=_Sql, Identifier=Mock(side_effect=_Identifier))
@@ -104,6 +119,7 @@ class PgDemoThuanTests(unittest.TestCase):
         self.stack.enter_context(patch.object(sys, "stdout", sys.stdout))
         self.stack.enter_context(patch.object(sys, "stderr", sys.stderr))
         self.stack.enter_context(patch.object(_Cursor, "execute", _Cursor.execute))
+        self.stack.enter_context(patch.object(_Connection, "execute", _Connection.execute))
 
     def _pg_demo(self):
         pg = object.__new__(R._PgDemo)
@@ -118,12 +134,133 @@ class PgDemoThuanTests(unittest.TestCase):
         pg.khoa = None
         return pg
 
-    def _hook(self, pw="bi-mat-gia-123"):
+    def _hook(self, pw="bi-mat-gia-123", bo_chay=R):
         kn = {"admin_dsn": f"postgresql://demo:{pw}@127.0.0.1:5432/postgres"}
         tkn = types.SimpleNamespace(nap_tep=lambda p: kn)
         with patch.dict(os.environ, {"KHO_PG_DEMO_SO": str(self.tep), "KHO_PG_DEMO_MA": self.ma,
-                                    "KHO_PG_DEMO_KET_NOI": "khong-doc-tep-that"}), patch.object(R, "_nap_tien_ich_dsn", return_value=tkn):
-            R._bat_bao_ve_con()
+                                    "KHO_PG_DEMO_KET_NOI": "khong-doc-tep-that"}), patch.object(bo_chay, "_nap_tien_ich_dsn", return_value=tkn):
+            bo_chay._bat_bao_ve_con()
+
+    def _hook_qua_guard(self):
+        # Thứ tự thật: .pth cài sở hữu -> sitecustomize bọc guard -> _chay_con cài lại.
+        self._hook()
+        cursor_goc, connection_goc = self.pg.Cursor.execute, self.pg.Connection.execute
+        goi_guard = []
+
+        def cursor_guard(cur, query, params=None, **kwargs):
+            goi_guard.append(("cursor", str(query)))
+            if str(query).lstrip().upper().startswith("DROP DATABASE"):
+                return cur  # A517 giữ DROP lại, không gọi lớp bên trong.
+            return cursor_goc(cur, query, params, **kwargs)
+
+        def connection_guard(c, query, params=None):
+            goi_guard.append(("connection", str(query)))
+            if str(query).lstrip().upper().startswith("DROP DATABASE"):
+                return _Cursor(c)
+            return connection_goc(c, query, params)
+
+        # Cố ý không sao chép _pg_demo/__wrapped__, như guard bọc ngoài A517.
+        self.pg.Cursor.execute, self.pg.Connection.execute = cursor_guard, connection_guard
+        self.assertFalse(getattr(cursor_guard, "_pg_demo", False))
+        self._hook()
+        return goi_guard, cursor_guard, connection_guard
+
+    def test_guard_boc_ngoai_create_chi_dang_ky_mot_lan(self):
+        goi_guard, cursor_guard, connection_guard = self._hook_qua_guard()
+        dang_ky_goc = R._SoHuuPg.dang_ky
+        with patch.object(R._SoHuuPg, "dang_ky", autospec=True, side_effect=dang_ky_goc) as dang_ky:
+            for qua_cursor in (False, True):
+                ten = "kho_test_guard_cursor" if qua_cursor else "kho_test_guard_connection"
+                c = _Cursor(self.c) if qua_cursor else self.c
+                self.c.truoc_create = lambda t: self.assertEqual(self.so.doc()["muc"][t]["trang_thai"], "dang_tao")
+                with self.subTest(qua_cursor=qua_cursor):
+                    c.execute(f'CREATE DATABASE "{ten}"')
+                    self.assertEqual(self.so.doc()["muc"][ten]["trang_thai"], "da_tao")
+                    self.assertEqual(len(self.so.doc()["muc"]), 1 + qua_cursor)
+                    self.assertEqual(dang_ky.call_count, 1 + qua_cursor)
+            self.assertEqual(dang_ky.call_count, 2)  # một lần cho mỗi lệnh/kết nối, hai tên khác nhau
+        self.assertEqual(len(self.so.doc()["muc"]), 2)
+        self.assertEqual(sum(q.startswith("CREATE DATABASE") for q in self.c.sql), 2)
+        self.assertEqual(sum(q.startswith("CREATE DATABASE") for _, q in goi_guard), 3)
+        self.assertIs(self.pg.Cursor.execute, cursor_guard)
+        self.assertIs(self.pg.Connection.execute, connection_guard)
+        self.pg.connect.assert_not_called()
+
+    def test_hook_nap_ten_module_khac_khong_cai_lai_qua_guard(self):
+        _, cursor_guard, connection_guard = self._hook_qua_guard()
+        spec = importlib.util.spec_from_file_location("_l08_thu_nap_pth", R.__file__)
+        ban_pth = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(ban_pth)
+        self._hook(bo_chay=ban_pth)
+        self.assertIs(self.pg.Cursor.execute, cursor_guard)
+        self.assertIs(self.pg.Connection.execute, connection_guard)
+        self.c.execute('CREATE DATABASE "kho_test_guard_module_khac"')
+        self.assertEqual(len(self.so.doc()["muc"]), 1)
+        self.assertEqual(sum(q.startswith("CREATE DATABASE") for q in self.c.sql), 1)
+        self.pg.connect.assert_not_called()
+
+    def test_hook_da_cai_khong_chap_nhan_so_khac(self):
+        _, cursor_guard, _ = self._hook_qua_guard()
+        tep_khac = self.root / "so-khac.json"
+        R._SoHuuPg.tao_moi(tep_khac, self.ma, self.cum, self.c.databases)
+        with patch.object(self, "tep", tep_khac), self.assertRaisesRegex(ValueError, "sổ/lần chạy/cụm khác"):
+            self._hook()
+        self.assertIs(self.pg.Cursor.execute, cursor_guard)
+        self.assertEqual(self.so.doc()["muc"], {})
+        self.pg.connect.assert_not_called()
+
+    def test_guard_boc_ngoai_ten_co_san_van_tu_choi(self):
+        self._hook_qua_guard()
+        self.c.databases.add("kho_test_moi_cua_nguoi_khac")  # xuất hiện sau ảnh chụp
+        for ten in ("kho_test_co_san", "kho_test_moi_cua_nguoi_khac"):
+            with self.subTest(ten=ten), self.assertRaisesRegex(ValueError, "tên có sẵn/đã dùng"):
+                self.c.execute(f'CREATE DATABASE "{ten}"')
+        self.assertEqual(self.so.doc()["muc"], {})
+        self.assertFalse(any(q.startswith("CREATE DATABASE") for q in self.c.sql))
+
+    def test_guard_boc_ngoai_lenh_create_moi_khong_duoc_dung_lai_ten(self):
+        self._hook_qua_guard()
+        ten = "kho_test_guard_khong_dung_lai"
+        self.c.execute(f'CREATE DATABASE "{ten}"')
+        c_khac = _Connection(self.c.databases)
+        for c in (self.c, c_khac):
+            with self.subTest(cung_ket_noi=c is self.c), self.assertRaisesRegex(ValueError, "tên có sẵn/đã dùng"):
+                c.execute(f'CREATE DATABASE "{ten}"')
+        self.assertEqual(sum(q.startswith("CREATE DATABASE") for q in self.c.sql + c_khac.sql), 1)
+        self.assertEqual(len(self.so.doc()["muc"]), 1)
+
+    def test_guard_giu_drop_cua_test_de_goi_don_sau_module(self):
+        goi_guard, _, _ = self._hook_qua_guard()
+        ten = "kho_test_guard_giu_drop"
+        self.c.execute(f'CREATE DATABASE "{ten}"')
+        for c in (self.c, _Cursor(self.c)):
+            c.execute(f'DROP DATABASE "{ten}"')
+        self.assertIn(ten, self.c.databases)
+        self.assertEqual(self.so.doc()["muc"][ten]["trang_thai"], "da_tao")
+        self.assertFalse(any(q.startswith("DROP DATABASE") for q in self.c.sql))
+        pg = self._pg_demo()
+        # _goi là tiến trình quản trị không guard: dùng raw giả, không đi qua execute đã vá.
+        class Raw:
+            info = self.c.info
+
+            def execute(_, query, params=None):
+                result = self.c.raw(query, params)
+                return types.SimpleNamespace(fetchone=lambda: result)
+
+        def goi(viec, *args):
+            if viec == "liet-ke":
+                return {"csdl": sorted(self.c.databases)}
+            self.assertEqual((viec, args[:2]), ("xoa", (str(self.tep), self.ma)))
+            return self.so.xoa(Raw(), args[2:])
+
+        pg._goi = Mock(side_effect=goi)
+        so_goi_guard = len(goi_guard)
+        self.assertEqual(pg.don()["da_xoa"], 1)
+        self.assertEqual(len(goi_guard), so_goi_guard)
+        self.assertNotIn(ten, self.c.databases)
+        self.assertEqual(self.so.doc()["muc"][ten]["trang_thai"], "da_xoa")
+        self.assertEqual(sum(q.startswith("DROP DATABASE") for q in self.c.sql), 1)
+        self.pg.connect.assert_not_called()
 
     def test_csdl_tien_trinh_khac_xuat_hien_khong_bi_nhan_so_huu(self):
         self.so.dang_ky("kho_test_cua_minh", self.c)
@@ -183,6 +320,68 @@ class PgDemoThuanTests(unittest.TestCase):
         self.assertEqual(self.so.xoa(self.c, [ten])["tu_choi"], [ten])
         self.assertIn(ten, self.c.databases)
 
+    def test_drop_bi_nuot_khong_bao_da_xoa_va_don_so_thu_lai_duoc(self):
+        ten = "kho_test_drop_bi_nuot"
+        self.so.dang_ky(ten, self.c)
+        self.c.databases.add(ten)
+        raw = self.c.raw
+
+        def nuot_drop(q, p=None):
+            if str(q).startswith("DROP DATABASE"):
+                self.c.sql.append(str(q))
+                return None
+            return raw(q, p)
+
+        self.c.raw = nuot_drop
+        kq = self.so.xoa(self.c, [ten])
+        self.assertEqual(kq["da_xoa"], [])
+        self.assertEqual(kq["con_lai_sau_xoa"], [ten])
+        self.assertEqual(self.so.doc()["muc"][ten]["trang_thai"], "con_lai_sau_xoa")
+        self.assertEqual(self.c.sql[-1], "SELECT 1 FROM pg_database WHERE datname = %s")
+        pg = self._pg_demo()
+        pg.vai_truoc = set()
+        pg.quet_ro_ri = Mock(return_value=0)
+
+        def goi(viec, *args):
+            if viec == "liet-ke":
+                return {"csdl": sorted(self.c.databases), "vai_tro": []}
+            return self.so.xoa(self.c, args[2:])
+
+        pg._goi = Mock(side_effect=goi)
+        with patch.object(R.time, "sleep"):
+            tong = pg.ket_thuc([])
+        self.assertEqual(tong["sot"], [ten])
+        self.assertEqual(tong["da_xoa"], 0)
+        self.assertIn(ten, pg.chua_xoa)
+        self.assertTrue(any(ten in cb for cb in tong["canh_bao"]))
+        console = io.StringIO()
+        with patch.object(R, "_khoa_loai_tru_pg", return_value=None), contextlib.redirect_stdout(console):
+            self.assertEqual(R._don_theo_so(pg, self.tep), 1)
+            self.c.raw = raw
+            self.assertEqual(R._don_theo_so(pg, self.tep), 0)
+        self.assertIn("CẢNH BÁO", console.getvalue())
+        self.assertNotIn(ten, self.c.databases)
+        self.assertEqual(self.so.doc()["muc"][ten]["trang_thai"], "da_xoa")
+
+    def test_kiem_sau_drop_loi_khong_ghi_hoan_tat(self):
+        ten = "kho_test_kiem_drop_loi"
+        self.so.dang_ky(ten, self.c)
+        self.c.databases.add(ten)
+        raw = self.c.raw
+
+        def hong_select(q, p=None):
+            if str(q) == "SELECT 1 FROM pg_database WHERE datname = %s":
+                raise _PgError("không kiểm được")
+            return raw(q, p)
+
+        self.c.raw = hong_select
+        kq = self.so.xoa(self.c, [ten])
+        self.assertEqual(kq["da_xoa"], [])
+        self.assertEqual(len(kq["loi"]), 1)
+        self.assertEqual(self.so.doc()["muc"][ten]["trang_thai"], "dang_tao")
+        self.c.raw = raw
+        self.assertEqual(self.so.xoa(self.c, [ten])["khong_co"], [ten])
+
     def test_hook_ghi_ben_truoc_create_drop_chung_lop_khong_force(self):
         self._hook()
         ten = "kho_test_hook"
@@ -241,6 +440,17 @@ class PgDemoThuanTests(unittest.TestCase):
         self.assertTrue(pth.resolve().is_relative_to(self.root))
         self.assertIn("_bat_bao_ve_pth", pth.read_text(encoding="utf-8"))
 
+    def test_probe_user_site_goc_loi_khong_ghi_pth(self):
+        pg = self._pg_demo()
+        site = self.root / "tam" / "site-phu-thuoc" / "site-packages"
+        for rc, out in ((1, ""), (0, "")):
+            with self.subTest(rc=rc), patch.object(R.subprocess, "run", side_effect=[
+                    types.SimpleNamespace(returncode=0, stdout=str(site)),
+                    types.SimpleNamespace(returncode=rc, stdout=out)]):
+                with self.assertRaisesRegex(RuntimeError, "không ghi .pth"):
+                    pg._site_phu_thuoc()
+        self.assertEqual(list(self.root.rglob("*.pth")), [])
+
     def test_pth_bao_ve_loi_phai_dung_khong_tiep_tuc_python(self):
         with patch.object(R, "_bat_bao_ve_con", side_effect=ValueError("sổ sai")), patch.object(R.os, "_exit") as thoat, contextlib.redirect_stderr(io.StringIO()):
             R._bat_bao_ve_pth()
@@ -257,6 +467,7 @@ class PgDemoThuanTests(unittest.TestCase):
                               env=env or R._moi_truong(self.repo, self.root, them={"KHO_PG_DEMO_SO": str(self.tep)}),
                               cwd=self.root, capture_output=True, timeout=10)
 
+    @_co_lap_provider
     def test_pth_nap_tep_loi_thoat_ma_2_khong_chay_test_con(self):
         site = self._site_that(self._pg_demo())
         ma = "import importlib.util; importlib.util.spec_from_file_location = lambda *a: None; "
@@ -267,6 +478,7 @@ class PgDemoThuanTests(unittest.TestCase):
         self.assertEqual(r.returncode, 2, r.stderr.decode("utf-8", errors="replace"))
         self.assertNotIn(b"TEST_DA_CHAY", r.stdout)
 
+    @_co_lap_provider
     def test_pth_hook_loi_thuc_te_thoat_ma_2(self):
         site = self._site_that(self._pg_demo())
         # Không có tệp kết nối/sổ hợp lệ: hook phải dừng dù import chính nó thành công.
@@ -274,6 +486,7 @@ class PgDemoThuanTests(unittest.TestCase):
         self.assertEqual(r.returncode, 2)
         self.assertNotIn(b"TEST_DA_CHAY", r.stdout)
 
+    @_co_lap_provider
     def test_pth_repo_khac_van_nap_dung_bao_ve_tu_duong_dan(self):
         repo_cu = self.root / "worktree-cu"
         (repo_cu / "tools").mkdir(parents=True)
@@ -293,6 +506,162 @@ class PgDemoThuanTests(unittest.TestCase):
         self.assertEqual(r.returncode, 0, r.stderr.decode("utf-8", errors="replace"))
         self.assertEqual(Path(r.stdout.decode("utf-8").strip()).resolve(), Path(R.__file__).resolve())
 
+    def _provider_guard_thu(self, thu_muc, sitecustomize=True):
+        """Provider TEST có hook thật; SHA khác A517 nên không được host chấp nhận."""
+        thu_muc.mkdir(parents=True, exist_ok=True)
+        (thu_muc / "codex_no_delete_guard.py").write_text(
+            "import os, shutil\n"
+            "def chan(*a, **kw):\n    raise PermissionError('DEMO giữ tệp')\n"
+            "os.remove = os.unlink = shutil.rmtree = chan\n", encoding="utf-8")
+        if sitecustomize:
+            (thu_muc / "sitecustomize.py").write_text("import codex_no_delete_guard\n", encoding="utf-8")
+        else:
+            (thu_muc / "guard-thu.pth").write_text("import codex_no_delete_guard\n", encoding="utf-8")
+
+    def _kiem_hook_con_va_chau(self, env, ma_host="GUARD_SHA_SAI"):
+        # Chỉ import/đọc chứng cứ trong các tiến trình thật: không mở host/server/CSDL.
+        kiem = ("from kho_tri_thuc.nguon import trich6_host as H; "
+                "from kho_tri_thuc.m4.review_compute import guard_dang_nap; "
+                "cc = H.chung_cu_guard(); "
+                "assert cc['module'] and cc['flag'] and cc['bytecode_tat'], cc; "
+                "assert H.HOOK_BAT_BUOC <= set(cc['hooks']), cc; "
+                "assert guard_dang_nap()[0], guard_dang_nap(); "
+                f"assert H.guard_hop_le(cc) == {ma_host!r}, cc")
+        ma = ("import subprocess, sys; " + kiem + "; "
+              "from kho_tri_thuc.k2.xay_dung import XayDungK2; "
+              "envs = [H.env_con(), XayDungK2._env_worker()]; "
+              "assert all('KHO_PG_DEMO_SO' not in e for e in envs); "
+              f"rs = [subprocess.run([sys.executable, '-X', 'utf8', '-c', {kiem!r}], "
+              "env=e, capture_output=True, timeout=15) for e in envs]; "
+              "assert all(r.returncode == 0 for r in rs), [(r.stdout, r.stderr) for r in rs]")
+        r = subprocess.run([sys.executable, "-X", "utf8", "-c", ma], env=env, cwd=self.root,
+                           capture_output=True, timeout=40)
+        self.assertEqual(r.returncode, 0, r.stderr.decode("utf-8", errors="replace"))
+
+    @_co_lap_provider
+    def test_runtime_khoi_dong_cai_hook_o_con_va_chau(self):
+        kd = self.root / "khởi động"
+        self._provider_guard_thu(kd)
+        runtime = self.root / "runtime.json"
+        runtime.write_text(json.dumps({"python": sys.executable, "duong_dan_phu_thuoc": [],
+                                       "thu_muc_khoi_dong": kd.name}), encoding="utf-8")
+        py, deps = R._doc_runtime(runtime)
+        self.assertEqual(py, sys.executable)
+        self.assertIn(kd, deps)
+        env = R._moi_truong(self.repo, self.root, deps, {"CODEX_NO_DELETE_FILES": "1",
+                                                       "PYTHONUSERBASE": str(self.root / "userbase-trong")})
+        self._kiem_hook_con_va_chau(env)
+        # .pth PG cũng giữ provider khi test tự ghi đè PYTHONPATH=src.
+        pg = self._pg_demo()
+        pg.phu_thuoc = deps
+        with patch.dict(os.environ, {"PYTHONUSERBASE": env["PYTHONUSERBASE"]}):
+            env["PYTHONUSERBASE"] = pg._site_phu_thuoc()
+        env["PYTHONPATH"] = str(self.repo / "src")
+        self._kiem_hook_con_va_chau(env)
+
+    def test_runtime_tu_choi_duong_khoi_dong_sai(self):
+        runtime = self.root / "runtime.json"
+        for kd in (1, "", "khong-co"):
+            with self.subTest(kd=kd):
+                runtime.write_text(json.dumps({"python": sys.executable, "duong_dan_phu_thuoc": [],
+                                               "thu_muc_khoi_dong": kd}), encoding="utf-8")
+                with self.assertRaisesRegex(ValueError, "thu_muc_khoi_dong"):
+                    R._doc_runtime(runtime)
+
+    @_co_lap_provider
+    def test_giu_provider_pythonpath_cua_caller(self):
+        kd = self.root / "provider-caller"
+        self._provider_guard_thu(kd)
+        with patch.dict(os.environ, {"PYTHONPATH": str(kd) + os.pathsep + str(self.root / "repo-khac")}):
+            env = R._moi_truong(self.repo, self.root, them={"CODEX_NO_DELETE_FILES": "1",
+                                                          "PYTHONUSERBASE": str(self.root / "userbase-trong")})
+        self.assertNotIn(str(self.root / "repo-khac"), env["PYTHONPATH"])
+        self._kiem_hook_con_va_chau(env)
+
+    @_co_lap_provider
+    def test_userbase_pg_chuyen_tiep_pth_guard_goc_cho_chau(self):
+        import sysconfig
+        ub = self.root / "userbase-goc"
+        scheme = "nt_user" if os.name == "nt" else "posix_user"
+        site = Path(sysconfig.get_path("purelib", scheme, vars={"userbase": str(ub)}))
+        self._provider_guard_thu(site, sitecustomize=False)
+        with patch.dict(os.environ, {"PYTHONUSERBASE": str(ub), "PYTHONPATH": str(self.repo / "src")}):
+            pg = self._pg_demo()
+            moi = pg._site_phu_thuoc()
+            env = R._moi_truong(self.repo, self.root, them={"PYTHONUSERBASE": moi, "CODEX_NO_DELETE_FILES": "1"})
+        self._kiem_hook_con_va_chau(env)
+
+    @_co_lap_provider
+    def test_duong_khoi_dong_bo_sitecustomize_khong_co_guard(self):
+        la = self.root / "site-packages-la"
+        la.mkdir()
+        tep = la / "sitecustomize.py"
+        tep.write_text("# Không phải provider guard\n", encoding="utf-8")
+        kd = self.root / "provider-hop-le"
+        self._provider_guard_thu(kd)
+        with patch.dict(os.environ, {"PYTHONPATH": os.pathsep.join((str(la), str(kd)))}), \
+                patch.dict(sys.modules, {"sitecustomize": types.SimpleNamespace(__file__=str(tep))}):
+            self.assertEqual(R._duong_khoi_dong(), (kd,))
+        with patch.dict(sys.modules, {"sitecustomize": types.SimpleNamespace(__file__=str(kd / "sitecustomize.py"))}):
+            self.assertEqual(R._duong_khoi_dong(), (kd,))
+
+    @_co_lap_provider
+    def test_goi_pg_khong_nap_provider_nhung_test_van_giu_guard(self):
+        pg = self._pg_demo()
+        kd = self.root / "provider-runtime"
+        caller = self.root / "provider-caller"
+        deps = self.root / "phu-thuoc"
+        deps.mkdir()
+        self._provider_guard_thu(kd)
+        self._provider_guard_thu(caller)
+        runtime = self.root / "runtime.json"
+        runtime.write_text(json.dumps({"python": sys.executable, "duong_dan_phu_thuoc": [deps.name],
+                                       "thu_muc_khoi_dong": kd.name}), encoding="utf-8")
+        pg.python, pg.phu_thuoc = R._doc_runtime(runtime)
+        with patch.dict(os.environ, {"PYTHONPATH": str(caller), "CODEX_NO_DELETE_FILES": "1"}), \
+                patch.dict(sys.modules, {"sitecustomize": types.SimpleNamespace(__file__=str(caller / "sitecustomize.py"))}), \
+                patch.object(R.subprocess, "run", return_value=types.SimpleNamespace(stdout='{"ok": true}', returncode=0)) as run:
+            for viec in ("liet-ke", "tao-clone", "xoa"):
+                pg._goi(viec)
+                env = run.call_args.kwargs["env"]
+                self.assertEqual(env["PYTHONPATH"].split(os.pathsep), [str(self.repo / "src"), str(self.repo), str(deps)])
+                self.assertEqual(env["PYTHONNOUSERSITE"], "1")
+                self.assertEqual(env["CODEX_NO_DELETE_FILES"], "1")
+                self.assertEqual(env["KHO_PG_DEMO_SO"], str(self.tep))
+            env_test = R._moi_truong(self.repo, self.root, pg.phu_thuoc)
+        self.assertIn(str(kd), env_test["PYTHONPATH"].split(os.pathsep))
+        self.assertIn(str(caller), env_test["PYTHONPATH"].split(os.pathsep))
+        self.assertEqual(env_test["CODEX_NO_DELETE_FILES"], "1")
+        self.pg.connect.assert_not_called()
+
+    def test_thieu_hook_tien_trinh_that_van_dung_guard_khong_nap(self):
+        # -I bỏ cả hai provider, -B vẫn giữ yêu cầu không bytecode. Không import bù guard.
+        cfg = {"kieu": "trich6_host_cau_hinh/v1", "token": "d" * 40, "nguon": str(self.root / "nguon-khong-mo"),
+               "du_lieu": str(self.root / "khong-duoc-tao"), "instance_id": "demo"}
+        ma = (f"import sys; sys.path.insert(0, {str(self.repo / 'src')!r}); "
+              "from kho_tri_thuc.m4 import review_compute as C; "
+              f"assert C.main([{cfg['du_lieu']!r}]) == C.MA_GUARD_KHONG_NAP == 4; "
+              "from kho_tri_thuc.nguon import trich6_host as H; sys.exit(H._con(kenh=sys.stdout))")
+        env = R._moi_truong(self.repo, self.root, them={"CODEX_NO_DELETE_FILES": "1"})
+        r = subprocess.run([sys.executable, "-I", "-B", "-c", ma], env=env, cwd=self.root,
+                           input=json.dumps(cfg).encode("utf-8"), capture_output=True, timeout=15)
+        self.assertEqual(r.returncode, 4, r.stderr.decode("utf-8", errors="replace"))
+        self.assertEqual(json.loads(r.stdout)["ma"], "GUARD_KHONG_NAP")
+        self.assertIn(b"GUARD_KHONG_NAP", r.stderr)
+        self.assertFalse(Path(cfg["du_lieu"]).exists())
+
+    def test_guard_a517_that_o_chau_khi_runtime_co_provider(self):
+        from kho_tri_thuc.nguon import trich6_host as H
+        cc = H.chung_cu_guard()
+        if not cc["module"]:
+            self.skipTest("runtime không có provider guard A517 thật — lead chạy test với --runtime DEMO")
+        self.assertIsNone(H.guard_hop_le(cc), cc)
+        pg = self._pg_demo()
+        env = R._moi_truong(self.repo, self.root, them={"PYTHONUSERBASE": pg._site_phu_thuoc()})
+        env["PYTHONPATH"] = str(self.repo / "src")
+        self._kiem_hook_con_va_chau(env, ma_host=None)
+
+    @_co_lap_provider
     def test_timeout_giet_ca_chau_giu_stdout_va_tra_treo_dung_han(self):
         pid_chau = self.root / "pid-chau.txt"
         goc_popen = subprocess.Popen
