@@ -19,6 +19,13 @@ Cụm: `D:\Claude\Phan mem ho tro ke toan\var\postgresql-ktt-16\data` (PostgreSQ
 | **Cấm khởi động/dừng PostgreSQL hoặc server DEMO trong sandbox Codex** (Codex tự cập nhật sẽ giết mọi tiến trình con); chỉ lead khởi động, ngoài sandbox | lead (quy tắc `CLAUDE.md` §2 + mọi tệp giao Codex) | Làm ngay 25/10 |
 | Tiến trình hiện tại (pid 14736) do lead khởi động bằng `pg_ctl` ngoài Codex; nhật ký `var\pg-cluster-recovery-20261025-01\postgres.log` | lead | Xong 25/10 14:57 |
 | Lead kiểm cổng 5432 trước khi báo Anh mở DEMO | lead | Làm ngay |
-| **Chạy cụm như dịch vụ Windows** (tự khởi động cùng máy, tắt sạch khi Windows tắt/cập nhật — xử lý luôn lần #1) — cần quyền quản trị, lead không tự đổi cài đặt hệ thống | Anh chọn (bảng chọn) | Chờ Anh |
-| **Dọn 323 CSDL test cũ `kho_test_*`** (rút thời gian khôi phục còn vài phút) — xóa dữ liệu vĩnh viễn nên lead chỉ soạn lệnh, Anh quyết | Anh chọn (bảng chọn) | Chờ Anh |
+| **Dọn 323 CSDL test cũ `kho_test_*` + 160 vai trò test** (Anh chọn 25/10) — bấm đúp `DỌN CSDL TEST CŨ.cmd` (thư mục phần mềm), đọc hộp xác nhận rồi chọn Yes; CSDL đang có kết nối được giữ lại; biên nhận `var\pg-don-csdl-test-*.json`. Lead đã chạy thử chế độ chỉ liệt kê: 323 CSDL, 160 vai trò, 0 đang kết nối | **Anh bấm (làm trước)** | Chờ Anh |
+| **Chạy cụm như dịch vụ Windows `ktt-postgres-demo`** (Anh chọn 25/10) — bấm đúp `CÀI DỊCH VỤ POSTGRES DEMO.cmd`, chọn Yes khi Windows hỏi quyền; tệp tắt sạch cụm đang chạy, cấp quyền thư mục cho NetworkService, đăng ký dịch vụ tự khởi động, chờ cổng 5432; nhật ký `var\pg-dich-vu-*.txt` | **Anh bấm (sau khi dọn — ít tệp thì cấp quyền nhanh)** | Chờ Anh |
+
+## 3. Khi dữ liệu thật lớn lên thì sao? (số đo 25/10)
+
+- Cụm DEMO: **268.673 tệp, 4,8 GB**. Lần 25/10: bước fsync từng tệp 14:29:10 → 14:57:11 (**28 phút**); bước phát lại dữ liệu thật (redo) **0,00 giây**. Thời gian khôi phục tỷ lệ với **số tệp**, gần như không phụ thuộc lượng dữ liệu.
+- Mỗi CSDL dù trống cũng có ~790 tệp danh mục hệ thống → 340 CSDL ≈ 268 nghìn tệp. Kho thật chỉ là **1 CSDL** (vài schema, vài trăm bảng): vài nghìn tệp; dữ liệu tăng thì tệp tăng chậm (mỗi 1 GB của một bảng thêm 1 tệp) → fsync tính bằng giây.
+- Bước fsync **chỉ xảy ra sau khi bị cắt ngang**. Chạy bằng dịch vụ thì Windows báo tắt → PostgreSQL ghi checkpoint và tắt sạch → lần sau khởi động trong vài giây.
+- Khi lên vận hành thật (chưa làm): dịch vụ + sao lưu định kỳ + tách cụm test khỏi cụm thật; cân nhắc loại thư mục dữ liệu khỏi quét thời gian thực của Windows Defender (đổi cài đặt bảo mật — Anh quyết, lead không tự làm).
 | Lỗi Windows "error code 487" (giữ vùng nhớ chung cho tiến trình con): lỗi đã biết của PostgreSQL trên Windows, tự thử lại; theo dõi, chưa cần xử lý | lead | Theo dõi |
