@@ -435,12 +435,50 @@ ca("C18 căn cứ cũ thiếu mục → CHƯA ĐỦ, không thành 0", async () 
   const s = h.panel() ? h.panel().textContent : "";
   kiem(s.includes("Chưa đủ căn cứ") && s.includes("không có mục BOQ"), "C18: thiếu BOQ không báo CHƯA ĐỦ");
   kiem(s.includes("BOQ") && s.includes("phụ lục") && s.includes("trạng thái lịch sử đợt trước"), "C18: không liệt kê mục thiếu");
-  kiem(!s.includes("0 bảng") && !s.includes("0 dòng") && !s.includes("0 phụ lục"), "C18: mục thiếu bị hiển thị thành 0");
+  // Khẳng định 0 về mục thiếu: xét chữ RIÊNG của từng nút (không gộp con), tách mệnh đề theo ";"/"—"/". "; chỉ bỏ đúng cụm phủ định tường minh
+  // "không coi là 0…" của mệnh đề đó — "0 bảng/dòng/phụ lục", "so_dong 0" còn lại ở bất kỳ mệnh đề nào là vi phạm; số 0 không gắn đơn vị đó không bị xét.
+  // Mọi dòng bảng (TR) trong panel của mục thiếu cũng là vi phạm (dòng BOQ/PL bịa ra).
+  const PHU_DINH_0 = /không coi là\s+0(?:\/[^\s;,.—]+)?(?:\s+(?:bảng|dòng|phụ lục))?/gi;
+  const KHANG_DINH_0 = /(?:^|[^\d.,\/])0\s*(?:bảng|dòng|phụ lục)|so_dong\s+0(?![\d.])/i;
+  const viPham0 = root => {
+    const loi = [];
+    for (const e of timHet(root, x => x.tagName !== "#text")) {
+      if (e.tagName === "TR") loi.push("dòng bảng: " + e.textContent.slice(0, 80));
+      const rieng = e._text + e.children.filter(c => c.tagName === "#text").map(c => c._text).join("");
+      for (const md of rieng.split(/[;—]|\.(?=\s|$)/)) if (KHANG_DINH_0.test(md.replace(PHU_DINH_0, " "))) loi.push("khẳng định 0: " + md.trim());
+    }
+    return loi;
+  };
+  const laThieu = (p, chu) => !!(p && tim(p, e => e._cls && e._cls.has("m4-notice") && e.textContent.includes("Chưa đủ căn cứ") && e.textContent.includes(chu)));
+  const p1 = h.panel(), v1 = p1 ? viPham0(p1) : ["không có panel"];
+  kiem(v1.length === 0, "C18: mục thiếu bị hiển thị thành 0 — " + v1.join(" | "));
+  kiem(laThieu(p1, "không có mục BOQ"), "C18: không có nút thông báo CHƯA ĐỦ riêng cho BOQ thiếu");
+  kiem(!s.includes("BOQ lần") && !s.includes("so_dong"), "C18: BOQ thiếu mà vẫn hiện bảng/số dòng BOQ");
   kiem(s.includes("01/2025/HĐ-XL") && s.includes("01/03/2026"), "C18: phần có trong căn cứ không hiển thị");
   await h.bam(h.nutPl(), "Xem phụ lục căn cứ");
   const s2 = h.panel() ? h.panel().textContent : "";
   kiem(s2.includes("không có mục phụ lục") && !s2.includes("0 phụ lục"), "C18: thiếu phụ lục bị coi là 0 phụ lục");
+  const p2 = h.panel(), v2 = p2 ? viPham0(p2) : ["không có panel"];
+  kiem(v2.length === 0, "C18: phụ lục thiếu bị hiển thị thành 0/dòng — " + v2.join(" | "));
+  kiem(laThieu(p2, "không có mục phụ lục"), "C18: không có nút thông báo CHƯA ĐỦ riêng cho phụ lục thiếu");
+  kiem(s2.includes("01/2025/HĐ-XL") && s2.includes("01/03/2026"), "C18: góc phụ lục mất phần có trong căn cứ");
   kiem(h.tep().length === 1, "C18: GET lại khi đổi góc xem");
+  // Đối chứng âm/dương: DOM tổng hợp RIÊNG (không gắn vào box, không đụng DOM sản phẩm) — cùng viPham0 phải bắt khẳng định 0 thật, không bắt câu phủ định/số 0 khác.
+  const D = h.env.document;
+  const gia = (...cau) => { const g = D.createElement("section"); for (const c of cau) { const d = D.createElement("div"); d.append(c); g.append(d); } return g; };
+  const tr = D.createElement("tr"), o_ = D.createElement("td"); o_.append("HM-01"); tr.append(o_);
+  const am = [
+    ["0 bảng BOQ", gia("Căn cứ ghi nhận 0 bảng BOQ lúc chạy.")],
+    ["0 dòng sau câu phủ định", gia("Căn cứ lần chạy này không có mục BOQ — chưa hiển thị; không coi là 0 dòng.", "BOQ lần 1 · 0 dòng lưu trong căn cứ.")],
+    ["phủ định rồi khẳng định cùng nút", gia("không coi là 0 dòng; ghi nhận 0 dòng")],
+    ["0 phụ lục", gia("Căn cứ ghi nhận 0 phụ lục lúc chạy.")],
+    ["so_dong 0", gia("sheet BOQ-HD · so_dong 0 · trạng thái lưu XONG")],
+    ["dòng bảng bịa", gia(tr)]];
+  for (const [ten, g] of am) kiem(!g.isConnected && viPham0(g).length > 0, `C18 đối chứng âm "${ten}": viPham0 không bắt khẳng định 0 về mục thiếu`);
+  const duong = gia("Căn cứ lần chạy này không có mục BOQ — chưa hiển thị; không coi là 0 dòng.",
+    "Căn cứ lưu của lần chạy này không có mục: phụ lục, BOQ — hiển thị là chưa đủ; không coi là 0/trống, không lấy từ dữ liệu hiện tại.",
+    "Đợt 0 · revision 0 · rev tham số 0 · PL01 · 100 byte");
+  kiem(viPham0(duong).length === 0, "C18 đối chứng dương: viPham0 bắt nhầm câu phủ định/số 0 hợp lệ — " + viPham0(duong).join(" | "));
 });
 ca("C18b bảng thiếu dòng ≠ 0 dòng; 0 phụ lục tường minh", async () => {
   const bytes = bienThe(o => { delete o.boq[0].dong; o.boq[1].dong = []; o.phu_luc = []; });
