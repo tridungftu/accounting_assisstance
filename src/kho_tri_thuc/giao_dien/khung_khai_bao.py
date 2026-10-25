@@ -35,7 +35,7 @@ QUA_HAN = _the("hd_dot_qua_han", "Hợp đồng có đợt thu quá hạn", "hop
 HIEU_LUC = _the("hd_hieu_luc", "Hợp đồng hiệu lực", "hop_dong", {"trang_thai": "HIEU_LUC"},
                 "Hợp đồng hiệu lực trong phạm vi được cấp.")
 MAU_CHO_DUYET = _the("mau_cho_duyet", "Mẫu hợp đồng chờ duyệt", "mau", {"trang_thai": "CHO_CFO"},
-                    "Phiên bản mẫu đã kiểm, chờ duyệt theo quyền hiện hành.", True)
+                    "Phiên bản mẫu đã kiểm, chờ duyệt theo quyền hiện hành.")
 THE_KE_TOAN = [_the("hd_cho_kiem", "Hợp đồng ký chờ kiểm", "hop_dong", {"the": "W3"},
                     "Hợp đồng đã ký hoặc phiên bản đang chờ kế toán kiểm."), QUA_HAN]
 
@@ -54,7 +54,7 @@ MODULE = {"crm": {
         "BAN_HANG": [_the("bao_gia_nhap", "Báo giá đang nháp", "bao_gia", {"trang_thai": "NHAP"},
                           "Báo giá nháp trong danh sách được cấp quyền."), DEN_HAN],
         "KE_TOAN": THE_KE_TOAN, "KE_TOAN_TRUONG": THE_KE_TOAN,
-        "CFO": [MAU_CHO_DUYET, QUA_HAN, HIEU_LUC], "XEM": [HIEU_LUC, DEN_HAN],
+        "CFO": [MAU_CHO_DUYET, QUA_HAN, HIEU_LUC], "XEM": [HIEU_LUC],
     },
 }}
 
@@ -65,7 +65,15 @@ def _so_viec(so, phan, loc):
 
 
 def hop_dong_cho(so, vai):
-    the = {"BAN_HANG": "W2", "KE_TOAN": "W3", "KE_TOAN_TRUONG": "W3"}.get(vai)
+    if vai == "BAN_HANG":
+        w1, w2 = so("hop_dong", {"the": "W1"}), so("hop_dong", {"the": "W2"})
+        if w1 is None or w2 is None:
+            return {}
+        # W1 là việc bị trả lại/cần bổ sung; W2 chưa có ngưỡng quá hạn ký.
+        return {"so_viec": w1 + w2, "qua_han": w1 > 0}
+    if vai == "CFO":
+        return _so_viec(so, "hop_dong", {"trang_thai": "CHO_DUYET"})
+    the = {"KE_TOAN": "W3", "KE_TOAN_TRUONG": "W3"}.get(vai)
     return _so_viec(so, "hop_dong", {"the": the}) if the else {}
 
 
@@ -79,9 +87,9 @@ def mau_cho(so, vai):
 
 
 def thu_tien_cho(so, vai):
-    if vai == "XEM":
+    if vai in ("BAN_HANG", "XEM"):
         return {}
-    return _so_viec(so, "hop_dong", {"the": "W5"} if vai == "BAN_HANG" else {"co": "QUA_HAN"})
+    return _so_viec(so, "hop_dong", {"the": "W5"} if vai in ("KE_TOAN", "KE_TOAN_TRUONG") else {"co": "QUA_HAN"})
 
 
 DEM_PHAN = {f.__name__: f for f in (hop_dong_cho, bao_gia_nhap, mau_cho, thu_tien_cho)}
@@ -114,7 +122,7 @@ class CrmKhungK2:
             data = CrmGiaoKetK2(self.mau).danh_sach(me)
             day_du = len(data["bao_gia"]) < 200
             data["bao_gia"] = [r for r in data["bao_gia"] if r["trang_thai"] == "NHAP"]
-            return {**data, "tong": len(data["bao_gia"]), "day_du": day_du}
+            return {**data, "tong": len(data["bao_gia"]) if day_du else None, "day_du": day_du}
         if phan == "mau" and tham_so.get("trang_thai") in ("CHO_CFO", "CHO_KIEM") and len(tham_so) == 1:
             data = self.mau.danh_sach(me)
             data["phien_ban"] = [r for r in data["phien_ban"] if r["trang_thai"] == tham_so["trang_thai"]]
