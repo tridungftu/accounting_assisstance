@@ -720,7 +720,7 @@
     }
     s.tep.filter(id => !tepUngVien.some(t => t.id === id)).forEach((id, i) => card.append(el("div", {class: "m4-hang"}, nho("Tệp căn cứ đã lưu của đợt trong nhóm " + (i + 1)),
       nut("Bỏ tệp đã lưu " + (i + 1), redraw(() => { s.tep = s.tep.filter(x => x !== id); }), "", !editable))));
-    card.append(nho("Cần Anh: đường tải tệp mới hiện chỉ cấp cho phòng dự án soạn hồ sơ. Tại đây chọn tệp đã có trong hồ sơ; chưa hỗ trợ kế toán tải tệp mới."));
+    card.append(nho("Chọn tệp căn cứ đã có trong hồ sơ nghiệm thu. Tải tệp mới do phòng dự án thực hiện."));
     const reason = el("textarea", {"aria-label": "Lý do đối chiếu", value: s.lyDo}); reason.disabled = !editable;
     reason.addEventListener("input", () => { if (dcSua(s)) { s.lyDo = reason.value; dcNut(s, card); } }); card.append(el("label", {}, "Lý do đối chiếu / phiên bản mới", reason));
     card.append(nut("Lưu nháp đối chiếu", () => dcGui(s, false), "m4-chinh", !editable), nut("Xác nhận đối chiếu", () => dcGui(s, true), "m4-chinh", true), el("p", {class: "m4-03b-ly-do m4-nho"}));

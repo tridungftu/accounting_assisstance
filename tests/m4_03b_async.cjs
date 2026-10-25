@@ -59,6 +59,8 @@ async function cases(T) {
     assert.ok(text.indexOf("Hóa đơn 21") < text.indexOf("Hóa đơn 22"));
     assert.ok(text.includes("25/10/2026") && text.includes("1.234,50 USD"));
     assert.ok(text.includes("hóa đơn chưa gắn đợt"));
+    assert.ok(!P.vungKt().textContent.includes("Cần Anh"));
+    assert.ok(text.includes("Chọn tệp căn cứ đã có trong hồ sơ nghiệm thu. Tải tệp mới do phòng dự án thực hiện."));
     assert.strictEqual(timTatCa(card(P), e => e.tagName === "SELECT" && (e.attrs["aria-label"] || "").startsWith("Phạm vi nguồn")).length, 1);
     assert.ok(!/công nợ|[0-9a-f]{8}-[0-9a-f-]{27,}|NHAP_DOI_CHIEU|THIEU_HOA_DON|graph_sha256|M4_03B/i.test(text));
     assert.strictEqual(countDc(P), 0);
