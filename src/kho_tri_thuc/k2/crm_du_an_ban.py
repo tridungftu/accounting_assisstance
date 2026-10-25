@@ -206,7 +206,7 @@ def danh_muc() -> dict:
 def _tien_don_vi(so: str | None, tt: str | None, don_vi: str) -> str | None:
     if so is None or tt not in TIEN_TE:
         return None
-    return f"{_so_vn(so)} {TIEN_TE[tt]}/{don_vi}"
+    return f"{_so_vn(so)} {TIEN_TE[tt]}" + (f"/{don_vi}" if don_vi else "")
 
 
 def hien_thi_anh_chup(s: dict) -> dict:
@@ -233,6 +233,16 @@ def hien_thi_anh_chup(s: dict) -> dict:
                                              f"Giai đoạn {bc.get('giai_doan')} · phiên bản {bc['version']['phien_ban']} · "
                                              f"{NGUON_G7.get(bc.get('nguon'), '')} · hiệu lực từ {_ngay_vn(bc['version']['valid_from'])}"),
     })
+    # DTO hiển thị riêng, không sửa rows của ảnh chụp đã có SHA256; không qua float.
+    out["bo_chuan_dong"] = []
+    for r in (bc or {}).get("rows") or []:
+        gia_tri = None
+        if r.get("gia_tri_loai") == "PERCENT" and r.get("gia_tri_thap_phan") is not None:
+            gia_tri = _so_vn(r["gia_tri_thap_phan"]) + "%"
+        elif r.get("gia_tri_loai") == "AMOUNT" and r.get("so_tien_minor") is not None and r.get("tien_te") in TIEN_TE:
+            so = _frac_str(Fraction(int(r["so_tien_minor"]), 100 if r["tien_te"] == "USD" else 1))
+            gia_tri = _tien_don_vi(so, r["tien_te"], "")
+        out["bo_chuan_dong"].append({"gia_tri_hien_thi": gia_tri})
     return out
 
 
@@ -365,7 +375,8 @@ class CrmDuAnBanK2:
         for r in lo:
             x = theo_lo.setdefault(r["lo_id"], {"lo_id": r["lo_id"], "ma": r["ma"], "lich_su": []})
             x["lich_su"].append({k: r[k] for k in ("lan", "hieu_luc_tu", "hieu_luc_den", "dien_tich", "trang_thai", "ghi_chu", "tao_boi", "tao_luc")}
-                                | {"trang_thai_hien_thi": TRANG_THAI_LO.get(r["trang_thai"]), "hieu_luc_tu_hien_thi": _ngay_vn(r["hieu_luc_tu"])})
+                                | {"trang_thai_hien_thi": TRANG_THAI_LO.get(r["trang_thai"]), "hieu_luc_tu_hien_thi": _ngay_vn(r["hieu_luc_tu"]),
+                                   "dien_tich_hien_thi": f"{_so_vn(r['dien_tich'])} m²"})
         for r in sk:
             r["hanh_dong_hien_thi"] = HANH_DONG.get(r["hanh_dong"], "Thao tác khác")
         for r in g7:
