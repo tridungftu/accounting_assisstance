@@ -45,7 +45,8 @@ from __future__ import annotations
 import json
 import re
 import threading
-from urllib.parse import quote, unquote, urlsplit
+from contextlib import contextmanager
+from urllib.parse import parse_qs, quote, unquote, urlsplit
 
 from ..ha_tang.primitives import DataError
 
@@ -133,6 +134,8 @@ _KHOI_TAO = threading.RLock()
 
 def la_route(post: bool, path: str) -> bool:
     """Route thuộc module này? POST /api/crm/mau (không hậu tố) KHÔNG thuộc — giữ handler #6 cũ. Tài sản /crm_g.js nằm ở static allowlist của server."""
+    if path == "/api/crm/hop-dong":  # CRM 42 S1: chỉ đọc
+        return not post
     if path == "/api/crm/mau":
         return not post
     if path == "/api/crm/bao-gia" or path.startswith(("/api/crm/bao-gia/", "/api/crm/soan/", "/api/crm/giao-ket/")):  # CRM-41-03 G2/G3
@@ -165,6 +168,31 @@ def dich_vu(app):
             app.__dict__["_crm_g"] = svc  # công bố TRƯỚC khi dựng G5 → chuỗi Gk/Ky/Kiem gọi lại dich_vu nhận chính svc này (không đệ quy)
             _khoi_dong_g5(app)
     return svc
+
+
+@contextmanager
+def dich_vu_s1(app):
+    """Tái dùng hạ tầng G nhưng GET S1 không khởi tạo/đánh thức worker G5.
+
+    Kết nối chủ bảng riêng đã kiểm chỉ sống trong lần đọc này, kể cả khi G đã khởi tạo.
+    Không công bố `_crm_g` để giữ nguyên lifecycle factory G hiện hành.
+    """
+    from ..k2.crm_mau import CrmMauK2
+    # Kết nối riêng: đọc RR không chiếm kết nối/lệnh ghi của G/G5.
+    with app.mutation_lock:
+        crm = app.crm()
+        try:
+            chu = app._m5_ket_noi_chu(crm.conn)
+        except DataError:
+            raise DataError("CRM_G_CHUA_SAN_SANG", "Chưa có kết nối đọc CRM tin cậy.") from None
+        hom_nay = crm.hom_nay
+    if chu is None:
+        raise DataError("CRM_G_CHUA_SAN_SANG", "Chưa có kết nối đọc CRM tin cậy.")
+    try:
+        yield CrmMauK2(chu, app.root / "crm-g", conn_tin_cay=chu, hom_nay=hom_nay)
+    finally:
+        if chu is not None:
+            chu.close()
 
 
 def dich_vu_gk(app):
@@ -438,6 +466,19 @@ def dieu_huong(h, app, post: bool, path: str, query: dict):
         return _dieu_huong_da(h, app, post, path, query)
     try:
         if not post:
+            if path == "/api/crm/hop-dong":
+                from ..k2.crm_s1 import CrmDanhSachK2, bo_loc
+                # Router chung bỏ giá trị rỗng; đọc lại để bắt cả tham số lặp/rỗng.
+                with app.mutation_lock:
+                    _, me, _ = app.crm_phien(h.crm_sid())
+                try:
+                    loc = parse_qs(urlsplit(h.path).query, keep_blank_values=True, max_num_fields=30)
+                except ValueError:
+                    raise DataError("CRM_S1_THAM_SO_SAI", "Bộ lọc có quá nhiều tham số.") from None
+                bo_loc(loc)  # từ chối trước factory/kết nối
+                with dich_vu_s1(app) as mau:
+                    data = app._crm_db(CrmDanhSachK2(mau).danh_sach, me, loc)
+                return h.send_content(200, data, headers={"Cache-Control": "no-store"})
             if path == "/api/crm/mau":
                 with app.mutation_lock:
                     _, me, _ = app.crm_phien(h.crm_sid())
