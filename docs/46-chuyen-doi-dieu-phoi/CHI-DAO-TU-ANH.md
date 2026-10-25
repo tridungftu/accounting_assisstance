@@ -16,7 +16,7 @@
 3. Từ nay không lát nào viết code gọi thẳng `api.anthropic.com` / `api.openai.com` hoặc thêm bộ che riêng.
 4. Thêm các dòng AI-0…AI-4, MASK-1, MASK-2 vào `TRANG-THAI.md`. Lịch giảm tỷ lệ kiểm xác suất Anh đã đồng ý (TL 48 §1.6).
 **Báo Anh khi:** AI-0 xong; cần cấp quyền thư mục.
-**Trạng thái:** ĐÃ NHẬN — cập nhật 18:51 25/10: **AI-0 XONG cả hai phần** — AI-0b bản trong repo gộp 06fa717; AI-0a bản độc lập xong (worker Claude; 18 ca test không gọi mạng; 9 test Cloud cũ của engine thất bại đúng thiết kế → xử lý ở AI-3). cập nhật 19:53: **AI-1 XONG** (gộp cfdf33c; review Opus Đạt → AI-1b đang sửa 3 điểm nhỏ); **MASK-1 XONG** (Mask v2 2.7.0, review Opus vòng 2 Đạt; QD-23/24 Anh chốt); tiếp theo MASK-2, AI-2; dòng AI/MASK trong TRANG-THAI.md
+**Trạng thái:** ĐÃ NHẬN — cập nhật 18:51 25/10: **AI-0 XONG cả hai phần** — AI-0b bản trong repo gộp 06fa717; AI-0a bản độc lập xong (worker Claude; 18 ca test không gọi mạng; 9 test Cloud cũ của engine thất bại đúng thiết kế → xử lý ở AI-3). cập nhật 19:53: **AI-1 XONG** (gộp cfdf33c; review Opus Đạt → AI-1b đang sửa 3 điểm nhỏ); **MASK-1 XONG** (Mask v2 2.7.0, review Opus vòng 2 Đạt; QD-23/24 Anh chốt); cập nhật 21:25: **MASK-2 XONG** (Mask v2 2.7.1, review Opus Đạt); **AI-2a** đang làm (cổng AI dùng chung, Cloud mặc định tắt); tiếp theo AI-2b (nhật ký), AI-3, MASK-3 (QD-23); dòng AI/MASK trong TRANG-THAI.md
 
 ## CD-002 · 25/10/2026 18:15 · Trang chủ dạng lưới icon (phương án B) — khung dùng chung, áp CRM trước
 **Căn cứ:** Anh chốt 25/10 — `D:\Claude\Phan mem ho tro ke toan\49-trang-chu-luoi-icon.md` (§1 quy tắc, §2 CRM, §3 đặc tả khung, §4 lát + cổng A); TL 42 §0, §2, §16.2 đã sửa cùng ngày (`..\42-man-hinh-crm-ke-toan-va-giao-ket.md`); bản mẫu canvas "Trang chủ lưới icon — CRM" (bảng 1, 3, 5).
