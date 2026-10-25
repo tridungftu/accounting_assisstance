@@ -12,6 +12,7 @@ import threading
 import unittest
 import uuid
 from contextlib import nullcontext
+from datetime import timedelta
 from pathlib import Path
 from unittest.mock import Mock, patch
 
@@ -274,6 +275,45 @@ class S1HttpPg(HttpMixin, unittest.TestCase):
                           "VALUES (%s, 'BAN_NHA', 'HD-S1-DEMO-B', 'HD-S1-DEMO-B', 'CHO_DUYET')", (ids["PN_DEMO_B"],))
         cls.tao_soan_va_binding()
         cls.tao_so_junsky()
+        cls.tao_hop_dong_qua_han()
+
+    @classmethod
+    def tao_hop_dong_qua_han(cls):
+        """Nhận #6 → KT kiểm → CFO duyệt/sinh lịch thật; không chèn lịch thu tay."""
+        from kho_tri_thuc.ha_tang.primitives import canonical_json
+        from kho_tri_thuc.kiem_chung import fixtures_crm as F
+        from test_crm_42_s1_tinh import NGAY
+
+        cls.hd_qua_han = {}
+        for tag, mau, kt, so_cu, coc_cu, dot_cu in (
+                ("A", "kcn_goc", "MO_PHONG_KT_A", "HD-KCN-DEMO/01", "15/09/2026", "15/10/2026"),
+                ("B", "nha_goc", "MO_PHONG_KT_B", "HD-NHA-DEMO/07", "10/09/2026", "10/11/2026")):
+            raw, env, vb = F.mau(mau)
+            # Đổi cả giá trị và trích dẫn/văn bản DEMO, giữ nguyên căn cứ khi qua service.
+            for cu, moi in ((so_cu, "HD-S1-QUA-HAN-DEMO-" + tag),
+                            (coc_cu, (NGAY - timedelta(days=1)).strftime("%d/%m/%Y")),
+                            (dot_cu, (NGAY + timedelta(days=2)).strftime("%d/%m/%Y"))):
+                raw = raw.decode("utf-8").replace(cu, moi).encode("utf-8")
+                vb = json.loads(canonical_json(vb).replace(cu, moi))
+            ma = "HDC-S1-QUA-HAN-DEMO-" + tag
+            env.update(word_tham_chieu="DEMO:" + ma, ma_hop_dong_chung=ma)
+            nhan = cls.app._crm.nhan_ket_qua_6("MO_PHONG_BAN_HANG", raw, env, van_ban_nguon=vb)
+            pb = nhan["phien_ban_id"]
+            # Chỉ đặt ngày trên bản còn chờ, trước kiểm; valid_from và lịch do duyet sinh.
+            cls.admin.execute("UPDATE master.hop_dong_phien_ban SET ngay_hieu_luc = %s WHERE id = %s",
+                              (NGAY - timedelta(days=2), pb))
+            cls.app._crm.kiem_truoc(kt, pb)
+            cls.app._crm.duyet("MO_PHONG_CFO", pb)
+            cls.hd_qua_han[tag] = nhan["hop_dong_id"]
+
+        # Actor riêng để không đổi phạm vi của các actor seed mà ca khác đang kiểm.
+        nd = cls.q("""INSERT INTO master.nguoi_dung (ten, dang_nhap, vai_tro, mo_phong)
+            VALUES ('Kế toán DEMO S1 trộn phạm vi', 'MO_PHONG_S1_KT_TRON', 'KE_TOAN', true)
+            RETURNING id""")
+        for tag, modules in (("A", ["CRM", "M1"]), ("B", ["CRM"])):
+            cls.admin.execute("""INSERT INTO master.phan_quyen (nguoi_dung_id, phap_nhan_id, module)
+                VALUES (%s, %s, %s)""", (nd, cls.ids["PN_DEMO_" + tag], modules))
+        cls.app._crm_phien["DEMO_KT_TRON"] = "MO_PHONG_S1_KT_TRON"
 
     @classmethod
     def q(cls, sql, params=()):
@@ -353,7 +393,7 @@ class S1HttpPg(HttpMixin, unittest.TestCase):
         self.assertEqual({r["phap_nhan"] for r in b["hop_dong"]}, {"PN_DEMO_B"})
         self.assertEqual(b["the_so"]["W3"]["so_luong"], 0)
         st, cfo, _ = self.goi(sid="DEMO_CFO")
-        self.assertEqual((st, cfo["tong"]), (200, 7), cfo)
+        self.assertEqual((st, cfo["tong"]), (200, 9), cfo)
 
     def test_ban_hang_binding_duong_va_nguoi_cung_pn_khong_binding(self):
         st, r, _ = self.goi(sid="DEMO_BH")
@@ -398,6 +438,95 @@ class S1HttpPg(HttpMixin, unittest.TestCase):
                 self.assertEqual((st, r["tong"], r["hop_dong"]), (200, 0, []), r)
                 self.assertTrue(r["khong_quyen_xem_tien"])
                 self.assertIsNone(r["the_so"]["W5"]["so_luong"])
+
+    def test_kt_thay_qua_han_va_w5_tren_hop_dong_hieu_luc(self):
+        from test_crm_42_s1_tinh import NGAY
+
+        for tag, sid in (("A", "DEMO_KT_A"), ("B", "DEMO_KT_B")):
+            with self.subTest(phap_nhan=tag):
+                hd = self.hd_qua_han[tag]
+                query = "?tim=HDC-S1-QUA-HAN-DEMO-" + tag
+                st, r, _ = self.goi(query, sid=sid)
+                self.assertEqual((st, r["tong"]), (200, 1), r)
+                h = r["hop_dong"][0]
+                self.assertEqual((h["id"], h["trang_thai"], h["phien_ban_hieu_luc"]), (hd, "HIEU_LUC", 1))
+                self.assertEqual(r["ngay_nghiep_vu"], NGAY.isoformat())
+                self.assertEqual(h["co"], ["QUA_HAN"])
+                self.assertFalse(h["khong_quyen_xem_tien"])
+                self.assertEqual(h["dot_ke_tiep"]["han"], (NGAY - timedelta(days=1)).isoformat())
+                self.assertGreater(int(h["thu_crm"]["theo_tien_te"][0]["con_lai_minor"]), 0)
+                self.assertEqual((h["viec"]["W5"], r["the_so"]["W5"]["so_luong"]), (1, 1))
+                # Một đợt quá hạn; W5 chỉ đếm đợt khác đến hạn trong 7 ngày tới.
+                for loc in ("?co=QUA_HAN", "?the=W5", query + "&co=QUA_HAN"):
+                    st, r, _ = self.goi(loc, sid=sid)
+                    self.assertEqual((st, r["tong"], [h["id"] for h in r["hop_dong"]]), (200, 1, [hd]), r)
+                    self.assertEqual(r["the_so"]["W5"]["so_luong"], 1)
+
+    def test_sql_che_scalar_qua_han_truoc_lop_python(self):
+        from kho_tri_thuc.k2 import quyen
+        from kho_tri_thuc.k2.crm_s1 import SQL, _sql
+
+        m = self.app._crm_g
+        for login, tags, thay_tien in (
+                ("MO_PHONG_KT_A", ("A",), {"A"}),
+                ("MO_PHONG_XEM_A", ("A",), set()),
+                ("MO_PHONG_CRM_G_KT_A", ("A",), set()),
+                ("MO_PHONG_S1_KT_TRON", ("A", "B"), {"A"})):
+            with self.subTest(login=login):
+                dt = m.danh_tinh(login)
+                with m._tx(dt, rr=True) as c:
+                    c.execute("SET TRANSACTION READ ONLY")
+                    rows = {str(r["id"]): r for r in c.execute(*_sql(
+                        SQL, {}, quyen.pham_vi(dt, "XEM_TIEN"), m.hom_nay(), list(self.hd_qua_han.values())))}
+                self.assertEqual(set(rows), {self.hd_qua_han[t] for t in tags})
+                for tag in tags:
+                    row = rows[self.hd_qua_han[tag]]
+                    self.assertIs(row["xem_tien"], tag in thay_tien)
+                    self.assertIs(row["qua_han"], tag in thay_tien)
+                    self.assertEqual(row["den_han"], 1 if tag in thay_tien else 0)
+
+    def test_xem_va_kt_thieu_m1_khong_suy_ra_qua_han_hoac_w5(self):
+        for sid in ("DEMO_XEM", "DEMO_KT_NO_M1"):
+            with self.subTest(sid=sid):
+                st, r, _ = self.goi("?tim=HDC-S1-QUA-HAN-DEMO-A", sid=sid)
+                self.assertEqual((st, r["tong"]), (200, 1), r)
+                h = r["hop_dong"][0]
+                self.assertEqual(h["id"], self.hd_qua_han["A"])
+                self.assertEqual(h["co"], [])
+                self.assertTrue(h["khong_quyen_xem_tien"])
+                for k in ("gia_tri_minor", "thu_crm", "dot_ke_tiep"):
+                    self.assertIsNone(h[k])
+                self.assertIsNone(h["viec"]["W5"])
+                self.assertIsNone(r["the_so"]["W5"]["so_luong"])
+                for query in ("?co=QUA_HAN", "?the=W5", "?co=QUA_HAN&the=W5",
+                              "?tim=HDC-S1-QUA-HAN-DEMO-A&co=QUA_HAN"):
+                    st, r, _ = self.goi(query, sid=sid)
+                    self.assertEqual((st, r["tong"], r["hop_dong"]), (200, 0, []), r)
+                    self.assertTrue(r["khong_quyen_xem_tien"])
+                    self.assertIsNone(r["the_so"]["W5"]["so_luong"])
+                    self.assertEqual(r["the_so"]["W5"]["trang_thai"], "KHONG_CO_QUYEN")
+                    if "co=" in query:
+                        self.assertTrue(all(r["the_so"][w]["so_luong"] == 0 for w in ("W1", "W2", "W3", "W4")))
+
+    def test_tron_pham_vi_chi_pn_co_m1_lo_co_qua_han_va_w5(self):
+        st, r, _ = self.goi("?tim=HDC-S1-QUA-HAN-DEMO-", sid="DEMO_KT_TRON")
+        self.assertEqual((st, r["tong"]), (200, 2), r)
+        rows = {h["phap_nhan"]: h for h in r["hop_dong"]}
+        a, b = rows["PN_DEMO_A"], rows["PN_DEMO_B"]
+        self.assertEqual((a["id"], a["co"], a["viec"]["W5"]), (self.hd_qua_han["A"], ["QUA_HAN"], 1))
+        self.assertFalse(a["khong_quyen_xem_tien"])
+        self.assertEqual((b["id"], b["co"], b["viec"]["W5"]), (self.hd_qua_han["B"], [], None))
+        self.assertTrue(b["khong_quyen_xem_tien"])
+        self.assertIsNone(b["thu_crm"])
+        self.assertEqual(r["the_so"]["W5"]["so_luong"], 1)
+        for query in ("?co=QUA_HAN", "?the=W5"):
+            st, r, _ = self.goi(query, sid="DEMO_KT_TRON")
+            self.assertEqual((st, r["tong"], [h["id"] for h in r["hop_dong"]]),
+                             (200, 1, [self.hd_qua_han["A"]]), r)
+            self.assertEqual(r["the_so"]["W5"]["so_luong"], 1)
+        st, r, _ = self.goi("?phap_nhan=PN_DEMO_B", sid="DEMO_KT_TRON")
+        self.assertEqual((st, r["tong"]), (200, 2), r)
+        self.assertIsNone(r["the_so"]["W5"]["so_luong"])
 
     def test_khong_module_rong_junsky_chua_co_so(self):
         st, r, _ = self.goi(sid="DEMO_NO_CRM")
