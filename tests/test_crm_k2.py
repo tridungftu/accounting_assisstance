@@ -29,7 +29,7 @@ except ImportError:  # pragma: no cover
 
 from kho_tri_thuc.ha_tang import postgres as pg
 from kho_tri_thuc.ha_tang.config import Config
-from kho_tri_thuc.ha_tang.pg_migrations import M0010, M0010_V1_BAN_GIAO_DAU, PG_MIGRATIONS, PG_SCHEMA_VERSION
+from kho_tri_thuc.ha_tang.pg_migrations import M0010, M0010_V1_BAN_GIAO_DAU, M0013_COMMON, PG_MIGRATIONS, PG_SCHEMA_VERSION
 from kho_tri_thuc.ha_tang.primitives import DataError, canonical_json, sha256
 from kho_tri_thuc.k2 import crm_demo, m1_demo
 from kho_tri_thuc.k2.crm import CrmK2
@@ -191,7 +191,11 @@ class CrmK2Test(unittest.TestCase):
 
     # ------------------------------------------------------------------ nâng cấp
     def test_t01_nang_cap_v9_giu_du_lieu_va_link_huy_lich_su(self):
-        self.assertEqual((self.version_sau, self.version_lan_2, PG_SCHEMA_VERSION), (13, 13, 13))  # M0013 = M9/common (sau CRM 12)
+        self.assertEqual((self.version_sau, self.version_lan_2), (PG_SCHEMA_VERSION, PG_SCHEMA_VERSION))
+        self.assertGreaterEqual(PG_SCHEMA_VERSION, 13)
+        self.assertEqual([i + 1 for i, m in enumerate(PG_MIGRATIONS) if tuple(m) == tuple(M0013_COMMON)], [13])
+        prefix = self.admin.execute("SELECT version, checksum FROM master.schema_migrations WHERE version <= 13 ORDER BY version").fetchall()
+        self.assertEqual([tuple(r) for r in prefix], [(i + 1, H(m)) for i, m in enumerate(PG_MIGRATIONS[:13])])
         after = self.counts()
         for t in ("kho.chung_tu", "kho.lien_ket_chung_tu", "master.lich_thu"):
             self.assertGreaterEqual(after[t], self.truoc_nang_cap[t])
