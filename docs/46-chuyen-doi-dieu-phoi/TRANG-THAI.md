@@ -78,9 +78,11 @@ Quy tắc áp cho mọi lát từ 25/10 (CD-001 việc 3): không lát nào vi�
 | Nền PG v2 (lead) | Lead | — | 21:46 | 22:05 | — | 126 module 2327/21/66/67, 0 treo; 12 mã mới đã phân loại → T-NEN-a/b/c |
 | T-NEN-a, T-NEN-b, T-NEN-c | Codex | gpt-6.1-sol · high | 21:55 | 22:04 | lead chạy PG → kiem-nhanh | (T-NEN-b: mã sản phẩm `tools/source6_g5_e5/trich_xuat/danh_muc.py:280` có lệnh xóa tệp rollback; T-NEN-c: `tools/source6_lazy_excel/master_hd.py` thiếu trong git) |
 | AI-2b | Codex | gpt-6.1-sol · high | 21:35 | gộp 22:08 (295caef) | review-lat Opus Đạt | Xanh — PG: nhật ký 10/10, 0 mã lỗi mới; chuỗi migration 34 |
-| BG-e1 (BG-20, BG-19) | Codex | gpt-6.1-sol · high | 22:09 | — | — | — |
-| BG-e4 (BG-22) | Codex | gpt-6.1-sol · medium | 22:09 | — | — | — |
-| PDF-1 v2 | Codex | gpt-6.1-sol · medium | 22:02 | 22:03 | review-lat Opus (T-PDF + PDF-1) đang chạy | Xanh — PG: giao_ket 62/62, ky_ket 38/38, g02 hết lỗi; 0 mã lỗi mới |
+| BG-e1 (BG-20, BG-19) | Codex | gpt-6.1-sol · high | 22:09 | 22:22 (32557c3) | kiem-nhanh sau cùng cụm BG | node giao kết 27/27 |
+| BG-e2 (BG-21) | Codex | gpt-6.1-sol · high | 22:25 | — | — | — |
+| KY-DOCX (QD-27) | Claude | Opus | 22:20 | — | — | — |
+| BG-e4 (BG-22) | Codex | gpt-6.1-sol · medium | 22:09 | 22:10 → vòng 2 22:25 (DU_AN + test M4) | — | khung 19/19 |
+| PDF-1 v2 | Codex | gpt-6.1-sol · medium | 22:02 | 22:03 | review-lat Opus Đạt (hệ quả nghiệp vụ → Anh chọn QD-27; giữ chưa gộp, gộp cùng KY-DOCX) | Xanh — PG: giao_ket 62/62, ky_ket 38/38, g02 hết lỗi; 0 mã lỗi mới |
 | AI-2a | Claude | Opus | 21:12 | 21:30 | review-lat Opus độc lập đang chạy | Xanh — 78/78 (test_cong_ai 30); Cloud mặc định tắt |
 | L0-10b | Codex | gpt-6.1-sol · high | 20:45 | gộp 21:00 | kiem-nhanh Đạt | Xanh — 52/52; kiểm thật dịch vụ khớp |
 | UI-1b | Codex | gpt-6.1-sol · high | 20:55 | 21:02 | lead thử DEMO | Xanh — node khung 16/16; DEMO 8798 lần tải đầu không còn lỗi phiên |
