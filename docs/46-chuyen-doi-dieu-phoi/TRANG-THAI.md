@@ -6,10 +6,10 @@ Trạng thái lát: Đang code → Chờ kiểm → Chờ Anh (cổng A/B) → S
 
 | Lát | Việc | Worker | Nhánh · worktree | Giao lúc | Trạng thái |
 |---|---|---|---|---|---|
-| BG-1c | CRM · Báo giá sửa theo cổng A — máy chủ: Tổng VND = đơn giá × tỷ giá × diện tích + bằng chữ; tỷ giá mặc định trong `master.cau_hinh` (kế toán sửa, nhật ký); In sơ bộ; Chuyển cần khách + phí; M0030 bước Ký | Claude Opus · review Codex | `lat/bg-1c` · DEMO 8791 | 25/10 | Sửa vòng 2 — review Codex: 2 Chặn (miền tổng/tiền đợt Python ≠ SQL; Python nhận chữ số không ASCII) + 1 Nên sửa (lỗi tỷ giá theo trường) |
-| BG-1d | CRM · Báo giá màn hình 2 bước: bước 1 to/đầu (giá, tỷ giá, Tổng VND + bằng chữ, lịch VND, In sơ bộ); bước 2 sau khi khách đồng ý (khách, phí, Chuyển) | Claude Sonnet | `lat/bg-1d` (từ `lat/bg-1c`) · DEMO 8791 | 25/10 | Đang code |
+| BG-1d | CRM · Báo giá màn hình 2 bước: bước 1 to/đầu (giá, tỷ giá, Tổng VND + bằng chữ, lịch VND, In sơ bộ); bước 2 sau khi khách đồng ý (khách, phí, Chuyển) | Claude Sonnet · review Codex | `lat/bg-1d` (đã gộp BG-1b + BG-1c vòng 2) · DEMO 8791 | 25/10 | Chờ kiểm — test màn hình đạt hết, CRM 321 đạt, 0 mã lỗi mới; review Codex vòng 1 đang chạy |
 | L0-8 | Bật test PostgreSQL trên cụm DEMO (CSDL tạm `kho_test_*`, xóa sau khi chạy) — QD-20261025-10 | Claude Sonnet | `lat/l0-8` | 25/10 | Đang code |
-| C3 | CRM 42 · read-model danh sách hợp đồng S1 `GET /api/crm/hop-dong` (phạm vi theo vai, thẻ W1–W5, ô Junsky "chưa có sổ") | Codex | `lat/c3` | 25/10 | Đang code |
+| C3 | CRM 42 · read-model danh sách hợp đồng S1 `GET /api/crm/hop-dong` (phạm vi theo vai, thẻ W1–W5, ô Junsky "chưa có sổ") | Codex · review Claude | `lat/c3` | 25/10 | Chờ kiểm — commit 5138079; CRM 322 đạt, 0 mã lỗi mới (test PostgreSQL chờ L0-8); review Claude vòng 1 đang chạy |
+| DA-1 | CRM · Dự án đang bán — máy chủ + CSDL (M0031): thông tin bán hàng có phiên bản, đơn giá niêm yết + tiền tệ, loại hình + thuế, phí tiêu chuẩn, lô/căn, tiến độ G7 bán hàng áp dụng ngay, quyền, nhật ký, ảnh chụp mặc định cho báo giá | Claude Opus | `lat/da-1` · DEMO 8793 (CSDL riêng p8793) | 25/10 | Đang code |
 
 ## Lát đã xong (24/10)
 
@@ -17,6 +17,7 @@ Trạng thái lát: Đang code → Chờ kiểm → Chờ Anh (cổng A/B) → S
 |---|---|---|
 | L0-2h | Rà `luu/m4b2`, `luu/m4b3` (Codex, chỉ đọc): **không gộp** — phần dùng được (`docx_an_toan.py`) đã có trên hop-nhat giống hệt; delta còn lại đưa code/test về bản cũ (bỏ hàm review/chứng từ, bỏ UNIQUE cần cho FK M17, helper test lỗi `lam() got multiple values for argument ten`). Nhánh `luu/*` giữ nguyên, không xóa | — |
 | L0-2g | Testfix C18 review basis M4 (bản kế nhiệm `m4_02a_basis_async.cjs`): 31/32 → 32/32 | fdc3c2e |
+| BG-1c | CRM · Báo giá máy chủ theo cổng A: Tổng VND = đơn giá × tỷ giá × diện tích (làm tròn một lần) + bằng chữ; tỷ giá mặc định 26.000 trong cấu hình chung (kế toán sửa, nhật ký); In sơ bộ; Chuyển cần khách + phí; M0030 bước Ký. Review Codex: 2 Chặn + 1 Nên sửa, vòng 2 sửa đủ; Python = SQL 9/9 trên PostgreSQL thật; 170 đạt, 0 mã lỗi mới | ec73112 |
 | E1-3 | E1-MUA · bảng TT-05 (hàng/đơn giá) và lịch TT-20 từ DOCX trong bản vá #6; ô mơ hồ để trống + cờ rà soát; XD không đổi; 13 test mới | a7431d1 |
 | E1-2 | E1-MUA · quy tắc theo loại hợp đồng (bảng quy tắc; XD giữ nguyên — 9 đầu vào trùng hàm gốc) + phiên bản danh mục, trong bản vá #6; 42/0/0 | b391e09 |
 | M2e | M2-00 · nút "Tải từ cổng thuế" (route mỏng + giao diện + cấu hình); review Codex: 3 Chặn an toàn đã sửa vòng 2; 266 đạt; chạy với bộ tải giả — ca thật là M2f | 3b7f9e8 |
@@ -53,8 +54,9 @@ Worktree đo nền: `.claude/worktrees/nen-chinh-59b7d8e` (chinh) · `.claude/wo
 | `giao_dien\m4.py` | — |
 | `nguon\trich6_host.py`, `tools\chuan_bi_crm_demo.py`, `.gitattributes` | — |
 | `giao_dien\assets\app.js`, `index.html`, `ha_tang\config.py` | — |
-| `ha_tang\pg_migrations.py` | BG-1c (chỉ append M0030) |
-| `giao_dien\crm_g.py`, `k2\crm_giao_ket.py` | BG-1c |
+| `ha_tang\pg_migrations.py` | DA-1 (chỉ append M0031; M4-5a lấy M0032 sau DA-1) |
+| `giao_dien\crm_g.py` | DA-1 (C3 đã xong code — khối route `GET /api/crm/hop-dong` tách riêng, gộp trước DA-1) |
+| `k2\crm_giao_ket.py` | — (DA-3 giữ khi bắt đầu) |
 | `giao_dien\assets\crm_g.js`, `style.css` | BG-1d |
 | `m4\*` dùng chung | — |
 | `tests\` (chỉ test lỗi thời N5) | — |
@@ -65,8 +67,8 @@ Worktree đo nền: `.claude/worktrees/nen-chinh-59b7d8e` (chinh) · `.claude/wo
 
 | Màn | Trạng thái |
 |---|---|
-| CRM · Báo giá (#42, TL 45) | Cổng A gói 1: **Sửa rồi xem lại** (25/10) — BG-1c máy chủ xong (đang review), BG-1d màn hình 2 bước đang code → phiếu xem lại |
-| CRM · Dự án đang bán (yêu cầu mới 25/10) | Anh đã chốt thiết kế (QD-20261025-05…09) — DA-1 chờ BG-1c gộp (khóa migration) |
+| CRM · Báo giá (#42, TL 45) | Cổng A gói 1: **Sửa rồi xem lại** (25/10) — BG-1c máy chủ đã gộp (ec73112); BG-1d màn hình 2 bước chờ review Codex → lead tự kiểm DEMO → phiếu xem lại |
+| CRM · Dự án đang bán (yêu cầu mới 25/10) | Anh đã chốt thiết kế (QD-20261025-05…09) — DA-1 máy chủ đang code (M0031) → DA-2 màn hình → DA-3 báo giá nạp mặc định |
 | M4 · màn 03B | Anh duyệt checklist (QD-20261025-13) — M4-5a máy chủ (một phần bằng số tiền) → M4-5b màn hình |
 
 ## Việc phụ (lead làm, ghi để Anh biết)
