@@ -1,7 +1,8 @@
 """CRM-41-04A — service G4 ký lần đầu (hẹp) trên CHÍNH service G2/G3 (CrmGiaoKetK2 → CrmMauK2): cùng danh tính phiên, kết nối CHỦ BẢNG, giao dịch có
 GUC danh tính, biên nhận/ghim quyền M0018, kho bất biến write_immutable. Hàm SQL M0023 là nơi quyết định quyền/phạm vi/CAS/trạng thái/khóa sau ký.
 
-- Trình duyệt gửi: soan_id, expected_revision, expected_xuat_id (bản PDF_DAT dialog đã chụp), PDF bản ký (raw), tên tệp thuần, ngày ký, co_sua
+- Trình duyệt gửi: soan_id, expected_revision, expected_xuat_id (bản xuất có DOCX của revision hiện hành dialog đã chụp — QD-20261025-27 ký trên
+  DOCX, PDF G3 nếu có chỉ tham khảo và phải khớp), PDF bản ký (raw), tên tệp thuần, ngày ký, co_sua
   (boolean bắt buộc — false là khai Không hợp lệ), mô tả khi Có, người ký phía khách (tùy chọn), khóa. KHÔNG actor/PN/trạng thái/hash/đường dẫn/biên nhận.
 - Thứ tự: kiểm dạng yêu cầu → quyền + phạm vi HIỆN HÀNH (giao dịch ngắn) → parse PDF (pypdfium2, cấu trúc + có trang; scan nhận, hỏng/mã hóa
   fail closed; không OCR/so nội dung) → MỘT giao dịch: ghim quyền/phạm vi + biên nhận → căn cứ G3 do máy chủ resolve (hash/độ dài tệp G3 + input
@@ -24,6 +25,8 @@ HANH_DOC = "CRM_KY_DOC"  # action hẹp đọc bản ký (KT/KTT/CFO) trên mast
 TEP_KY_TOI_DA = 50 * 1024 * 1024  # cùng cap tệp tải lên của máy chủ (giao_dien/intake.MAX_FILE_SIZE)
 HIEN_THI_DA_KY = "Đã ký — chờ kế toán kiểm"
 MUC_DICH_TAI = "TAI_BAN_KY"
+# QD-20261025-27 (M0035): lần xuất đã công bố của đúng revision luôn có DOCX đã kiểm → ký được ở mọi trạng thái PDF; DA_CU (revision cũ/đã ký) không.
+XUAT_KY_DUOC = frozenset({"PDF_DAT", "PDF_CHUA_SAN_SANG", "PDF_LOI"})
 
 
 def _loi(ma: str, msg: str):
@@ -145,10 +148,11 @@ class CrmKyKetK2:
                              WHERE x.id = %s::uuid AND x.soan_id = %s::uuid AND x.loai = 'HOP_DONG'""", (y["expected_xuat_id"], y["soan_id"]))
             if x is None:
                 _loi("CRM_KY_XUAT_CU", "Bản xuất đã chụp không thuộc bản soạn này — tải lại căn cứ.")
-            if x["trang_thai"] != "PDF_DAT" or not x["pdf_sha256"]:
-                _loi("CRM_KY_XUAT_CHUA_DAT", "Bản xuất đã chụp chưa có PDF đạt — chưa ký được.")
-            self._doc_g3(x["docx_sha256"], x["docx_len"])
-            self._doc_g3(x["pdf_sha256"], x["pdf_len"])
+            if x["trang_thai"] not in XUAT_KY_DUOC or not x["docx_sha256"]:
+                _loi("CRM_KY_XUAT_CHUA_DAT", "Bản xuất đã chụp chưa có DOCX của revision hiện hành — chưa ký được.")
+            self._doc_g3(x["docx_sha256"], x["docx_len"])  # DOCX = căn cứ ký (QD-27)
+            if x["pdf_sha256"] is not None or x["pdf_len"] is not None:  # PDF G3 chỉ tham khảo: có thì phải khớp kho
+                self._doc_g3(x["pdf_sha256"], x["pdf_len"])
             m.mau_ghim_trong(c, y["soan_id"], x["revision"])  # mẫu ĐÃ GHIM còn đúng raw/hash/bản đồ (lỗi → không ký)
             input_sha = sha256(canonical_json({"soan_id": y["soan_id"], "revision": x["revision"], "du_lieu_sha256": x["du_lieu_sha256"],
                                                "raw_sha256": x["raw_sha256"], "ban_do_sha256": x["ban_do_sha256"],

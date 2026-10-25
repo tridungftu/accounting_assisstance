@@ -1174,7 +1174,9 @@ class WordThat(unittest.TestCase):
             if not san_sang or san_sang.get("buoc") != "SAN_SANG":
                 self.skipTest(f"Control Word của test chưa sở hữu/chứng minh được (NOT_VERIFIED, không PASS): {san_sang}")
             lan = self.chuan_bi()
-            kq = R.chuyen_pdf(lan, lan / "hd.docx", han=180)
+            # review PDF-1 điểm 3: đường Word thật chỉ chạy khi công tắc QD-26 bật (mặc định tắt → PDF_XUAT_TAY, không spawn) — bật cờ TRONG ca này
+            with mock.patch.dict(os.environ, {"KHO_CRM_WORD_PDF": "1"}):
+                kq = R.chuyen_pdf(lan, lan / "hd.docx", han=180)
             self.assertEqual(kq["trang_thai"], "PDF_DA_TAO", kq)
             self.assertIs(kq["word"].get("da_dung"), True, kq)
             self.assertNotEqual(kq["word"]["pid"], san_sang["pid"])  # worker chỉ chạm Word của chính nó

@@ -6,7 +6,8 @@ Chạy khi Root cấp KHO_PG_DSN_TEST lúc chạy (DSN chủ CSDL; không đọc
 module vay). Mẫu hợp đồng và bộ chuẩn G7 được dựng bằng LUỒNG DỊCH VỤ THẬT qua HTTP (tải → ánh xạ → gửi kiểm → KT kiểm → CFO duyệt; KT lập/gửi →
 CFO duyệt) — không owner INSERT đối tượng đã duyệt. Word/PDF: metadata Word/guard không chứng minh worker được phép chạy COM; PDF_DAT cần
 bằng chứng Word sở hữu đã dừng. Mặc định tắt → PDF_CHUA_SAN_SANG/PDF_XUAT_TAY; guard/PermissionError khi bật → lý do cụ thể,
-DOCX vẫn giữ, KHÔNG CHO_KY giả. Các ca thuần bật cờ chỉ chạy mock, không khởi chạy Word.
+DOCX vẫn giữ. KY-DOCX (QD-20261025-27, M0035): lần xuất ĐÚNG revision có DOCX → Chờ ký dù PDF xuất tay/lỗi (PDF chỉ tham khảo); lần xuất DA_CU
+(revision đổi khi render) KHÔNG Chờ ký. Các ca thuần bật cờ chỉ chạy mock, không khởi chạy Word.
 Không DROP/DELETE/cleanup — DB/role/thư mục giữ làm bằng chứng.
 Thiếu driver/DSN → skip = NOT_RUN (không tính đạt). Không chứng minh GUI/1440 click (Root chạy riêng).
 Ánh xạ ca nghiệm thu §8: c1 → g02/g03 · c2 → g04 · c3 → g05 · c4 → g01 · c5 → g06 · c6 → g02/g07 · c7 (async) → tests/crm_giao_ket_async.cjs.
@@ -433,7 +434,7 @@ class CrmGiaoKetHttp(unittest.TestCase):
         x = self.ok(BH, "soan/xuat", {"soan_id": sid, "expected_revision": 2, "khoa": self.K("x1")})
         self.s["soan_pdf_dat"] = self.pdf_dat(x)
         tt = self.q("SELECT trang_thai FROM master.crm_hd_soan WHERE id = %s", (sid,))
-        self.assertEqual(tt, "CHO_KY" if self.s["soan_pdf_dat"] else "SOAN_THAO")  # PDF chưa sẵn sàng → KHÔNG CHO_KY
+        self.assertEqual(tt, "CHO_KY")  # QD-27 (M0035): DOCX đúng revision → Chờ ký, không phụ thuộc PDF
         docx1 = self.goi(f"/api/crm/giao-ket/tep/{x['xuat_id']}/docx", cookie=self.sid(BH))[1]
         self.assertEqual(hashlib.sha256(docx1).hexdigest(), x["docx_sha256"])
         v2, v2_sha = self.mau_hieu_luc("HD_GK_" + self.run_id, ngay(-1), "MAU V2")  # cùng mã mẫu → v2; đóng v1
@@ -469,11 +470,11 @@ class CrmGiaoKetHttp(unittest.TestCase):
         from kho_tri_thuc.nguon import crm_docx as R
         sid = self.s["soan"]
         rev = self.q("SELECT revision_hien_hanh FROM master.crm_hd_soan WHERE id = %s", (sid,))
-        # FIX01 (fixture g07): g06 có thể đã đưa bản soạn sang CHO_KY (PDF_DAT thật). PDF lỗi của lần SAU không được đổi trạng thái theo bất kỳ
-        # hướng nào: không CHO_KY giả, cũng không hạ về SOAN_THAO — trạng thái/discriminator trước đó giữ nguyên.
+        # FIX01 (fixture g07) + QD-27 (M0035): lần xuất cuối của g06 (đúng revision, có DOCX) đã đưa bản soạn sang CHO_KY. Lần xuất SAU cùng
+        # revision (PDF xuất tay hoặc PDF lỗi) giữ CHO_KY — không hạ về SOAN_THAO; DOCX luôn giữ.
         truoc = tuple(self.admin.execute("""SELECT s.trang_thai, h.trang_thai, h.crm_giao_ket FROM master.crm_hd_soan s JOIN master.hop_dong h
                                              ON h.id = s.hop_dong_id WHERE s.id = %s""", (sid,)).fetchone())
-        self.assertEqual(truoc[0], "CHO_KY" if self.s["soan_pdf_dat"] else "SOAN_THAO", truoc)  # kết quả xuất thực tế ở g06
+        self.assertEqual(truoc, ("CHO_KY", "CHO_KY", "CHO_KY"), truoc)  # kết quả xuất thực tế ở g06 (QD-27: Chờ ký trên DOCX)
         x = self.ok(BH, "soan/xuat", {"soan_id": sid, "expected_revision": rev, "khoa": self.K("pdf-tay")})
         self.assertFalse(self.pdf_dat(x))  # PDF_CHUA_SAN_SANG + lý do PDF_XUAT_TAY được lưu đúng.
         self.assertEqual(self.goi(f"/api/crm/giao-ket/tep/{x['xuat_id']}/docx", cookie=self.sid(BH))[0], 200)
@@ -497,6 +498,7 @@ class CrmGiaoKetHttp(unittest.TestCase):
         with patch.object(GK.CrmGiaoKetK2, "render", render_roi_sua):
             x = self.ok(BH, "soan/xuat", {"soan_id": sid, "expected_revision": rev, "khoa": self.K("stale")})
         self.assertEqual((x["trang_thai"], x["da_cu"]), ("DA_CU", True))  # không gắn tệp như hiện hành
+        self.assertEqual(self.q("SELECT trang_thai FROM master.crm_hd_soan WHERE id = %s", (sid,)), "SOAN_THAO")  # QD-27: DA_CU không đưa sang Chờ ký
         rev2 = rev + 1
 
         def render_roi_thu_hoi(self_, kh):
