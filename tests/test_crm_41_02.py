@@ -440,9 +440,12 @@ class HttpShellTinh(unittest.TestCase):
         self.assertGreaterEqual(js.count('K.vaiDangChan("crm_g")'), 4)
         for cam in ("innerHTML", "outerHTML", "insertAdjacentHTML", "eval(", "new Function", "document.write"):
             self.assertNotIn(cam, js)
-        for route in ("/api/crm/mau/tai", "/api/crm/mau/tep/", "/api/crm/mau/so-sanh", "/api/crm/bo-chuan", '"mau/tra-lai"', '"mau/tu-choi"',
-                      '"bo-chuan/gui-duyet"', '"bo-chuan/duyet"'):
+        for route in ("/api/crm/mau/tai", "/api/crm/mau/tep/", "/api/crm/mau/so-sanh", "/api/crm/bo-chuan", '"mau/tra-lai"', '"mau/tu-choi"'):
             self.assertIn(route, js)
+        # QD-20261025-07: G7 áp dụng ngay qua du-an-ban/tien-do trong Dự án đang bán, bỏ bước CFO duyệt.
+        # Giao diện ghép route từ tiền tố và hành động; route máy chủ cũ không thuộc kiểm tra shell này.
+        self.assertIn('const path = "du-an-ban/" + f.hanh', js)
+        self.assertIn('["Sửa tiến độ tiêu chuẩn", "tien-do"]', js)
         # U01: giữ chỗ ý định ĐỒNG BỘ (không await trong hàm giữ chỗ); một header/khóa gốc tạo lúc giữ chỗ; gửi lại dùng đúng y.enc/y.file
         giu = js[js.index("function giuChoYDinh()"):js.index("async function guiTai(")]
         self.assertNotIn("await", giu)

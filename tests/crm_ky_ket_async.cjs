@@ -205,7 +205,7 @@ async function main() {
   await traKhac();
   await traDs(BH);
   await traKhac();
-  nut(gk(), "Soạn hợp đồng (G3)").click(); await chay();
+  nut(gk(), "Soạn hợp đồng").click(); await chay();
   await traDs(BH);
 
   // ---------------------------------------------------------------- K0 dương: điều kiện ký + dialog căn cứ
@@ -491,8 +491,8 @@ async function main() {
     const p3 = cho(postKy, "K10 POST ý định mới");
     assert.notStrictEqual(JSON.parse(decodeURIComponent(p3.opts.headers["X-CRM-G-Info"])).khoa, khoaGoc, "K10: ý định mới dùng khóa gốc");
     assert.strictEqual(p3.opts.body, F2, "K10: ý định mới không phải File mới");
-    nut(gk(), "Báo giá (G2)").click(); await chay();
-    nut(gk(), "Soạn hợp đồng (G3)").click(); await chay();
+    nut(gk(), "Báo giá").click(); await chay();
+    nut(gk(), "Soạn hợp đồng").click(); await chay();
     assert.ok(dialog(), "K10: chuẩn bị — dialog không còn sau G3→G2→G3");
     go("ky-nguoi", "Ông B"); await chay();
     datToast(""); nDs = dem(getDs); nSo = dem(getSo);
