@@ -77,7 +77,8 @@ Quy tắc áp cho mọi lát từ 25/10 (CD-001 việc 3): không lát nào vi�
 | T-PDF + PDF-1 | Codex | gpt-6.1-sol · high | 21:35 | 21:53 (PDF-1: công tắc Word→PDF mặc định tắt, QD-26) | chờ PG (sau đo nền) → kiem-nhanh | thuần 2/2; **phát hiện: sản phẩm chưa có công tắc tắt Word COM** (`nguon/crm_docx.py` ~:374, :530, :933) — CLAUDE.md §2 'không Word COM' → hỏi Anh |
 | Nền PG v2 (lead) | Lead | — | 21:46 | 22:05 | — | 126 module 2327/21/66/67, 0 treo; 12 mã mới đã phân loại → T-NEN-a/b/c |
 | T-NEN-a, T-NEN-b, T-NEN-c | Codex | gpt-6.1-sol · high | 22:08 | — | — | — |
-| AI-2b | Codex | gpt-6.1-sol · high | 21:35 | 21:43 | chờ PG (sau đo nền) → kiem-nhanh → review-lat | thuần 58 đạt; M0034 (11 cột, không cột văn bản) |
+| AI-2b | Codex | gpt-6.1-sol · high | 21:35 | 21:43 | review-lat Opus đang chạy | Xanh — PG: nhật ký 10/10, 0 mã lỗi mới so nền PG v2 |
+| PDF-1 v2 | Codex | gpt-6.1-sol · medium | 22:02 | — | — | — |
 | AI-2a | Claude | Opus | 21:12 | 21:30 | review-lat Opus độc lập đang chạy | Xanh — 78/78 (test_cong_ai 30); Cloud mặc định tắt |
 | L0-10b | Codex | gpt-6.1-sol · high | 20:45 | gộp 21:00 | kiem-nhanh Đạt | Xanh — 52/52; kiểm thật dịch vụ khớp |
 | UI-1b | Codex | gpt-6.1-sol · high | 20:55 | 21:02 | lead thử DEMO | Xanh — node khung 16/16; DEMO 8798 lần tải đầu không còn lỗi phiên |
@@ -133,6 +134,10 @@ Quy tắc áp cho mọi lát từ 25/10 (CD-001 việc 3): không lát nào vi�
 | L0-2i | 27 file chưa vào git, 26 file có bản mới hơn ngoài git | 8b4670f |
 
 Worktree đo nền: `.claude/worktrees/nen-chinh-59b7d8e` (chinh) · `.claude/worktrees/nen-hop-nhat-v2` (hop-nhat 7b114e2).
+
+## Cần điều tra (lead)
+
+- 25/10 21:56–21:58: trong lượt PG của AI-2b, **26 CSDL `kho_test_*` cũ (có từ trước) biến mất — bộ chạy ghi 'không phải do công cụ này'**; không có biên nhận của `DỌN CSDL TEST CŨ.cmd`. Không hại (CSDL test cũ) nhưng trái hứa hẹn 'chỉ xóa CSDL do bộ chạy tạo' → tìm module/tiến trình đã DROP (sổ `%TEMP%\ktt-theo-module-20261025-215622\pg-demo-so-ghi.json`, mục `canh_bao`).
 
 ## Khóa file dùng chung (mỗi lúc một lát)
 
