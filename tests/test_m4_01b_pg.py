@@ -4,7 +4,7 @@ Chạy khi Root cấp KHO_PG_DSN_TEST (DSN chủ CSDL, qua env lúc chạy — k
 migrate mặc định (prefix 1–16 + M17), seed CRM DEMO + M4 DEMO; login ứng dụng tạm (NOSUPERUSER NOBYPASSRLS, IN ROLE app_web) cho lệnh người dùng;
 kết nối chủ CSDL riêng làm đường ghi nguồn tin cậy (inject như factory). Actor MO_PHONG_*. Không DROP/DELETE/TRUNCATE/cleanup — DB/role/thư mục
 giữ làm bằng chứng. Thiếu driver/DSN → skip = NOT_RUN/NOT_VERIFIED, không tính đạt. Ca cần lõi nguồn đã nạp (review_goc) skip riêng khi chưa nạp.
-Chưa có Local AI: trích chạy chế độ QUY_TAC_KHONG_AI trên DOCX/XLSX thật; không có ca nào chứng minh độ chính xác AI.
+Client #6 giả trong tiến trình trả đủ 37 mã CHUA_CO; DOCX/XLSX và kiểm căn cứ vẫn chạy thật. Không chứng minh độ chính xác engine/AI.
 
 T01 migrate + seed đủ, seed chạy lại không thêm/không cấp lại.
 T02 nhận tệp: thiếu đường tin cậy → chưa sẵn sàng, không ghi bytes; bytes thật → tệp + raw giữ; replay/đổi body/cùng bytes khóa khác; tên/media xấu bị chặn.
@@ -40,9 +40,10 @@ try:
 except ImportError:  # pragma: no cover
     psycopg = None
 
-from kho_tri_thuc.ha_tang.primitives import DataError
+from kho_tri_thuc.ha_tang.primitives import DataError, canonical_json, sha256
 from kho_tri_thuc.kiem_chung import fixtures_m4 as F
 from kho_tri_thuc.m4 import nguon_review as NR
+from kho_tri_thuc.nguon import trich_chung_6 as T6
 
 ADMIN_DSN = os.environ.get("KHO_PG_DSN_TEST")
 A1, A2, B1 = "MO_PHONG_DU_AN_A1", "MO_PHONG_DU_AN_A2", "MO_PHONG_DU_AN_B1"
@@ -106,6 +107,51 @@ def _cam(*a, **k):
     raise AssertionError("Replay không được chạy lại xử lý/ghi tệp")
 
 
+class _Trich6Gia:
+    """Client #6 trong tiến trình; không suy giá trị thay oracle nhập tay, không mạng/AI."""
+    san_sang = True
+
+    def __init__(self):
+        self.goi = []
+
+    def trich(self, raw, *, ten_tep, loai_hop_dong, tham_so, request_id):
+        if (ten_tep, loai_hop_dong, tham_so) != ("hop_dong.docx", "XD", "ALL"):
+            raise AssertionError("Test M4 phải yêu cầu đủ danh mục XD trên DOCX")
+        yc = T6.yeu_cau_common(source_sha256=sha256(raw), loai_hop_dong=loai_hop_dong, tham_so=tham_so, request_id=request_id)
+        self.goi.append(yc)
+        cm = {**yc, "body_sha256": T6.body_sha256(yc), "tham_so_da_dung": list(NR.MA_DANH_MUC),
+              "implementation": {"sha256": sha256(b"T-M4a-client-gia")}}
+        kq = {"che_do": T6.MODE, "common": cm,
+              "bang": [{"ma": ma, "gia_tri": None, "trich_dan": None} for ma in NR.MA_DANH_MUC]}
+        T6.kiem_ket_qua(kq, yc)
+        raw_kq = canonical_json(kq).encode("utf-8")
+        return {"luot": "gia-" + request_id, "raw_ket_qua": raw_kq, "raw_sha256": sha256(raw_kq),
+                "ket_qua": kq, "common": cm, "yeu_cau": yc}
+
+
+class Trich6GiaTests(unittest.TestCase):
+    def test_docx_qua_adapter_du_37_ma_va_giu_raw(self):
+        client, raw = _Trich6Gia(), F.hop_dong_docx()
+        tam = Path(tempfile.mkdtemp(prefix="ktt_m4a_trich6_"))  # giữ bằng chứng
+        kq = NR.trich_hop_dong(raw, F.MEDIA_DOCX, tam, client=client, request_id="m4:test-gia")
+        self.assertEqual((kq["trang_thai"], kq["che_do"]), ("XONG", "QUY_TAC_KHONG_AI"))
+        self.assertEqual([r["ma"] for r in kq["ket_qua"]], list(NR.MA_DANH_MUC))
+        self.assertTrue(all(r["trang_thai"] == "CHUA_CO" and r["gia_tri"] is None for r in kq["ket_qua"]))
+        h = kq["phieu"]["ket_qua_6_sha256"]
+        self.assertEqual(sha256((tam / f"ket_qua_6_{h}.json").read_bytes()), h)
+        self.assertEqual(len(client.goi), 1)
+        self.assertEqual(client.goi[0]["source_sha256"], sha256(raw))
+
+    def test_track_changes_chan_truoc_client(self):
+        client = _Trich6Gia()
+        tam = Path(tempfile.mkdtemp(prefix="ktt_m4a_track_"))  # giữ bằng chứng
+        kq = NR.trich_hop_dong(F.hop_dong_docx(track_changes=True), F.MEDIA_DOCX, tam,
+                              client=client, request_id="m4:test-track")
+        self.assertEqual(kq["trang_thai"], "KHONG_HO_TRO")
+        self.assertEqual(list(tam.iterdir()), [])
+        self.assertEqual(client.goi, [])
+
+
 @unittest.skipUnless(psycopg is not None and ADMIN_DSN, "Không có psycopg hoặc KHO_PG_DSN_TEST — test PG M4-01B không chạy (NOT_RUN, không tính đạt)")
 class M4PG(unittest.TestCase):
     """Chạy theo thứ tự tên t01…t10 trên MỘT DB; trạng thái qua cls.s."""
@@ -128,7 +174,8 @@ class M4PG(unittest.TestCase):
         cls.web = psycopg.connect(cls.app_dsn, autocommit=True, row_factory=dict_row)
         cls.chu = psycopg.connect(cls.dsn, autocommit=True, row_factory=dict_row)  # đường ghi nguồn tin cậy (chủ bảng)
         cls.goc = Path(tempfile.mkdtemp(prefix="ktt_m4b_pg_"))                      # giữ lại
-        cls.svc = XayDungK2(cls.web, cls.goc / "m4-k2", conn_tin_cay=cls.chu)
+        cls.trich6 = _Trich6Gia()
+        cls.svc = XayDungK2(cls.web, cls.goc / "m4-k2", conn_tin_cay=cls.chu, trich6=cls.trich6)
         cls.XayDungK2 = XayDungK2
         cls.run_id = uuid.uuid4().hex[:8]  # nonce của lần chạy — KHÔNG đặt tên `run` (che unittest.TestCase.run)
         cls.s = {"replay": []}
@@ -330,7 +377,8 @@ class M4PG(unittest.TestCase):
         self.s["dot_nop"] = dot
         # ---- replay sau các thay đổi hợp lệ về sau: đúng key/body/revision gốc → đúng kết quả cũ, không xử lý/ghi lại
         truoc = self.dem()
-        with patch.object(NR, "trich_hop_dong", _cam), patch.object(NR, "boq_doc", _cam), patch.object(NR, "van_ban_hop_dong", _cam), \
+        with patch.object(self.trich6, "trich", _cam), patch.object(NR, "trich_hop_dong", _cam), \
+                patch.object(NR, "boq_doc", _cam), patch.object(NR, "van_ban_hop_dong", _cam), \
                 patch("kho_tri_thuc.k2.xay_dung.write_immutable", _cam):
             for login, ten_lenh, kw, r in self.s["replay"]:
                 lai = getattr(self.svc, ten_lenh)(login, **kw)
