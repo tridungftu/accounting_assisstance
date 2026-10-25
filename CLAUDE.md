@@ -6,7 +6,7 @@
 
 ## 1. Ai làm gì (Anh chốt 23–24/10/2026)
 
-- **Lead = phiên Claude Code chính trên máy Anh, model Opus.** Codex Root đã dừng hẳn từ 24/10; Codex là worker (qua `codex exec`) và reviewer chéo khi lead gọi. **Lệnh Anh 25/10 (QD-20261025-16): ưu tiên giao Codex nhiều lát nhỏ (≤ 3–5 file) để tiết kiệm chi phí, luôn kiểm soát** — lead kiểm diff đúng file được phép, tự chạy test so nền, Claude review chéo, lead commit.
+- **Lead = phiên Claude Code chính trên máy Anh, model Opus.** Codex Root đã dừng hẳn từ 24/10; Codex là worker (qua `codex exec`) và reviewer chéo khi lead gọi. **Lệnh Anh 25/10 (QD-20261025-16, -21): chia tối đa việc cho Codex** — mọi việc lập trình (kể cả migration, sửa test, script, review chéo code Claude) giao Codex theo lát nhỏ ≤ 3–5 file; lead chỉ giữ git/gộp, chạy PostgreSQL/DEMO, thử trình duyệt và cổng kiểm soát (diff đúng file, chữ Việt không bị ghi thành `?`, tự chạy test so nền); Claude chỉ review lát rủi ro cao (tiền, quyền, xóa dữ liệu).
 - Worker Claude: subagent `worker-lat-man-hinh` (Sonnet, worktree riêng). Kiểm nhanh: `kiem-nhanh` (Haiku, chỉ đọc). Lead tự chọn từng lát giao Claude hay Codex. Tối đa 3 worker cùng lúc.
 - **Lệnh của Anh 24/10/2026:** lead phân công Claude và Codex cho **tất cả các module** có thiết kế đã chốt trong hàng đợi (`HANG-DOI-YEU-CAU.md`, `THIET-KE-MODULE-DE-CHOT-2026-10-20\HANG-CHO-CODE.md`) — gồm #42 Báo giá (TL 45), #40 M2-00, #41 E1-MUA, phần còn lại của M4 · Nghiệm thu & chi phí dự án và CRM. M9 vẫn dừng. Module/đầu việc chưa chốt thiết kế: lead soạn checklist ngắn từ tài liệu thiết kế, hỏi Anh bằng bảng chọn trước khi code.
 
