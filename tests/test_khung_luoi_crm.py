@@ -1,4 +1,4 @@
-"""UI-2: thuần/mock biên CSDL, chạy service G1/G2/S1 thật, không mở server."""
+"""UI-2/UI-2b: thuần/mock biên CSDL, chạy service G1/G2/S1 thật, không mở server."""
 import json
 import threading
 import unittest
@@ -53,7 +53,7 @@ class MauKhungGia(MauGia):
 
     def _nhieu(self, c, sql, params=()):
         if "FROM master.crm_bao_gia b" in sql:
-            return deepcopy(self.bg)
+            return deepcopy(self.bg[:200])
         if "FROM master.crm_mau m" in sql:
             return deepcopy(self.mau_rows)
         return []
@@ -104,6 +104,63 @@ class KhungCrmTinh(unittest.TestCase):
         a = CrmKhungK2(MauKhungGia("KE_TOAN")).module("MO_PHONG_KE_TOAN")
         b = CrmKhungK2(MauKhungGia("KE_TOAN_TRUONG")).module("MO_PHONG_KE_TOAN_TRUONG")
         self.assertEqual(a, b)
+
+    def test_ban_hang_hop_dong_dem_w1_cong_w2_khong_so_thu_tien(self):
+        m = MauKhungGia(rows=[dong(id="DEMO-CHO-KY"),
+                             dong(id="DEMO-TRA-LAI", trang_thai="TRA_LAI_CHO_KY_LAI"),
+                             dong(id="DEMO-BO-SUNG", trang_thai="CHO_BO_SUNG"),
+                             dong(id="DEMO-YEU-CAU-MO", trang_thai="HIEU_LUC", bo_sung_mo=True),
+                             dong(id="DEMO-HIEU-LUC", trang_thai="HIEU_LUC")])
+        svc = CrmKhungK2(m)
+        r = svc.module("MO_PHONG_BAN_HANG")
+        w1 = svc.danh_sach_loc("MO_PHONG_BAN_HANG", "hop_dong", {"the": "W1"})
+        w2 = svc.danh_sach_loc("MO_PHONG_BAN_HANG", "hop_dong", {"the": "W2"})
+        p = {p["ma"]: p for p in r["phan"]}
+        self.assertEqual((w1["tong"], w2["tong"], p["hop_dong"]["so_viec"]), (3, 1, 4))
+        self.assertEqual(p["hop_dong"]["so_viec"], len(w1["hop_dong"]) + len(w2["hop_dong"]))
+        self.assertTrue(p["hop_dong"]["qua_han"])
+        self.assertNotIn("so_viec", p["thu_tien"])
+
+    def test_ke_toan_thu_tien_dem_hd_den_han_7_ngay_khong_dem_qua_han(self):
+        rows = [dong(id="DEMO-HOM-NAY", lich=[lich(), lich(dot=2)]),
+                dong(id="DEMO-NGAY-7", lich=[lich(han="2026-11-01")]),
+                dong(id="DEMO-QUA-HAN", lich=[lich(han="2026-10-24")]),
+                dong(id="DEMO-NGAY-8", lich=[lich(han="2026-11-02")]),
+                dong(id="DEMO-MOC", lich=[lich(han=None)]),
+                dong(id="DEMO-DA-THU", lich=[lich(thu="100")])]
+        for vai in ("KE_TOAN", "KE_TOAN_TRUONG"):
+            with self.subTest(vai=vai):
+                svc = CrmKhungK2(MauKhungGia(vai, rows=rows))
+                r = svc.module("MO_PHONG_" + vai)
+                ds = svc.danh_sach_loc("MO_PHONG_" + vai, "hop_dong", {"the": "W5"})
+                p = next(p for p in r["phan"] if p["ma"] == "thu_tien")
+                self.assertEqual({h["id"] for h in ds["hop_dong"]}, {"DEMO-HOM-NAY", "DEMO-NGAY-7"})
+                self.assertEqual((p["so_viec"], ds["tong"], ds["the_so"]["W5"]["so_luong"]), (2, 2, 3))
+                self.assertFalse(p["qua_han"])
+
+    def test_cfo_hop_dong_cho_duyet_khop_danh_sach_mau_cho_khong_canh_bao(self):
+        svc = CrmKhungK2(MauKhungGia("CFO", rows=[
+            dong(id="DEMO-DUYET-1", trang_thai="CHO_DUYET"),
+            dong(id="DEMO-DUYET-2", trang_thai="CHO_DUYET"),
+            dong(id="DEMO-KIEM", trang_thai="CHO_KIEM"),
+            dong(id="DEMO-HIEU-LUC", trang_thai="HIEU_LUC")]))
+        r = svc.module("MO_PHONG_CFO")
+        ds = svc.danh_sach_loc("MO_PHONG_CFO", "hop_dong", {"trang_thai": "CHO_DUYET"})
+        p = next(p for p in r["phan"] if p["ma"] == "hop_dong")
+        self.assertEqual((p["so_viec"], ds["tong"], len(ds["hop_dong"])), (2, 2, 2))
+        self.assertFalse(p["qua_han"])
+        t = next(t for t in r["the"] if t["ma"] == "mau_cho_duyet")
+        self.assertEqual(t["so"], 1)
+        self.assertFalse(t["canh_bao"])
+        self.assertFalse(next(p for p in r["phan"] if p["ma"] == "mau")["qua_han"])
+
+    def test_nguoi_xem_khong_goi_danh_sach_w5(self):
+        svc = CrmKhungK2(MauKhungGia("XEM"))
+        with patch.object(svc, "danh_sach_loc", wraps=svc.danh_sach_loc) as doc:
+            r = svc.module("MO_PHONG_XEM")
+        doc.assert_called_once_with("MO_PHONG_XEM", "hop_dong", {"trang_thai": "HIEU_LUC", "trang": "100000"})
+        self.assertEqual([t["ma"] for t in r["the"]], ["hd_hieu_luc"])
+        self.assertTrue(all("so_viec" not in p for p in r["phan"]))
 
     def test_moi_the_so_bang_danh_sach_loc_cung_service(self):
         for vai in ("BAN_HANG", "KE_TOAN", "CFO", "XEM"):
@@ -156,14 +213,14 @@ class KhungCrmTinh(unittest.TestCase):
         r = CrmKhungK2(m).module("MO_PHONG_BAN_HANG")
         self.assertTrue(all(t["so"] == 0 for t in r["the"]))
         p = {p["ma"]: p for p in r["phan"]}
-        for ma in ("hop_dong", "bao_gia", "thu_tien"):
+        for ma in ("hop_dong", "bao_gia"):
             self.assertEqual(p[ma]["so_viec"], 0)
             self.assertFalse(p[ma]["qua_han"])
-        for ma in ("mau", "tiep_nhan", "bao_cao"):
+        for ma in ("mau", "tiep_nhan", "thu_tien", "bao_cao"):
             self.assertNotIn("so_viec", p[ma])
 
     def test_khong_tien_an_the_so_tien_ca_khi_co_du_lieu(self):
-        for vai in ("KE_TOAN", "CFO"):
+        for vai in ("KE_TOAN", "KE_TOAN_TRUONG", "CFO"):
             with self.subTest(vai=vai):
                 r = CrmKhungK2(MauKhungGia(vai, modules=["CRM"])).module("MO_PHONG_" + vai)
                 self.assertNotIn("hd_dot_qua_han", [t["ma"] for t in r["the"]])
@@ -171,18 +228,35 @@ class KhungCrmTinh(unittest.TestCase):
 
     def test_phan_qua_han_dung_nguon_khong_to_do_cho_ky_chua_co_nguong(self):
         r = CrmKhungK2(MauKhungGia("KE_TOAN")).module("MO_PHONG_KE_TOAN")
-        self.assertTrue(next(p for p in r["phan"] if p["ma"] == "thu_tien")["qua_han"])
+        self.assertFalse(next(p for p in r["phan"] if p["ma"] == "thu_tien")["qua_han"])
         self.assertFalse(next(p for p in r["phan"] if p["ma"] == "hop_dong")["qua_han"])
-        bh = CrmKhungK2(MauKhungGia()).module("MO_PHONG_BAN_HANG")
+        self.assertTrue(next(t for t in r["the"] if t["ma"] == "hd_dot_qua_han")["canh_bao"])
+        cfo = CrmKhungK2(MauKhungGia("CFO")).module("MO_PHONG_CFO")
+        self.assertTrue(next(p for p in cfo["phan"] if p["ma"] == "thu_tien")["qua_han"])
+        bh = CrmKhungK2(MauKhungGia(rows=[dong()])).module("MO_PHONG_BAN_HANG")
         self.assertFalse(next(p for p in bh["phan"] if p["ma"] == "hop_dong")["qua_han"])
         self.assertNotIn("hd_cho_ky_qua_han", [t["ma"] for t in bh["the"]])
 
     def test_bao_gia_cham_tran_khong_tra_tong_cat_cut(self):
-        m = MauKhungGia()
-        m.bg = [deepcopy(m.bg[0]) for _ in range(200)]
-        r = CrmKhungK2(m).module("MO_PHONG_BAN_HANG")
-        self.assertNotIn("bao_gia_nhap", [t["ma"] for t in r["the"]])
-        self.assertNotIn("so_viec", next(p for p in r["phan"] if p["ma"] == "bao_gia"))
+        for so_dong in (199, 200, 205):
+            with self.subTest(so_dong=so_dong):
+                m = MauKhungGia()
+                m.bg = [{**deepcopy(m.bg[i % 2]), "id": f"DEMO-BG-{i}"} for i in range(so_dong)]
+                st, ds, _ = doc_route(m, "/api/crm/bao-gia?trang_thai=NHAP")
+                self.assertEqual(st, 200)
+                self.assertEqual(len(ds["bao_gia"]), 100)
+                self.assertEqual(ds["day_du"], so_dong < 200)
+                self.assertTrue(all(b["trang_thai"] == "NHAP" for b in ds["bao_gia"]))
+                r = CrmKhungK2(m).module("MO_PHONG_BAN_HANG")
+                p = next(p for p in r["phan"] if p["ma"] == "bao_gia")
+                if so_dong < 200:
+                    self.assertEqual(ds["tong"], 100)
+                    self.assertEqual(p["so_viec"], ds["tong"])
+                    self.assertEqual(next(t for t in r["the"] if t["ma"] == "bao_gia_nhap")["so"], ds["tong"])
+                else:
+                    self.assertIsNone(ds["tong"])
+                    self.assertNotIn("bao_gia_nhap", [t["ma"] for t in r["the"]])
+                    self.assertNotIn("so_viec", p)
 
     def test_dem_chi_doc_tom_tat_khong_doc_g5_lich_so_cong_no(self):
         m = MauKhungGia("KE_TOAN")
