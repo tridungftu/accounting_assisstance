@@ -82,7 +82,7 @@ Căn cứ: lệnh của Anh 24/10 (mọi module đã chốt thiết kế; M9 d�
 | E1-5 | E1-MUA · áp vào #6 thật, chấm 2 hợp đồng thật offline | Anh | E1-2 | — | Chờ Anh |
 | M4-2 | M4 · Nghiệm thu & chi phí dự án · UI 02C duyệt/PDF: đối chiếu với fix01 + 3 lỗi đã tái hiện (gồm L0-2b) | Claude | P0 | `m4\*` UI | Xong 24/10 — gộp ff9503f |
 | L0-6 | Engine trích #6 trên DEMO worktree: báo sẵn sàng lúc khởi động nhưng `TRICH6_KHONG_KET_NOI` ngay sau lệnh trích đầu tiên → chưa dựng được hợp đồng/đợt DEMO cho M4 (chẩn đoán tối đa 2 lượt; không xong thì dựng đợt bằng fixture test) | Claude | — | — | Xong 24/10 — gộp 1d1c12f (vá tạm launcher; sửa sản phẩm ở L0-7) |
-| L0-7 | Sửa sản phẩm: `trich6_host` nạp sẵn openpyxl ở luồng chính tiến trình con (hết treo 60s lệnh trích đầu ở mọi bản, kể cả DEMO của Anh); `.gitattributes` review_goc; `chuan_bi_crm_demo` seed duyệt viên M4 | Claude | `trich6_host.py`, `.gitattributes`, `chuan_bi_crm_demo.py` | L0-6 | Chờ kiểm (review Codex vòng 1) |
+| L0-7 | Sửa sản phẩm: `trich6_host` nạp sẵn openpyxl ở luồng chính tiến trình con (hết treo 60s lệnh trích đầu ở mọi bản, kể cả DEMO của Anh); `.gitattributes` review_goc; `chuan_bi_crm_demo` seed duyệt viên M4 | Claude | `trich6_host.py`, `.gitattributes`, `chuan_bi_crm_demo.py` | L0-6 | Xong 25/10 — gộp d4eb6a5 |
 | M4-3 | M4 · 03A kế toán nghiệm thu: M0026 + test + xác minh màn | Codex | P0 | — | Chờ |
 | M4-4 | M4 · 03B căn cứ nghiệm thu ↔ hóa đơn: L0-2a + migration + test PG | Codex | L0-2a, M4-3 | `pg_migrations.py` | Đang code (25/10, gộp với M4-7: M0029 cho 03B) |
 | M4-5 | M4 · 03B route + panel trong màn kế toán nghiệm thu | Claude | M4-4 | `giao_dien\m4.py` | Chờ |
