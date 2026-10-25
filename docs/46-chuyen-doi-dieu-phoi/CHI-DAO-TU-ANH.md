@@ -27,7 +27,7 @@
 4. Xong UI-1 + UI-2: gửi Anh phiếu cổng A theo TL 49 §4 (6 bước thử, 4 vai DEMO).
 **Ưu tiên:** sau AI-0 (CD-001); trước các lát mới chưa bắt đầu của CRM.
 **Báo Anh khi:** phiếu cổng A của UI-1 sẵn sàng; cần quyết thêm về thẻ tổng quan.
-**Trạng thái:** ĐÃ NHẬN 18:46 25/10 — xếp UI-1…UI-4 vào kế hoạch + TRANG-THAI; UI-1 bắt đầu khi có chỗ trống (sau AI-0); cập nhật 21:15: **UI-2 + UI-2b đã gộp**, UI-1 + UI-1b xong (DEMO 8798, lead thử 4 vai đạt) → **phiếu cổng A gửi Anh**: `docs&-chuyen-doi-dieu-phoi\PHIEU-CONG-A-TRANG-CHU-LUOI-ICON.md`
+**Trạng thái:** ĐÃ NHẬN 18:46 25/10 — xếp UI-1…UI-4 vào kế hoạch + TRANG-THAI; UI-1 bắt đầu khi có chỗ trống (sau AI-0); cập nhật 21:15: **UI-2 + UI-2b đã gộp**, UI-1 + UI-1b xong (DEMO 8798, lead thử 4 vai đạt) → **phiếu cổng A gửi Anh**: `docs\46-chuyen-doi-dieu-phoi\PHIEU-CONG-A-TRANG-CHU-LUOI-ICON.md`
 
 
 ## CD-003 · 25/10/2026 19:20 · Nhật ký lát để báo cáo hiệu quả hằng ngày
