@@ -16,4 +16,16 @@
 3. Từ nay không lát nào viết code gọi thẳng `api.anthropic.com` / `api.openai.com` hoặc thêm bộ che riêng.
 4. Thêm các dòng AI-0…AI-4, MASK-1, MASK-2 vào `TRANG-THAI.md`. Lịch giảm tỷ lệ kiểm xác suất Anh đã đồng ý (TL 48 §1.6).
 **Báo Anh khi:** AI-0 xong; cần cấp quyền thư mục.
-**Trạng thái:** ĐÃ NHẬN 17:54 25/10 — AI-0 vào slot Codex kế tiếp; dòng AI-0…AI-4, MASK-1, MASK-2 thêm vào TRANG-THAI.md
+**Trạng thái:** ĐÃ NHẬN — cập nhật 18:40 25/10: AI-0b (bản trong repo) XONG, gộp 06fa717; AI-0a (bản độc lập) đang làm — Codex lỗi sandbox 2 lần trong thư mục này nên chuyển worker Claude (Anh đã cấp quyền thư mục); MASK-1 đang làm (Claude, Anh đã cấp quyền thư mục Mask v2); AI-1 chờ slot; dòng AI-0…AI-4, MASK-1, MASK-2 + lịch giảm tỷ lệ kiểm đã vào TRANG-THAI.md (3174767)
+
+## CD-002 · 25/10/2026 18:15 · Trang chủ dạng lưới icon (phương án B) — khung dùng chung, áp CRM trước
+**Căn cứ:** Anh chốt 25/10 — `D:\Claude\Phan mem ho tro ke toan\49-trang-chu-luoi-icon.md` (§1 quy tắc, §2 CRM, §3 đặc tả khung, §4 lát + cổng A); TL 42 §0, §2, §16.2 đã sửa cùng ngày (`..\42-man-hinh-crm-ke-toan-va-giao-ket.md`); bản mẫu canvas "Trang chủ lưới icon — CRM" (bảng 1, 3, 5).
+**Việc:**
+1. Thêm các lát UI-1 (khung dùng chung + áp CRM, worker Claude), UI-2 (máy chủ trả icon/thẻ đã lọc quyền + đếm việc chờ CRM, worker Codex, song song UI-1 sau khi thống nhất dạng dữ liệu), UI-3 (trang chủ hệ thống), UI-4 (áp M2, M4, K5 sau cổng A của UI-1) vào kế hoạch và `TRANG-THAI.md`.
+2. Tận dụng code CRM đã có: chỉ thay menu trái chữ bằng thanh icon và thêm trang chủ module; các màn bên trong (danh sách hợp đồng, Báo giá BG-1…) không viết lại. Phối hợp với lát Báo giá đang/ sắp làm để không sửa chồng `crm_g.py`/`crm_g.js` (khóa file chung theo `TRANG-THAI.md`).
+3. Bộ icon: mã nguồn mở, ghi giấy phép vào CHANGELOG; không dùng icon của Apple.
+4. Xong UI-1 + UI-2: gửi Anh phiếu cổng A theo TL 49 §4 (6 bước thử, 4 vai DEMO).
+**Ưu tiên:** sau AI-0 (CD-001); trước các lát mới chưa bắt đầu của CRM.
+**Báo Anh khi:** phiếu cổng A của UI-1 sẵn sàng; cần quyết thêm về thẻ tổng quan.
+**Trạng thái:** MỚI
+
