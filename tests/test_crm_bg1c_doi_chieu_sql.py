@@ -2,8 +2,9 @@
 
 - `MienTien` (THUẦN): hằng giới hạn rút từ M0030; các ca biên (tổng/tiền đợt ngoài miền, tổng ≤ 0, tích làm tròn về 0, đúng biên) — Python chặn
   In/Chuyển bằng ĐÚNG mã SQL trả ở Ký, lỗi theo trường.
+- `MienDauVao` (THUẦN): chỉ chữ số ASCII; mẫu số của Python = literal của M0030; chữ số Unicode → lỗi theo trường.
 - `DoiChieuPostgres` (PostgreSQL THẬT, chỉ đọc): dựng hàm tạm pg_temp từ `pg_get_functiondef` của `master.crm_kiem_lich_ky` ĐÃ CÀI (chỉ thay nguồn
-  v_bg = tham số jsonb), chạy cùng các ca trong MỘT giao dịch rồi ROLLBACK; so mã chặn, tổng, tiền từng đợt với Python.
+  v_bg = tham số jsonb), chạy cùng các ca trong MỘT giao dịch rồi ROLLBACK; so mã chặn, tổng, tiền từng đợt và miền đầu vào (`~`) với Python.
   Cần biến môi trường KTT_BG1C_KET_NOI = tệp ket-noi.local.json của CSDL DEMO (kho_crm_demo*) đã ở schema ≥ 30; thiếu → skip (NOT_VERIFIED).
 Dữ liệu tổng hợp DEMO; không ghi CSDL, không mạng ngoài máy.
 """
@@ -66,6 +67,13 @@ CA_BIEN = (
 )
 
 
+# chuỗi số đối chiếu miền đầu vào (đơn giá/diện tích/tổng/tỷ giá/tỷ lệ: dấu chấm thập phân; ô thông minh/ghi đè: kiểu Việt)
+CHUOI_SO = ("26000", "25999.5", "0", "0.000000000001", "1" * 24, "1" * 25, "1." + "1" * 12, "1." + "1" * 13, "٢٥٩٩٩.٥", "２６０００", "۲۶۰۰۰",
+            "2६000", "²6000", "26000​", " 26000", "26000 ", "+26000", "-1", "1e5", "1,5", "1.", ".5", "", "NaN")
+CHUOI_VN = ("39.000.000.000", "1.400.000,50", "1500", "1,40", "1.40", "1,400.00", "٣٩.٠٠٠", "３９.０００", "1.٠٠٠", "39.000.000.000 ",
+            " 39.000", " 39.000 ", "100%", "-1", "1 000", "0", _vn(MAX), "1" * 25, "1,1234567890123")
+
+
 def _python(du, cu):
     d = GK.chuan_hoa_bao_gia(du, fx_mac_dinh=MAC_DINH, hom_nay="2026-10-25")
     if cu:
@@ -123,6 +131,39 @@ class MienTien(unittest.TestCase):
         self.assertIn("TONG_BANG_CHU_KHONG_DOC_DUOC", [x["ma"] for x in t["chan_chuyen"]])
 
 
+class MienDauVao(unittest.TestCase):
+    def test_mau_so_la_literal_m0030_chi_ascii(self):
+        self.assertEqual(GK.RE_SO.pattern, B._RE_SO.strip("'")[1:-1])
+        self.assertEqual(GK.RE_SO_VN.pattern, B._RE_SO_VN.strip("'")[1:-1])
+        for mau in (GK.RE_SO, GK.RE_SO_VN):
+            self.assertTrue(mau.flags & re.ASCII)
+            self.assertNotIn("\\d", mau.pattern)
+        for v in CHUOI_SO:  # ASCII thuần mới khớp (đúng như [0-9] của PostgreSQL)
+            with self.subTest(v=v):
+                if GK.RE_SO.fullmatch(v):
+                    self.assertTrue(v.isascii())
+
+    def test_chu_so_unicode_bi_tu_choi_theo_truong(self):
+        for v in ("٢٥٩٩٩.٥", "２６０００", "۲۶۰۰۰", "2६000"):
+            for truong, du in (("fx.ty_gia", bao_gia(usd(don_gia="100", dien_tich="15000"), fx={"cap": "USD/VND", "ty_gia": v})),
+                               ("gia.don_gia", bao_gia(usd(don_gia=v, dien_tich="15000"))),
+                               ("gia.dien_tich", bao_gia(usd(don_gia="100", dien_tich=v))),
+                               ("gia.tong", bao_gia(vnd(tong=v)))):
+                with self.subTest(v=v, truong=truong):
+                    with self.assertRaises(GK.DataError) as cm:
+                        GK.chuan_hoa_bao_gia(du)
+                    self.assertEqual(cm.exception.code, "CRM_GK_SO_SAI")
+        for v in ("٣٠%", "３０%", "1.٠٠٠", "\u00a039.000"):  # ô thông minh: lỗi theo dòng, không lưu số lạ
+            with self.subTest(o=v):
+                _, t = _python(bao_gia(vnd(tong="1000"), (v,)), False)
+                self.assertEqual(t["dong"][0]["loi"], ["GIA_TRI_NHAP_SAI"])
+                self.assertEqual(t["dong"][0]["loi_chi_tiet"][0]["truong"], "lich.0.gia_tri_nhap")
+                self.assertTrue(t["chan_in"])
+        _, t = _python(bao_gia(vnd(), tong_gia_tri_ghi_de="٣٩.٠٠٠.٠٠٠"), False)  # ghi đè: lỗi theo trường như Ký (TONG_GIA_TRI_GHI_DE_SAI)
+        self.assertIn(("TONG_GIA_TRI_GHI_DE_SAI", "tong_gia_tri_ghi_de"), [(e["ma"], e.get("truong")) for e in t["chan_in"]])
+        self.assertEqual(GK._gia_tri_nhap(" 39.000 ")[1], "39000")  # dấu cách ASCII hai đầu vẫn bỏ như btrim(' ')
+
+
 def _ket_noi():
     tep = os.environ.get("KTT_BG1C_KET_NOI")
     if not tep:
@@ -174,6 +215,20 @@ class DoiChieuPostgres(unittest.TestCase):
                     self.assertEqual((s["tong_minor"], [x["so_tien_minor"] for x in s["dong"]]),
                                      (t["tong_minor"], [x["so_tien_minor"] for x in t["dong"]]))
                     self.assertIsNotNone(t["tong_bang_chu"])
+
+
+    def test_mien_dau_vao_chi_chu_so_ascii(self):
+        re_so, re_vn = B._RE_SO, B._RE_SO_VN  # literal SQL đúng như trong thân hàm đã cài
+        for v in CHUOI_SO:
+            with self.subTest(so=v):
+                self.cur.execute(f"SELECT %s ~ {re_so}", (v,))
+                self.assertEqual(self.cur.fetchone()[0], bool(GK.RE_SO.fullmatch(v)))
+        for v in CHUOI_VN:
+            with self.subTest(vn=v):
+                self.cur.execute(f"SELECT btrim(%s, ' ') ~ {re_vn} AND replace(replace(btrim(%s, ' '), '.', ''), ',', '.') ~ {re_so}", (v, v))
+                sql_nhan = bool(self.cur.fetchone()[0])
+                loai, so, loi = GK._gia_tri_nhap(v)
+                self.assertEqual(sql_nhan, loi is None and loai == "AMOUNT" and so is not None)
 
 
 if __name__ == "__main__":

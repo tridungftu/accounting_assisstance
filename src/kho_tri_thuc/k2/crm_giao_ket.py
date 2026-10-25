@@ -35,6 +35,8 @@ from ..ha_tang.store import write_immutable
 from ..nguon import crm_docx as R
 from .crm_mau import CrmMauK2, _h, _khoa, _ngay, _uuid, _v
 from .sql_crm_bg1c import CRM_BG1C_SQL as _M0030
+from .sql_crm_bg1c import _RE_SO as _RE_SO_M0030
+from .sql_crm_bg1c import _RE_SO_VN as _RE_SO_VN_M0030
 
 PHIEN_BAN_BG, PHIEN_BAN_SOAN = "crm-bao-gia/v2", "crm-soan/v1"  # v2 (BG-1c): thêm tien_chinh = VND; v1 đã lưu vẫn đọc theo nghĩa cũ
 TIEN_TE = ("VND", "USD")
@@ -54,7 +56,20 @@ def _hang_m0030(mau: str) -> int:
 
 # Miền tiền RÚT TỪ M0030 (bước kiểm khi Ký): tổng và tiền từng đợt, đơn vị nhỏ nhất, phải 0 < x ≤ v_max (bigint) — một nguồn cho hai tầng.
 TIEN_TOI_DA_MINOR = _hang_m0030(r"v_max constant numeric := ([0-9]+);")
-RE_SO = re.compile(r"\d{1,24}(\.\d{1,12})?")
+
+
+def _mau_m0030(lit: str) -> re.Pattern:
+    """Literal regex SQL '^…$' của M0030 → mẫu Python (dùng fullmatch). Chỉ lớp [0-9] (ASCII) — không `\\d` (Python nhận cả chữ số Unicode)."""
+    m = lit[1:-1] if lit[:1] == lit[-1:] == "'" else ""
+    if not (m.startswith("^") and m.endswith("$") and m.isascii() and "\\d" not in m):
+        raise RuntimeError("Mẫu số của M0030 không đúng dạng '^…$' ASCII")
+    return re.compile(m[1:-1], re.ASCII)
+
+
+# Mẫu số RÚT TỪ M0030 (cùng literal SQL so trong thân hàm Ký): typed dấu chấm thập phân (đơn giá/diện tích/tổng/tỷ giá/tỷ lệ/số tiền) và kiểu Việt
+# (ô thông minh/ghi đè). Chữ số không phải ASCII (٢٥٩٩٩.٥, ２６０００…) → không khớp → lỗi theo trường, như SQL.
+RE_SO = _mau_m0030(_RE_SO_M0030)
+RE_SO_VN = _mau_m0030(_RE_SO_VN_M0030)
 RE_MA = re.compile(r"[A-Za-z0-9_.-]{1,80}")
 KHOA_BG = {"loai_hinh_id", "du_an_id", "giai_doan_g7", "nguon_lich", "don_vi", "khach", "gia", "fx", "phi_bao_tri", "lich", "het_han", "ghi_chu",
            "tong_gia_tri_ghi_de", "tien_chinh"}
@@ -149,12 +164,12 @@ def _gia_tri_nhap(v) -> tuple[str | None, str | None, str | None]:
     """Ô thông minh/ghi đè dùng quy ước VN; trường typed cũ vẫn dùng dấu chấm thập phân."""
     if not isinstance(v, str) or len(v) > 100 or re.search(r"[\x00-\x1f\x7f-\x9f]", v):
         return None, None, "Giá trị phải là chuỗi tối đa 100 ký tự, không có ký tự điều khiển."
-    s = v.strip()
+    s = v.strip(" ")  # chỉ bỏ dấu cách ASCII như btrim(…, ' ') của M0030 (không bỏ khoảng trắng Unicode)
     if not s:
         return None, None, None
     loai = "PERCENT" if "%" in s else "AMOUNT"
-    so = s[:-1].strip() if s.endswith("%") else s
-    if not re.fullmatch(r"(?:[0-9]+|[0-9]{1,3}(?:\.[0-9]{3})+)(?:,[0-9]{1,12})?", so):
+    so = s[:-1].strip(" ") if s.endswith("%") else s
+    if not RE_SO_VN.fullmatch(so):
         return None, None, "Giá trị phải là số không âm kiểu Việt (450.000 hoặc 1.500.000,50); thêm % khi nhập tỷ lệ."
     so = so.replace(".", "").replace(",", ".")
     if not RE_SO.fullmatch(so):
