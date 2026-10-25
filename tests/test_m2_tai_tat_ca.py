@@ -7,6 +7,7 @@ import tempfile
 import threading
 import time
 import unittest
+from dataclasses import replace
 from pathlib import Path
 from types import ModuleType
 from unittest.mock import patch
@@ -74,6 +75,13 @@ class HandlerGia:
         return self.kq
 
 
+class TienTrinh(gia.TienTrinhGia):
+    def stop(self):
+        with self.node.khoa:
+            self.node.running = None  # Dừng tiến trình thật cũng dừng job đang chạy.
+        return super().stop()
+
+
 class TaiTatCaTest(unittest.TestCase):
     def setUp(self):
         # Fake DB chỉ ghi nhận register_dumper, không mã hóa/IO PostgreSQL.
@@ -96,10 +104,15 @@ class TaiTatCaTest(unittest.TestCase):
         self.cfg = gia.tao_cau_hinh(root / "cfg", nhip_poll_s=0.01)
         self.node = BoTai()
         self.node.san_sang = {gia.MA_A: (True, None), gia.MA_B: (True, None)}
-        self.tt = gia.TienTrinhGia(self.node, self.cfg.gioi_han)
+        self.tt = TienTrinh(self.node, self.cfg.gioi_han)
         self.app._tai_hoa_don = {"cau_hinh": self.cfg, "tien_trinh": self.tt}
         self.dv = mod.dich_vu(self.app)
-        self.addCleanup(lambda: mod.dung(self.app))
+        self.addCleanup(self.dung_va_cho)
+
+    def dung_va_cho(self):
+        mod.dung(self.app)
+        if self.dv._hang_doi:
+            self.cho(lambda: not self.dv._hang_doi["dang_chay"])
 
     def goi(self, post=True, ten="tai-tat-ca", body=None, sid=gia.SID_KT):
         h = HandlerGia(dict(CHON) if body is None else body, sid)
@@ -287,3 +300,138 @@ class TaiTatCaTest(unittest.TestCase):
         self.assertEqual(self.goi(ten="bat-dau", body=sel)[0], 200)
         self.assertEqual(self.goi()[0], 409)
         self.assertIsNone(self.dv._hang_doi)
+
+    def test_job_treo_qua_han_dung_truoc_khi_chay_phap_nhan_sau(self):
+        self.dv.cau_hinh = replace(self.cfg, gioi_han=replace(self.cfg.gioi_han, cho_moi_job_s=1))
+        self.assertEqual(self.goi()[0], 200)
+        self.cho_job(2)  # Job đầu không bao giờ hoàn tất, job sau vẫn phải khởi chạy.
+        self.assertEqual(self.tt.so_dung, 1)
+        self.assertEqual(self.tt.so_start, 1)
+        self.node.xong()
+        q = self.cho_xong()
+        self.assertEqual([m["trang_thai"] for m in q["muc"]], ["Lỗi", "Xong"])
+        self.assertEqual(q["muc"][0]["ly_do"], "Quá hạn chờ")
+        self.assertEqual(self.node.chong, 0)
+        self.assertIsNone(self.dv._dang_chay)
+        self.assertEqual(self.goi()[0], 200, "Hàng đợi mới không bị khóa sau quá hạn")
+
+    def test_unknown_mai_cung_qua_han(self):
+        self.dv.cau_hinh = replace(self.cfg, gioi_han=replace(self.cfg.gioi_han, cho_moi_job_s=1))
+        self.node.mat_phan_hoi_start = True
+        with patch.object(self.dv, "reconcile", return_value={"trang_thai": "UNKNOWN", "run_handle": "a" * 64}):
+            self.assertEqual(self.goi()[0], 200)
+            self.cho_job(2)
+            self.node.xong()
+            q = self.cho_xong()
+        self.assertEqual(q["muc"][0]["ly_do"], "Quá hạn chờ")
+        self.assertEqual(q["muc"][1]["trang_thai"], "Xong")
+        self.assertEqual(self.node.chong, 0)
+
+    def test_dung_may_chu_danh_thuc_nhip_poll_dai_va_mo_khoa(self):
+        self.dv.cau_hinh = replace(self.cfg, gioi_han=replace(self.cfg.gioi_han, nhip_poll_s=60))
+        self.assertEqual(self.goi()[0], 200)
+        self.cho_job(1)
+        mod.dung(self.app)
+        q = self.cho_xong()  # Không phải đợi hết nhịp poll 60 giây.
+        self.assertEqual([m["trang_thai"] for m in q["muc"]], ["Đã hủy", "Đã hủy"])
+        self.assertIsNone(self.node.running)
+        self.assertEqual(self.node.so_start, 1)
+
+    def test_ngoai_le_khong_phai_data_error_dung_va_mo_khoa(self):
+        with patch.object(self.dv, "status", side_effect=RuntimeError("DEMO: lỗi driver")):
+            self.assertEqual(self.goi()[0], 200)
+            q = self.cho_xong()
+        self.assertEqual(q["muc"][0]["trang_thai"], "Lỗi")
+        self.assertEqual(self.tt.so_dung, 1)
+        self.assertIsNone(self.dv._dang_chay)
+        self.assertEqual(self.node.so_start, 1)
+        self.dv.khoi_dong_neu_can()
+        self.assertEqual(self.goi()[0], 200)
+
+    def test_huy_chi_chu_hang_doi_duoc_dung_job_va_cac_dong_cho(self):
+        self.assertEqual(self.goi()[0], 200)
+        self.cho_job(1)
+        status, _ = self.goi(ten="huy-hang-doi", body={}, sid=gia.SID_XA)
+        self.assertEqual(status, 403)
+        self.assertEqual(self.tt.so_dung, 0)
+        self.assertTrue(self.dv._hang_doi["dang_chay"])
+        self.assertEqual(self.goi(ten="huy-hang-doi", body={}), (200, {"da_huy": True}))
+        q = self.cho_xong()
+        self.assertEqual([m["trang_thai"] for m in q["muc"]], ["Đã hủy", "Đã hủy"])
+        self.assertEqual(self.tt.so_dung, 1)
+        self.assertIsNone(self.node.running)
+        self.assertIsNone(self.dv._dang_chay)
+        self.assertEqual(self.node.so_start, 1)
+        self.dv.khoi_dong_neu_can()
+        self.assertEqual(self.goi()[0], 200, "Cờ hủy cũ không được hủy đợt mới")
+        self.cho_job(2)
+        self.node.xong()
+        self.cho_job(3)
+        self.node.xong()
+        self.cho_xong()
+
+    def test_huy_giu_khoa_den_khi_bo_tai_dung(self):
+        self.assertEqual(self.goi()[0], 200)
+        self.cho_job(1)
+        vao, tiep = threading.Event(), threading.Event()
+        stop = self.dv.stop
+
+        def dung_cham():
+            vao.set()
+            self.assertTrue(tiep.wait(3))
+            return stop()
+
+        r = []
+        with patch.object(self.dv, "stop", side_effect=dung_cham):
+            t = threading.Thread(target=lambda: r.append(self.goi(ten="huy-hang-doi", body={})))
+            t.start()
+            try:
+                self.assertTrue(vao.wait(3))
+                self.assertEqual(self.goi()[0], 409)
+            finally:
+                tiep.set()
+                t.join(4)
+        self.assertFalse(t.is_alive())
+        self.assertEqual(r, [(200, {"da_huy": True})])
+        self.cho_xong()
+        self.assertEqual(self.node.so_start, 1)
+
+    def test_tai_le_xong_khong_poll_thi_tai_tat_ca_khong_409(self):
+        sel = {**CHON, "source_instance": gia.INST, "scope_ref": gia.SCOPE, "company_key": gia.CTY_A, "khoa": "m2h-demo-0001"}
+        self.assertEqual(self.goi(ten="bat-dau", body=sel)[0], 200)
+        self.node.xong()
+        self.assertIsNotNone(self.dv._dang_chay, "Mô phỏng tab đóng, không gọi status")
+        self.assertEqual(self.goi()[0], 200)
+        self.cho_job(2)
+        self.assertEqual(self.node.chong, 0)
+
+    def test_profiles_doc_tien_do_khong_giu_khoa_hang_doi(self):
+        self.assertEqual(self.goi()[0], 200)
+        self.cho_job(1)
+        profiles = self.dv.profiles
+        vao, tiep = threading.Event(), threading.Event()
+
+        def profiles_cham(sid):
+            vao.set()
+            self.assertTrue(tiep.wait(3))
+            return profiles(sid)
+
+        r = []
+        with patch.object(self.dv, "profiles", side_effect=profiles_cham):
+            t = threading.Thread(target=lambda: r.append(self.goi(False, "hang-doi")))
+            t.start()
+            try:
+                self.assertTrue(vao.wait(3))
+                self.node.xong()
+                self.cho_job(2)  # RPC đọc tiến độ treo không cản worker cập nhật/chạy tiếp.
+            finally:
+                tiep.set()
+                t.join(4)
+        self.assertEqual(r[0][0], 200)
+
+    def test_trang_thai_dung_chung_profiles_khong_quet_hai_lan(self):
+        self.assertEqual(self.goi()[0], 200)
+        self.cho_job(1)
+        with patch.object(self.dv, "profiles", wraps=self.dv.profiles) as profiles:
+            self.assertEqual(self.goi(False, "")[0], 200)
+        self.assertEqual(profiles.call_count, 1)

@@ -22,7 +22,7 @@
   let ep = 0, gen = 0;            // epoch (đổi vai) + thế hệ GET danh sách
   let tt = null, loiTai = null, loiBoTai = null, dangMo = false, daThuMo = false;
   let run = null, abort = null, dongHo = null, logMo = false;
-  let hangDoi = null, dangGuiTatCa = false, doiGen = 0;
+  let hangDoi = null, dangGuiTatCa = false, dangHuy = false, doiGen = 0;
   const khoaMap = new Map();      // lựa chọn (JSON) → khóa thao tác: giữ tới khi lần tải kết thúc (bấm lại sau mất kết nối = cùng run, không chạy mù)
   const taoKhoa = () => "m2tct-" + ((window.crypto && crypto.randomUUID && crypto.randomUUID()) || (Date.now().toString(36) + Math.random().toString(36).slice(2)));
 
@@ -271,6 +271,10 @@
     o.replaceChildren();
     if (!hangDoi) return;
     if (hangDoi.dang_co_hang_doi) o.append(node("p", "Đang có hàng đợi tải tất cả công ty. Các công ty được tải lần lượt.", "upload-status"));
+    if (hangDoi.dang_chay) {
+      const huy = nut(dangHuy ? "Đang hủy…" : "Hủy", huyHangDoi, undefined, dangHuy);
+      huy.id = "m2-tct-huy-hang-doi"; o.append(huy);
+    }
     if ((hangDoi.muc || []).length) o.append(bang(["Pháp nhân", "Trạng thái", "Lý do"], hangDoi.muc.map(m => [m.phap_nhan_ten, m.trang_thai, m.ly_do || ""])));
   }
   function ve() { veBoTai(); veForm(); veTienTrinh(); veKetQua(); veHangDoi(); }
@@ -286,7 +290,7 @@
       } catch (err) {
         if (e !== ep || g !== doiGen) return;
         trangThai(err.message, true);
-        if (err.status === 403 || err.status === 409) return;
+        if ([400, 403, 404, 409, 503].includes(err.status)) return;
       }
       await cho(1500);
     }
@@ -295,6 +299,9 @@
     if (dangChay() || dangGuiTatCa || (hangDoi && hangDoi.dang_co_hang_doi)) return;
     const sel = layLuaChon(); if (!sel) return;
     const {mode, year, month, types, formats} = sel, e = ep;
+    const n = new Set((tt.muc || []).filter(m => m.san_sang).map(m => m.phap_nhan_ma)).size;
+    const ky = mode === "month" ? `${String(month).padStart(2, "0")}/${year}` : String(year);
+    if (!window.confirm(`Tải ${n} công ty · ${ky} · ${types.map(t => CHIEU[t]).join(" và ")}?`)) return;
     dangGuiTatCa = true; trangThai(""); ve();
     try {
       const q = await postJson(API + "/tai-tat-ca", {mode, year, month, types, formats});
@@ -306,6 +313,21 @@
       // Mất phản hồi POST có thể đã tạo hàng đợi: đọc trạng thái máy chủ, không gửi lại mù.
       theoDoiHangDoi(e);
     } finally { if (e === ep) { dangGuiTatCa = false; ve(); } }
+  }
+
+  async function huyHangDoi() {
+    if (dangHuy || !hangDoi || !hangDoi.dang_chay) return;
+    const e = ep;
+    dangHuy = true; doiGen += 1; veHangDoi();
+    try {
+      await postJson(API + "/huy-hang-doi", {});
+      if (e !== ep) return;
+      theoDoiHangDoi(e);
+    } catch (err) {
+      if (e !== ep) return;
+      trangThai(err.message, true);
+      if (err.status === 0) theoDoiHangDoi(e);
+    } finally { if (e === ep) { dangHuy = false; veHangDoi(); } }
   }
 
   // ------------------------------------------------------------------ nạp / mở bộ tải
@@ -464,7 +486,7 @@
   // ------------------------------------------------------------------ đổi vai + khởi tạo
   function xoa() {
     ep += 1;
-    doiGen += 1; hangDoi = null; dangGuiTatCa = false;
+    doiGen += 1; hangDoi = null; dangGuiTatCa = false; dangHuy = false;
     if (abort) { try { abort.abort(); } catch (_) {} abort = null; }
     run = null; tt = null; loiTai = null; loiBoTai = null; dangMo = false; daThuMo = false; dungDongHo();
     for (const id of ["m2-tct-bo-tai", "m2-tct-tien-trinh", "m2-tct-ket-qua", "m2-tct-hang-doi"]) { const o = $(id); if (o) o.replaceChildren(); }
