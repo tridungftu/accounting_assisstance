@@ -63,9 +63,10 @@ Quy tắc áp cho mọi lát từ 25/10 (CD-001 việc 3): không lát nào vi�
 | UI-2b | Codex | gpt-6.1-sol · high | 20:07 | gộp 20:17 | kiem-nhanh Đạt | Xanh — khung 20/20 |
 | T-M4a | Codex | gpt-6.1-sol · high | 20:16 | gộp 20:31 | kiem-nhanh Đạt | Xanh — 01b 12/12, 01c 8/8, review_k2 14/14, 0 skip (đủ tệp ghim) |
 | UI-1 | Claude | Sonnet | 19:21 | 20:15 | kiem-nhanh Đạt có điều kiện (giấy phép icon → lead sửa) | node 12/12 ca mới; 8 bộ node lỗi có sẵn |
-| L0-8e | Codex | gpt-6.1-sol · high | 20:28 | — | — | — |
+| L0-8e | Codex | gpt-6.1-sol · high | 20:28 | 20:38 | review-lat Opus đang chạy | Xanh — test_trich6_host 22/22 (hết 4 lỗi nền), 03A PG 13/13 |
 | MASK-2 | Claude | Opus | 20:31 | — | — | — |
-| L0-10 | Codex | gpt-6.1-sol · high | 20:38 | — | — | — |
+| L0-10 | Codex | gpt-6.1-sol · high | 20:38 | 20:38 | review-lat Opus đang chạy | Xanh — 46/46; kiểm thật dịch vụ khớp |
+| L0-8f | Codex | gpt-6.1-sol · high | 20:47 | — | — | — |
 | kiem-nhanh DA-3a v2 + AI-1b | Claude | Haiku | 20:12 | 20:15 | — | Đạt cả hai → gộp |
 | kiem-nhanh UI-2 + M4-5a v3 | Claude | Haiku | 19:51 | 19:55 | — | Đạt cả hai |
 | review-lat UI-2 | Claude | Opus | 19:56 | 20:02 | vòng 1 | Đạt — 3 Nên sửa → UI-2b |
