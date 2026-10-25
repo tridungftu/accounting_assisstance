@@ -21,6 +21,7 @@ from kho_tri_thuc.ha_tang.primitives import DataError, sha256
 from kho_tri_thuc.k2 import nguon_chung
 from kho_tri_thuc.k2.hoa_don import HoaDonK2
 from kho_tri_thuc.m2.tai_hoa_don.nhan import lap_ke_hoach_nhan, nhan_vao_k2
+from kho_tri_thuc.m2.tai_hoa_don import nhan as nhan_module
 from kho_tri_thuc.nguon.hoa_don_xml import CompanyFact, IDENTITY_PROFILE_REF, PROFILE_DOCUMENT_SHA256, PROFILE_REF
 
 
@@ -221,6 +222,97 @@ class NhanTinh(unittest.TestCase):
             r = self.nhan(self.plan(run2), service)
             self.assertEqual(len(next(iter(conn.identities.values()))), 1)
             self.assertIn('K2_REVISION_THEO_SEMANTIC_KHONG_THEO_HASH_BYTES', r['khoang_thieu_k2'])
+
+    def hoi_cuu_ngoai_run(self):
+        """Chuyển run DEMO sang HOI_CUU: XML/PDF/bảng kê để tại chỗ ở thư mục dữ liệu cũ (đường dẫn tuyệt đối). Trả (thư mục cũ, gốc tin cậy nằm trong nó)."""
+        cu = self.root / 'nguon-cu'
+        goc = cu / 'goc'
+        goc.mkdir(parents=True)
+        h, bk = self.m['hoa_don'][0], self.m['tong']['bang_ke']
+        for ten in (h['file_xml'], h['file_pdf'], bk['file']):
+            (goc / ten).write_bytes((self.run / ten).read_bytes())
+        h['file_xml'] = h['xml_tep'][0]['file'] = str(goc / h['file_xml'])
+        h['file_pdf'] = str(goc / h['file_pdf'])
+        bk.update(file=str(goc / bk['file']), so_cot=15)
+        self.m.update(nguon='HOI_CUU', xap_xi=True, thu_muc_tep_goc=str(goc))
+        self.ghi(self.run, self.m)
+        return cu, goc
+
+    def test_nhan_vao_k2_truyen_goc_hoi_cuu_tin_cay_xuong_lan_lap_lai(self):
+        cu, goc = self.hoi_cuu_ngoai_run()
+        p = lap_ke_hoach_nhan(self.run, ma_phap_nhan='DEMO', goc_hoi_cuu_tin_cay=goc)
+        # manifest đổi giữa hai lần đọc: khai gốc rộng hơn (cha của gốc tin cậy). Đường dẫn tệp không đổi, thư mục cha không thêm tệp lạ
+        # → lần lập lại KHÔNG kiểm gốc vẫn ra đúng kế hoạch cũ (đó là lỗ hổng của gốc None).
+        self.m['thu_muc_tep_goc'] = str(cu)
+        self.ghi(self.run, self.m)
+        khong_goc = lap_ke_hoach_nhan(self.run, ma_phap_nhan='DEMO')
+        bo_hash = lambda k: {a: b for a, b in k.items() if a != 'manifest_sha256'}  # noqa: E731
+        self.assertEqual(bo_hash(khong_goc), bo_hash(p))  # chỉ hash manifest.json khác: gốc None không phát hiện đổi gốc
+        self.assertNotEqual(khong_goc['manifest_sha256'], p['manifest_sha256'])
+        service = Mock()
+        service.nhan_theo_manifest.return_value = {'lan_tiep_nhan_id': 'DEMO_RECEIPT', 'lap_lai': False, 'promote': {'items': []}}
+        with self.assertRaises(DataError) as ctx:
+            nhan_vao_k2(p, service, actor='DEMO_ACTOR', source_instance='DEMO', scope_ref='DEMO', goc_hoi_cuu_tin_cay=goc)
+        self.assertEqual(ctx.exception.code, 'M2_00_MANIFEST_HOI_CUU_GOC_KHONG_TIN_CAY')
+        service.nhan_theo_manifest.assert_not_called()
+        with self.assertRaises(DataError) as ctx:  # không truyền gốc: hash manifest.json trong kế hoạch vẫn chặn bản manifest đã đổi
+            nhan_vao_k2(p, service, actor='DEMO_ACTOR', source_instance='DEMO', scope_ref='DEMO')
+        self.assertEqual(ctx.exception.code, 'M2_00_NHAN_KE_HOACH_DA_DOI')
+        (self.root / 'khac').mkdir()
+        for danh_sach in ([goc], str(goc), (self.root / 'khac', goc)):  # nhiều gốc hoặc một chuỗi: chỉ cần gốc khai trong manifest nằm trong một gốc tin cậy
+            with self.subTest(goc=danh_sach):
+                self.m['thu_muc_tep_goc'] = str(goc)
+                self.ghi(self.run, self.m)
+                nhan_vao_k2(p, service, actor='DEMO_ACTOR', source_instance='DEMO', scope_ref='DEMO', goc_hoi_cuu_tin_cay=danh_sach)
+        self.assertEqual(service.nhan_theo_manifest.call_count, 3)
+
+    def test_lap_lai_day_du_false_chi_so_hash_manifest_khong_lap_lai_ke_hoach(self):
+        p = self.plan()
+        self.assertRegex(p['manifest_sha256'], r'^[0-9a-f]{64}$')
+        service = Mock()
+        service.nhan_theo_manifest.return_value = {'lan_tiep_nhan_id': 'DEMO_RECEIPT', 'lap_lai': False, 'promote': {'items': []}}
+        with patch('kho_tri_thuc.m2.tai_hoa_don.nhan.lap_ke_hoach_nhan', side_effect=AssertionError('không được lập lại kế hoạch trong khóa')) as lap:
+            r = nhan_vao_k2(p, service, actor='DEMO_ACTOR', source_instance='DEMO', scope_ref='DEMO', lap_lai_day_du=False)
+        lap.assert_not_called()
+        service.nhan_theo_manifest.assert_called_once()
+        self.assertEqual(r['ket_qua'][0]['trang_thai'], 'GIU_CHO_K2')  # items rỗng (Mock): chỉ kiểm đường đi, không kiểm K2
+
+    def test_lap_lai_day_du_false_van_chan_manifest_doi_xml_doi_va_ke_hoach_gia(self):
+        p = self.plan()
+        service = Mock()
+        service.nhan_theo_manifest.return_value = {'lan_tiep_nhan_id': 'DEMO_RECEIPT', 'lap_lai': False, 'promote': {'items': []}}
+
+        def tu_choi(ke_hoach, ma):
+            with self.assertRaises(DataError) as ctx:
+                nhan_vao_k2(ke_hoach, service, actor='DEMO_ACTOR', source_instance='DEMO', scope_ref='DEMO', lap_lai_day_du=False)
+            self.assertEqual(ctx.exception.code, 'M2_00_NHAN_' + ma)
+            service.nhan_theo_manifest.assert_not_called()
+        tu_choi({k: v for k, v in p.items() if k != 'manifest_sha256'}, 'KE_HOACH_DA_DOI')  # kế hoạch không do lap_ke_hoach_nhan lập
+        tu_choi({**p, 'manifest_sha256': '0' * 64}, 'KE_HOACH_DA_DOI')
+        bytes_cu = (self.run / 'manifest.json').read_bytes()
+        (self.run / 'manifest.json').write_bytes(bytes_cu + b' ')  # manifest đổi sau khi lập kế hoạch (dù nghĩa không đổi)
+        tu_choi(p, 'KE_HOACH_DA_DOI')
+        (self.run / 'manifest.json').write_bytes(bytes_cu)
+        xml = self.run / self.m['hoa_don'][0]['file_xml']
+        xml_cu = xml.read_bytes()
+        xml.write_bytes(xml_cu.replace(b'12.5', b'99.5'))  # XML đổi sau khi lập kế hoạch: hash từng XML vẫn kiểm ngay trước khi ghi
+        tu_choi(p, 'XML_DOI_SAU_KIEM_HASH')
+        xml.write_bytes(xml_cu)
+        nhan_vao_k2(p, service, actor='DEMO_ACTOR', source_instance='DEMO', scope_ref='DEMO', lap_lai_day_du=False)
+        service.nhan_theo_manifest.assert_called_once()
+
+    def test_ke_hoach_ghi_hash_manifest_va_manifest_doi_trong_luc_doc_bi_tu_choi(self):
+        h1 = (self.run / 'manifest.json').read_bytes()
+        self.assertEqual(self.plan()['manifest_sha256'], sha256(h1))
+        that = nhan_module.doc_manifest
+
+        def doc_roi_doi(*a, **kw):  # kẻ ghi đè manifest NGAY SAU khi đọc xong
+            kq = that(*a, **kw)
+            (self.run / 'manifest.json').write_bytes(h1 + b' ')
+            return kq
+        with patch.object(nhan_module, 'doc_manifest', doc_roi_doi), self.assertRaises(DataError) as ctx:
+            self.plan()
+        self.assertEqual(ctx.exception.code, 'M2_00_NHAN_MANIFEST_DOI_TRONG_LUC_DOC')
 
     def test_04_khong_xml_goc_la_bang_ke_khong_phai_tai_loi(self):
         self.khong_xml('KHONG_XML_GOC')

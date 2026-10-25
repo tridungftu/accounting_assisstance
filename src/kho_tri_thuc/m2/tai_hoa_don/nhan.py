@@ -77,6 +77,14 @@ def _file_chua_ro(goc, manifest):
     return sorted(out)
 
 
+def _bam_manifest(goc):
+    """SHA-256 bytes manifest.json hiện trên đĩa; None nếu không đọc được."""
+    try:
+        return sha256((Path(goc) / "manifest.json").read_bytes())
+    except OSError:
+        return None
+
+
 def _bo_sung_xml(raw):
     """Chỉ bổ sung TGia/quan hệ chưa có trong DTO strict; không đọc tiền/dòng.
 
@@ -117,7 +125,10 @@ def lap_ke_hoach_nhan(thu_muc_run, *, ma_phap_nhan: str, goc_hoi_cuu_tin_cay=Non
     Đường nhận tự động (M2e/M2f) PHẢI truyền gốc từ cấu hình tin cậy.
     """
     goc = Path(thu_muc_run).absolute()
+    h_truoc = _bam_manifest(goc)
     m = doc_manifest(goc, goc_hoi_cuu_tin_cay=goc_hoi_cuu_tin_cay)
+    if h_truoc is None or _bam_manifest(goc) != h_truoc:  # manifest đổi ngay trong lúc đọc: hash trong kế hoạch phải là hash của đúng bản đã kiểm
+        _loi("MANIFEST_DOI_TRONG_LUC_DOC")
     if ma_phap_nhan != m["phap_nhan"]["ma"]:
         _loi("PHAP_NHAN_KHONG_KHOP_PROFILE")
     # Hồi cứu giữ file tại chỗ: manifest có thể nằm ngay trong thư mục chiều
@@ -204,7 +215,7 @@ def lap_ke_hoach_nhan(thu_muc_run, *, ma_phap_nhan: str, goc_hoi_cuu_tin_cay=Non
                         "issues_xml": sorted({i.code for i in res.issues})})
         if h["zip"] is not None and h["zip"]["coverage"] != "COMPLETE":
             ngoai_le.append(_ngoai_le("TAI_LOI_ZIP_PARTIAL", ordinal=ordinal))
-    return {"thu_muc_run": str(goc), "ma_phap_nhan": ma_phap_nhan, "run_id": m["run_id"],
+    return {"thu_muc_run": str(goc), "ma_phap_nhan": ma_phap_nhan, "run_id": m["run_id"], "manifest_sha256": h_truoc,
             "nguon": m["nguon"], "ky": m["ky"], "chieu": chieu,
             "bat_dau": m["bat_dau"], "ket_thuc": m["ket_thuc"], "xap_xi": m.get("xap_xi", False),
             "context": {k: m["context"][k] for k in ("source_instance", "scope_ref", "profile_ref", "profile_revision")},
@@ -216,17 +227,31 @@ def lap_ke_hoach_nhan(thu_muc_run, *, ma_phap_nhan: str, goc_hoi_cuu_tin_cay=Non
 
 
 def nhan_vao_k2(ke_hoach: dict, hoa_don_k2: HoaDonK2, *, actor: str,
-                source_instance: str, scope_ref: str) -> dict:
+                source_instance: str, scope_ref: str, goc_hoi_cuu_tin_cay=None, lap_lai_day_du: bool = True) -> dict:
     """Mỗi XML đi qua API công khai → stage/capture → m2_tieu_thu_quan_sat.
 
     Instance/scope/actor do caller tin cậy cung cấp; không cấp quyền bằng context
     manifest. Replay dùng key ổn định theo run + item + entry; không chứa hash
     nội dung để sửa cùng run không lách thành thao tác mới. CROSSWALK chỉ là
     provenance, không làm authority/promotion. BANG_KE giữ chờ vì API chưa nhận.
+    goc_hoi_cuu_tin_cay: gốc tin cậy từ cấu hình, truyền xuống lần lập kế hoạch lại bên dưới.
+    Không truyền thì lần đọc lại KHÔNG kiểm gốc: manifest đổi giữa hai lần đọc để trỏ
+    gốc hồi cứu ra ngoài vẫn lọt nếu các đường dẫn tệp trùng kế hoạch. Đường nhận tự
+    động (M2e/M2f) PHẢI truyền.
+    lap_lai_day_du=True (mặc định): lập lại toàn bộ kế hoạch rồi so bằng nhau (tốn IO, chặn đổi tay giữa hai lần đọc).
+    False: CHỈ dành cho kế hoạch do chính caller vừa lập bằng lap_ke_hoach_nhan (vd. ngoài khóa) để trong khóa chỉ còn phần ghi K2;
+    khi đó so lại hash manifest.json với kế hoạch (đổi → từ chối) và hash từng XML vẫn kiểm ngay trước khi ghi.
     """
-    moi = lap_ke_hoach_nhan(ke_hoach["thu_muc_run"], ma_phap_nhan=ke_hoach["ma_phap_nhan"])
-    if moi != ke_hoach:
-        _loi("KE_HOACH_DA_DOI")
+    if lap_lai_day_du:
+        moi = lap_ke_hoach_nhan(ke_hoach["thu_muc_run"], ma_phap_nhan=ke_hoach["ma_phap_nhan"],
+                                goc_hoi_cuu_tin_cay=goc_hoi_cuu_tin_cay)
+        if moi != ke_hoach:
+            _loi("KE_HOACH_DA_DOI")
+    else:
+        h = ke_hoach.get("manifest_sha256")
+        if not isinstance(h, str) or _bam_manifest(ke_hoach["thu_muc_run"]) != h:
+            _loi("KE_HOACH_DA_DOI")
+        moi = ke_hoach
     if (source_instance, scope_ref) != (moi["context"]["source_instance"], moi["context"]["scope_ref"]):
         _loi("PHAM_VI_KHONG_KHOP")
     ket_qua = []
