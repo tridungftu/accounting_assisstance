@@ -3,10 +3,19 @@
 /tests/fixtures/kho_10/README.txt text eol=lf
 /tests/fixtures/m0_m5/**/*.json text eol=lf
 /tests/fixtures/m2_bridge/**/*.json text eol=lf
+# L0-9: bridge declarations/manifest/workflow pin CRLF; line-facts stays LF.
+/tests/fixtures/m2_bridge/declarations.json text eol=crlf
+/tests/fixtures/m2_bridge/manifest.json text eol=crlf
+/tests/fixtures/m2_bridge/workflow.json text eol=crlf
 /tests/fixtures/l11_quantity/**/*.json text eol=lf
+# L0-9: verified CRLF pins only; eight unmatched JSON files stay LF.
+/tests/fixtures/l11_quantity/declarations.json text eol=crlf
+/tests/fixtures/l11_quantity/manifest.json text eol=crlf
+/tests/fixtures/l11_quantity/warehouse_split/**/*.json text eol=crlf
 /tests/fixtures/l11_quantity/native/new-thung-one.xml text eol=lf
 /tests/fixtures/m2_invoice_xml/**/*.json text eol=lf
 /tests/fixtures/m2_invoice_xml/inputs/*.xml text eol=lf
+/tests/fixtures/m2_invoice_xml/inputs/*.zip -text
 /tests/fixtures/m2_invoice_xml/profile.md text eol=lf
 /src/kho_tri_thuc/ha_tang/pg_migrations.py text eol=lf
 /src/kho_tri_thuc/k2/crm_giao_ket.py text eol=lf
