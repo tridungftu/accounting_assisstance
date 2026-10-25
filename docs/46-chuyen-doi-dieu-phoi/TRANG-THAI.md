@@ -204,3 +204,5 @@ H3 phân loại 36 đầu việc: 19 gói đã nhập `hop-nhat`, 13 xung đột
 - T-NEN-a/b test PG xanh; T-NEN-c có 1 lỗi mới test_source6_lazy_excel (SETUP NOT_VERIFIED, nghi do worktree thiếu master_hd.py chưa vào git) — cần lead kiểm trước khi gộp.
 - DEMO đang mở: 8798 (lat/ui-1, Trang chủ lưới icon), 8791 (lat/bg-1d, Báo giá).
 - Việc tiếp theo khi có hạn mức: theo thứ tự CD-008 (gộp bg-1d + da-2 → BG-e1…e4 + phiếu cổng A lần 2 → mốc dự án CD-006/007 → UI-2b/UI-3 → hàng đợi).
+- Cập nhật sau khi dừng: Codex xong BG-e2 (lat/bg-e2 259ce65, 2 tệp, node 31/31 nhóm ca) và BG-e4 v2 (lat/bg-e4 29c67af, 3 tệp, khung lưới 20/20, M4 13/13); lead đã commit lên nhánh lát, đúng phạm vi tệp; CHƯA kiem-nhanh/review-lat, CHƯA gộp lat/ui-1.
+- kiem-nhanh T-NEN: a đạt (test PG 58/58 xanh); b đạt có điều kiện (test PG xanh); c chưa xanh — source6_lazy_excel cần thư mục gốc tên files và master_hd.py chưa vào git → giữ nhánh, không gộp. Sản phẩm còn xóa tệp: tools/source6_g5_e5/trich_xuat/danh_muc.py:280.

@@ -1,0 +1,5 @@
+- Đã sửa `app.js:524`: `DU_AN` → “Phụ trách dự án”, không suy vai từ login.
+- `tests/m4_01c_async.cjs:219`: kiểm value option được chọn; `tests/khung_luoi_async.cjs:223`: thêm ca DU_AN.
+- Node trước/sau: M4 lỗi P0 → đạt 13/13; khung lưới 19/19 → 20/20; không lỗi mới trong hai bộ.
+- Chưa commit được: sandbox từ chối tạo `.git/worktrees/lat-bg-e4/index.lock`.
+- Thông điệp commit: `[BG-e4] vòng 2: bổ sung nhãn Phụ trách dự án và kiểm đổi vai bằng giá trị ô chọn`
