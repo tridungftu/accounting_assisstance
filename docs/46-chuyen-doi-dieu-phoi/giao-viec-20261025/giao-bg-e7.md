@@ -1,0 +1,8 @@
+# BG-e7 — Báo giá: cột "Người lập" không hiện login (BG-22; lead thử DEMO 8798 lúc 00:55)
+
+Bạn là worker Codex, chạy không tương tác. Lead thử DEMO: danh sách báo giá cột **"Người lập"** hiện `MO_PHONG_CRM_G_BH_A` (mã kỹ thuật — trái BG-22/CLAUDE.md §4). Màn Dự án đang bán đã có hàm `nguoi` (`src/kho_tri_thuc/giao_dien/assets/crm_g.js` ~:608: `MO_PHONG_…`/`DEMO_…` → "Người dùng mô phỏng", uuid/số → "Người dùng", còn lại giữ). **Làm ngay, không hỏi lại.** UTF-8 không BOM — ghi tệp bằng UTF-8. Worktree hiện tại, nhánh `lat/bg-e7` (`lat/ui-dem`). Sandbox không ghi `.git`: **không commit**. Không mở server.
+Việc — `crm_g.js`: đưa `nguoi` thành hàm dùng chung của tệp (một chỗ, khối Dự án đang bán dùng lại); áp cho cột "Người lập" danh sách báo giá (~:2090) và **mọi** chỗ màn Báo giá / Soạn hợp đồng / Mẫu / Kiểm hiện người thao tác thô (`tao_boi`, `nguoi`, `dang_nhap` trong bảng lịch sử, phiên bản, bản ký…) — ưu tiên trường tên hiển thị máy chủ nếu có (`*_ten`). Không đổi dữ liệu gửi máy chủ.
+**Test — `tests/crm_giao_ket_async.cjs`:** danh sách báo giá người lập `MO_PHONG_CRM_G_BH_A` → "Người dùng mô phỏng"; DOM màn Báo giá không chứa `MO_PHONG_`.
+**File (≤ 2):** `crm_g.js`, `tests/crm_giao_ket_async.cjs`. Không xóa file. Nếu thấy bản in sơ bộ/DOCX (máy chủ `k2/crm_giao_ket.py` ~:1405 `nguoi_lap = tao_boi`) cũng in login → **không sửa** (ngoài phạm vi), ghi vào báo cáo.
+**Chạy node:** `node tests/crm_giao_ket_async.cjs`, `node tests/crm_du_an_ban_async.cjs`, `node tests/crm_ky_ket_async.cjs`, `node tests/khung_luoi_async.cjs` — ghi số.
+**Báo cáo (≤ ¼ trang):** số chỗ đã đổi (file:dòng) · số test · thông điệp commit `[BG-e7] …`.

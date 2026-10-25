@@ -1,0 +1,8 @@
+# BG-e7s — Bản in báo giá sơ bộ/DOCX: "Người lập" không in login (BG-22)
+
+Bạn là worker Codex, chạy không tương tác. `src/kho_tri_thuc/k2/crm_giao_ket.py` ~:1405 đưa `tao_boi` (login, vd `MO_PHONG_CRM_G_BH_A`) vào `nguoi_lap` của bản in sơ bộ/DOCX → bản in cho khách có mã kỹ thuật. **Làm ngay, không hỏi lại.** UTF-8 không BOM. Worktree hiện tại, nhánh `lat/bg-e7s` (hợp nhất). Sandbox không ghi `.git`: **không commit**. Không mở server/PostgreSQL (test PG tự skip).
+Việc: `nguoi_lap` của bản in = tên hiển thị của người lập: đọc tên trong bảng người dùng (`master.nguoi_dung` — tìm cột họ tên/tên hiển thị trong `ha_tang/pg_migrations.py`; đọc trong **cùng giao dịch** dựng bản in) nếu có; không có tên → người mô phỏng (`MO_PHONG_…`/`DEMO_…`) → "Người dùng mô phỏng", còn lại → "Người lập báo giá" (không in login). Cùng quy tắc với hàm `nguoi` của giao diện (`giao_dien/assets/crm_g.js` dòng 3). Nếu `GK_SHA256` ghim `crm_giao_ket.py` → cập nhật dòng ghim trong `tests/test_crm_ky_ket.py` như các lát trước.
+**Test:** thêm vào `tests/test_crm_moc_du_an_bao_gia.py` (hoặc test bản in sơ bộ có sẵn — tìm `nguoi_lap`): login mô phỏng → "Người dùng mô phỏng"; có họ tên → họ tên; bản in không chứa `MO_PHONG_`.
+**File (≤ 3):** `k2/crm_giao_ket.py`, 1 tệp test, `tests/test_crm_ky_ket.py` (chỉ dòng ghim). Không sửa SQL/migration. Không xóa file.
+**Chạy test:** `python -X utf8 -m unittest tests.test_crm_moc_du_an_bao_gia tests.test_crm_ky_ket tests.test_crm_giao_ket` (**không** đặt `KHO_TEST_WORD_THAT`; PYTHONPATH=`src;.`) — ghi số.
+**Báo cáo (≤ ¼ trang):** nguồn tên (tệp:dòng) · sửa ở file:dòng · số test · thông điệp commit `[BG-e7s] …`.

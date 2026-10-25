@@ -61,7 +61,7 @@
 5. BG-22: khung vai mô phỏng bỏ mã kỹ thuật, ngày dd/mm/yyyy. BG-23: báo lỗi mốc bỏ "(thay n bằng số)", hiện danh sách mốc bấm chọn. BG-24: đơn vị thống nhất "VND".
 6. Lát nhỏ ≤ 3 file theo CD-004; review `kiem-nhanh` → `review-lat`; tiêu chí đạt theo bảng TL 45 §8. Phối hợp khóa `crm_g.js`/`style.css` với UI-1.
 **Báo Anh khi:** phiếu cổng A lần 2 sẵn sàng (ca thử: 26.500.000.000 VND, nhập nhanh 10/30/40/10%).
-**Trạng thái:** ĐÃ NHẬN 22:06 25/10 — chia lát BG-e1…BG-e4 theo thứ tự TL 45 §8 (BG-20, BG-21, BG-19 → BG-18, BG-24 → BG-22, BG-23), làm trên dòng giao diện CRM `lat/ui-1` (= BG-1d + DA-2 + UI-1/UI-2) để không sửa chồng `crm_g.js`/`style.css`; các lát chạm `crm_g.js` làm tuần tự
+**Trạng thái:** XONG phần lập trình 26/10 00:58 — BG-e1…e7 (BG-18…24) trên dòng giao diện `lat/ui-dem`, review-lat Đạt; **phiếu cổng A lần 2 sẵn**: `docs&-chuyen-doi-dieu-phoi\PHIEU-CONG-A-BAO-GIA-LAN-2.md`, DEMO cổng 8798. Chờ Anh thử.
 
 ## CD-006 · 25/10/2026 22:15 · Gộp BG-1d + DA-2 ngay; mốc thanh toán do từng dự án tự khai
 **Căn cứ:** Anh chốt 25/10 22:10 qua bảng lựa chọn (Anh nhận xét "chưa thấy phần danh mục dự án bán hàng" trên DEMO; mốc "Xong CNDT" = **Xong chứng nhận đầu tư**); TL 45 §7 mục 4 và §8 BG-23 (cập nhật 22:15); `THIET-KE-DU-AN-DANG-BAN.md`.
@@ -71,7 +71,7 @@
 3. Báo giá: ô Mốc thời gian lấy danh sách **mốc cơ bản + mốc của dự án đã chọn**; nhận gõ tắt không dấu khớp tên mốc của dự án (vd `cndt`/`CNĐT` → "Xong chứng nhận đầu tư" nếu dự án đã khai); báo lỗi theo BG-23.
 4. DEMO: khai mẫu mốc "Xong chứng nhận đầu tư" cho một dự án KCN DEMO để Anh thử.
 **Báo Anh khi:** DEMO đã có màn Dự án đang bán; lát mốc dự án sẵn sàng thử.
-**Trạng thái:** ĐÃ NHẬN 22:25 25/10 (hạn mức Claude dừng 22:30–22:55). 23:05 gộp thử lat/da-2 (gồm bg-1d) vào hợp nhất: không xung đột, đang chạy test PG cả bộ; mốc dự án: thiết kế `THIET-KE-MOC-DU-AN.md`, lát MDA-1a đang code (Codex).
+**Trạng thái:** Mục 1 XONG 25/10 23:40 (gộp `lat/da-2` + T-DA2 vào hợp nhất 6998a79; lưới CRM thêm ô Dự án đang bán — DA-4, trên dòng giao diện). Mục 2–4: máy chủ mốc dự án gộp hợp nhất 26/10 00:31 (7ce0344, M0035), giao diện (MDA-2/3u/4b/4c) trên DEMO 8798; seed DEMO mốc "Xong chứng nhận đầu tư" cho KCN DEMO. Chờ Anh thử (phiếu cổng A lần 2 mục B).
 
 ## CD-007 · 25/10/2026 22:20 · Mốc dự án có ngày dự kiến và ngày thực tế (bổ sung CD-006 mục 2)
 **Căn cứ:** Anh chốt 25/10 22:10: "nếu mốc chưa có ngày thì không đếm được quá hạn, khi đó nêu ngày dự kiến, khi hết ngày dự kiến vẫn chưa làm xong thì sẽ cho chỉnh ngày dự kiến đó"; TL 45 §7 mục 5.
@@ -81,7 +81,7 @@
 3. Qua ngày dự kiến mà chưa có ngày thực tế: tạo việc chờ "Chỉnh ngày dự kiến mốc …" cho người phụ trách dự án (đếm vào số trên icon theo TL 49); chỉnh ngày dự kiến bắt buộc lý do, ghi nhật ký cũ → mới, ai, lúc nào.
 4. Ghi ngày thực tế: đợt gắn mốc có ngày đến hạn = ngày thực tế (+ n ngày nếu đợt khai) → đếm đến hạn/quá hạn như đợt ngày cố định; ghi nhật ký.
 5. Test: mốc chưa có ngày thực tế không vào danh sách quá hạn; qua ngày dự kiến sinh đúng 1 việc chờ; ghi ngày thực tế → đợt đổi trạng thái đúng.
-**Trạng thái:** ĐÃ NHẬN 22:25 25/10 — gộp vào thiết kế `THIET-KE-MOC-DU-AN.md` (ngày dự kiến/thực tế, việc chờ tính khi đọc); MDA-1a đang code.
+**Trạng thái:** XONG lập trình 26/10 00:31 (máy chủ gộp hợp nhất; giao diện trên DEMO 8798): ngày dự kiến/thực tế, chỉnh dự kiến bắt buộc lý do + nhật ký, việc chờ tính khi đọc, danh sách hợp đồng "dự kiến dd/mm/yyyy" không đếm quá hạn; test PG mốc 21+15+8+10 đạt. Chờ Anh thử (phiếu mục B).
 
 ## CD-008 · 25/10/2026 22:25 · CHẠY ĐÊM 25→26/10 (không có Anh), báo cáo lúc 05:45
 **Căn cứ:** Anh yêu cầu 25/10 22:13 "điều phối máy chạy đêm nay, các module và lát cắt thực hiện tuần tự, sáng mai 6h báo cáo điều phối, việc đã làm và chưa làm"; Anh chốt 22:20 dùng **mức 6 worker như CD-004** cả đêm.
