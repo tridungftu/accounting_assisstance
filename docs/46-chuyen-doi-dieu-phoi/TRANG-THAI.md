@@ -22,7 +22,7 @@ Trạng thái lát: Đang code → Chờ kiểm → Chờ Anh (cổng A/B) → S
 | AI-0a | Tạm khóa Cloud trực tiếp của engine #6 **bản độc lập** (`D:\Claude\Ho tro review ho so xay dung\review_xaydung`; mã ngoài git — lead sao lưu kèm SHA vào `LUU-TRU\ai-0a-sao-luu-review_xaydung-20261025-175621`) | Claude (Codex lỗi sandbox) | — | **Xong** 25/10 — 18 ca test mới đạt; 9 test Cloud cũ thất bại đúng thiết kế → AI-3 |
 | AI-0b | Tạm khóa Cloud trực tiếp ở bản engine trong repo (`m4\review_goc\trich_xuat\cloud.py`, `ai_cloud.py`) + cập nhật ghim SHA `nguon_review.py` | Codex | — | **Xong, đã gộp** (06fa717) |
 | AI-1 | Cổng Local AI (`tri_thuc\ai_cuc_bo.py`) gọi được LAN/Tailscale, kiểm tra như `privacy\local_ai.py` của Mask v2; test bằng máy AI giả | Codex | — | **Xong, đã gộp** (cfdf33c) — 40/40; review-lat sau gộp **Đạt**, 3 Nên sửa → lát **AI-1b** (Codex, chờ chỗ trống: `localhost`, LM Studio `/api/tags`, nhớ lỗi 15 giây, chuẩn hóa cài đặt khi đọc) |
-| MASK-1 | Chế độ API của Mask v2 (che / mở che / còn sót; khóa Bearer; chỉ 127.0.0.1) — làm trong thư mục Mask v2 theo `CLAUDE.md` của nó (không git, CHANGELOG, test + benchmark độ phủ không giảm; không đọc/sửa `data\`, `*.maskvault`, `*.maskkeep`, `*.key`) | Claude Opus | — | **Xong code** (Mask v2 2.7.0, 19 test mới; benchmark không giảm) → review Claude đang chạy; review Opus vòng 1 **Không đạt** (1 Chặn: định danh dạng nhóm 3 số bị bỏ qua) → **vòng 2 đang sửa** (cùng worker); Anh đã chốt QD-23 (cụm mới → tệp riêng mã hóa + màn duyệt, lát MASK-3) và QD-24 (danh mục mở cho API đến khi tắt Mask — làm trong vòng 2) |
+| MASK-1 | Chế độ API của Mask v2 (che / mở che / còn sót; khóa Bearer; chỉ 127.0.0.1) — làm trong thư mục Mask v2 theo `CLAUDE.md` của nó (không git, CHANGELOG, test + benchmark độ phủ không giảm; không đọc/sửa `data\`, `*.maskvault`, `*.maskkeep`, `*.key`) | Claude Opus | — | **Xong code** (Mask v2 2.7.0, 19 test mới; benchmark không giảm) → review Claude đang chạy; review Opus vòng 1 **Không đạt** (1 Chặn: định danh dạng nhóm 3 số bị bỏ qua) → vòng 2 **xong 19:48** (387 test đạt; lỗi Chặn đã sửa + làm QD-24: danh mục mở cho API đến khi tắt Mask, nút khóa ngay, siết quyền tệp khóa) → review Opus vòng 2 đang chạy; Anh đã chốt QD-23 (cụm mới → tệp riêng mã hóa + màn duyệt, lát MASK-3) và QD-24 (danh mục mở cho API đến khi tắt Mask — làm trong vòng 2) |
 | MASK-2 | Đưa "định danh đã biết" và kiểm `dau_vet` của `AnDanh` vào lõi Mask v2; đo lại độ phủ | Claude | MASK-1 | Chờ |
 | AI-2 | Cổng AI dùng chung: định tuyến loại việc, Cloud qua Mask API, nhật ký `nhat_ky.cong_ai_goi`, công tắc tắt Cloud | Claude | AI-1, MASK-1 | Chờ |
 | AI-3 | Engine #6 (độc lập + bản trong repo) chuyển Cloud sang cổng AI; bỏ `AnDanh`, `goi_api` riêng | Codex | AI-2, MASK-2 | Chờ |
@@ -55,7 +55,9 @@ Quy tắc áp cho mọi lát từ 25/10 (CD-001 việc 3): không lát nào vi�
 | M4-5a v3 | Codex | gpt-6.1-sol · high | 19:16 | 19:20 | (vòng 1 Đạt) | thuần 104/104; PG đang chạy |
 | UI-2 | Codex | gpt-6.1-sol · high | 19:16 | 19:30 | — | test mới 16/16; CRM PG chờ lượt |
 | Review MASK-1 | Claude | Opus | 19:17 | 19:26 | vòng 1 | Không đạt — 1 Chặn |
-| MASK-1 vòng 2 | Claude | Opus | 19:35 | — | — | — |
+| MASK-1 vòng 2 | Claude | Opus | 19:35 | 19:48 | review vòng 2 đang chạy | Mask v2: 387 đạt / 1 lỗi có sẵn; benchmark không giảm |
+| Review MASK-1 vòng 2 | Claude | Opus | 19:48 | — | — | — |
+| AI-1b | Codex | gpt-6.1-sol · high | 19:49 | — | — | — |
 | DA-3a v2 | Codex | gpt-6.1-sol · high | 19:33 | — | — | — |
 | L0-9b (fixture L11 đúng byte ghim) | Lead | Opus | 19:24 | 19:31 | 0 | Xanh — checkout mới 19/19 ghim; `t21` hết |
 | UI-1 | Claude | Sonnet | 19:21 | — | — | — |
