@@ -24,7 +24,7 @@
 | L0-3a | Lỗi môi trường N3/N4 (CRLF, fixture bị ignore, sys.path) + bộ chạy test dùng Python có psycopg | Codex | `run_suite.py`, `chay_test_theo_module.py`, `.gitattributes` | sau L0-1 | Xong 24/10 — gộp 7b114e2 |
 | L0-3b | Sửa test treo `test_source6_g5_e5` (vòng lặp bận ở `json.raw_decode`) | Codex | — | — | Chờ slot |
 | L0-5 | Bật hook cổng test so với nền theo `ids_loi` (`cong_test.py`) | Codex | `.claude\hooks` | sau đo lại nền | Chờ |
-| L0-2g | Gộp `m4-review-basis-c18-testfix` | Codex | — | — | Chờ slot |
+| L0-2g | Gộp `m4-review-basis-c18-testfix` | Codex | — | — | Xong 25/10 — gộp fdc3c2e |
 | L0-2c | Gộp `m4-02c-backend` + `m4-04c-request-m27` | Claude | `pg_migrations.py` | sau L0-2d | Xong 24/10 — gộp c4deb00 |
 | L0-2h | Rà `m4b2`, `m4b3` (chưa terminal): còn dùng được gì | Codex | — | — | Chờ slot |
 | L0-3 | Sửa nhóm ERROR còn lại theo nguyên nhân gốc L0-1 | theo nhóm | tùy nhóm | sau L0-1, L0-2* | Xong 24/10 — L0-3a, L0-3b (146a28b), L0-3c (nền v3) |
@@ -93,6 +93,7 @@ Căn cứ: lệnh của Anh 24/10 (mọi module đã chốt thiết kế; M9 d�
 - **M2-00 · trước khi mở nhận tự động (M2e/M2f):** đường nhận phải truyền gốc hồi cứu tin cậy từ cấu hình; chạy thử 1 tháng thật trước 33 tháng (tên file có dấu/khoảng trắng, MST dạng số mất số 0 đầu, thư mục phẳng lẫn hai chiều, bảng kê 20 cột — review M2d #9).
 - **M2-00 · khoảng thiếu đường nhận K2 (từ M2c):** `kho.m2_tieu_thu_quan_sat` tạo revision theo semantic digest — đổi hash bytes hoặc riêng `tthai_cong` chưa tạo revision như TL 43 §6; K2 chưa lưu mức bằng chứng `BANG_KE`, tiền tệ theo policy, quan hệ điều chỉnh/thay thế; bán ra chỉ là ứng viên nguồn. Cần lát SQL + migration (M2c-2) — hỏi Anh phạm vi khi tới M2e.
 - ~~Báo giá → Ký~~ — **Anh chốt 24/10: giữ chặn ở bước Ký** (QD-20261024-02), không mở lát sửa Ký.
+- M4 · **màn 03B** (panel căn cứ nghiệm thu ↔ hóa đơn trong màn kế toán, lát M4-5): chưa có thiết kế màn hình được chốt trong repo (chỉ nguyên tắc ở kế hoạch M4 dòng 40) → soạn checklist, hỏi Anh trước khi code.
 - M4 · ghi nhận công nợ nội bộ (kế toán xác nhận giá trị/thuế → công nợ): chưa có thiết kế gói; 03B chỉ là quan hệ căn cứ.
 - BG-09 nguồn danh mục lô/căn (bảng mới + dữ liệu DEMO, hay kế toán nhập).
 - CRM: Q-B (luồng B do CFO hay KT), Q-SAMPLE, Q-RETURN, Q-INPUT, Q-PII, Q-UI; quyền xem công nợ Junsky của Bán hàng.

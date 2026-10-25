@@ -1,6 +1,6 @@
 # Trạng thái — lead Claude Code cập nhật khi lát đổi trạng thái
 
-Trạng thái lát: Đang code → Chờ kiểm → Chờ Anh (cổng A/B) → Sửa → Xong · Bị chặn. Kế hoạch và hàng đợi đầy đủ: `4-KE-HOACH-LEAD.md`. Nền test: `NEN-TEST.md` mục 0b — **nền v3** (mục 0a, sau L0-3c): 1408/22/44/360, 1 treo.
+Trạng thái lát: Đang code → Chờ kiểm → Chờ Anh (cổng A/B) → Sửa → Xong · Bị chặn. Kế hoạch và hàng đợi đầy đủ: `4-KE-HOACH-LEAD.md`. Nền test: `NEN-TEST.md` mục 0b — **nền v4** (mục 0, 25/10): 1501/23/44/362, **0 treo**.
 
 ## Lát đang chạy (tối đa 3 worker)
 
@@ -13,6 +13,7 @@ Trạng thái lát: Đang code → Chờ kiểm → Chờ Anh (cổng A/B) → S
 
 | Lát | Kết quả | Gộp vào hop-nhat |
 |---|---|---|
+| L0-2g | Testfix C18 review basis M4 (bản kế nhiệm `m4_02a_basis_async.cjs`): 31/32 → 32/32 | fdc3c2e |
 | M4-4/7 | M0028 master dùng chung + M0029 03B ghi nhận chung (append, 29 migration); áp thật 0→29 và 27→29; review Codex Đạt cả 4 tiêu chí | 3d0be04 |
 | L0-7 | Engine #6 nạp sẵn openpyxl/numpy ở luồng chính tiến trình con → hết treo lệnh trích đầu (A/B: 1,8 s vs 503); .gitattributes review_goc (35/35 pin khớp ở clone mới); seed duyệt viên M4 cho DEMO; review Codex: 0 Chặn | d4eb6a5 |
 | M2d | M2-00 · manifest hồi cứu HOI_CUU (chỉ đọc thư mục cũ); review Đạt (~45 ca tấn công đường dẫn bị chặn); vòng 2: gốc hồi cứu tin cậy, junction, run_id theo tên thật, chặn chuỗi quá dài; 173/0/0/1 | da3d666 |
