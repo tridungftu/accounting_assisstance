@@ -50,3 +50,15 @@
 5. **Ngừng giao thêm** khi > 2 lát chờ review, chạm hạn mức gói (Claude hoặc Codex), hoặc test giữa các lát xung đột. Tăng Codex quá 4 chỉ khi Anh duyệt (đề xuất trong báo cáo ngày).
 **Báo Anh khi:** CSDL DEMO chưa chạy dịch vụ Windows (điều kiện bắt buộc trước khi lên 4 Codex); hàng chờ review dồn > 2 trong ngày.
 **Trạng thái:** ĐÃ NHẬN 19:19 25/10 — đã chép `review-lat` vào `.claude\agents\`; tiêu đề TRANG-THAI sửa theo mức mới (25/10 vẫn 3 worker; từ 26/10: 2 Claude + 4 Codex); từ nay lát Codex chưa gộp (M4-5a v3, UI-2, DA-3a v2, T-MIG2) qua `kiem-nhanh` → `review-lat` trước khi gộp; AI-1, C3c đã gộp 18:58–19:03 (trước CD-004) → review-lat sau gộp. cập nhật 19:47: dịch vụ Windows `ktt-postgres-demo` **đã chạy** (Anh bấm 19:40, sẵn sàng 19:46) → đủ điều kiện lên 4 Codex từ 26/10
+
+## CD-005 · 25/10/2026 22:05 · Báo giá — kết quả cổng A bản BG-1d: chưa đạt, 7 điểm sửa BG-18…BG-24
+**Căn cứ:** Anh rà màn Báo giá trên DEMO 25/10 21:55 và chốt qua bảng lựa chọn; `D:\Claude\Phan mem ho tro ke toan\45-review-man-bao-gia-sau-lap-trinh.md` §8 (đã cập nhật 25/10 22:05).
+**Việc:**
+1. BG-18: nút "+ Báo giá mới" to, nổi, ở **đầu** màn danh sách.
+2. BG-19: giá trị từng lần thanh toán và dòng tổng Σ chữ to, đậm như khối Tổng giá trị hiện tại.
+3. BG-20: lịch 5 cột Lần · **%** · **Giá trị** · Mốc · Ghi chú (hẹp); gõ % → tiền, gõ tiền → %, ô gõ là ô gốc; máy chủ tính khi rời ô; đổi tổng → giữ ô gốc, tính lại ô kia. Thay quy tắc "một ô thông minh" ở TL 45 §3.
+4. BG-21: ô "Nhập nhanh lịch": số nguyên `4` → 4 dòng; dãy `10%, 30%, 40%, 10%` → 4 dòng đúng %; bảng có sẵn dòng → hỏi thay.
+5. BG-22: khung vai mô phỏng bỏ mã kỹ thuật, ngày dd/mm/yyyy. BG-23: báo lỗi mốc bỏ "(thay n bằng số)", hiện danh sách mốc bấm chọn. BG-24: đơn vị thống nhất "VND".
+6. Lát nhỏ ≤ 3 file theo CD-004; review `kiem-nhanh` → `review-lat`; tiêu chí đạt theo bảng TL 45 §8. Phối hợp khóa `crm_g.js`/`style.css` với UI-1.
+**Báo Anh khi:** phiếu cổng A lần 2 sẵn sàng (ca thử: 26.500.000.000 VND, nhập nhanh 10/30/40/10%).
+**Trạng thái:** MỚI
