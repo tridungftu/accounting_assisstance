@@ -37,6 +37,7 @@ from ..m2.tai_hoa_don import CauHinhTaiHoaDon, DieuPhoiTaiHoaDon, TepPin, TienTr
 from ..m2.tai_hoa_don.cau_hinh import kiem_khong_reparse
 from ..m2.tai_hoa_don.dieu_phoi import RE_RUN_REL, kiem_lua_chon
 from ..m2.tai_hoa_don.manifest import doc_manifest
+from ..m2.tai_hoa_don.khach import LoiKhach
 from ..m2.tai_hoa_don.nhan import lap_ke_hoach_nhan, nhan_vao_k2
 
 TIEN_TO = "/api/m2/tai-hoa-don"
@@ -97,6 +98,7 @@ HTTP_400 = frozenset({"CRM_PHIEN", "M2_00B_CHON_SAI", "M2_00B_KHOA_SAI", "M2_00B
 
 _KHOI_TAO = threading.Lock()
 _KHOI_DONG = threading.Lock()
+CANH_BAO_DUNG = "Đã hủy hàng đợi nhưng bộ tải chưa xác nhận dừng"
 
 
 # ---------------------------------------------------------------------------------------------- cấu hình + dịch vụ
@@ -182,7 +184,11 @@ class DieuPhoiApp(DieuPhoiTaiHoaDon):
             self._kiem_hang_doi()
             if self._dang_chay:
                 # Tab tải lẻ có thể đã đóng: xác nhận bộ tải thật trước khi giữ cờ bận.
-                if self._khach().config()["running"]:
+                try:
+                    running = self._khach().config()["running"]
+                except LoiKhach as exc:
+                    raise DataError("M2_00B_" + exc.ma, "Chưa đọc được trạng thái bộ tải. Kiểm tra kết nối rồi thử lại.") from None
+                if running:
                     raise DataError("M2_00B_JOB_BUSY", "Bộ tải đang chạy một lần tải khác. Đợi xong rồi tải tất cả.")
                 with self._khoa:
                     self._dang_chay = None
@@ -203,7 +209,11 @@ class DieuPhoiApp(DieuPhoiTaiHoaDon):
             if self._phien(sid) != chu:
                 self._hang_doi = None
                 raise DataError("M2_00B_PHIEN_DOI", "Phiên đã đổi — chọn lại trước khi tải.")
-            threading.Thread(target=self._chay_tat_ca, args=(sid, q), daemon=True, name="m2-tai-tat-ca").start()
+            try:
+                threading.Thread(target=self._chay_tat_ca, args=(sid, q), daemon=True, name="m2-tai-tat-ca").start()
+            except Exception:
+                self._hang_doi = None
+                raise
         return self.trang_thai_hang_doi(sid)
 
     def trang_thai_hang_doi(self, sid, profiles=None):
@@ -239,7 +249,13 @@ class DieuPhoiApp(DieuPhoiTaiHoaDon):
                 for m in q["muc"]:
                     if m["trang_thai"] in {"Chờ", "Đang tải"}:
                         m.update(trang_thai="Đã hủy", ly_do=None)
-            self.stop()
+            if self.stop().get("trang_thai") != "DA_DUNG":
+                with self._khoa_hang_doi:
+                    q["canh_bao_dung"] = CANH_BAO_DUNG
+                    for m in q["muc"]:
+                        if m["trang_thai"] == "Đã hủy":
+                            m["ly_do"] = CANH_BAO_DUNG
+                raise DataError("M2_00B_DUNG_CHUA_XAC_NHAN", CANH_BAO_DUNG)
         return {"da_huy": True}
 
     def _cap_hang_doi(self, m, **kw):
@@ -311,7 +327,10 @@ class DieuPhoiApp(DieuPhoiTaiHoaDon):
                     self._cap_hang_doi(m, trang_thai="Lỗi", ly_do="Không xác nhận được bộ tải đã dừng. Cần kiểm tra bộ tải trước khi tải tiếp.")
                     with q["khoa_job"]:
                         if not q["dung"].is_set():
-                            self.stop()
+                            if self.stop().get("trang_thai") != "DA_DUNG":
+                                with self._khoa_hang_doi:
+                                    q["canh_bao_dung"] = CANH_BAO_DUNG
+                                    m["ly_do"] = CANH_BAO_DUNG
                     return
         finally:
             with q["khoa_job"]:
@@ -319,10 +338,12 @@ class DieuPhoiApp(DieuPhoiTaiHoaDon):
                     q["dang_chay"] = False
                     for m in q["muc"]:
                         if m["trang_thai"] in {"Chờ", "Đang tải"}:
-                            m.update(trang_thai="Đã hủy", ly_do=None)
+                            m.update(trang_thai="Đã hủy", ly_do=q.get("canh_bao_dung"))
 
     def khoi_dong_neu_can(self) -> dict:
         with _KHOI_DONG:
+            if self.tien_trinh.chung_dung is not None:
+                raise DataError("M2_00B_DUNG_CHUA_XAC_NHAN", "Bộ tải cũ chưa xác nhận dừng. Kiểm tra bộ tải trước khi mở lại.")
             if self.tien_trinh.dang_chay():
                 return {"trang_thai": "SAN_SANG"}
             try:
@@ -330,7 +351,8 @@ class DieuPhoiApp(DieuPhoiTaiHoaDon):
             except DataError as exc:
                 if exc.code != "M2_00B_DA_KHOI_DONG":
                     raise
-            self.stop()  # tiến trình con cũ đã chết nhưng chưa dọn: dừng đúng cây sở hữu rồi khởi động lại một lần
+            if self.stop().get("trang_thai") != "DA_DUNG":
+                raise DataError("M2_00B_DUNG_CHUA_XAC_NHAN", "Bộ tải cũ chưa xác nhận dừng. Kiểm tra bộ tải trước khi mở lại.")
             return self.khoi_dong()
 
     def ngu_canh(self, sid, run_handle) -> dict:

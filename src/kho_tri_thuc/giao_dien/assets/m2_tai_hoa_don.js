@@ -281,16 +281,22 @@
 
   async function theoDoiHangDoi(e = ep) {
     const g = ++doiGen;
+    let loiLienTiep = 0;
     while (e === ep && g === doiGen) {
       try {
         const q = await getJson(API + "/hang-doi");
         if (e !== ep || g !== doiGen) return;
+        loiLienTiep = 0;
         hangDoi = q; ve();
         if (!q.dang_co_hang_doi) return;
       } catch (err) {
         if (e !== ep || g !== doiGen) return;
         trangThai(err.message, true);
         if ([400, 403, 404, 409, 503].includes(err.status)) return;
+        if (++loiLienTiep >= 20) {
+          trangThai("Mất kết nối — bấm Làm mới", true);
+          return;
+        }
       }
       await cho(1500);
     }
@@ -326,7 +332,7 @@
     } catch (err) {
       if (e !== ep) return;
       trangThai(err.message, true);
-      if (err.status === 0) theoDoiHangDoi(e);
+      theoDoiHangDoi(e);
     } finally { if (e === ep) { dangHuy = false; veHangDoi(); } }
   }
 
