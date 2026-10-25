@@ -125,8 +125,23 @@ class MocGiaLap(unittest.TestCase):
         self.assertEqual(r["viec"]["W5"], 1)
         self.assertNotIn("QUA_HAN", r["co"])
 
-    def test_moc_ngung_hoac_khong_tim_thay_khong_co_ngay(self):
-        # LEFT JOIN không trả ngày của mốc ngừng/không tồn tại/ngoài dự án.
+    def test_moc_ngung_da_co_thuc_te_van_tinh_han(self):
+        noi = " ".join(S._NOI_MOC_DU_AN.split())
+        self.assertIn("(s.dang_dung OR s.ngay_thuc_te IS NOT NULL)", noi)
+        self.assertIn("s.hieu_luc_den IS NULL AND s.hieu_luc_tu <= %(ngay)s", noi)
+        for thuc_te, han, qua, w5 in (("2026-10-20", "2026-10-23", True, 0),
+                                     ("2026-10-22", "2026-10-25", False, 1)):
+            with self.subTest(thuc_te=thuc_te):
+                r = _dong(dong(dot(moc_ngay_thuc_te=thuc_te)), NGAY)
+                self.assertEqual(r["dot_ke_tiep"], {"dot": 1, "han": han, "moc": MA + "_3",
+                                 "han_du_kien": None, "trang_thai": "CO_NGAY"})
+                self.assertEqual("QUA_HAN" in r["co"], qua)
+                self.assertEqual(r["viec"]["W5"], w5)
+
+    def test_moc_ngung_chua_co_thuc_te_khong_co_ngay(self):
+        # Mốc ngừng chỉ có dự kiến không được JOIN; projection không còn ngày.
+        noi = " ".join(S._NOI_MOC_DU_AN.split())
+        self.assertIn("(s.dang_dung OR s.ngay_thuc_te IS NOT NULL)", noi)
         r = _dong(dong(dot(moc_ngay_du_kien=None)), NGAY)
         self.assertEqual(r["dot_ke_tiep"]["trang_thai"], "MOC_CHUA_CO_NGAY")
         self.assertIsNone(r["dot_ke_tiep"]["han"])
@@ -268,8 +283,35 @@ class MocPostgres(unittest.TestCase):
         self.da.moc_ghi("MO_PHONG_BAN_HANG", da_ban_id=da["da_ban_id"],
                        moc={"moc_id": moc["moc_id"], "expected_lan": moc["lan"], "dang_dung": False}, khoa="mda4a-ngung")
         r = self.s1.danh_sach("MO_PHONG_KT_A", loc)
-        self.assertEqual(r["hop_dong"][0]["dot_ke_tiep"]["trang_thai"], "MOC_CHUA_CO_NGAY")
+        self.assertEqual(r["hop_dong"][0]["dot_ke_tiep"],
+                         {"dot": 1, "han": NGAY.isoformat(), "moc": ma,
+                          "han_du_kien": None, "trang_thai": "CO_NGAY"})
+        self.assertNotIn("QUA_HAN", r["hop_dong"][0]["co"])
+        self.assertEqual(r["the_so"]["W5"]["so_luong"], 1)
+        self.assertEqual(self.s1.danh_sach("MO_PHONG_KT_A", {**loc, "the": "W5"})["tong"], 1)
+
+    def test_moc_ngung_chua_co_thuc_te_khong_co_ngay(self):
+        da = self.c.execute("""SELECT d.id::text AS da_ban_id, d.du_an_id, d.phap_nhan_id
+            FROM master.crm_da_ban d JOIN master.du_an a ON a.id = d.du_an_id
+            WHERE a.ma_junsky = 'DA_KCN_DEMO'""").fetchone()
+        moc = self.da.moc_ghi("MO_PHONG_BAN_HANG", da_ban_id=da["da_ban_id"],
+                             moc={"ten": "Mốc DS-3a chưa thực tế DEMO", "ngay_du_kien": "2026-10-20"},
+                             khoa="ds3a-khai")
+        ma = "SU_KIEN:" + moc["ma"] + "_3"
+        self._tao_hop_dong(da, ma, "HD-DS-3A-DEMO")
+        self.da.moc_ghi("MO_PHONG_BAN_HANG", da_ban_id=da["da_ban_id"],
+                       moc={"moc_id": moc["moc_id"], "expected_lan": moc["lan"], "dang_dung": False},
+                       khoa="ds3a-ngung")
+        loc = {"tim": "HD-DS-3A-DEMO"}
+        r = self.s1.danh_sach("MO_PHONG_KT_A", loc)
+        self.assertEqual(r["tong"], 1)
+        self.assertEqual(r["hop_dong"][0]["dot_ke_tiep"],
+                         {"dot": 1, "han": None, "moc": ma,
+                          "han_du_kien": None, "trang_thai": "MOC_CHUA_CO_NGAY"})
+        self.assertNotIn("QUA_HAN", r["hop_dong"][0]["co"])
         self.assertEqual(r["the_so"]["W5"]["so_luong"], 0)
+        self.assertEqual(self.s1.danh_sach("MO_PHONG_KT_A", {**loc, "co": "QUA_HAN"})["tong"], 0)
+        self.assertEqual(self.s1.danh_sach("MO_PHONG_KT_A", {**loc, "the": "W5"})["tong"], 0)
 
     def test_danh_sach_pg_ma_sai_khong_loi_ca_danh_sach(self):
         da = self.c.execute("""SELECT d.id::text AS da_ban_id, d.du_an_id, d.phap_nhan_id

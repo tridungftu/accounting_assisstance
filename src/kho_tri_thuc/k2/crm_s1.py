@@ -6,8 +6,9 @@ Thẻ tính sau bộ lọc thông thường, trước lọc thẻ và phân tran
 Không cộng cột Junsky giữa các HĐ (số dư cấp khách).
 Scope BH dùng binding CRM_KY_KET hiện hành, không suy quyền từ người tạo. HĐ
 luồng B chưa có binding này sẽ ẩn với BH; KT/CFO/XEM đọc theo PN + module CRM.
-Mốc riêng dự án đang dùng: hạn = ngày thực tế + n; chưa có thực tế chỉ trả
-dot_ke_tiep.han_du_kien và trạng thái MOC_DU_KIEN, không đếm QUA_HAN/W5.
+Mốc riêng dự án: hạn = ngày thực tế + n, kể cả mốc đã ngừng dùng. Mốc đang
+dùng chưa có thực tế chỉ trả dot_ke_tiep.han_du_kien và trạng thái MOC_DU_KIEN,
+không đếm QUA_HAN/W5; mốc ngừng chưa có thực tế không trả ngày.
 Hai bổ sung API này giữ nguyên nghĩa các trường cũ; mốc chuẩn không đổi.
 """
 
@@ -171,7 +172,8 @@ _NOI_MOC_DU_AN = """
         JOIN master.crm_da_moc_ls s ON s.moc_id = m.id AND s.phap_nhan_id = h.phap_nhan_id
         WHERE l.han IS NULL AND h.xem_tien AND d.du_an_id = h.du_an_id
           AND ma.so_ngay <= """ + str(MOC_DU_AN_NGAY_TOI_DA) + """
-          AND s.dang_dung AND s.hieu_luc_den IS NULL AND s.hieu_luc_tu <= %(ngay)s
+          AND (s.dang_dung OR s.ngay_thuc_te IS NOT NULL)
+          AND s.hieu_luc_den IS NULL AND s.hieu_luc_tu <= %(ngay)s
     ) dm ON true
 """
 _THU = """
