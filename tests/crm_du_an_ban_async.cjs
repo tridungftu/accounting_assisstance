@@ -1,5 +1,5 @@
 "use strict";
-// DA-2a: chạy app.js + crm_g.js thật với DOM/fetch giả, không mạng/server/CSDL.
+// DA-2a/DA-2b1: chạy app.js + crm_g.js thật với DOM/fetch giả, không mạng/server/CSDL.
 // node tests/crm_du_an_ban_async.cjs
 const assert = require("node:assert/strict"), fs = require("node:fs"), path = require("node:path"), vm = require("node:vm");
 const ROOT = path.resolve(__dirname, ".."), ASSETS = path.join(ROOT, "src/kho_tri_thuc/giao_dien/assets");
@@ -21,7 +21,7 @@ function moiTruong() {
     append(...n) { n.forEach(x => this.children.push(this._con(x))); } prepend(...n) { this.children.unshift(...n.map(x => this._con(x))); }
     replaceChildren(...n) { this.textContent = ""; this.append(...n); } remove() { if (this.parent) this.parent.children = this.parent.children.filter(x => x !== this); this.parent = null; }
     addEventListener(t, fn) { (this.listeners[t] ||= []).push(fn); } dispatch(t, ev = {}) { return (this.listeners[t] || []).map(fn => fn({preventDefault() {}, target: this, key: "", ...ev})); } click() { return this.dispatch("click"); }
-    setAttribute(k, v) { this.attrs[k] = String(v); } getAttribute(k) { return this.attrs[k] ?? null; } removeAttribute(k) { delete this.attrs[k]; } focus() {} showModal() {} close() {}
+    setAttribute(k, v) { this.attrs[k] = String(v); } getAttribute(k) { return this.attrs[k] ?? null; } removeAttribute(k) { delete this.attrs[k]; } focus() {} showModal() { assert.ok(this.isConnected); this.open = true; } close() { this.open = false; }
   }
   const body = new El("body"), document = {body, title: "", createElement: t => new El(t), createTextNode: t => Object.assign(new El("#text"), {_text: String(t)}), querySelector: s => s.includes("ktt-token") ? {content: "TOKEN-DA-THU"} : null, querySelectorAll: () => [],
     getElementById: id => { const ds = (reg.get(id) || []).filter(e => e.isConnected); if (ds.length) return ds.at(-1); if (dongId.has(id) || !IDS.has(id)) return null; taoTinh = true; const e = new El("div"); e.id = id; taoTinh = false; body.append(e); return e; }};
@@ -39,7 +39,7 @@ const chay = async () => { for (let i = 0; i < 14; i++) await Promise.resolve();
 const A = "11111111-1111-4111-8111-111111111111", B = "22222222-2222-4222-8222-222222222222", LH = "33333333-3333-4333-8333-333333333333";
 const URL_DA = "/api/crm/du-an-ban", TITLE = "<b>Dự án A</b>";
 const DM = {thue_suat: [{ma: "10", nhan: "Thuế suất 10%"}, {ma: "KCT", nhan: "Không chịu thuế"}], tien_te: [{ma: "USD", nhan: "USD"}, {ma: "VND", nhan: "VND (đ)"}], loai_phi: [{ma: "BAO_TRI", nhan: "Phí bảo trì"}, {ma: "SU_DUNG", nhan: "Phí sử dụng"}, {ma: "KHAC", nhan: "Phí khác"}], don_vi_tinh: [{ma: "M2_NAM", nhan: "m²/năm"}, {ma: "M2_THANG", nhan: "m²/tháng"}, {ma: "LAN", nhan: "lần"}], trang_thai_lo: [{ma: "CON_TRONG", nhan: "Còn trống"}, {ma: "GIU_CHO", nhan: "Đang giữ chỗ"}, {ma: "DA_BAN", nhan: "Đã bán/cho thuê"}, {ma: "KHONG_BAN", nhan: "Tạm không bán"}]};
-const ds = (chi = false) => ({danh_muc: DM, du_an_ban: [{da_ban_id: A, du_an_id: "da-id-ky-thuat", du_an_ma: "MA_DU_AN_KY_THUAT", du_an_ten: TITLE, phien_ban: 2, dang_ban: true, don_gia_niem_yet: "999", don_gia_hien_thi: "120 USD/m²", so_phi: 2, so_lo: 4, duoc_sua: false}, ...(!chi ? [{da_ban_id: B, du_an_ten: "Dự án B", phien_ban: 1, dang_ban: false, don_gia_hien_thi: "35.000.000 đ/m²", so_phi: 0, so_lo: 0, duoc_sua: true}] : [])], du_an_chua_ban: [{du_an_id: "khong-hien", du_an_ten: "Dự án chưa bật bán không hiện"}], loai_hinh: []});
+const ds = (chi = false) => ({duoc_sua: false, danh_muc: DM, du_an_ban: [{da_ban_id: A, du_an_id: "da-id-ky-thuat", du_an_ma: "MA_DU_AN_KY_THUAT", du_an_ten: TITLE, phien_ban: 2, dang_ban: true, don_gia_niem_yet: "999", don_gia_hien_thi: "120 USD/m²", so_phi: 2, so_lo: 4, duoc_sua: false}, ...(!chi ? [{da_ban_id: B, du_an_ten: "Dự án B", phien_ban: 1, dang_ban: false, don_gia_hien_thi: "35.000.000 đ/m²", so_phi: 0, so_lo: 0, duoc_sua: true}] : [])], du_an_chua_ban: [{du_an_id: "khong-hien", du_an_ten: "Dự án chưa bật bán không hiện"}], loai_hinh: []});
 const pbs = [{id: "pb-id-1", phien_ban: 1, hieu_luc_tu: "2026-09-01", hieu_luc_den: "2026-10-25", hieu_luc_tu_hien_thi: "01/09/2026", hieu_luc_den_hien_thi: "25/10/2026", lap_boi: "DEMO_BH", ly_do: "Lập mới"}, {id: "pb-id-2", phien_ban: 2, hieu_luc_tu: "2026-10-25", hieu_luc_den: null, hieu_luc_tu_hien_thi: "25/10/2026", lap_boi: "Chị Lan", ly_do: "Sửa phí <b>giữ nguyên</b>"}];
 const phi = [{ten: "Phí <b>bảo trì</b>", loai: "BAO_TRI", muc: "0.5", don_vi_tinh: "M2_NAM", tien_te: "USD", co_so_tinh: "Diện tích thuê"}, {ten: "Phí sử dụng", loai: "SU_DUNG", muc: "15000", don_vi_tinh: "M2_THANG", tien_te: "VND", co_so_tinh: "Diện tích thông thủy"}];
 const ct = (n = 2, da = A) => ({da_ban_id: da, danh_muc: DM, phien_ban_ds: pbs, duoc_sua: false,
@@ -56,6 +56,114 @@ const ls = () => ({phien_ban: [{...pbs[1], noi_dung: noiDung("120", false)}, {..
   {giai_doan: "NHAP_KHONG_HIEN", trang_thai: "DRAFT"},
   {giai_doan: "CUNG_NGAY_KHONG_HIEN", trang_thai: "HIEU_LUC", khoang_rong: true}
 ]});
+
+async function kiemGhi(dat) {
+  const {ctx, calls, $} = moiTruong(), da = () => $("crmg-da"), goc = () => $("crm-g");
+  for (const c of calls) { c.xong = true; c.resolve(phanHoi({message: "Module khác"}, 404)); } await chay();
+  const cho = (url, method = "GET") => { const c = calls.find(x => !x.xong && x.url === url && x.method === method); assert.ok(c, method + " " + url); c.xong = true; return c; };
+  const tra = async (url, data, status) => { cho(url).resolve(phanHoi(data, status)); await chay(); };
+  const lenh = () => calls.filter(c => c.method === "POST");
+  const nhap = (k, v) => { const el = $("crmg-da-f-" + k); assert.ok(el, k); el.value = v; el.dispatch("input"); };
+  const click = text => { const b = nut(da(), text); assert.ok(b, text); b.click(); };
+  const ghi = async (hanh, data, status = 200) => { const c = cho(URL_DA + "/" + hanh, "POST"); c.resolve(phanHoi(data, status)); await chay(); return JSON.parse(c.opts.body); };
+  const dsGhi = (n = 2, dang = true) => ({...ds(), duoc_sua: true, du_an_ban: [{...ds().du_an_ban[0], duoc_sua: true, phien_ban: n, dang_ban: dang}],
+    du_an_chua_ban: [{du_an_id: "du-an-moi-id", du_an_ten: "Dự án mới <b>nguyên văn</b>"}], loai_hinh: [{id: LH, ma: "KHONG_HIEN_MA", ten: "Cho thuê đất"}]});
+  const ctGhi = (n = 2, dang = true) => { const d = ct(n); return {...d, duoc_sua: true,
+    phien_ban_ds: [...pbs.filter(v => v.phien_ban < n).map(v => ({...v, hieu_luc_den: "2026-10-25"})), {...pbs[1], phien_ban: n}],
+    anh_chup: {...d.anh_chup, don_gia: "1234.5", gia_dat_tru: "1000.25", giai_doan_g7: "GD1", trang_thai: dang ? "DANG_BAN" : "NGUNG_BAN"}}; };
+  const sauLuu = async (n, dang = true) => { await tra(URL_DA, dsGhi(n, dang)); await tra(URL_DA + "/" + A, ctGhi(n, dang)); };
+  nut(goc(), "Dự án đang bán").click(); await tra(URL_DA, ds());
+  assert.equal(nut(da(), "Thêm dự án đang bán"), undefined);
+  ALL(da(), e => e.className === "da-dong")[0].click(); await tra(URL_DA + "/" + A, ct()); await tra("/api/crm/bao-gia/moc-chuan", MOC);
+  for (const t of ["Sửa thông tin", "Ngừng bán", "Mở bán lại"]) assert.equal(nut(da(), t), undefined);
+  dat("Không có duoc_sua không thấy nút ghi");
+
+  nut(goc(), "↻ Làm mới").click();
+  // DTO máy chủ thực tế chưa có quyền tổng; chỉ trả các dự án chưa bán được phép ghi.
+  const thucTe = dsGhi(); delete thucTe.duoc_sua; await tra(URL_DA, thucTe); await tra(URL_DA + "/" + A, ctGhi());
+  click("Thêm dự án đang bán");
+  const f = $("crmg-da-form");
+  for (const t of ["Vị trí", "Mô tả", "/m² (chưa gồm VAT)", "Tiền tệ", "Loại hình", "Thuế suất", "Giá đất được trừ /m²", "Giai đoạn tiến độ mặc định", "Lý do (bắt buộc)"]) assert.ok(f.textContent.includes(t), t);
+  assert.equal($("crmg-da-f-thue_suat").value, "10");
+  assert.deepEqual(ALL($("crmg-da-f-thue_suat"), e => e.tagName === "OPTION").map(e => e.textContent), DM.thue_suat.map(v => v.nhan));
+  assert.ok(f.textContent.includes("Dự án mới <b>nguyên văn</b>"));
+  for (const t of ["du-an-moi-id", "KHONG_HIEN_MA", LH]) assert.ok(!f.textContent.includes(t));
+  click("Lưu thông tin"); assert.equal(lenh().length, 0); assert.ok($("crmg-da-f-ly_do-loi").textContent);
+  nhap("du_an_id", "du-an-moi-id"); nhap("loai_hinh_id", LH); nhap("vi_tri", "Vị trí mới"); nhap("mo_ta", "Mô tả <b>an toàn</b>");
+  nhap("don_gia_niem_yet", "1.234,5"); nhap("gia_dat_tru", "1.000,25"); nhap("giai_doan_g7", "GD1"); nhap("ly_do", " Bắt đầu bán ");
+  click("Lưu thông tin"); click("Lưu thông tin"); assert.equal(lenh().length, 1, "Không gửi lặp lúc đang chờ");
+  const moi = await ghi("bat-ban", {da_ban_id: A, phien_ban: 3, lap_lai: false});
+  assert.deepEqual(moi, {du_an_id: "du-an-moi-id", thong_tin: {vi_tri: "Vị trí mới", mo_ta: "Mô tả <b>an toàn</b>", don_gia_niem_yet: "1234.5", tien_te: "VND", loai_hinh_id: LH, thue_suat: "10", gia_dat_tru: "1000.25", giai_doan_g7: "GD1"}, phi: [], ly_do: "Bắt đầu bán", khoa: "crmg-uuid-thu"});
+  await sauLuu(3); assert.equal($("crmg-da-form"), null); assert.equal($("crmg-da-phien-ban").value, "3");
+  dat("Bật bán: form đúng, lý do bắt buộc, thuế mặc định 10, số Việt thành chuỗi ASCII, tải phiên bản mới");
+
+  click("Sửa thông tin");
+  assert.equal($("crmg-da-f-don_gia_niem_yet").value, "1.234,5"); assert.equal($("crmg-da-f-gia_dat_tru").value, "1.000,25"); assert.equal($("crmg-da-f-giai_doan_g7").value, "GD1");
+  nhap("ly_do", "Sửa thông tin"); nhap("vi_tri", "Nội dung đang gõ");
+  const dem = lenh().length;
+  for (const sai of ["1e6", "١٢٣", "1.23", "-1", "1,1234567890123"]) {
+    nhap("don_gia_niem_yet", sai); click("Lưu thông tin"); assert.equal(lenh().length, dem); assert.equal($("crmg-da-f-don_gia_niem_yet").getAttribute("aria-invalid"), "true");
+  }
+  nhap("don_gia_niem_yet", "123456789012345678901234,123456789012");
+  click("Lưu thông tin");
+  const sua = await ghi("cap-nhat", {error: "CRM_DA_SO_SAI", truong: "thong_tin.gia_dat_tru", message: "Giá đất vượt đơn giá."}, 400);
+  assert.equal(sua.expected_phien_ban, 3); assert.equal(sua.da_ban_id, A); assert.ok(!Object.hasOwn(sua, "phi"), "Không thay phí");
+  assert.equal(sua.thong_tin.don_gia_niem_yet, "123456789012345678901234.123456789012", "Không qua float");
+  assert.equal($("crmg-da-f-gia_dat_tru").getAttribute("aria-invalid"), "true"); assert.equal($("crmg-da-f-gia_dat_tru-loi").textContent, "Giá đất vượt đơn giá.");
+  assert.equal($("crmg-da-f-vi_tri").value, "Nội dung đang gõ");
+  nhap("gia_dat_tru", "0"); nhap("don_gia_niem_yet", "1.234,5"); click("Lưu thông tin");
+  await ghi("cap-nhat", {error: "CRM_DA_YEU_CAU_SAI", truong: "ly_do", message: "Cần lý do cụ thể."}, 400);
+  assert.equal($("crmg-da-f-ly_do-loi").textContent, "Cần lý do cụ thể.");
+  dat("Sửa: nạp số/giai đoạn hiện hành, không gửi phí; lỗi số và HTTP 400 đỏ đúng ô, giữ nháp, không mất chính xác");
+
+  nhap("ly_do", "Điều chỉnh theo quyết định"); click("Lưu thông tin");
+  await ghi("cap-nhat", {error: "CRM_DA_PHIEN_BAN_CU", message: "Cũ"}, 409);
+  assert.ok($("crmg-da-form").textContent.includes("Dự án vừa được người khác sửa — tải lại để xem bản mới"));
+  assert.equal($("crmg-da-f-vi_tri").value, "Nội dung đang gõ"); assert.ok(nut(da(), "Lưu thông tin").disabled);
+  assert.ok(!calls.some(c => !c.xong && c.url === URL_DA), "409 không tự tải mất nháp");
+  click("Tải lại bản mới"); await sauLuu(4);
+  assert.equal($("crmg-da-phien-ban").value, "4"); assert.equal($("crmg-da-f-vi_tri").value, "Nội dung đang gõ"); assert.ok(nut(da(), "Lưu thông tin").disabled);
+  click("Hủy"); click("Sửa thông tin"); nhap("ly_do", "Đã xem bản mới"); click("Lưu thông tin");
+  const suaMoi = await ghi("cap-nhat", {da_ban_id: A, phien_ban: 5, lap_lai: false}); assert.equal(suaMoi.expected_phien_ban, 4); await sauLuu(5);
+  dat("409: thông báo chính xác, tải lại giữ nháp và chặn ghi đè; sửa lại dùng expected phiên bản mới");
+
+  click("Ngừng bán"); await chay(); assert.equal($("crmg-da-form").getAttribute("role"), "dialog"); assert.equal($("crmg-da-form").tagName, "DIALOG"); assert.equal($("crmg-da-form").open, true);
+  assert.ok($("crmg-da-form").textContent.includes("Xác nhận ngừng bán"));
+  const truocDung = lenh().length; click("Xác nhận ngừng bán"); assert.equal(lenh().length, truocDung); click("Hủy"); assert.equal(lenh().length, truocDung);
+  click("Ngừng bán"); nhap("ly_do", "Tạm dừng bán"); click("Xác nhận ngừng bán");
+  assert.deepEqual(await ghi("ngung-ban", {da_ban_id: A, phien_ban: 6, lap_lai: false}), {da_ban_id: A, expected_phien_ban: 5, ly_do: "Tạm dừng bán", khoa: "crmg-uuid-thu"}); await sauLuu(6, false);
+  assert.ok(nut(da(), "Mở bán lại")); assert.equal(nut(da(), "Ngừng bán"), undefined);
+  click("Mở bán lại"); const truocMo = lenh().length; click("Xác nhận mở bán lại"); assert.equal(lenh().length, truocMo);
+  nhap("ly_do", "Đã đủ điều kiện"); click("Xác nhận mở bán lại");
+  assert.deepEqual(await ghi("mo-ban-lai", {da_ban_id: A, phien_ban: 7, lap_lai: false}), {da_ban_id: A, expected_phien_ban: 6, ly_do: "Đã đủ điều kiện", khoa: "crmg-uuid-thu"}); await sauLuu(7);
+  assert.ok(nut(da(), "Ngừng bán"));
+  dat("Ngừng/mở bán: xác nhận, Hủy không ghi, cả hai bắt buộc lý do, CAS và tải lại trạng thái/phiên bản");
+
+  click("Sửa thông tin"); nhap("ly_do", "Thử mất mạng"); click("Lưu thông tin");
+  const mat = cho(URL_DA + "/cap-nhat", "POST"), bodyGoc = mat.opts.body; mat.reject(new TypeError("Mất mạng")); await chay();
+  assert.ok(nut(da(), "Lưu thông tin").disabled); assert.ok($("crmg-da-f-ly_do").disabled);
+  click("Gửi lại y nguyên (cùng khóa)"); const lai = cho(URL_DA + "/cap-nhat", "POST"); assert.equal(lai.opts.body, bodyGoc);
+  lai.resolve(phanHoi({lap_lai: true, da_ban_id: A, phien_ban: 8})); await chay(); await sauLuu(8);
+  for (const c of lenh()) { assert.equal(c.opts.headers["X-KTT-Token"], "TOKEN-DA-THU"); assert.equal(c.opts.credentials, "same-origin"); assert.equal(c.opts.cache, "no-store"); }
+  dat("Mất mạng: khóa idempotent và body giữ nguyên khi gửi lại; lệnh dùng token/phiên chung");
+
+  // Đọc phiên bản cũ rồi Sửa phải nạp lại hiện hành, không ghi từ ảnh chụp lịch sử.
+  $("crmg-da-phien-ban").value = "1"; $("crmg-da-phien-ban").dispatch("change"); await tra(URL_DA + "/" + A + "?phien_ban=1", {...ct(1), duoc_sua: true});
+  assert.equal(nut(da(), "Ngừng bán"), undefined); click("Sửa thông tin"); await sauLuu(8);
+  assert.equal($("crmg-da-f-don_gia_niem_yet").value, "1.234,5"); click("Hủy");
+  $("crmg-da-chi-dang-ban").checked = true; $("crmg-da-chi-dang-ban").dispatch("change");
+  await tra(URL_DA + "?dang_ban=1", {...dsGhi(8), loai_hinh: [], du_an_chua_ban: []});
+  ALL(da(), e => e.className === "da-dong")[0].click(); await tra(URL_DA + "/" + A, ctGhi(8));
+  click("Sửa thông tin"); await sauLuu(8); assert.ok($("crmg-da-f-loai_hinh_id").textContent.includes("Cho thuê đất"));
+  nhap("ly_do", "Gửi trước khi chuyển tab"); click("Lưu thông tin"); const cu = cho(URL_DA + "/cap-nhat", "POST");
+  nut(goc(), "Mẫu hợp đồng (G1)").click(); const soGet = calls.length; cu.resolve(phanHoi({da_ban_id: B, lap_lai: false})); await chay();
+  assert.equal(calls.length, soGet, "POST trễ không tải/chọn dự án ở tab khác"); assert.equal($("crmg-da-form"), null);
+  nut(goc(), "Dự án đang bán").click(); await sauLuu(8); click("Sửa thông tin"); nhap("ly_do", "Thử quyền"); click("Lưu thông tin");
+  await ghi("cap-nhat", {error: "CRM_G_QUYEN", message: "Mã " + A}, 403);
+  assert.equal($("crmg-da-form"), null); assert.ok(!da().textContent.includes(TITLE) && !da().textContent.includes(A));
+  assert.ok(da().textContent.includes("Phiên hoặc quyền truy cập đã thay đổi"));
+  dat("Sửa từ bản cũ/lọc nạp danh mục hiện hành; bỏ POST trễ khi rời tab; 403 xóa nháp và dữ liệu");
+}
 
 async function main() {
   const {ctx, calls, $} = moiTruong(), goc = () => $("crm-g"), da = () => $("crmg-da"); let nhom = 0;
@@ -169,6 +277,7 @@ async function main() {
   await tra2("/api/crm/bao-gia/moc-chuan", {message: "Không có nhãn"}, 404);
   assert.ok(mt2.$("crmg-da-chi-tiet").textContent.includes("120 USD/m²") && mt2.$("crmg-da-chi-tiet").textContent.includes("Sự kiện khác (chưa có nhãn)"));
   assert.ok(!mt2.$("crmg-da").textContent.includes("Không thấy dự án")); dat("Lỗi tải nhãn mốc giữ nguyên chi tiết và không lộ enum");
-  if (loiNgoai.length) throw loiNgoai[0]; console.log(`Tất cả ${nhom}/${nhom} nhóm DA-2a đạt`);
+  await kiemGhi(dat);
+  if (loiNgoai.length) throw loiNgoai[0]; console.log(`Tất cả ${nhom}/${nhom} nhóm DA-2a/DA-2b1 đạt`);
 }
 main().catch(e => { console.error(e); process.exitCode = 1; });

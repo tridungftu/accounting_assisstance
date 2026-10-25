@@ -55,4 +55,10 @@
 .da-thanh{display:flex;flex-wrap:wrap;gap:8px 12px;align-items:center}.da-thanh select{width:auto;max-width:100%;flex:1;min-width:200px}
 .da-thong-tin{display:grid;grid-template-columns:minmax(130px,180px) 1fr;gap:8px 16px;margin:10px 0;font-size:13px}.da-thong-tin dt{color:#6e7b64}.da-thong-tin dd{margin:0;white-space:pre-wrap;overflow-wrap:anywhere}
 .da-loi{color:#a8321f}.da-trong{color:#6e7b64;font-size:13px;padding:12px 0}
+.da-form{margin:16px 0;padding:18px;border:2px solid #b9cfa6;border-radius:10px;background:#fbfcf9}
+.da-form h3{margin:0 0 12px}.da-form-luoi{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px 16px;margin-bottom:14px}
+.da-form-o{display:flex;flex-direction:column;gap:4px;min-width:0}.da-form-o>label{font-size:13px;font-weight:600;color:#4a5a43}
+.da-form-o input,.da-form-o select,.da-form-o textarea{width:100%;min-height:38px;box-sizing:border-box}.da-form-o textarea{min-height:80px;resize:vertical}
+.da-form-o [aria-invalid=true]{border:2px solid #a8321f}.da-form-loi{color:#a8321f;white-space:pre-wrap;overflow-wrap:anywhere}.da-form-loi:empty{display:none}
+.da-form-modal{margin:auto;width:calc(100% - 32px);max-width:560px;max-height:85vh;overflow:auto;box-sizing:border-box}.da-form-modal::backdrop{background:rgba(25,40,30,.45)}
 @media(max-width:640px){.da-thong-tin{grid-template-columns:1fr;gap:4px}.da-thong-tin dd{margin-bottom:8px}.da-chi-tiet,.da-lich-su{padding:12px}}

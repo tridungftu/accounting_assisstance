@@ -352,13 +352,150 @@
   function moPb(id) { if (pbChon !== id) { boChon(); pbChon = id; doiFormTai(); } ve(); napCt(); }
   function doiTab(t) { if (tab === t) return; duAnBan.roi(); tab = t; genForm += 1; genDoc += 1; doiFormTai(); trangThai(""); ve(); if (t === "chuan") napBc(); if (t === "du-an-ban") duAnBan.nap(); }
 
-  // ------------------------------------------------------------------ DA-2a · chỉ XEM dự án đang bán (chỗ mở rộng DA-2b)
+  // ------------------------------------------------------------------ DA-2a/DA-2b1 · xem và sửa thông tin chung dự án đang bán
   // Dùng chung node/bang/nut/goi và epoch đổi vai của G1/G7. Mỗi GET có thế hệ riêng;
   // rời tab/đổi dự án/phiên bản/vai vô hiệu phản hồi cũ trước mọi ghi DOM/cache/lỗi.
   const duAnBan = (() => {
     let danhSach = null, chiTiet = null, lichSu = null, id = null, pb = "", chiDangBan = false, xemLichSu = false;
     let genDs = 0, genCt = 0, genLs = 0, loiDs = "", loiCt = "", loiLs = "";
     let mocChuan = null;
+    let form = null, genLenh = 0;
+    // Cùng quy tắc chuỗi của docSo/hienSo BG-1b (helper nằm trong closure riêng của Báo giá).
+    const docSo = t => { const s = String(t ?? "").trim(); return /^(?:[0-9]+|[0-9]{1,3}(?:\.[0-9]{3})+)(?:,[0-9]{1,12})?$/.test(s) ? s.replace(/\./g, "").replace(",", ".") : null; };
+    const hienSo = dec => {
+      const m = /^(\d+)(?:\.(\d+))?$/.exec(String(dec ?? ""));
+      if (!m) return String(dec ?? "");
+      const le = (m[2] || "").replace(/0+$/, ""), ng = m[1].replace(/^0+(?=\d)/, "");
+      return ng.replace(/\B(?=(\d{3})+(?!\d))/g, ".") + (le ? "," + le : "");
+    };
+    const themDuoc = () => danhSach && danhSach.duoc_sua !== false && (danhSach.du_an_chua_ban || []).length > 0;
+    const hienHanh = () => chiTiet && chiTiet.anh_chup?.phien_ban?.so === (chiTiet.phien_ban_ds || []).find(v => !v.hieu_luc_den)?.phien_ban;
+    function boForm() { form = null; genLenh += 1; }
+    async function moForm(hanh) {
+      if (form?.ban) return;
+      if (hanh === "bat-ban" ? !themDuoc() : !chiTiet?.duoc_sua) return;
+      const g = genLenh, e = ep, da = id;
+      const dung = () => g === genLenh && e === ep && da === id && tab === "du-an-ban";
+      // GET lọc chỉ đang bán không kèm loại hình: nạp lại danh sách đầy đủ trước khi mở editor.
+      if (chiDangBan || (hanh !== "bat-ban" && !hienHanh())) {
+        chiDangBan = false; pb = "";
+        if (!await napDs() || !dung()) return;
+        if (id) await napCt();
+        if (!dung()) return;
+        if (hanh === "bat-ban" ? !themDuoc() : !chiTiet?.duoc_sua) return;
+      }
+      const s = chiTiet?.anh_chup || {}, tt = s.thong_tin || {}, moi = hanh === "bat-ban";
+      form = {hanh, da: moi ? null : id, expected: moi ? null : s.phien_ban?.so, ban: false, loi: {}, msg: "", cu: false,
+        v: {du_an_id: "", vi_tri: moi ? "" : tt.vi_tri || "", mo_ta: moi ? "" : tt.mo_ta || "",
+          don_gia_niem_yet: moi ? "" : hienSo(s.don_gia), tien_te: moi ? "VND" : s.tien_te,
+          loai_hinh_id: moi ? "" : s.loai_hinh?.id || "", thue_suat: moi ? "10" : s.thue?.thue_suat || "10",
+          gia_dat_tru: moi ? "0" : hienSo(s.gia_dat_tru ?? "0"), giai_doan_g7: moi ? "" : s.giai_doan_g7 || "", ly_do: ""}};
+      genLenh += 1; ve();
+    }
+    async function taiBanMoi(f) {
+      const g = genLenh, e = ep;
+      pb = "";
+      if (!await napDs() || e !== ep || g !== genLenh || form !== f) return;
+      if (id) await napCt();
+      if (e !== ep || g !== genLenh || form !== f) return;
+      // Nháp và expected cũ được giữ: người dùng phải xem bản mới rồi mở lại form để sửa.
+      f.msg = "Đã tải bản mới. Nội dung đang gõ được giữ; xem bản mới rồi Hủy và mở Sửa thông tin để tiếp tục."; ve();
+    }
+    async function guiForm(bodyDaGui) {
+      const f = form;
+      if (!f || f.ban || (f.cu && !bodyDaGui) || K.vaiDangChan("crm_g")) return;
+      let body = bodyDaGui;
+      if (!body) {
+        f.loi = {}; f.msg = "";
+        if (!f.v.ly_do.trim()) f.loi.ly_do = "Cần nhập lý do.";
+        body = {ly_do: f.v.ly_do.trim()};
+        if (f.hanh === "bat-ban") { body.du_an_id = f.v.du_an_id; body.phi = []; if (!body.du_an_id) f.loi.du_an_id = "Cần chọn dự án."; }
+        else { body.da_ban_id = f.da; body.expected_phien_ban = f.expected; }
+        if (["bat-ban", "cap-nhat"].includes(f.hanh)) {
+          const tt = {}; for (const k of ["vi_tri", "mo_ta", "tien_te", "loai_hinh_id", "thue_suat", "giai_doan_g7"]) tt[k] = f.v[k].trim();
+          for (const k of ["don_gia_niem_yet", "gia_dat_tru"]) {
+            tt[k] = docSo(f.v[k]);
+            if (tt[k] === null && (k === "gia_dat_tru" || f.v[k].trim())) f.loi[k] = "Nhập số kiểu Việt, ví dụ 1.234,5.";
+          }
+          if (!tt.loai_hinh_id) f.loi.loai_hinh_id = "Cần chọn loại hình.";
+          body.thong_tin = tt;
+        }
+        if (Object.keys(f.loi).length) { ve(); return; }
+      }
+      const path = "du-an-ban/" + f.hanh, k = JSON.stringify([path, body]), so = nhanBanGhi(k);
+      if (!so) return;
+      const {rec, ve: chu} = so, g = genLenh, e = ep, a = actor();
+      const dung = () => e === ep && a === actor() && g === genLenh && form === f && tab === "du-an-ban";
+      let xong = false;
+      f.ban = true; f.lai = null; f.msg = "Đang lưu…"; ve();
+      try {
+        // goi() chung bỏ locator; đọc riêng lỗi DA để giữ `truong`, dùng cùng token/phiên/khóa chung.
+        const res = await fetch("/api/crm/" + path, {method: "POST", headers: {"X-KTT-Token": TOKEN, "Content-Type": "application/json"},
+          credentials: "same-origin", cache: "no-store", body: JSON.stringify({...body, khoa: rec.khoa})});
+        const r = await docJson(res);
+        if (!res.ok) { const err = new LoiG(res.status, r.error, r.message || "Không lưu được dự án."); err.truong = r.truong; throw err; }
+        xong = true;
+        if (!dung()) return;
+        id = r.da_ban_id || f.da; pb = "";
+        // Sau ngừng bán vẫn cần thấy chi tiết phiên bản mới, kể cả trước đó có bật lọc.
+        chiDangBan = false; boForm(); trangThai("Đã lưu dự án."); await nap();
+      } catch (err) {
+        xong = !!err.status && !chuaRo(err);
+        if (!dung()) return;
+        if (loiAnNinh(err)) { loiDs = loiDoc(err); ve(); return; }
+        f.ban = false;
+        if (err.status === 400 && err.truong) f.loi[err.truong.replace(/^thong_tin\./, "")] = err.message;
+        if (err.status === 409 && err.code === "CRM_DA_PHIEN_BAN_CU") {
+          f.cu = true; f.msg = "Dự án vừa được người khác sửa — tải lại để xem bản mới";
+        } else if (!xong) { f.lai = body; f.msg = "Chưa rõ kết quả lưu. Gửi lại y nguyên để kiểm tra bằng cùng khóa."; }
+        else f.msg = err.message || "Không lưu được dự án.";
+        ve();
+      } finally { traBanGhi(k, rec, chu, xong); }
+    }
+    function veForm() {
+      const f = form, chung = ["bat-ban", "cap-nhat"].includes(f.hanh);
+      const box = node(chung ? "section" : "dialog", undefined, "da-form" + (chung ? "" : " da-form-modal")); box.id = "crmg-da-form";
+      const ten = {"bat-ban": "Thêm dự án đang bán", "cap-nhat": "Sửa thông tin", "ngung-ban": "Ngừng bán", "mo-ban-lai": "Mở bán lại"}[f.hanh];
+      box.append(node("h3", ten));
+      if (!chung) {
+        box.setAttribute("role", "dialog"); box.setAttribute("aria-modal", "true"); box.setAttribute("aria-label", ten);
+        box.append(node("p", `Xác nhận ${ten.toLowerCase()} dự án này? Thao tác tạo phiên bản mới và ghi nhận lý do.`));
+        box.addEventListener("cancel", ev => { ev.preventDefault(); if (!f.ban && !f.lai && form === f) { boForm(); ve(); } });
+        // ve() gắn DOM sau khi tạo các khối; chỉ mở modal còn thuộc form hiện hành.
+        Promise.resolve().then(() => { if (box.isConnected && form === f && !box.open) box.showModal(); });
+      }
+      const luoi = node("div", undefined, "da-form-luoi");
+      const field = (k, label, options, nhieuDong = false) => {
+        const wrap = node("div", undefined, "da-form-o"), el = node(options ? "select" : nhieuDong ? "textarea" : "input");
+        el.id = "crmg-da-f-" + k;
+        if (options) for (const [v, t] of options) { const op = node("option", t); op.value = v; el.append(op); }
+        else if (!nhieuDong) { el.type = "text"; if (["gia_dat_tru", "don_gia_niem_yet"].includes(k)) el.inputMode = "decimal"; }
+        el.value = f.v[k] ?? ""; el.disabled = f.ban || !!f.lai;
+        if (k === "ly_do") el.required = true;
+        const loi = node("small", f.loi[k] || "", "da-form-loi"); loi.id = el.id + "-loi"; loi.setAttribute("role", "alert");
+        el.setAttribute("aria-describedby", loi.id); el.setAttribute("aria-invalid", String(!!f.loi[k]));
+        const doi = () => { if (form === f && el.isConnected && !el.disabled) { f.v[k] = el.value; delete f.loi[k]; loi.textContent = ""; el.setAttribute("aria-invalid", "false"); } };
+        el.addEventListener("input", doi); el.addEventListener("change", doi);
+        wrap.append(...truong(label, el), loi); luoi.append(wrap);
+      };
+      const dm = danhSach?.danh_muc || chiTiet?.danh_muc || {};
+      if (f.hanh === "bat-ban") field("du_an_id", "Dự án", [["", "Chọn dự án"], ...(danhSach.du_an_chua_ban || []).map(v => [v.du_an_id, v.du_an_ten || "Dự án chưa có tên"])]);
+      if (chung) {
+        field("vi_tri", "Vị trí"); field("mo_ta", "Mô tả", null, true);
+        field("don_gia_niem_yet", "Đơn giá niêm yết /m² (chưa gồm VAT)");
+        field("tien_te", "Tiền tệ", (dm.tien_te || []).map(v => [v.ma, v.nhan]));
+        field("loai_hinh_id", "Loại hình", [["", "Chọn loại hình"], ...(danhSach?.loai_hinh || []).map(v => [v.id, v.ten])]);
+        field("thue_suat", "Thuế suất", (dm.thue_suat || []).map(v => [v.ma, v.nhan]));
+        field("gia_dat_tru", "Giá đất được trừ /m²"); field("giai_doan_g7", "Giai đoạn tiến độ mặc định");
+      }
+      field("ly_do", "Lý do (bắt buộc)", null, true); box.append(luoi);
+      if (f.msg) { const msg = node("p", f.msg, "da-form-loi"); msg.setAttribute("role", "alert"); box.append(msg); }
+      const thanh = node("div", undefined, "da-thanh");
+      thanh.append(nut(chung ? "Lưu thông tin" : "Xác nhận " + ten.toLowerCase(), () => guiForm(), "button primary", f.ban || f.cu || !!f.lai));
+      if (f.cu) thanh.append(nut("Tải lại bản mới", () => taiBanMoi(f), "button secondary", f.ban));
+      if (f.lai) thanh.append(nut("Gửi lại y nguyên (cùng khóa)", () => guiForm(f.lai), "button primary", f.ban));
+      thanh.append(nut("Hủy", () => { boForm(); ve(); }, "button secondary", f.ban || !!f.lai)); box.append(thanh); return box;
+    }
     const dinhNgay = new Intl.DateTimeFormat("vi-VN", {timeZone: "Asia/Ho_Chi_Minh", day: "2-digit", month: "2-digit", year: "numeric"});
     const nhan = (nhom, ma) => ((chiTiet && chiTiet.danh_muc || danhSach && danhSach.danh_muc || {})[nhom] || []).find(x => x.ma === ma)?.nhan || "Chưa có thông tin";
     const ngay = (hienThi, goc) => hienThi || (goc && !isNaN(new Date(goc).getTime()) ? dinhNgay.format(new Date(goc)) : "—");
@@ -377,7 +514,7 @@
       }
       return "Sự kiện khác (chưa có nhãn)";
     }
-    function roi() { genDs += 1; genCt += 1; genLs += 1; }
+    function roi() { genDs += 1; genCt += 1; genLs += 1; boForm(); }
     function xoa() { roi(); danhSach = chiTiet = lichSu = null; id = null; pb = ""; xemLichSu = false; loiDs = loiCt = loiLs = ""; }
     function loiDoc(e) {
       if (loiAnNinh(e)) { xoa(); return loiDs = "Phiên hoặc quyền truy cập đã thay đổi. Bấm Làm mới để tải lại."; }
@@ -424,7 +561,7 @@
       catch (err) { if (dung()) { loiLs = loiDoc(err); ve(); } }
     }
     async function nap() { if (await napDs()) { if (id) { napCt(); if (xemLichSu) napLs(); } } }
-    function mo(da) { id = da; pb = ""; chiTiet = lichSu = null; xemLichSu = false; genLs += 1; loiLs = ""; napCt(); }
+    function mo(da) { boForm(); id = da; pb = ""; chiTiet = lichSu = null; xemLichSu = false; genLs += 1; loiLs = ""; napCt(); }
     function bangRong(cot, rows, thongBao) { return rows.length ? bang(cot, rows) : node("p", thongBao, "da-trong"); }
     function veCt() {
       const box = node("section", undefined, "da-chi-tiet"); box.id = "crmg-da-chi-tiet";
@@ -436,8 +573,12 @@
       const thanh = node("div", undefined, "da-thanh"), sel = node("select"); sel.id = "crmg-da-phien-ban";
       for (const v of chiTiet.phien_ban_ds || []) { const op = node("option", `Phiên bản ${v.phien_ban} · ${khoang(v)}`); op.value = String(v.phien_ban); sel.append(op); }
       sel.value = pb || String(s.phien_ban?.so || "");
-      sel.addEventListener("change", () => { if (!sel.isConnected) return; pb = sel.value; napCt(); });
+      sel.addEventListener("change", () => { if (!sel.isConnected) return; boForm(); pb = sel.value; napCt(); });
       thanh.append(...truong("Phiên bản đang xem", sel), nut(xemLichSu ? "Ẩn lịch sử" : "Lịch sử", () => { xemLichSu = !xemLichSu; genLs += 1; ve(); if (xemLichSu) napLs(); }));
+      if (chiTiet.duoc_sua && !form) {
+        thanh.append(nut("Sửa thông tin", () => moForm("cap-nhat")));
+        if (hienHanh()) thanh.append(nut(s.trang_thai === "DANG_BAN" ? "Ngừng bán" : "Mở bán lại", () => moForm(s.trang_thai === "DANG_BAN" ? "ngung-ban" : "mo-ban-lai")));
+      }
       const chung = node("dl", undefined, "da-thong-tin");
       for (const [ten, v] of [["Vị trí", tt.vi_tri], ["Mô tả", tt.mo_ta], ["Đơn giá niêm yết", h.don_gia], ["Tiền tệ", nhan("tien_te", s.tien_te)],
         ["Loại hình", h.loai_hinh], ["Thuế suất", nhan("thue_suat", s.thue?.thue_suat)], ["Giá đất được trừ", h.gia_dat_tru], ["Trạng thái", h.trang_thai], ["Hiệu lực phiên bản", h.phien_ban]]) chung.append(node("dt", ten), node("dd", v || "Chưa có thông tin"));
@@ -477,9 +618,11 @@
     function veDa() {
       const box = node("div", undefined, "da-xem"); box.id = "crmg-da";
       const loc = node("input"); loc.type = "checkbox"; loc.id = "crmg-da-chi-dang-ban"; loc.checked = chiDangBan;
-      loc.addEventListener("change", () => { if (!loc.isConnected) return; chiDangBan = loc.checked; id = null; pb = ""; xemLichSu = false; napDs(); });
+      loc.addEventListener("change", () => { if (!loc.isConnected) return; boForm(); chiDangBan = loc.checked; id = null; pb = ""; xemLichSu = false; napDs(); });
       const label = node("label", undefined, "da-loc"); label.append(loc, node("span", "Chỉ dự án đang bán")); box.append(label);
       if (!danhSach) { box.append(node("p", loiDs || "Đang tải danh sách dự án…", loiDs ? "da-loi" : "")); return [box]; }
+      if (themDuoc() && !form) box.append(nut("Thêm dự án đang bán", () => moForm("bat-ban"), "button primary"));
+      if (form) box.append(veForm());
       const rows = danhSach.du_an_ban || [];
       const tb = bangRong(["Dự án", "Đơn giá niêm yết", "Số loại phí", "Số lô/căn", "Trạng thái", "Phiên bản"], rows.map(v => [v.du_an_ten || "Dự án chưa có tên", v.don_gia_hien_thi || "Chưa có thông tin", v.so_phi, v.so_lo, v.trang_thai_hien_thi || (v.dang_ban ? "Đang bán" : "Ngừng bán"), v.phien_ban]), "Không có dự án trong danh sách này.");
       if (rows.length) Array.from(tb.children[0].children[1].children).forEach((tr, i) => {
