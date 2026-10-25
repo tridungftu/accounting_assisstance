@@ -21,7 +21,7 @@
   // ------------------------------------------------------------------ trạng thái
   let ep = 0, gen = 0;            // epoch (đổi vai) + thế hệ GET danh sách
   let tt = null, loiTai = null, loiBoTai = null, dangMo = false, daThuMo = false;
-  let run = null, abort = null, dongHo = null;
+  let run = null, abort = null, dongHo = null, logMo = false;
   const khoaMap = new Map();      // lựa chọn (JSON) → khóa thao tác: giữ tới khi lần tải kết thúc (bấm lại sau mất kết nối = cùng run, không chạy mù)
   const taoKhoa = () => "m2tct-" + ((window.crypto && crypto.randomUUID && crypto.randomUUID()) || (Date.now().toString(36) + Math.random().toString(36).slice(2)));
 
@@ -196,7 +196,8 @@
     }
     if (run.ev.length) {
       const logs = run.ev.filter(e => e.type === "log").slice(-30).map(e => (e.payload || {}).msg).join("\n");
-      const d = node("details"); d.append(node("summary", `Nhật ký bộ tải (${run.ev.length} sự kiện)`));
+      const d = node("details"); d.open = logMo; d.addEventListener("toggle", () => { logMo = d.open === true; });  // vẽ lại theo từng sự kiện không làm gập nhật ký người dùng đang mở
+      d.append(node("summary", `Nhật ký bộ tải (${run.ev.length} sự kiện)`));
       const pre = node("pre", logs); pre.style.whiteSpace = "pre-wrap"; d.append(pre); kids.push(d);
     }
     o.replaceChildren(...kids);
