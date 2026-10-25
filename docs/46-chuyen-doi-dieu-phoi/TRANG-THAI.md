@@ -25,7 +25,7 @@ Trạng thái lát: Đang code → Chờ kiểm → Chờ Anh (cổng A/B) → S
 | AI-1 | Cổng Local AI (`tri_thuc\ai_cuc_bo.py`) gọi được LAN/Tailscale, kiểm tra như `privacy\local_ai.py` của Mask v2; test bằng máy AI giả | Codex | — | **Xong, đã gộp** (cfdf33c) — 40/40; review-lat sau gộp **Đạt**, 3 Nên sửa → lát **AI-1b** (Codex, chờ chỗ trống: `localhost`, LM Studio `/api/tags`, nhớ lỗi 15 giây, chuẩn hóa cài đặt khi đọc) |
 | MASK-1 | Chế độ API của Mask v2 (che / mở che / còn sót; khóa Bearer; chỉ 127.0.0.1) — làm trong thư mục Mask v2 theo `CLAUDE.md` của nó (không git, CHANGELOG, test + benchmark độ phủ không giảm; không đọc/sửa `data\`, `*.maskvault`, `*.maskkeep`, `*.key`) | Claude Opus | — | **XONG** 19:52 (Mask v2 2.7.0, không git): vòng 1 Không đạt (1 Chặn) → vòng 2 sửa + làm QD-24 → review Opus vòng 2 **Đạt**; 387 test đạt, benchmark không giảm. Nên sửa chuyển MASK-2 (định danh đã khai viết khác cách; nút Khóa ngay khi giao diện bận) |
 | MASK-2 | Đưa "định danh đã biết" và kiểm `dau_vet` của `AnDanh` vào lõi Mask v2; đo lại độ phủ | Claude | MASK-1 | **Xong code 21:06** (Mask v2 2.7.1; định danh đã biết + dấu vết vào lõi; không che số tiền liền; nút khóa khi bận) → review Opus đang chạy |
-| AI-2 | Cổng AI dùng chung: định tuyến loại việc, Cloud qua Mask API, nhật ký `nhat_ky.cong_ai_goi`, công tắc tắt Cloud | Claude | AI-1, MASK-1 | Chờ |
+| AI-2 | Cổng AI dùng chung: định tuyến loại việc, Cloud qua Mask API, nhật ký `nhat_ky.cong_ai_goi`, công tắc tắt Cloud | Claude | AI-1, MASK-1 | Chia **AI-2a** (lõi cổng, Claude Opus, đang code 21:12; Cloud mặc định tắt) + **AI-2b** (migration `nhat_ky.cong_ai_goi`, Codex, sau) |
 | AI-3 | Engine #6 (độc lập + bản trong repo) chuyển Cloud sang cổng AI; bỏ `AnDanh`, `goi_api` riêng | Codex | AI-2, MASK-2 | Chờ |
 | AI-4 | Mở Cloud theo TL 48 §1.5; đo độ chính xác Local theo loại việc; lịch giảm tỷ lệ kiểm xác suất **Anh đã đồng ý (§1.6)**: bắt đầu 20%; ≥ 90% trên 50 lượt gần nhất → 10%; ≥ 95% trên 100 lượt → 5%; tối thiểu 5%, không về 0; tụt dưới 90% → tự về 20% và báo lead | Claude | AI-3 qua review | Chờ |
 
@@ -69,6 +69,7 @@ Quy tắc áp cho mọi lát từ 25/10 (CD-001 việc 3): không lát nào vi�
 | L0-8f | Codex | gpt-6.1-sol · high | 20:47 | 20:44 (v1 dừng đúng: gốc ở helper test) | — | — |
 | L0-8f v2 | Codex | gpt-6.1-sol · high | 20:50 | 20:55 | chờ L0-8e v2 + kiem-nhanh | **PG: 03B 21/21 (c16 skip có chủ đích), 03A 13/13** — nợ M4-5a trả xong; 1 lỗi mock bộ chạy xử lý khi gộp |
 | L0-8e v2 | Codex | gpt-6.1-sol · high | 21:02 | — | — | — |
+| AI-2a | Claude | Opus | 21:12 | — | — | — |
 | L0-10b | Codex | gpt-6.1-sol · high | 20:45 | gộp 21:00 | kiem-nhanh Đạt | Xanh — 52/52; kiểm thật dịch vụ khớp |
 | UI-1b | Codex | gpt-6.1-sol · high | 20:55 | — | — | — |
 | kiem-nhanh DA-3a v2 + AI-1b | Claude | Haiku | 20:12 | 20:15 | — | Đạt cả hai → gộp |
