@@ -37,6 +37,10 @@ async function cases(T) {
   async function open(d = data(), h = null, opt = {}) {
     const P = await moPhien(opt); await P.moHoSo(confirmed());
     await P.bam("Mở đối chiếu"); await P.tra(P.cho(P.get("/api/m4/doi-chieu/dot/" + PEND), "đọc theo đợt"), 200, d);
+    for (const row of (opt.ds && opt.ds.items || []).filter(r => r.trang_thai === "KT_DA_XAC_NHAN_CHO_GHI_CONG_NO" && r.kt_pending_id !== PEND)) {
+      const detail = opt.details && opt.details[row.kt_pending_id] || confirmed(); detail.context.kt_pending_id = row.kt_pending_id;
+      await P.tra(P.cho(P.get("/api/m4/ke-toan/" + row.kt_pending_id), "đọc đợt ứng viên"), 200, detail);
+    }
     if (h) await P.tra(P.cho(P.get("/api/m4/doi-chieu/lich-su/" + root), "lịch sử"), 200, h);
     return P;
   }
@@ -114,7 +118,10 @@ async function cases(T) {
     const P = await open(data([], true)); assert.ok(card(P).textContent.includes("Không có quyền đọc hóa đơn"));
     assert.ok(!P.nutKt("Chọn hóa đơn 21"));
     const Q = await open(); await Q.bam("Tải lại căn cứ đối chiếu");
-    await Q.tra(Q.cho(Q.get("/api/m4/doi-chieu/dot/" + PEND), "thu hồi"), 403, {message: "Không có quyền"});
+    const message = "Quyền đọc căn cứ đối chiếu đã bị thu hồi";
+    await Q.tra(Q.cho(Q.get("/api/m4/doi-chieu/dot/" + PEND), "thu hồi"), 403, {error: "FORBIDDEN", message});
+    assert.ok(card(Q).textContent.includes(message));
+    assert.ok(!card(Q).textContent.includes("Không lưu được"));
     assert.ok(!card(Q).textContent.includes("Hóa đơn 21") && !Q.nutKt("Lưu nháp đối chiếu"));
   });
   await ca("03B-8 phản hồi đọc về muộn sau rời màn không vẽ lại", async () => {
@@ -151,6 +158,94 @@ async function cases(T) {
     const d = data([root]); d.goi_y.hoa_don[0].da_gan_o = [{doi_chieu_id: root}];
     const P = await open(d, history([version([tp(nt), tp(ref(21))])]));
     assert.ok(!P.nutKt("Xác nhận đối chiếu").disabled); assert.ok(!card(P).textContent.includes("Hóa đơn đã gắn ở đối chiếu khác"));
+  });
+  await ca("03B-13 mã DC thành hướng dẫn tiếng Việt, xung đột tải lại thật", async () => {
+    const rows = [
+      ["DC_REVISION_CU", "Đối chiếu đã đổi ở nơi khác — đã tải lại, kiểm rồi làm lại.", true],
+      ["DC_DO_THI_DOI", "Đối chiếu đã đổi ở nơi khác — đã tải lại, kiểm rồi làm lại.", true],
+      ["DC_CAN_KIEM_LAI", "Nguồn đã đổi — cần kiểm lại trước khi xác nhận."],
+      ["DC_HOA_DON_DA_GAN", "Hóa đơn đã gắn ở đối chiếu khác — tải lại và chọn hóa đơn chưa gắn."],
+      ["DC_MA_MOI", "Không lưu được — tải lại rồi thử lại."]
+    ];
+    for (const [code, message, reload] of rows) for (const field of ["error", "message"]) {
+      const P = await open(); await P.bam("Chọn hóa đơn 21"); P.go("Lý do đối chiếu", "Kiểm tra");
+      const c = await save(P, [tp(nt), tp(ref(21))]);
+      await P.tra(c, 409, {[field]: field === "error" ? code : "CSDL từ chối thao tác (" + code + ")"});
+      if (reload) await P.tra(P.cho(P.get("/api/m4/doi-chieu/dot/" + PEND), "tải lại sau xung đột"), 200, data());
+      assert.ok(card(P).textContent.includes(message), code + ": " + card(P).textContent);
+      assert.ok(!card(P).textContent.includes("(cần kiểm tra)") && !card(P).textContent.includes(code));
+      assert.strictEqual(countDc(P), 2, "không tự gửi lại lệnh ghi");
+    }
+  });
+  await ca("03B-14 định dạng số tiền rõ ràng, giữ nguyên nội dung người gõ", async () => {
+    const P = await open(); await P.bam("Chọn hóa đơn 21");
+    await P.chonSel("Phạm vi nguồn 2", "MOT_PHAN"); await P.chonSel("Đơn vị nguồn 2", "USD");
+    const input = P.oKt("Số tiền một phần nguồn 2");
+    assert.ok(input.getAttribute("placeholder").includes("dấu chấm thập phân: 1234.50"));
+    P.go("Số tiền một phần nguồn 2", "1.234,50");
+    assert.strictEqual(input.value, "1.234,50");
+    assert.ok(P.nutKt("Xác nhận đối chiếu").title.includes("không dấu phân cách hàng nghìn"));
+    assert.ok(card(P).textContent.includes("VND: 1234 (số nguyên)"));
+    await P.chonSel("Đơn vị nguồn 2", "USD");
+    assert.strictEqual(P.oKt("Số tiền một phần nguồn 2").value, "1.234,50");
+  });
+  await ca("03B-15 chỉ liệt kê đợt cùng hợp đồng, nhãn dùng số đợt thật/ngày/tiền", async () => {
+    const d = DS(), wrong = U(201), same = U(202), stale = U(204);
+    for (const id of [wrong, same, stale]) d.items.push({...sao(d.items[0]), kt_pending_id: id, trang_thai: "KT_DA_XAC_NHAN_CHO_GHI_CONG_NO"});
+    const a = confirmed(), b = confirmed(), c = confirmed(); a.context.hop_dong_id = U(203); c.can_cu_hien_hanh = false;
+    a.dot = {so_dot: 3}; b.dot = {so_dot: 8, ngay_nghiem_thu: "2026-10-25"}; b.kt.gia_tri_nt_xac_nhan = "1234.50"; b.kt.tien_te = "USD";
+    const P = await open(data(), null, {ds: d, details: {[wrong]: a, [same]: b, [stale]: c}});
+    const options = P.oKt("Thêm đợt đã xác nhận").children;
+    assert.deepStrictEqual(options.map(o => o.value), ["", same]);
+    assert.strictEqual(options[1].textContent, "Đợt 8 · 25/10/2026 · 1.234,50 USD");
+  });
+  await ca("03B-16 lỗi mạng đọc căn cứ/lịch sử/thêm đợt dùng câu Việt", async () => {
+    const viet = "Mất kết nối với ứng dụng trên máy — chưa rõ máy chủ đã ghi hay chưa";
+    const P = await moPhien(); await P.moHoSo(confirmed()); await P.bam("Mở đối chiếu");
+    P.cho(P.get("/api/m4/doi-chieu/dot/" + PEND), "mạng đọc").reject(new TypeError("Failed to fetch")); await chay();
+    assert.ok(card(P).textContent.includes(viet)); assert.ok(!card(P).textContent.includes("Failed to fetch"));
+    const Q = await open(data([root, otherRoot])); await Q.bam("Xem đối chiếu 1");
+    Q.cho(Q.get("/api/m4/doi-chieu/lich-su/" + root), "mạng lịch sử").reject(new TypeError("Failed to fetch")); await chay();
+    assert.ok(card(Q).textContent.includes(viet)); assert.ok(!card(Q).textContent.includes("Failed to fetch"));
+    const d = DS(); d.items.push({...sao(d.items[0]), kt_pending_id: PEND2, trang_thai: "KT_DA_XAC_NHAN_CHO_GHI_CONG_NO"});
+    const R = await open(data(), null, {ds: d}); await R.chonSel("Thêm đợt đã xác nhận", PEND2);
+    R.cho(R.get("/api/m4/ke-toan/" + PEND2), "mạng thêm đợt").reject(new TypeError("Failed to fetch")); await chay();
+    assert.ok(card(R).textContent.includes(viet)); assert.ok(!card(R).textContent.includes("Failed to fetch"));
+  });
+  await ca("03B-17 lỗi chỉ đọc không mã DC giữ thông báo máy chủ", async () => {
+    for (const route of ["dot/" + PEND, "lich-su/" + root]) for (const status of [400, 404, 500]) {
+      const P = await open(data([root, otherRoot]));
+      if (route.startsWith("dot/")) await P.bam("Tải lại căn cứ đối chiếu");
+      else await P.bam("Xem đối chiếu 1");
+      const message = "Máy chủ chưa đọc được căn cứ đối chiếu (" + status + ")";
+      await P.tra(P.cho(P.get("/api/m4/doi-chieu/" + route), "lỗi chỉ đọc"), status, {error: "HTTP_" + status, message});
+      assert.ok(card(P).textContent.includes(message), card(P).textContent);
+      assert.ok(!card(P).textContent.includes("Không lưu được"));
+      assert.strictEqual(countDc(P), 0);
+    }
+    const P = await open(); await P.bam("Tải lại căn cứ đối chiếu");
+    await P.tra(P.cho(P.get("/api/m4/doi-chieu/dot/" + PEND), "mã DC mới khi đọc"), 400, {error: "DC_MA_MOI"});
+    assert.ok(card(P).textContent.includes("Không đọc được"));
+    assert.ok(!card(P).textContent.includes("Không lưu được"));
+  });
+  for (const failure of [400, 409, 500, "mạng", "JSON"]) await ca("03B-18 ứng viên lỗi " + failure + " không cản mở khối/lịch sử", async () => {
+    const d = DS(), good = U(205);
+    for (const id of [PEND2, good]) d.items.push({...sao(d.items[0]), kt_pending_id: id, trang_thai: "KT_DA_XAC_NHAN_CHO_GHI_CONG_NO"});
+    const P = await moPhien({ds: d}); await P.moHoSo(confirmed()); await P.bam("Mở đối chiếu");
+    await P.tra(P.cho(P.get("/api/m4/doi-chieu/dot/" + PEND), "căn cứ"), 200, data([root]));
+    const bad = P.cho(P.get("/api/m4/ke-toan/" + PEND2), "ứng viên lỗi");
+    if (failure === "mạng") { bad.reject(new TypeError("Failed to fetch")); await chay(); }
+    else if (failure === "JSON") { bad.resolve({ok: true, status: 200, json: async () => { throw new SyntaxError("JSON không trọn"); }}); await chay(); }
+    else await P.tra(bad, failure, {message: "Không đọc được ứng viên"});
+    const detail = confirmed(); detail.context.kt_pending_id = good; detail.dot = {so_dot: 9};
+    await P.tra(P.cho(P.get("/api/m4/ke-toan/" + good), "ứng viên còn lại"), 200, detail);
+    await P.tra(P.cho(P.get("/api/m4/doi-chieu/lich-su/" + root), "lịch sử vẫn nạp"), 200, history([version([tp(nt), tp(ref(21))])]));
+    assert.deepStrictEqual(P.oKt("Thêm đợt đã xác nhận").children.map(o => o.value), ["", good]);
+    assert.ok(card(P).textContent.includes("Hóa đơn 21") && card(P).textContent.includes("Phiên bản 1"));
+    assert.ok(!P.nutKt("Lưu nháp đối chiếu").disabled);
+    assert.ok(!card(P).textContent.includes("Chỉ chọn đợt đã xác nhận"));
+    assert.ok(!card(P).textContent.includes("Failed to fetch"));
+    assert.strictEqual(countDc(P), 0);
   });
 }
 
