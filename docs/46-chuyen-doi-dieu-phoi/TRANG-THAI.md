@@ -6,7 +6,7 @@ Trạng thái lát: Đang code → Chờ kiểm → Chờ Anh (cổng A/B) → S
 
 | Lát | Việc | Worker | Nhánh · worktree | Giao lúc | Trạng thái |
 |---|---|---|---|---|---|
-| BG-1c | CRM · Báo giá sửa theo cổng A — máy chủ: Tổng VND = đơn giá × tỷ giá × diện tích + bằng chữ; tỷ giá mặc định trong `master.cau_hinh` (kế toán sửa, nhật ký); In sơ bộ; Chuyển cần khách + phí; M0030 bước Ký | Claude Opus · review Codex | `lat/bg-1c` · DEMO 8791 | 25/10 | Chờ kiểm — 39.000.000.000 đ / "Ba mươi chín tỷ đồng" đúng; M0030 SQL = Python 7/7; 0 mã lỗi mới; review Codex vòng 1 đang chạy |
+| BG-1c | CRM · Báo giá sửa theo cổng A — máy chủ: Tổng VND = đơn giá × tỷ giá × diện tích + bằng chữ; tỷ giá mặc định trong `master.cau_hinh` (kế toán sửa, nhật ký); In sơ bộ; Chuyển cần khách + phí; M0030 bước Ký | Claude Opus · review Codex | `lat/bg-1c` · DEMO 8791 | 25/10 | Sửa vòng 2 — review Codex: 2 Chặn (miền tổng/tiền đợt Python ≠ SQL; Python nhận chữ số không ASCII) + 1 Nên sửa (lỗi tỷ giá theo trường) |
 | BG-1d | CRM · Báo giá màn hình 2 bước: bước 1 to/đầu (giá, tỷ giá, Tổng VND + bằng chữ, lịch VND, In sơ bộ); bước 2 sau khi khách đồng ý (khách, phí, Chuyển) | Claude Sonnet | `lat/bg-1d` (từ `lat/bg-1c`) · DEMO 8791 | 25/10 | Đang code |
 | L0-8 | Bật test PostgreSQL trên cụm DEMO (CSDL tạm `kho_test_*`, xóa sau khi chạy) — QD-20261025-10 | Claude Sonnet | `lat/l0-8` | 25/10 | Đang code |
 | E1-3 | E1-MUA · tham số dạng bảng TT-05/TT-20 trong bản vá đọc bảng DOCX | Codex | `lat/e1-3` | 25/10 | Đang code |
