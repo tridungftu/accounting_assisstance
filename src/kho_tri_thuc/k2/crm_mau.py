@@ -414,22 +414,6 @@ class CrmMauK2:
         return self._lenh(dt, "SELECT master.crm_g_chuan_lap(%s, %s, %s::uuid, %s, %s::jsonb) AS r",
                           (khoa, h, da, giai_doan, json.dumps(rows, ensure_ascii=False)))
 
-    def ap_dung_bo_chuan(self, dang_nhap: str, *, du_an_id, giai_doan=None, dong, khoa) -> dict:
-        """DA-1 (QD-20261025-07, M0031): bán hàng / kế toán có module CRM lập tiến độ thanh toán tiêu chuẩn của dự án ĐANG BÁN → HIỆU LỰC NGAY từ
-        hôm nay (bỏ bước CFO duyệt), có phiên bản + nhật ký ghi căn cứ QD-20261025-07 + bằng chứng `master.crm_bo_chuan_ap_dung`. Phiên bản đang
-        hiệu lực đóng tại hôm nay; phiên bản G7 đã duyệt cũ giữ nguyên nghĩa; cùng dòng với phiên bản đang hiệu lực → `khong_doi`. `giai_doan`
-        trống → giai đoạn tiến độ của thông tin dự án đang bán hiện hành. Mọi chỗ đọc bộ chuẩn hiệu lực (`crm_g_chuan_doc`, G6A, báo giá) đọc được."""
-        dt = self.danh_tinh(dang_nhap)
-        da = _uuid(du_an_id, "du_an_id")
-        if giai_doan in ("", None):
-            giai_doan = None
-        elif not isinstance(giai_doan, str) or not GIAI_DOAN_RE.fullmatch(giai_doan):
-            raise DataError("CRM_G_YEU_CAU_SAI", "Giai đoạn chỉ gồm chữ/số/_ . - (1–80).")
-        rows, khoa = self._dong_g7(dong), _khoa(khoa)
-        h = _h("CRM_CHUAN_AP_DUNG", {"du_an_id": da, "giai_doan": giai_doan, "dong": rows})
-        return self._lenh(dt, "SELECT master.crm_g_chuan_ap_dung(%s, %s, %s::uuid, %s, %s::jsonb) AS r",
-                          (khoa, h, da, giai_doan, json.dumps(rows, ensure_ascii=False)))
-
     def gui_duyet_bo_chuan(self, dang_nhap: str, *, version_id, expected_graph, khoa) -> dict:
         return self._don_gian(dang_nhap, "crm_g_chuan_gui", "CRM_CHUAN_GUI_DUYET", version_id, expected_graph, khoa)
 

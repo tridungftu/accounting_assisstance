@@ -100,8 +100,10 @@ def _so_nguyen(v, ten: str, truong: str = "$", *, bat_buoc: bool = True):
     return v
 
 
-def chuan_hoa_thong_tin(v, truong: str = "thong_tin") -> dict:
-    """Thông tin MỘT phiên bản: giá/phí chưa VAT, thuế chung mặc định 10, đất trừ/m² mặc định 0 (QD-20261025-20)."""
+def chuan_hoa_thong_tin(v, truong: str = "thong_tin", *, bat_ban: bool = False) -> dict:
+    """Ch? chu?n h?a tr??ng ???c g?i; b?t b?n m?i m?c ??nh thu? 10, ??t tr?/m? 0 (QD-20261025-20).
+    C?p nh?t gi? tr??ng v?ng m?t ?? SQL gh?p v?i phi?n b?n hi?n h?nh sau CAS r?i ki?m to?n b? n?i dung.
+    """
     if not isinstance(v, dict):
         _loi("CRM_DA_YEU_CAU_SAI", "Thông tin dự án phải là object.", truong)
     la = sorted(set(v) - set(TRUONG_TT))
@@ -117,18 +119,20 @@ def chuan_hoa_thong_tin(v, truong: str = "thong_tin") -> dict:
           "don_gia_niem_yet": _so(v.get("don_gia_niem_yet"), "Đơn giá niêm yết", o("don_gia_niem_yet")),
           "tien_te": _chon(v.get("tien_te"), "tiền tệ", tuple(TIEN_TE), o("tien_te")),
           "loai_hinh_id": None if v.get("loai_hinh_id") in (None, "") else _uuid_t(v.get("loai_hinh_id"), "loai_hinh_id", o("loai_hinh_id")),
-          "thue_suat": _chon(v.get("thue_suat", "10"), "thuế suất", tuple(THUE_SUAT), o("thue_suat")),
-          "gia_dat_tru": _so(v.get("gia_dat_tru", "0"), "Giá đất được trừ/m²", o("gia_dat_tru")),
+          "thue_suat": _chon(v.get("thue_suat", "10" if bat_ban else None), "thuế suất", tuple(THUE_SUAT), o("thue_suat")),
+          "gia_dat_tru": _so(v.get("gia_dat_tru", "0" if bat_ban else None), "Giá đất được trừ/m²", o("gia_dat_tru")),
           "giai_doan_g7": gd or None}
-    if tt["thue_suat"] is None:
+    if (bat_ban or "thue_suat" in v) and tt["thue_suat"] is None:
         _loi("CRM_DA_YEU_CAU_SAI", "Cần chọn thuế suất trong danh mục.", o("thue_suat"))
-    if tt["gia_dat_tru"] is None or Decimal(tt["gia_dat_tru"]) > Decimal(tt["don_gia_niem_yet"] or "0"):
+    if ((bat_ban or "gia_dat_tru" in v) and tt["gia_dat_tru"] is None) or (
+            tt["gia_dat_tru"] is not None and (bat_ban or "don_gia_niem_yet" in v)
+            and Decimal(tt["gia_dat_tru"]) > Decimal(tt["don_gia_niem_yet"] or "0")):
         _loi("CRM_DA_SO_SAI", "Giá đất được trừ/m² phải không âm và không vượt đơn giá niêm yết.", o("gia_dat_tru"))
-    if tt["loai_hinh_id"] is None:
+    if (bat_ban or "loai_hinh_id" in v) and tt["loai_hinh_id"] is None:
         _loi("CRM_DA_THIEU_LOAI_HINH", "Cần chọn loại hình của dự án.", o("loai_hinh_id"))
-    if tt["tien_te"] is None:
+    if (bat_ban or "tien_te" in v) and tt["tien_te"] is None:
         _loi("CRM_DA_TIEN_TE_SAI", "Cần chọn tiền tệ của đơn giá (VND hoặc USD).", o("tien_te"))
-    return tt
+    return tt if bat_ban else {k: x for k, x in tt.items() if k in v}
 
 
 def chuan_hoa_phi(v, truong: str = "phi") -> list[dict]:
@@ -375,7 +379,7 @@ class CrmDuAnBanK2:
     def bat_ban(self, dang_nhap: str, *, du_an_id, thong_tin, phi=None, ly_do=None, khoa) -> dict:
         """Bật bán dự án có sẵn trong danh mục dự án kế toán → phiên bản 1 (đang bán), hiệu lực từ hôm nay."""
         dt = self.mau.danh_tinh(dang_nhap)
-        da, tt, ph, ly, khoa = _uuid(du_an_id, "du_an_id"), chuan_hoa_thong_tin(thong_tin), chuan_hoa_phi(phi), _ly_do(ly_do), _khoa(khoa)
+        da, tt, ph, ly, khoa = _uuid(du_an_id, "du_an_id"), chuan_hoa_thong_tin(thong_tin, bat_ban=True), chuan_hoa_phi(phi), _ly_do(ly_do), _khoa(khoa)
         h = _h("CRM_DA_BAT_BAN", {"du_an_id": da, "thong_tin": tt, "phi": ph, "ly_do": ly})
         return self.mau._lenh(dt, "SELECT master.crm_da_bat_ban(%s, %s, %s::uuid, %s::jsonb, %s::jsonb, %s) AS r",
                               (khoa, h, da, json.dumps(tt, ensure_ascii=False), json.dumps(ph, ensure_ascii=False), ly))
