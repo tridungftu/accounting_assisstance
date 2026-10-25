@@ -611,6 +611,7 @@
   const TT_BG = {NHAP: "Nháp", DA_CHUYEN: "Đã chuyển sang Soạn", HUY: "Đã hủy"};
   const TT_SO = {SOAN_THAO: "Đang soạn", CHO_KY: "Chờ ký (đã xuất DOCX+PDF)", DA_KY: "Đã ký — chờ kế toán kiểm"};
   const TT_XUAT = {PDF_DAT: "DOCX + PDF đạt", PDF_CHUA_SAN_SANG: "DOCX đã giữ · PDF chưa sẵn sàng", PDF_LOI: "DOCX đã giữ · PDF lỗi", DA_CU: "Bản cũ (revision đã đổi)"};
+  const LY_DO_PDF = {PDF_XUAT_TAY: "PDF xuất tay từ tệp DOCX (chưa bật chuyển PDF tự động)"};
 
   let ep = 0, genForm = 0, genDs = 0, genBg = 0, genSo = 0, cheDo = "bao_gia";
   let ds = null, bgChon = null, bgCt = null, soChon = null, soCt = null, soDongBg = 1, soDongSo = 0;
@@ -1018,7 +1019,7 @@
     const khung = node("div", undefined, "gk-2cot"); khung.append(trai, phai);
     const out = [khung, hd];
     if (bgCt && bgChon !== "MOI" && bgCt.xuat.length) out.push(node("h4", "Lần in"), bang(["Rev", "Trạng thái", "Lý do", "Lúc", "", ""], bgCt.xuat.map(x => [x.revision,
-      TT_XUAT[x.trang_thai] || x.trang_thai, x.ly_do || "", K.date(x.tao_luc), nut("DOCX ↓", () => taiTep(x.id, "docx"), "link-button"),
+      TT_XUAT[x.trang_thai] || x.trang_thai, LY_DO_PDF[x.ly_do] || x.ly_do || "", K.date(x.tao_luc), nut("DOCX ↓", () => taiTep(x.id, "docx"), "link-button"),
       x.trang_thai === "PDF_DAT" ? nut("PDF ↓", () => taiTep(x.id, "pdf"), "link-button") : ""])));
     return out;
   }
@@ -1106,7 +1107,7 @@
       hd.append(node("span", "Bản soạn đã ký — tham số, lịch và mẫu chỉ xem; không lưu/xuất lại (máy chủ chặn). Sửa sau ký chờ quy trình riêng."));
       const out = [khung, hd, ...veKyChuaRo(s), ...veBanKy(s)];
       if (soCt.xuat.length) out.push(node("h4", "Lần xuất"), bang(["Rev", "Trạng thái", "Lý do", "Lúc", "", ""], soCt.xuat.map(x => [x.revision, TT_XUAT[x.trang_thai] || x.trang_thai,
-        x.ly_do || "", K.date(x.tao_luc), nut("DOCX ↓", () => taiTep(x.id, "docx"), "link-button"), x.trang_thai === "PDF_DAT" ? nut("PDF ↓", () => taiTep(x.id, "pdf"), "link-button") : ""])));
+        LY_DO_PDF[x.ly_do] || x.ly_do || "", K.date(x.tao_luc), nut("DOCX ↓", () => taiTep(x.id, "docx"), "link-button"), x.trang_thai === "PDF_DAT" ? nut("PDF ↓", () => taiTep(x.id, "pdf"), "link-button") : ""])));
       if (soCt.revisions.length) out.push(node("h4", "Lịch sử revision"), bang(["Rev", "Mẫu", "Lý do", "Bởi", "Lúc"], soCt.revisions.map(r => [r.revision, r.mau_phien_ban_id === soCt.mau.mau_phien_ban_id ? "mẫu hiện ghim" : "mẫu khác", r.ly_do || "", r.tao_boi, K.date(r.tao_luc)])));
       return out;
     }
@@ -1137,7 +1138,7 @@
     const out = [khung, hd, ...veKyChuaRo(s)];
     if (s.trang_thai === "CHO_KY" && kyMo && kyMo.soan === s.id) out.push(veKyDialog(s));
     if (soCt.xuat.length) out.push(node("h4", "Lần xuất"), bang(["Rev", "Trạng thái", "Lý do", "Lúc", "", ""], soCt.xuat.map(x => [x.revision, TT_XUAT[x.trang_thai] || x.trang_thai,
-      x.ly_do || "", K.date(x.tao_luc), nut("DOCX ↓", () => taiTep(x.id, "docx"), "link-button"), x.trang_thai === "PDF_DAT" ? nut("PDF ↓", () => taiTep(x.id, "pdf"), "link-button") : ""])));
+      LY_DO_PDF[x.ly_do] || x.ly_do || "", K.date(x.tao_luc), nut("DOCX ↓", () => taiTep(x.id, "docx"), "link-button"), x.trang_thai === "PDF_DAT" ? nut("PDF ↓", () => taiTep(x.id, "pdf"), "link-button") : ""])));
     if (soCt.revisions.length) out.push(node("h4", "Lịch sử revision"), bang(["Rev", "Mẫu", "Lý do", "Bởi", "Lúc"], soCt.revisions.map(r => [r.revision, r.mau_phien_ban_id === soCt.mau.mau_phien_ban_id ? "mẫu hiện ghim" : "mẫu khác", r.ly_do || "", r.tao_boi, K.date(r.tao_luc)])));
     return out;
   }

@@ -5,7 +5,8 @@ Chạy khi Root cấp KHO_PG_DSN_TEST lúc chạy (DSN chủ CSDL; không đọc
 định (tối thiểu M0021), seed CRM DEMO + crm_g_demo (actor/danh mục/phân công + điều khoản tham chiếu DEMO — KHÔNG seed M9, KHÔNG bootstrap chung kéo theo
 module vay). Mẫu hợp đồng và bộ chuẩn G7 được dựng bằng LUỒNG DỊCH VỤ THẬT qua HTTP (tải → ánh xạ → gửi kiểm → KT kiểm → CFO duyệt; KT lập/gửi →
 CFO duyệt) — không owner INSERT đối tượng đã duyệt. Word/PDF: metadata Word/guard không chứng minh worker được phép chạy COM; PDF_DAT cần
-bằng chứng Word sở hữu đã dừng. Guard/PermissionError → PDF_CHUA_SAN_SANG có lý do cụ thể, DOCX vẫn giữ, KHÔNG CHO_KY giả.
+bằng chứng Word sở hữu đã dừng. Mặc định tắt → PDF_CHUA_SAN_SANG/PDF_XUAT_TAY; guard/PermissionError khi bật → lý do cụ thể,
+DOCX vẫn giữ, KHÔNG CHO_KY giả. Các ca thuần bật cờ chỉ chạy mock, không khởi chạy Word.
 Không DROP/DELETE/cleanup — DB/role/thư mục giữ làm bằng chứng.
 Thiếu driver/DSN → skip = NOT_RUN (không tính đạt). Không chứng minh GUI/1440 click (Root chạy riêng).
 Ánh xạ ca nghiệm thu §8: c1 → g02/g03 · c2 → g04 · c3 → g05 · c4 → g01 · c5 → g06 · c6 → g02/g07 · c7 (async) → tests/crm_giao_ket_async.cjs.
@@ -38,7 +39,7 @@ try:
 except ImportError:  # pragma: no cover
     psycopg = None
 
-from test_crm_giao_ket import BAN_DO_TEN, _co_word, mau_docx
+from test_crm_giao_ket import BAN_DO_TEN, mau_docx
 
 ADMIN_DSN = os.environ.get("KHO_PG_DSN_TEST")
 TAI, KT, CFO, BH = "MO_PHONG_CRM_G_TAI_A", "MO_PHONG_CRM_G_KT_A", "MO_PHONG_CRM_G_CFO_A", "MO_PHONG_CRM_G_BH_A"
@@ -73,7 +74,10 @@ def _dong(c):
 
 def kiem_ket_qua_pdf(ca, x, ly_do, kiem, word_san_sang):
     """Chỉ nhận PDF đạt có bằng chứng; không coi mọi lỗi chuyển PDF là do chính sách/guard."""
-    if x["trang_thai"] == "PDF_DAT":
+    tu_dong = os.environ.get("KHO_CRM_WORD_PDF") == "1"
+    if not tu_dong:
+        ca.assertEqual((x["trang_thai"], ly_do), ("PDF_CHUA_SAN_SANG", "PDF_XUAT_TAY"), x)
+    elif x["trang_thai"] == "PDF_DAT":
         ca.assertTrue(word_san_sang, x)
         ca.assertIsNone(ly_do)
         word = kiem.get("word") or {}
@@ -86,7 +90,7 @@ def kiem_ket_qua_pdf(ca, x, ly_do, kiem, word_san_sang):
         return True
     ca.assertEqual(x["trang_thai"], "PDF_CHUA_SAN_SANG", x)
     # crm_docx: kiểm nhà cung cấp/guard trước spawn, hoặc worker bị chặn quyền tại một pha COM.
-    ca.assertTrue(ly_do in {
+    ca.assertTrue((not tu_dong and ly_do == "PDF_XUAT_TAY") or ly_do in {
         "KHONG_PHAI_WINDOWS", "WORD_KHONG_CO", "WORD_KHAC_BAN_GHIM",
         "GUARD_KHONG_NAP", "GUARD_SHA_SAI", "GUARD_CO_TAT", "GUARD_KHONG_HOOK", "GUARD_BYTECODE_BAT",
     } or re.fullmatch(r"COM_(?:TAO_WORD|CHUNG_MINH_SO_HUU|TUY_CHON|MO|XUAT):PermissionError", ly_do or ""),
@@ -119,7 +123,8 @@ class CrmGiaoKetHttp(unittest.TestCase):
         cls.role, pw = "ktt_test_crmgk_" + uuid.uuid4().hex[:8], secrets.token_hex(16)
         cls.admin.execute(f"CREATE ROLE {cls.role} LOGIN PASSWORD '{pw}' NOSUPERUSER NOBYPASSRLS NOCREATEDB NOCREATEROLE IN ROLE app_web")
         cls.app_dsn = f"postgresql://{cls.role}:{pw}@{cls.dsn.split('@', 1)[1]}"
-        cls.env = patch.dict(os.environ, {LocalApp.CRM_ENV: cls.app_dsn, LocalApp.CRM_ENV_ADMIN: cls.dsn, LocalApp.CRM_ENV_DB_KIEM_THU: "1"})
+        cls.env = patch.dict(os.environ, {LocalApp.CRM_ENV: cls.app_dsn, LocalApp.CRM_ENV_ADMIN: cls.dsn,
+                                         LocalApp.CRM_ENV_DB_KIEM_THU: "1", "KHO_CRM_WORD_PDF": "0"})
         cls.env.start()
         cls.addClassCleanup(cls.env.stop)
         cls.tam = Path(tempfile.mkdtemp(prefix="ktt_crmgk_http_"))  # giữ lại
@@ -132,7 +137,7 @@ class CrmGiaoKetHttp(unittest.TestCase):
         cls.thread.start()
         cls.addClassCleanup(cls._dung)
         cls.run_id = uuid.uuid4().hex[:8]
-        cls.co_word = _co_word()
+        cls.co_word = False  # HTTP kiểm chế độ mặc định tắt, không thăm dò/chạy Word trên máy kiểm thử.
         cls.s = {}
 
     @classmethod
@@ -273,7 +278,7 @@ class CrmGiaoKetHttp(unittest.TestCase):
         tok = next(v["token"] for v in self.get(CFO, "bo-chuan")["phien_ban"] if v["id"] == r["phien_ban_id"])
         self.ok(CFO, "bo-chuan/duyet", {"version_id": r["phien_ban_id"], "valid_from": ngay(-2), "expected_graph": tok, "khoa": self.K("g7-duyet")})
 
-    # ------------------------------------------------------------------ g02 (c1/c6): VND dương → in PDF thật (hoặc PDF chưa sẵn sàng trung thực)
+    # ------------------------------------------------------------------ g02 (c1/c6): VND dương → DOCX đầy đủ, PDF_XUAT_TAY khi mặc định tắt
     def test_g02_bao_gia_vnd_luu_in(self):
         r = self.ok(BH, "bao-gia/luu", {"bao_gia_id": None, "expected_revision": None, "du_lieu": self.bao_gia(), "khoa": self.K("bg1")})
         self.s["bg1"] = r["bao_gia_id"]
@@ -469,7 +474,11 @@ class CrmGiaoKetHttp(unittest.TestCase):
         truoc = tuple(self.admin.execute("""SELECT s.trang_thai, h.trang_thai, h.crm_giao_ket FROM master.crm_hd_soan s JOIN master.hop_dong h
                                              ON h.id = s.hop_dong_id WHERE s.id = %s""", (sid,)).fetchone())
         self.assertEqual(truoc[0], "CHO_KY" if self.s["soan_pdf_dat"] else "SOAN_THAO", truoc)  # kết quả xuất thực tế ở g06
-        with patch.object(R, "chuyen_pdf", lambda lan, p, han=0: {"trang_thai": "PDF_LOI", "ly_do": "GIA_LAP_LOI", "pha": "XUAT"}):
+        x = self.ok(BH, "soan/xuat", {"soan_id": sid, "expected_revision": rev, "khoa": self.K("pdf-tay")})
+        self.assertFalse(self.pdf_dat(x))  # PDF_CHUA_SAN_SANG + lý do PDF_XUAT_TAY được lưu đúng.
+        self.assertEqual(self.goi(f"/api/crm/giao-ket/tep/{x['xuat_id']}/docx", cookie=self.sid(BH))[0], 200)
+        with patch.dict(os.environ, {"KHO_CRM_WORD_PDF": "1"}), \
+                patch.object(R, "_chuyen_pdf_mot", return_value={"trang_thai": "PDF_LOI", "ly_do": "GIA_LAP_LOI", "pha": "XUAT"}):
             x = self.ok(BH, "soan/xuat", {"soan_id": sid, "expected_revision": rev, "khoa": self.K("pdfloi")})
         self.assertEqual((x["trang_thai"], x["pdf_sha256"]), ("PDF_LOI", None))
         sau = tuple(self.admin.execute("""SELECT s.trang_thai, h.trang_thai, h.crm_giao_ket FROM master.crm_hd_soan s JOIN master.hop_dong h
@@ -624,7 +633,7 @@ class CrmGiaoKetHttp(unittest.TestCase):
         cot = lambda t: [(z["so_tien_minor"], z["ty_le"], z["loi"]) for z in t["dong"]]  # noqa: E731 — dong_id do máy chủ cấp khi lưu
         self.assertEqual(cot(self.get(BH, "bao-gia/" + r["bao_gia_id"])["tinh"]), cot(x["tinh"]))  # cùng phép tính của dịch vụ
         p = self.ok(BH, "bao-gia/in", {"bao_gia_id": r["bao_gia_id"], "expected_revision": 1, "khoa": self.K("g10-in")})  # mốc trống: in được
-        self.assertEqual(p["trang_thai"], "PDF_DAT" if self.co_word else "PDF_CHUA_SAN_SANG", p)
+        self.assertFalse(self.pdf_dat(p))
         xml = zipfile.ZipFile(io.BytesIO(self.goi(f"/api/crm/giao-ket/tep/{p['xuat_id']}/docx", cookie=self.sid(BH))[1])).read("word/document.xml")
         chu = re.sub(r"<[^>]+>", "", xml.decode("utf-8"))
         for m in ("Ngày: chưa xác định", "Sự kiện: chưa xác định", "Tỷ giá tham chiếu USD/VND = 25000", BH, "KHÁCH DỰ THẢO DEMO"):
@@ -648,6 +657,47 @@ class CrmGiaoKetHttp(unittest.TestCase):
 class PdfGuard(unittest.TestCase):
     """Hồi quy thuần: không PostgreSQL/server/Word; guard và lỗi quyền phải giữ DOCX thật."""
 
+    def test_mac_dinh_tat_khong_tao_tien_trinh_giu_docx(self):
+        from kho_tri_thuc.k2 import crm_giao_ket as GK
+        from kho_tri_thuc.nguon import crm_docx as R
+        root = Path(tempfile.mkdtemp(prefix="ktt_pdf_xuat_tay_"))  # giữ bằng chứng, không cleanup
+        gk = GK.CrmGiaoKetK2(type("MauGia", (), {"root": root})())
+        nd = {"so_bao_gia": "BG-DEMO", "ngay": "25/10/2026", "nguoi_lap": BH, "khach": "KHÁCH DEMO"}
+        for co in (None, "", "0", "true", "01", " 1", "1 "):
+            with self.subTest(co=co), patch.dict(os.environ), \
+                    patch.object(R, "_KHOA_WORD") as khoa, patch.object(R, "_chuyen_pdf_mot") as worker, \
+                    patch.object(R, "_winword_ok") as kiem_word, patch.object(R.subprocess, "Popen") as popen:
+                if co is None:
+                    os.environ.pop("KHO_CRM_WORD_PDF", None)
+                else:
+                    os.environ["KHO_CRM_WORD_PDF"] = co
+                kq = gk.render({"loai": "BAO_GIA", "nd": nd, "mong_doi": [], "ten": "BG-DEMO", "lan_id": str(uuid.uuid4())})
+                khoa.acquire.assert_not_called()
+                worker.assert_not_called()
+                kiem_word.assert_not_called()
+                popen.assert_not_called()
+                self.assertEqual(kq["kiem"]["pha"], "KIEM_CONG_TAC")
+                x = {**kq, "docx_sha256": kq["docx_sha"], "pdf_sha256": kq["pdf_sha"]}
+                self.assertFalse(kiem_ket_qua_pdf(self, x, kq["ly_do"], kq["kiem"], False))
+                raw = (gk.kho / "tep" / kq["docx_sha"]).read_bytes()
+                self.assertEqual((hashlib.sha256(raw).hexdigest(), len(raw)), (kq["docx_sha"], kq["docx_len"]))
+                with zipfile.ZipFile(io.BytesIO(raw)) as z:
+                    xml = z.read("word/document.xml").decode("utf-8")
+                    for chu in ("BÁO GIÁ", "BG-DEMO", "KHÁCH DEMO", BH):
+                        self.assertIn(chu, xml)
+
+    @patch.dict(os.environ, {"KHO_CRM_WORD_PDF": "1"})
+    def test_bat_goi_lai_nhanh_word_hien_co(self):
+        from kho_tri_thuc.nguon import crm_docx as R
+        lan = Path(tempfile.mkdtemp(prefix="ktt_pdf_bat_mock_"))
+        vao = lan / "bao-gia.docx"
+        kq_cu = {"trang_thai": "PDF_CHUA_SAN_SANG", "ly_do": "WORD_KHONG_CO", "pha": "KIEM_NHA_CUNG_CAP"}
+        with patch.object(R, "_chuyen_pdf_mot", return_value=kq_cu) as worker, patch.object(R.subprocess, "Popen") as popen:
+            self.assertIs(R.chuyen_pdf(lan, vao, han=12.0), kq_cu)
+        worker.assert_called_once_with(lan, vao, 12.0, R.WINWORD_GHIM)
+        popen.assert_not_called()
+
+    @patch.dict(os.environ, {"KHO_CRM_WORD_PDF": "1"})
     def test_guard_chan_truoc_spawn_giu_docx(self):
         from kho_tri_thuc.k2 import crm_giao_ket as GK
         from kho_tri_thuc.nguon import crm_docx as R, trich6_host as H
@@ -669,6 +719,7 @@ class PdfGuard(unittest.TestCase):
         with zipfile.ZipFile(io.BytesIO(docx_b)) as z:
             self.assertIn("BÁO GIÁ", z.read("word/document.xml").decode("utf-8"))
 
+    @patch.dict(os.environ, {"KHO_CRM_WORD_PDF": "1"})
     def test_worker_bi_chan_quyen_khong_thanh_pdf_dat(self):
         from kho_tri_thuc.nguon import crm_docx as R, trich6_host as H
         lan = Path(tempfile.mkdtemp(prefix="ktt_t_pdf_worker_"))
