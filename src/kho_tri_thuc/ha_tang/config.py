@@ -9,7 +9,7 @@ from .primitives import DataError, date_iso, sha256, text_id
 
 
 _THD_CHUOI = ("goc_bo_tai", "node_exe", "phien_ban_bo_tai", "thu_muc_tai", "thu_muc_trinh_duyet", "thu_muc_profile", "thu_muc_dieu_phoi")
-_THD_KHOA = frozenset(_THD_CHUOI) | {"node_sha256", "cong", "tep_pin"}
+_THD_KHOA = frozenset(_THD_CHUOI) | {"node_sha256", "cong", "tep_pin", "goc_hoi_cuu_tin_cay"}
 _RE_HEX64 = re.compile(r"[0-9a-f]{64}")
 
 
@@ -41,6 +41,11 @@ def doc_tai_hoa_don(v) -> dict:
                 not isinstance(k, str) or not 0 < len(k) <= 200 or not isinstance(h, str) or not _RE_HEX64.fullmatch(h) for k, h in pin.items()):
             raise DataError("INVALID_TAI_HOA_DON", "[tai_hoa_don.tep_pin] phải là bảng đường dẫn tương đối → SHA-256 hex thường.")
         out["tep_pin"] = dict(pin)
+    if "goc_hoi_cuu_tin_cay" in v:
+        goc = v["goc_hoi_cuu_tin_cay"]
+        if not isinstance(goc, list) or not 0 < len(goc) <= 8 or any(not isinstance(x, str) or not x.strip() or len(x) > 1024 for x in goc):
+            raise DataError("INVALID_TAI_HOA_DON", "[tai_hoa_don].goc_hoi_cuu_tin_cay phải là danh sách 1–8 đường dẫn (gốc dữ liệu cũ được tin cậy cho manifest hồi cứu).")
+        out["goc_hoi_cuu_tin_cay"] = list(goc)
     return out
 
 

@@ -170,6 +170,20 @@ class CauHinhTest(unittest.TestCase):
                     nap("[tai_hoa_don]\n" + sai + "\n")
                 self.assertEqual(e.exception.code, "INVALID_TAI_HOA_DON")
 
+    def test_config_goc_hoi_cuu_tin_cay(self):
+        with tempfile.TemporaryDirectory(prefix="m2-00e-cfg2-", ignore_cleanup_errors=True) as tam:
+            goc = (RAIZ / "cau_hinh.toml").read_text(encoding="utf-8-sig")
+
+            def nap(them):
+                p = Path(tam) / "cau_hinh.toml"
+                p.write_text(goc + "\n" + them, encoding="utf-8")
+                return Config.load(p, Path(tam) / "d")
+            self.assertEqual(nap('[tai_hoa_don]\ngoc_hoi_cuu_tin_cay = ["D:/cu/PLHN", "D:/cu/khac"]\n').tai_hoa_don, {"goc_hoi_cuu_tin_cay": ["D:/cu/PLHN", "D:/cu/khac"]})
+            for sai in ('goc_hoi_cuu_tin_cay = []', 'goc_hoi_cuu_tin_cay = "D:/cu"', "goc_hoi_cuu_tin_cay = [1]", 'goc_hoi_cuu_tin_cay = [""]'):
+                with self.subTest(sai=sai), self.assertRaises(DataError) as e:
+                    nap("[tai_hoa_don]\n" + sai + "\n")
+                self.assertEqual(e.exception.code, "INVALID_TAI_HOA_DON")
+
     def test_doc_tai_hoa_don_tep_pin_sai(self):
         for pin in ({}, {"a": "xyz"}, {"": "a" * 64}, "chuoi"):
             with self.subTest(pin=pin), self.assertRaises(DataError):
@@ -550,6 +564,60 @@ class Nhan(Co):
         self.assertEqual(self.ma_loi(self.goi("POST", TIEN_TO + "/nhan", {"run": r["run_handle"], "path": "C:/x"})), "M2_CLIENT_AUTHORITY")
         self.conn.phan_quyen = []
         self.assertEqual(self.goi("POST", TIEN_TO + "/nhan", {"run": r["run_handle"]}).status, 403)
+
+    def tao_run_hoi_cuu(self, run_id):
+        """Run kiểu HOI_CUU: manifest nằm trong thư mục tải, tệp XML/PDF/bảng kê để tại chỗ ở một thư mục dữ liệu cũ (đường dẫn tuyệt đối trong manifest)."""
+        d = self.tao_run_tren_dia(run_id)
+        m = json.loads((d / "manifest.json").read_text(encoding="utf-8"))
+        cu = self.goc / "nguon-cu"
+        cu.mkdir()
+        h, bk = m["hoa_don"][0], m["tong"]["bang_ke"]
+        for ten in (h["file_xml"], h["file_pdf"], bk["file"]):
+            (cu / ten).write_bytes((d / ten).read_bytes())
+        h["file_xml"] = h["xml_tep"][0]["file"] = str(cu / h["file_xml"])
+        h["file_pdf"] = str(cu / h["file_pdf"])
+        bk.update(file=str(cu / bk["file"]), so_cot=15)
+        m.update(nguon="HOI_CUU", xap_xi=True, thu_muc_tep_goc=str(cu))
+        nhan_test.NhanTinh.ghi(d, m)
+        return cu
+
+    def test_duong_nhan_tu_dong_truyen_goc_hoi_cuu_tin_cay_tu_cau_hinh(self):
+        cu = self.goc / "nguon-cu"
+        self.app._tai_hoa_don["goc_hoi_cuu_tin_cay"] = [str(cu)]
+        r = self.tai_xong()
+        self.tao_run_tren_dia(r["run_id"])
+        goi = []
+        that = mod.lap_ke_hoach_nhan
+
+        def ghi_nhan(*a, **kw):
+            goi.append(kw.get("goc_hoi_cuu_tin_cay"))
+            return that(*a, **kw)
+        with patch.object(mod, "lap_ke_hoach_nhan", ghi_nhan):
+            self.goi("POST", TIEN_TO + "/nhan", {"run": r["run_handle"]})
+            self.goi("GET", f"{TIEN_TO}/manifest?run={r['run_handle']}&run_rel={MA_A}/2026-09/mua_vao/{r['run_id']}")
+        self.assertEqual(goi, [(str(self.cfg.goc_tai), str(cu))])  # không bao giờ để trống; luôn gồm thư mục tải
+        self.assertEqual(mod.dich_vu(self.app).goc_hoi_cuu_tin_cay, (str(self.cfg.goc_tai), str(cu)))
+
+    def test_hoi_cuu_chi_nhan_khi_goc_cu_nam_trong_cau_hinh(self):
+        r = self.tai_xong()
+        cu = self.tao_run_hoi_cuu(r["run_id"])
+        p = self.nhan_voi_k2_gia(r["run_handle"])  # cấu hình chỉ có thư mục tải: gốc cũ do manifest tự khai báo KHÔNG được tin
+        self.assertEqual(p.status, 200, p.text)
+        self.assertEqual(p.json["runs"][0]["loi"]["ma"], "M2_00_MANIFEST_HOI_CUU_GOC_KHONG_TIN_CAY")
+        self.assertEqual(p.json["tom_tat"]["moi"], 0)
+        self.assertNotIn(str(cu), p.text)
+        run_rel = f"{MA_A}/2026-09/mua_vao/{r['run_id']}"
+        m = self.goi("GET", f"{TIEN_TO}/manifest?run={r['run_handle']}&run_rel={run_rel}")
+        self.assertEqual((m.status, self.ma_loi(m)), (400, "M2_00_MANIFEST_HOI_CUU_GOC_KHONG_TIN_CAY"))
+        self.app.__dict__.pop("_tai_hoa_don_dv")  # dựng lại điều phối với gốc cũ được khai trong cấu hình
+        self.app._tai_hoa_don["goc_hoi_cuu_tin_cay"] = [str(cu)]
+        p = self.nhan_voi_k2_gia(r["run_handle"])
+        self.assertEqual(p.status, 200, p.text)
+        self.assertEqual((p.json["runs"][0].get("loi"), p.json["runs"][0]["nguon"]), (None, "HOI_CUU"), p.text)
+        self.assertEqual(p.json["tom_tat"]["moi"], 1)
+        m = self.goi("GET", f"{TIEN_TO}/manifest?run={r['run_handle']}&run_rel={run_rel}")
+        self.assertEqual((m.status, m.json["nguon"]), (200, "HOI_CUU"), m.text)
+        self.assertNotIn(str(cu), m.text)
 
     def test_xem_manifest_chi_so_dem_khong_noi_dung_hoa_don(self):
         r = self.tai_xong()

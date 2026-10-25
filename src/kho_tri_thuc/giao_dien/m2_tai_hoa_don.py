@@ -135,10 +135,12 @@ class _KhoaChung:
 class DieuPhoiApp(DieuPhoiTaiHoaDon):
     """Điều phối M2-00B gắn vào LocalApp: dùng khóa của app, thêm vài hàm đọc/kiểm run cho wiring (không đổi lớp m2/tai_hoa_don)."""
 
-    def __init__(self, app, cau_hinh, *, tien_trinh):
+    def __init__(self, app, cau_hinh, *, tien_trinh, goc_hoi_cuu_tin_cay=()):
         super().__init__(app, cau_hinh, tien_trinh=tien_trinh)
         self._khoa = _KhoaChung(app.mutation_lock)
         self.tien_trinh = tien_trinh
+        # M2d: gốc tin cậy cho manifest HOI_CUU (tệp để tại chỗ). Luôn gồm thư mục tải + gốc dữ liệu cũ ghi trong cấu hình; KHÔNG lấy gốc do manifest tự khai báo.
+        self.goc_hoi_cuu_tin_cay = tuple(dict.fromkeys([str(cau_hinh.goc_tai), *(str(x) for x in goc_hoi_cuu_tin_cay)]))
 
     def khoi_dong_neu_can(self) -> dict:
         with _KHOI_DONG:
@@ -178,10 +180,12 @@ def dich_vu(app) -> DieuPhoiApp:
         if dv is None:
             seam = app.__dict__.get("_tai_hoa_don")
             seam = seam if isinstance(seam, dict) else {}
-            cau_hinh = seam.get("cau_hinh")
+            cau_hinh, thong_so = seam.get("cau_hinh"), seam.get("thong_so")
             if cau_hinh is None:
-                cau_hinh = dung_cau_hinh(getattr(getattr(app, "demo_config", None), "tai_hoa_don", None))
-            dv = DieuPhoiApp(app, cau_hinh, tien_trinh=seam.get("tien_trinh") or TienTrinhNode(cau_hinh))
+                thong_so = getattr(getattr(app, "demo_config", None), "tai_hoa_don", None)
+                cau_hinh = dung_cau_hinh(thong_so)
+            goc_cu = seam.get("goc_hoi_cuu_tin_cay") or (thong_so or {}).get("goc_hoi_cuu_tin_cay") or ()
+            dv = DieuPhoiApp(app, cau_hinh, tien_trinh=seam.get("tien_trinh") or TienTrinhNode(cau_hinh), goc_hoi_cuu_tin_cay=goc_cu)
             app.__dict__["_tai_hoa_don_dv"] = dv
     return dv
 
@@ -397,7 +401,7 @@ def _nhan_mot_run(app, dv, sid, login, ctx, run) -> dict:
         return {**base, "loi": {"ma": "M2_00E_RUN_REL_SAI", "thong_bao": "Thư mục run không thuộc lần tải này."}}
     try:
         thu_muc = kiem_khong_reparse(goc.joinpath(*rel.split("/")), la_thu_muc=True)
-        ke_hoach = lap_ke_hoach_nhan(thu_muc, ma_phap_nhan=ma)  # đọc/băm tệp NGOÀI khóa app
+        ke_hoach = lap_ke_hoach_nhan(thu_muc, ma_phap_nhan=ma, goc_hoi_cuu_tin_cay=dv.goc_hoi_cuu_tin_cay)  # đọc/băm tệp NGOÀI khóa app
         with app.mutation_lock:
             kq = nhan_vao_k2(ke_hoach, app.m2(), actor=login, source_instance=ctx["source_instance"], scope_ref=ctx["scope_ref"])
     except DataError as exc:
@@ -536,7 +540,8 @@ def _manifest(h, app, query):
     if m is None or m.group(1) != ctx["phap_nhan_ma"] or m.group(4) != ctx["run_id"]:
         raise DataError("M2_00B_RUN_REL_SAI", "Thư mục run không thuộc lần tải này.")
     dv.kiem_run(sid, run)
-    return _gui(h, 200, tom_tat_manifest(doc_manifest(kiem_khong_reparse(dv.cau_hinh.goc_tai.joinpath(*rel.split("/")), la_thu_muc=True)), rel))
+    thu_muc = kiem_khong_reparse(dv.cau_hinh.goc_tai.joinpath(*rel.split("/")), la_thu_muc=True)
+    return _gui(h, 200, tom_tat_manifest(doc_manifest(thu_muc, goc_hoi_cuu_tin_cay=dv.goc_hoi_cuu_tin_cay), rel))
 
 
 def _khung(ten, du_lieu, seq=None) -> bytes:
