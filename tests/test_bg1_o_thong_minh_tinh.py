@@ -175,8 +175,9 @@ class OThongMinh(unittest.TestCase):
 
     def test_ghi_de_uu_tien_va_scale_khong_lam_tron(self):
         t = tinh(bao_gia(tong_gia_tri_ghi_de="0", lich=[{"gia_tri_nhap": "100%"}]))
-        self.assertEqual(t["tong_minor"], "0")
-        self.assertEqual(t["chan_in"], [])
+        self.assertEqual(t["tong_minor"], "0")  # giá trị khai vẫn trả (0 khai báo ≠ chưa nhập) …
+        self.assertIn(("TONG_NGOAI_MIEN", "tong_gia_tri_ghi_de"), [(e["ma"], e.get("truong")) for e in t["chan_in"]])  # … nhưng ngoài miền Ký
+        self.assertEqual(t["ly_do_chan_chuyen"].split("\n")[:len(t["chan_in"])], [e["thong_bao"] for e in t["chan_in"]])
         for f in (tinh, tinh_cu):
             t = f(bao_gia(tong_gia_tri_ghi_de="1,001"))
             self.assertIsNone(t["tong_minor"])

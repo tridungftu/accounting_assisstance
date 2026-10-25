@@ -34,6 +34,7 @@ from ..ha_tang.primitives import DataError, canonical_json, money_minor, sha256
 from ..ha_tang.store import write_immutable
 from ..nguon import crm_docx as R
 from .crm_mau import CrmMauK2, _h, _khoa, _ngay, _uuid, _v
+from .sql_crm_bg1c import CRM_BG1C_SQL as _M0030
 
 PHIEN_BAN_BG, PHIEN_BAN_SOAN = "crm-bao-gia/v2", "crm-soan/v1"  # v2 (BG-1c): thêm tien_chinh = VND; v1 đã lưu vẫn đọc theo nghĩa cũ
 TIEN_TE = ("VND", "USD")
@@ -42,6 +43,17 @@ KHOA_TY_GIA_MAC_DINH = "crm.bao_gia.ty_gia_usd_mac_dinh"  # master.cau_hinh (M00
 TY_GIA_USD_MAC_DINH_PHAN_MEM = "26000"  # chỉ khi chưa có dòng cấu hình (QD-20261025-04); kế toán lưu một lần là thành cấu hình
 VAI_SUA_CAU_HINH = ("KE_TOAN", "KE_TOAN_TRUONG")
 TRUONG_HD_USD_THAM_CHIEU, TRUONG_HD_TY_GIA = "gia_tri_usd_tham_chieu", "ty_gia_usd_vnd"  # điền khi danh mục mẫu có trường cùng mã + kiểu
+
+
+def _hang_m0030(mau: str) -> int:
+    m = re.search(mau, _M0030[0])
+    if m is None:
+        raise RuntimeError("Không đọc được hằng giới hạn từ M0030 (k2/sql_crm_bg1c.py)")
+    return int(m.group(1))
+
+
+# Miền tiền RÚT TỪ M0030 (bước kiểm khi Ký): tổng và tiền từng đợt, đơn vị nhỏ nhất, phải 0 < x ≤ v_max (bigint) — một nguồn cho hai tầng.
+TIEN_TOI_DA_MINOR = _hang_m0030(r"v_max constant numeric := ([0-9]+);")
 RE_SO = re.compile(r"\d{1,24}(\.\d{1,12})?")
 RE_MA = re.compile(r"[A-Za-z0-9_.-]{1,80}")
 KHOA_BG = {"loai_hinh_id", "du_an_id", "giai_doan_g7", "nguon_lich", "don_vi", "khach", "gia", "fx", "phi_bao_tri", "lich", "het_han", "ghi_chu",
@@ -129,8 +141,8 @@ def _minor(s: str | None, tien_te: str | None):
         return None, None
     try:
         return money_minor(s, R.SCALE[tien_te]), None
-    except DataError:
-        return None, "KHONG_DUNG_SCALE_TIEN_TE"
+    except DataError as exc:  # vượt INTEGER 64-bit = ngoài miền của bước Ký (M0030), không phải lỗi scale
+        return None, "NGOAI_MIEN" if exc.code == "MONEY_OVERFLOW" else "KHONG_DUNG_SCALE_TIEN_TE"
 
 
 def _gia_tri_nhap(v) -> tuple[str | None, str | None, str | None]:
@@ -368,7 +380,10 @@ def tinh_bao_gia(d: dict, g7: dict | None, *, co_phi: bool = False) -> dict:
         loi.append({"ma": e1, "truong": "tong_gia_tri_ghi_de", "thong_bao": loi_ghi_de})
     else:
         tong, e1 = _minor(ghi_de if ghi_de is not None else g["tong"], tc)
-    if e1 and not loi_ghi_de:
+    if e1 == "NGOAI_MIEN":
+        loi.append({"ma": "TONG_NGOAI_MIEN", "truong": "tong_gia_tri_ghi_de" if ghi_de is not None else "gia.tong",
+                    "thong_bao": f"Tổng giá trị phải lớn hơn 0 và không quá {_tien_vn(TIEN_TOI_DA_MINOR, tc)}."})
+    elif e1 and not loi_ghi_de:
         loi.append({"ma": "TONG_KHONG_DUNG_SCALE", "truong": "tong_gia_tri_ghi_de" if ghi_de is not None else "gia.tong"})
     tich, f_tich = None, None
     if tt and g["don_gia"] and g["dien_tich"]:
@@ -391,6 +406,21 @@ def tinh_bao_gia(d: dict, g7: dict | None, *, co_phi: bool = False) -> dict:
                          "tong_tinh_minor": str(tich), "tong_ghi_de_minor": str(tong)})
     if tong is None and not e1:
         thieu.append({"ma": "THIEU_TONG_GIA_TRI", "truong": "gia.tong"})
+    # Miền tổng = miền của bước Ký (M0030 TONG_NGOAI_MIEN): 0 < tổng ≤ TIEN_TOI_DA_MINOR. Ngoài miền → lỗi theo trường, chặn In/Chuyển; lịch
+    # không tính trên tổng ngoài miền (như SQL: tổng NULL → đợt CHUA_CO_TONG); giá trị đã khai vẫn trả để màn hình hiện.
+    truong_tong = "tong_gia_tri_ghi_de" if ghi_de is not None else "gia.tong" if g["tong"] is not None else "gia.don_gia"
+    tong_trong_mien = tong is not None and 0 < tong <= TIEN_TOI_DA_MINOR
+    if tong is not None and not tong_trong_mien:
+        loi.append({"ma": "TONG_NGOAI_MIEN", "truong": truong_tong,
+                    "thong_bao": f"Tổng giá trị phải lớn hơn 0 và không quá {_tien_vn(TIEN_TOI_DA_MINOR, tc)}."})
+    tong_lich = tong if tong_trong_mien else None
+    bang_chu = None
+    if tong_trong_mien:
+        try:
+            bang_chu = R.bang_chu(tong, tc)
+        except R.LoiRender:
+            loi.append({"ma": "TONG_BANG_CHU_KHONG_DOC_DUOC", "truong": truong_tong,
+                        "thong_bao": "Không đọc được Tổng giá trị thành chữ — kiểm lại tổng giá trị."})
     if g["co_so_thue"] is None:
         thieu.append({"ma": "THIEU_CO_SO_THUE", "truong": "gia.co_so_thue"})
     if not d["khach"]["doi_tac_id"]:
@@ -430,10 +460,10 @@ def tinh_bao_gia(d: dict, g7: dict | None, *, co_phi: bool = False) -> dict:
                 tl = Fraction(Decimal(r["ty_le"]))
                 x["ty_le"] = r["ty_le"]
                 tong_tl += tl
-                if tong is None:
+                if tong_lich is None:
                     x["loi"].append("CHUA_CO_TONG")
                 else:
-                    f = Fraction(tong) * tl / TRAM
+                    f = Fraction(tong_lich) * tl / TRAM
                     if f.denominator != 1:
                         x["loi"].append("KHONG_BIEU_DIEN_DUNG_SCALE")
                     else:
@@ -446,20 +476,23 @@ def tinh_bao_gia(d: dict, g7: dict | None, *, co_phi: bool = False) -> dict:
             if r["so_tien"] is None:
                 x["loi"].append("CHUA_CO_SO_TIEN")
             elif e:
-                x["loi"].append(e)
+                x["loi"].append("SO_TIEN_KHONG_DUONG" if e == "NGOAI_MIEN" else e)
             elif mi is None:
                 x["loi"].append("CHUA_CO_TIEN_TE")
             else:
                 x["so_tien_minor"] = str(mi)
                 tong_tien += mi
-                if tong:
-                    tl = Fraction(mi) * TRAM / Fraction(tong)
+                if tong_lich:
+                    tl = Fraction(mi) * TRAM / Fraction(tong_lich)
                     tong_tl += tl
                     x["ty_le"] = _frac_str(tl)  # None vẫn giữ nghĩa không biểu diễn chính xác trong 12 chữ số lẻ.
                     x["ty_le_xap_xi"] = x["ty_le"] is None
                     x["ty_le_hien_thi"] = _ty_le_vn(tl, xap_xi=x["ty_le_xap_xi"])
                 else:
                     x["loi"].append("CHUA_CO_TONG")
+        # Miền tiền từng đợt = M0030 (SO_TIEN_KHONG_DUONG): 0 < tiền đợt ≤ TIEN_TOI_DA_MINOR
+        if x["so_tien_minor"] is not None and not 0 < int(x["so_tien_minor"]) <= TIEN_TOI_DA_MINOR:
+            x["loi"].append("SO_TIEN_KHONG_DUONG")
         # FIX01 #8: mốc trống (chưa chọn loại, hoặc đã chọn NGAY/SU_KIEN mà giá trị NULL/rỗng) luôn chỉ là CẢNH BÁO — giữ NULL, không tự tạo ngày
         if r["moc_loai"] is None or (r["moc_loai"] == "NGAY" and not r["moc_ngay"]) or (r["moc_loai"] == "SU_KIEN" and not r["moc_su_kien"]):
             canh_bao.append({"ma": "MOC_TRONG", "dong": i, "thong_bao": f"Dòng {r['lan']}: chưa có mốc thời gian/sự kiện (chỉ cảnh báo)."})
@@ -468,7 +501,9 @@ def tinh_bao_gia(d: dict, g7: dict | None, *, co_phi: bool = False) -> dict:
                 msg = {"CHUA_CO_GIA_TRI": "Chưa nhập giá trị.", "CHUA_CO_TY_LE": "Chưa nhập tỷ lệ.",
                        "CHUA_CO_SO_TIEN": "Chưa nhập số tiền.", "CHUA_CO_TONG": "Chưa có tổng giá trị để tính.",
                        "CHUA_CO_TIEN_TE": "Chưa chọn tiền tệ báo giá để tính số tiền.",
-                       "KHAC_TIEN_TE": "Tiền tệ dòng lịch khác tiền chính của báo giá."}.get(
+                       "KHAC_TIEN_TE": "Tiền tệ dòng lịch khác tiền chính của báo giá.",
+                       "SO_TIEN_KHONG_DUONG": "Số tiền đợt phải lớn hơn 0 và không quá "
+                                              + (_tien_vn(TIEN_TOI_DA_MINOR, tc) if tc else str(TIEN_TOI_DA_MINOR)) + "."}.get(
                            ma, "Số tiền không biểu diễn đúng đơn vị nhỏ nhất của tiền tệ; cần sửa giá trị.")
                 x["loi_chi_tiet"].append({"ma": ma, "dong": i, "truong": f"lich.{i - 1}", "thong_bao": f"Dòng {i}: {msg}"})
         if x["loi"]:
@@ -477,13 +512,13 @@ def tinh_bao_gia(d: dict, g7: dict | None, *, co_phi: bool = False) -> dict:
     if d["lich"]:
         if not du:
             chan.append({"ma": "LICH_CHUA_TINH_DUOC", "thong_bao": "Có dòng lịch chưa có/không tính đúng scale — nhập giá trị/cơ sở hợp lệ."})
-        elif any(x["nguon_nhap"] == "SO_TIEN" for x in dong) and tong is not None and tong_tien != tong:
+        elif any(x["nguon_nhap"] == "SO_TIEN" for x in dong) and tong_lich is not None and tong_tien != tong_lich:
             chan.append({"ma": "TONG_TIEN_LECH", "thong_bao": "Tổng tiền các đợt khác tổng giá trị."})
         elif tong_tl != TRAM:
             lech = TRAM - tong_tl
             chan.append({"ma": "TONG_TY_LE_KHAC_100", "thong_bao":
                          f"Tổng % = {_so_vn(_frac_str(tong_tl))}, {'thiếu' if lech > 0 else 'thừa'} {_so_vn(_frac_str(abs(lech)))}"})
-        elif tong is not None and tong_tien != tong:
+        elif tong_lich is not None and tong_tien != tong_lich:
             chan.append({"ma": "TONG_TIEN_LECH", "thong_bao": "Tổng tiền các đợt khác tổng giá trị."})
     vnd = None  # dữ liệu cũ: VND chỉ tham chiếu của báo giá USD (tiền chính USD)
     if not moi and tt == "USD" and fx and tong is not None:
@@ -542,12 +577,6 @@ def tinh_bao_gia(d: dict, g7: dict | None, *, co_phi: bool = False) -> dict:
                       if t["ma"] in ("THIEU_TIEN_TE", "THIEU_TONG_GIA_TRI", "THIEU_LICH", "THIEU_CO_SO_THUE")]
     chan_chuyen = chan_in + [{"ma": t["ma"], "truong": t["truong"], "thong_bao": nhan_thieu[t["ma"]]} for t in thieu
                              if t["ma"] in ("THIEU_KHACH", "THIEU_PHI_QUAN_LY_BAO_TRI")]
-    bang_chu = None
-    if tong is not None and tc:
-        try:
-            bang_chu = R.bang_chu(tong, tc)
-        except R.LoiRender:
-            bang_chu = None
     ty_gia = None
     if moi and tt == "VND":
         ty_gia = {"gia_tri": "1", "hien_thi": "1", "khoa": True, "nguon": "CO_DINH_VND", "ngay": None, "ngay_hien_thi": None}
