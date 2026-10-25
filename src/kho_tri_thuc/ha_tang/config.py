@@ -8,6 +8,47 @@ from pathlib import Path
 from .primitives import DataError, date_iso, sha256, text_id
 
 
+_THD_CHUOI = ("goc_bo_tai", "node_exe", "phien_ban_bo_tai", "thu_muc_tai", "thu_muc_trinh_duyet", "thu_muc_profile", "thu_muc_dieu_phoi")
+_THD_KHOA = frozenset(_THD_CHUOI) | {"node_sha256", "cong", "tep_pin", "goc_hoi_cuu_tin_cay"}
+_RE_HEX64 = re.compile(r"[0-9a-f]{64}")
+
+
+def doc_tai_hoa_don(v) -> dict:
+    """[tai_hoa_don] (M2-00E): chỉ kiểm KIỂU/HÌNH DẠNG từng giá trị; đường dẫn tồn tại, hash khớp, gốc tách biệt do `CauHinhTaiHoaDon` kiểm lúc dựng.
+
+    Vắng cả mục → Config.tai_hoa_don = None (tính năng "chưa cấu hình"). Mục có nhưng thiếu khóa vẫn đọc được: giao diện báo thiếu khóa nào,
+    không làm hỏng việc mở phần mềm. Khóa lạ bị từ chối để lỗi gõ sai không thành cấu hình im lặng. Không mật khẩu/tài khoản cổng thuế ở đây.
+    """
+    if not isinstance(v, dict) or not set(v) <= _THD_KHOA:
+        raise DataError("INVALID_TAI_HOA_DON", "[tai_hoa_don] phải là bảng và chỉ chứa các khóa đã định nghĩa.")
+    out: dict = {}
+    for k in _THD_CHUOI:
+        if k in v:
+            if not isinstance(v[k], str) or not v[k].strip() or len(v[k]) > 1024 or "\x00" in v[k]:
+                raise DataError("INVALID_TAI_HOA_DON", f"[tai_hoa_don].{k} phải là chuỗi không rỗng.")
+            out[k] = v[k]
+    if "node_sha256" in v:
+        if not isinstance(v["node_sha256"], str) or not _RE_HEX64.fullmatch(v["node_sha256"]):
+            raise DataError("INVALID_TAI_HOA_DON", "[tai_hoa_don].node_sha256 phải là 64 ký tự hex thường.")
+        out["node_sha256"] = v["node_sha256"]
+    if "cong" in v:
+        if type(v["cong"]) is not int or not (v["cong"] == 0 or 1024 <= v["cong"] <= 65535):
+            raise DataError("INVALID_TAI_HOA_DON", "[tai_hoa_don].cong phải là 0 (hệ điều hành cấp) hoặc 1024–65535.")
+        out["cong"] = v["cong"]
+    if "tep_pin" in v:
+        pin = v["tep_pin"]
+        if not isinstance(pin, dict) or not pin or len(pin) > 32 or any(
+                not isinstance(k, str) or not 0 < len(k) <= 200 or not isinstance(h, str) or not _RE_HEX64.fullmatch(h) for k, h in pin.items()):
+            raise DataError("INVALID_TAI_HOA_DON", "[tai_hoa_don.tep_pin] phải là bảng đường dẫn tương đối → SHA-256 hex thường.")
+        out["tep_pin"] = dict(pin)
+    if "goc_hoi_cuu_tin_cay" in v:
+        goc = v["goc_hoi_cuu_tin_cay"]
+        if not isinstance(goc, list) or not 0 < len(goc) <= 8 or any(not isinstance(x, str) or not x.strip() or len(x) > 1024 for x in goc):
+            raise DataError("INVALID_TAI_HOA_DON", "[tai_hoa_don].goc_hoi_cuu_tin_cay phải là danh sách 1–8 đường dẫn (gốc dữ liệu cũ được tin cậy cho manifest hồi cứu).")
+        out["goc_hoi_cuu_tin_cay"] = list(goc)
+    return out
+
+
 @dataclass(frozen=True)
 class Config:
     entity_id: str
@@ -35,6 +76,8 @@ class Config:
     storage_engine: str = "sqlite"
     storage_dsn_key: str = "KHO_PG_DSN"
     storage_schema: str = "v12"
+    # M2-00E: [tai_hoa_don] (bộ tải #7 sở hữu). None = vắng mục → tính năng hiện "chưa cấu hình"; dict = giá trị đã kiểm kiểu, chưa kiểm đường dẫn
+    tai_hoa_don: dict | None = None
 
     @classmethod
     def load(cls, path: Path, data_dir: Path | None = None) -> Config:
@@ -114,8 +157,9 @@ class Config:
             if storage_schema != "auto":
                 from .ket_noi import kiem_ten_schema
                 kiem_ten_schema(storage_schema)  # cấm trùng schema K2/hệ thống (review lần 2 #10)
+            tai_hoa_don = doc_tai_hoa_don(values["tai_hoa_don"]) if "tai_hoa_don" in values else None
         except (KeyError, TypeError, UnicodeError, tomllib.TOMLDecodeError) as exc:
             raise DataError("INVALID_CONFIG", "Cấu hình TOML thiếu trường hoặc sai cấu trúc.") from exc
         return cls(entity, directory.resolve(), "VND", 0, raw, sha256(raw), environment, export_enabled, import_enabled, statuses, candidate_limit,
                    tax_id, float(quarantine_ratio), parsed_natures, include_non_taxable, dict(statuses_map), extend_journal_coverage,
-                   catalog_valid_from, vat_threshold, approval_actor, entity_name, storage_engine, storage_dsn_key, storage_schema)
+                   catalog_valid_from, vat_threshold, approval_actor, entity_name, storage_engine, storage_dsn_key, storage_schema, tai_hoa_don)

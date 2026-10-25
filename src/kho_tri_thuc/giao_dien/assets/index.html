@@ -8,6 +8,7 @@
   <script src="/app.js" defer></script>
   <link rel="stylesheet" href="/m4.css"><script src="/m4.js" defer></script>
   <script src="/crm_g.js" defer></script>
+  <script src="/m2_tai_hoa_don.js" defer></script>
 </head>
 <body>
 <aside class="sidebar">
@@ -139,6 +140,25 @@
       <article class="card"><div class="section-heading"><div><h2>Vai mô phỏng</h2><p id="m2-nguoi">Đang tải…</p></div></div>
         <div class="demo-actions"><label for="m2-danh-tinh">Đổi vai</label><select id="m2-danh-tinh"></select><button id="m2-doi-vai" class="button secondary">Dùng vai này</button></div>
         <div id="m2-nang-luc"></div></article>
+      <article class="card" id="m2-tct">
+        <div class="section-heading"><div><h2>Tải từ cổng thuế</h2><p>Bộ tải hóa đơn điện tử (#7) chạy ngầm trên máy này. Captcha gõ tay trong cửa sổ Chrome của bộ tải; chỉ hiện pháp nhân vai hiện tại được phép. Máy nhận theo manifest làm bằng chứng nguồn, chưa hạch toán.</p></div>
+          <button id="m2-tct-lam-moi" class="button secondary small" type="button">↻ Kiểm tra bộ tải</button></div>
+        <p id="m2-tct-status" class="upload-status" role="status" aria-live="polite"></p>
+        <div id="m2-tct-bo-tai"></div>
+        <p id="m2-tct-form-trong" class="upload-status hidden">Vai hiện tại không có pháp nhân nào được tải từ cổng thuế.</p>
+        <form id="m2-tct-form" class="hidden" autocomplete="off">
+          <div class="demo-actions"><label for="m2-tct-phap-nhan">Pháp nhân</label><select id="m2-tct-phap-nhan"></select>
+            <label for="m2-tct-che-do">Kỳ</label><select id="m2-tct-che-do"><option value="month">Một tháng</option><option value="year">Cả năm</option></select>
+            <input id="m2-tct-thang" type="month" aria-label="Tháng cần tải"><input id="m2-tct-nam" type="number" min="2020" max="2100" class="hidden" aria-label="Năm cần tải"></div>
+          <div class="demo-actions"><label for="m2-tct-chieu">Chiều</label><select id="m2-tct-chieu"><option value="mua">Mua vào</option><option value="ban">Bán ra</option><option value="ca-hai">Cả hai</option></select>
+            <span>Định dạng</span>
+            <label><input id="m2-tct-dd-xml" type="checkbox" checked style="width:auto;min-height:0"> XML</label>
+            <label><input id="m2-tct-dd-pdf" type="checkbox" style="width:auto;min-height:0"> PDF (chỉ để xem)</label>
+            <label><input id="m2-tct-dd-excel" type="checkbox" style="width:auto;min-height:0"> Bảng kê Excel (cần để nhận hóa đơn không mã)</label></div>
+          <button id="m2-tct-bat-dau" type="submit" class="button primary">Tải từ cổng thuế</button>
+        </form>
+        <div id="m2-tct-tien-trinh"></div>
+        <div id="m2-tct-ket-qua"></div></article>
       <article class="card"><div class="section-heading"><div><h2>1 · Nhận XML/ZIP hóa đơn</h2><p>Người nhận nguồn (INTAKE) nhận tệp; mỗi lần nhận có khóa riêng. Nhận lại cùng khóa trả biên nhận cũ; khóa mới cùng nội dung chỉ thêm lần quan sát.</p></div></div>
         <form id="m2-tai-len" class="hidden" autocomplete="off">
           <div class="demo-actions"><label for="m2-tl-nguon">Nguồn / phạm vi</label><select id="m2-tl-nguon"></select>

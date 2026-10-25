@@ -98,7 +98,7 @@ def _co_gia_tri(it):
 
 class TrichXuat:
     def __init__(self, params, ai=None, out_dir=".", ra_lai=True, cloud=None, tien_do=None, ghi_log=None, dung=None,
-                 thu_muc_dap_an=None, rng=None, che_do=None, meta=None):
+                 thu_muc_dap_an=None, rng=None, che_do=None, meta=None, loai_hop_dong=None):
         # common/v1 (CRM-41-01): che_do='RULE_ONLY' = KHÔNG AI/cloud/rà lại; TC-* theo quy tắc master_hd (llm=None) như đường Claude dùng cho phần
         # mở đầu; các mã khác giữ trạng thái chưa chạy AI + vị trí dò được. meta = bản chụp request/catalog/implementation ghi vào kết quả.
         if che_do not in (None, "RULE_ONLY"):
@@ -109,7 +109,28 @@ class TrichXuat:
         if isinstance(meta, dict) and meta.get("mode") == MODE_E5 and che_do != "RULE_ONLY":
             raise ValueError("Đối chiếu bản ký chỉ chạy RULE_ONLY")
         self.che_do = che_do
-        self.meta = meta
+        # E4: chụp định danh ngay khi dựng lượt. API đã kiểm bytes catalog trước
+        # khi tạo meta; không đọc lại file đang sống để tránh đổi phiên bản giữa lượt.
+        if meta is not None and not isinstance(meta, dict):
+            raise ValueError("Bản chụp request phải là object")
+        self.meta = _copy.deepcopy(meta)
+        from .danh_muc import CATALOG_COMMON, danh_muc_theo_loai
+        loai_meta = self.meta.get("loai_hop_dong") if isinstance(self.meta, dict) else None
+        if loai_hop_dong is not None and loai_meta is not None and loai_hop_dong != loai_meta:
+            raise ValueError("Loại hợp đồng khác bản chụp request")
+        self.loai_hop_dong = loai_hop_dong if loai_hop_dong is not None else (loai_meta if loai_meta is not None else "XD")
+        if not isinstance(self.loai_hop_dong, str) or self.loai_hop_dong not in CATALOG_COMMON:
+            raise ValueError(f"Loại hợp đồng {self.loai_hop_dong!r} chưa đăng ký danh mục tham số")
+        reg = CATALOG_COMMON[self.loai_hop_dong]
+        if self.meta is not None:
+            if not loai_meta or self.meta.get("catalog_id") != reg["catalog_id"] or self.meta.get("catalog_sha256") != reg["sha256"]:
+                raise ValueError("Bản chụp thiếu/sai loại hoặc phiên bản danh mục đã ghim")
+            self.phien_ban_danh_muc = self.meta["catalog_sha256"]
+        else:
+            path_catalog = danh_muc_theo_loai(self.loai_hop_dong)
+            self.phien_ban_danh_muc = hashlib.sha256(path_catalog.read_bytes()).hexdigest()
+            if self.phien_ban_danh_muc != reg["sha256"]:
+                raise ValueError("Danh mục đổi trong lúc chụp phiên bản")
         self.params = params
         self.ai = ai                              # None → chỉ tách cấu trúc + dò vị trí (không có Local AI)
         self.out_dir = out_dir
@@ -433,7 +454,7 @@ class TrichXuat:
 
         # 7. logic
         self.tien_do(6, "Kiểm tra logic L1–L5", 0.86)
-        logic = kiem_tra_logic(results, self.params, rows_by_id) if dung_ai else {}
+        logic = kiem_tra_logic(results, self.params, rows_by_id, self.loai_hop_dong) if dung_ai or self.loai_hop_dong != "XD" else {}
 
         bang = []
         for p in self.params:
@@ -471,10 +492,26 @@ class TrichXuat:
             if tom_cloud.get("so_o_gui"):
                 moi = {d["ma"]: {"gia_tri": d["gia_tri"], "trich_dan": d["trich_dan"], "_row": d.get("row_id")}
                        for d in bang}
-                logic = kiem_tra_logic(moi, self.params, rows_by_id)
+                logic = kiem_tra_logic(moi, self.params, rows_by_id, self.loai_hop_dong)
                 for d in bang:
                     d["logic"] = logic.get(d["ma"], [])
                     d["kiem_tra"] = ghep_kiem_tra(d["kiem_tra_tu"], d["logic"])
+
+        # E1-3: bảng có cấu trúc cạnh giá trị đơn, trước lần ghi JSON/niêm phong đầu.
+        # XD bỏ qua hoàn toàn; DTO không có bảng không cần nạp bộ diễn giải.
+        if self.loai_hop_dong != "XD":
+            ma_bang = {"TT-20"}
+            if self.loai_hop_dong in ("MUA_HH", "NHAP_KHAU", "DV_KY", "THUE_TS"):
+                ma_bang.add("TT-05")
+            bang_ts = {}
+            if bang_nguon.get("bang"):
+                from .doc_hop_dong import trich_bang_tham_so
+                bang_ts = trich_bang_tham_so(bang_nguon, self.loai_hop_dong)
+            for d in bang:
+                if d["ma"] in ma_bang:
+                    d["bang"] = bang_ts.get(d["ma"], [])
+                    d["bang_can_ra_soat"] = not d["bang"] or any(b["can_ra_soat"] for b in d["bang"])
+                    d["bang_ly_do"] = (["KHONG_NHAN_DIEN_DUOC_BANG"] if not d["bang"] else [])
 
         for d in bang:                       # giá trị máy trích (sau cloud) — luôn giữ lại khi người soát sửa
             d.update(gia_tri_ai=d["gia_tri"], da_xac_nhan=False, da_sua=False)
@@ -501,6 +538,7 @@ class TrichXuat:
         n_ok = sum(1 for d in bang if la_ok(d["kiem_tra"]))
         dt = time.time() - t0
         kq = {
+            "loai_hop_dong": self.loai_hop_dong, "phien_ban_danh_muc": self.phien_ban_danh_muc,
             "hop_dong": file, "ten": ten, "che_do": "AI" if dung_ai else ("RULE_ONLY" if quy_tac_tc else "chua_chay_AI"),
             "model": self.ai.model if dung_ai else None, "may_ai": self.ai.url if dung_ai else None,
             "tao_luc": datetime.datetime.now().isoformat(timespec="seconds"),
@@ -545,6 +583,7 @@ class TrichXuat:
                  "gia_tri_ai": "", "da_xac_nhan": False, "da_sua": False} for p in self.params]
         dt = time.time() - t0
         kq = {
+            "loai_hop_dong": self.loai_hop_dong, "phien_ban_danh_muc": self.phien_ban_danh_muc,
             "hop_dong": file, "ten": ten, "che_do": "RULE_ONLY", "model": None, "may_ai": None,
             "tao_luc": datetime.datetime.now().isoformat(timespec="seconds"),
             "tuy_chon": {"ra_lai": False, "cloud": False, "nguon_ai": "", "gui_ra_ngoai": ""},

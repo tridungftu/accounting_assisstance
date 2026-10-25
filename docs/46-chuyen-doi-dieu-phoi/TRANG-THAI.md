@@ -2,12 +2,14 @@
 
 Trạng thái lát: Đang code → Chờ kiểm → Chờ Anh (cổng A/B) → Sửa → Xong · Bị chặn. Kế hoạch và hàng đợi đầy đủ: `4-KE-HOACH-LEAD.md`. Nền test: `NEN-TEST.md` mục 0b — **nền v4** (mục 0, 25/10): 1501/23/44/362, **0 treo**.
 
-## Lát đang chạy (tối đa 3 worker)
+## Lát đang chạy (tối đa 3 worker lập trình; review chỉ đọc chạy kèm)
 
 | Lát | Việc | Worker | Nhánh · worktree | Giao lúc | Trạng thái |
 |---|---|---|---|---|---|
-| BG-1b | CRM · Báo giá gói 1 màn hình (BG-01…05) | Claude Sonnet | `lat/bg-1b` (86d5b5b) · DEMO http://127.0.0.1:8784 | 24/10 | **Chờ Anh cổng A** — phiếu `PHIEU-CONG-A-BAO-GIA-GOI-1.md`; lead đã tự thử (lịch 4 cột, dòng tổng, Σ 90% chặn In/Chuyển); ô/dòng 9→3, nút tính 1→0 |
-| M2e | M2-00 · nút "Tải từ cổng thuế" trong M2: route mỏng + giao diện, nối `dieu_phoi`/`khach`/`nhan`; tự thử với bộ tải giả | Claude Sonnet | `lat/m2e` · DEMO 8787 | 24/10 | Chờ kiểm — 7 tệp; 32 test HTTP + giao diện S0–S6 đạt; luồng §3 đủ trên DEMO với bộ tải giả (không gọi cổng thật); review Codex vòng 1 đang chạy |
+| BG-1c | CRM · Báo giá sửa theo cổng A — máy chủ: Tổng VND = đơn giá × tỷ giá × diện tích + bằng chữ; tỷ giá mặc định trong `master.cau_hinh` (kế toán sửa, nhật ký); In sơ bộ; Chuyển cần khách + phí; M0030 bước Ký | Claude Opus · review Codex | `lat/bg-1c` · DEMO 8791 | 25/10 | Sửa vòng 2 — review Codex: 2 Chặn (miền tổng/tiền đợt Python ≠ SQL; Python nhận chữ số không ASCII) + 1 Nên sửa (lỗi tỷ giá theo trường) |
+| BG-1d | CRM · Báo giá màn hình 2 bước: bước 1 to/đầu (giá, tỷ giá, Tổng VND + bằng chữ, lịch VND, In sơ bộ); bước 2 sau khi khách đồng ý (khách, phí, Chuyển) | Claude Sonnet | `lat/bg-1d` (từ `lat/bg-1c`) · DEMO 8791 | 25/10 | Đang code |
+| L0-8 | Bật test PostgreSQL trên cụm DEMO (CSDL tạm `kho_test_*`, xóa sau khi chạy) — QD-20261025-10 | Claude Sonnet | `lat/l0-8` | 25/10 | Đang code |
+| C3 | CRM 42 · read-model danh sách hợp đồng S1 `GET /api/crm/hop-dong` (phạm vi theo vai, thẻ W1–W5, ô Junsky "chưa có sổ") | Codex | `lat/c3` | 25/10 | Đang code |
 
 ## Lát đã xong (24/10)
 
@@ -15,6 +17,9 @@ Trạng thái lát: Đang code → Chờ kiểm → Chờ Anh (cổng A/B) → S
 |---|---|---|
 | L0-2h | Rà `luu/m4b2`, `luu/m4b3` (Codex, chỉ đọc): **không gộp** — phần dùng được (`docx_an_toan.py`) đã có trên hop-nhat giống hệt; delta còn lại đưa code/test về bản cũ (bỏ hàm review/chứng từ, bỏ UNIQUE cần cho FK M17, helper test lỗi `lam() got multiple values for argument ten`). Nhánh `luu/*` giữ nguyên, không xóa | — |
 | L0-2g | Testfix C18 review basis M4 (bản kế nhiệm `m4_02a_basis_async.cjs`): 31/32 → 32/32 | fdc3c2e |
+| E1-3 | E1-MUA · bảng TT-05 (hàng/đơn giá) và lịch TT-20 từ DOCX trong bản vá #6; ô mơ hồ để trống + cờ rà soát; XD không đổi; 13 test mới | a7431d1 |
+| E1-2 | E1-MUA · quy tắc theo loại hợp đồng (bảng quy tắc; XD giữ nguyên — 9 đầu vào trùng hàm gốc) + phiên bản danh mục, trong bản vá #6; 42/0/0 | b391e09 |
+| M2e | M2-00 · nút "Tải từ cổng thuế" (route mỏng + giao diện + cấu hình); review Codex: 3 Chặn an toàn đã sửa vòng 2; 266 đạt; chạy với bộ tải giả — ca thật là M2f | 3b7f9e8 |
 | M4-4/7 | M0028 master dùng chung + M0029 03B ghi nhận chung (append, 29 migration); áp thật 0→29 và 27→29; review Codex Đạt cả 4 tiêu chí | 3d0be04 |
 | L0-7 | Engine #6 nạp sẵn openpyxl/numpy ở luồng chính tiến trình con → hết treo lệnh trích đầu (A/B: 1,8 s vs 503); .gitattributes review_goc (35/35 pin khớp ở clone mới); seed duyệt viên M4 cho DEMO; review Codex: 0 Chặn | d4eb6a5 |
 | M2d | M2-00 · manifest hồi cứu HOI_CUU (chỉ đọc thư mục cũ); review Đạt (~45 ca tấn công đường dẫn bị chặn); vòng 2: gốc hồi cứu tin cậy, junction, run_id theo tên thật, chặn chuỗi quá dài; 173/0/0/1 | da3d666 |
@@ -44,13 +49,13 @@ Worktree đo nền: `.claude/worktrees/nen-chinh-59b7d8e` (chinh) · `.claude/wo
 
 | File | Lát giữ |
 |---|---|
-| `src\kho_tri_thuc\giao_dien\server.py` | M2e |
+| `src\kho_tri_thuc\giao_dien\server.py` | — |
 | `giao_dien\m4.py` | — |
 | `nguon\trich6_host.py`, `tools\chuan_bi_crm_demo.py`, `.gitattributes` | — |
-| `giao_dien\assets\app.js`, `index.html`, `ha_tang\config.py` | M2e |
-| `ha_tang\pg_migrations.py` | — |
-| `giao_dien\crm_g.py`, `k2\crm_giao_ket.py` | — |
-| `giao_dien\assets\crm_g.js`, `style.css` | BG-1b |
+| `giao_dien\assets\app.js`, `index.html`, `ha_tang\config.py` | — |
+| `ha_tang\pg_migrations.py` | BG-1c (chỉ append M0030) |
+| `giao_dien\crm_g.py`, `k2\crm_giao_ket.py` | BG-1c |
+| `giao_dien\assets\crm_g.js`, `style.css` | BG-1d |
 | `m4\*` dùng chung | — |
 | `tests\` (chỉ test lỗi thời N5) | — |
 | `m4\giao_dien\m4_duyet_pdf.js`, `m4.js`, `m4.css` | — |
@@ -60,7 +65,9 @@ Worktree đo nền: `.claude/worktrees/nen-chinh-59b7d8e` (chinh) · `.claude/wo
 
 | Màn | Trạng thái |
 |---|---|
-| CRM · Báo giá (#42, TL 45) | **Chờ Anh cổng A gói 1** (24/10) — phiếu `PHIEU-CONG-A-BAO-GIA-GOI-1.md` |
+| CRM · Báo giá (#42, TL 45) | Cổng A gói 1: **Sửa rồi xem lại** (25/10) — BG-1c máy chủ xong (đang review), BG-1d màn hình 2 bước đang code → phiếu xem lại |
+| CRM · Dự án đang bán (yêu cầu mới 25/10) | Anh đã chốt thiết kế (QD-20261025-05…09) — DA-1 chờ BG-1c gộp (khóa migration) |
+| M4 · màn 03B | Anh duyệt checklist (QD-20261025-13) — M4-5a máy chủ (một phần bằng số tiền) → M4-5b màn hình |
 
 ## Việc phụ (lead làm, ghi để Anh biết)
 
