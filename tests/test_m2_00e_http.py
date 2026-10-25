@@ -428,6 +428,39 @@ class KhongBiMat(Co):
             for x in bi_mat:
                 self.assertNotIn(x, p.text, f"lộ {x[:12]} trong {p.status}")
 
+    def test_sse_che_tung_mau_bi_mat_cua_log_bo_tai(self):
+        """Vòng 2 (Codex): JSON có nháy, giá trị có khoảng trắng trong nháy đơn/kép, nonce/capability/token/secret/pass*, đường dẫn profiles\\*.env."""
+        self.mo_bo_tai()
+        r = self.bat_dau()
+        job = self.node.jobs[self.node.running]
+        mau = [  # (dòng log do bộ tải gửi, các mảnh bí mật KHÔNG được còn trong bất kỳ phần nào của luồng SSE gửi trình duyệt)
+            ('{"password":"DEMO_PASS_J1"}', ["DEMO_PASS_J1"]),
+            ('password="DEMO PASS WORD2" tiep tuc', ["DEMO PASS WORD2", "PASS WORD2", "WORD2"]),
+            ("password='don a b3 xyz'", ["don a b3", "b3 xyz", "xyz"]),
+            ('{"token": "TOK CANARY 7", "ok": 1}', ["TOK CANARY 7", "CANARY 7"]),
+            ("capability=CAPCANARY4_abcdefghijklmnopqrstuvwxyz0123456789 nonce=NONCECANARY5", ["CAPCANARY4", "NONCECANARY5"]),
+            ("TAX_PASSWORD=DEMO_PASS_J6 secret: 'S E C 7' passphrase=PP8", ["DEMO_PASS_J6", "S E C 7", "PP8"]),
+            ("Authorization: Bearer BEARERCANARY9abc", ["BEARERCANARY9"]),
+            ("X-Source7-M2-Cap: HDRCANARY10", ["HDRCANARY10"]),
+            ("doc ho so profiles/A.env that bai", ["A.env"]),
+            ("mo C:\\Users\\x\\bo-tai\\profiles\\PN_DEMO_B.env loi", ["PN_DEMO_B.env", "bo-tai", "Users"]),
+            ("ghi D:\\Claude\\tai\\PN_A\\2026-10\\mua_vao", ["Claude", "D:"]),
+            ("request_key=m2b_REQCANARY11", ["REQCANARY11"]),
+        ]
+        for i, (msg, _) in enumerate(mau):
+            self.node._su_kien(job, "log", {"msg": msg})
+        s = self.goi("GET", f"{TIEN_TO}/su-kien?run={r['run_handle']}&cursor=0")
+        self.assertEqual(s.status, 200)
+        msgs = [k["du_lieu"]["payload"]["msg"] for k in khung_sse(s.text) if k["ten"] == "su-kien" and k["du_lieu"]["type"] == "log"][1:]  # bỏ dòng log DEMO có sẵn
+        self.assertEqual(len(msgs), len(mau))
+        for (msg, bi_mat), da_che in zip(mau, msgs):
+            for manh in bi_mat:
+                self.assertNotIn(manh, da_che, f"lộ {manh!r} từ {msg!r} → {da_che!r}")
+                self.assertNotIn(manh, s.text, f"lộ {manh!r} trong luồng SSE")
+        self.assertIn("[profile]", msgs[8] + msgs[9])
+        self.assertIn("[AN]", msgs[0])
+        self.assertIn("tiep tuc", msgs[1])  # chỉ che giá trị, không che cả dòng
+
     def context_gui(self):
         return [v for p, v in self.node.than if p == "/api/start"][0]["context"]
 
@@ -658,7 +691,8 @@ class TomTatNhan(unittest.TestCase):
     def test_an_toan_che_bi_mat(self):
         self.assertEqual(mod.an_toan("TAX_PASSWORD=abc mat_khau: xyz bearer ABCDEF"), "[AN] [AN] [AN]")
         self.assertEqual(mod.an_toan("Dang mo cong thue ..."), "Dang mo cong thue ...")
-        self.assertEqual(len(mod.an_toan("x" * 1000)), 400)
+        self.assertEqual(len(mod.an_toan("x " * 500)), 400)
+        self.assertEqual(mod.an_toan("x" * 1000), "[AN]")  # chuỗi dài liền giống capability/token bị che dù không kèm khóa
 
 
 def khung_sse(text: str) -> list:

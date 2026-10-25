@@ -251,14 +251,26 @@ def mo_ta_loi(exc: DataError):
 
 
 # ---------------------------------------------------------------------------------------------- lọc DTO (chỉ whitelist ra trình duyệt)
-_BI_MAT = re.compile(r"(?i)[a-z_]*(?:mat[_ -]?khau|password|passwd|pwd|secret|token|captcha)[a-z_]*\s*[:=]\s*\S+|bearer\s+\S+"
-                     r"|[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}")
+_KHOA_BI_MAT = (r"mat[_ -]?khau|matkhau|pass[a-z0-9_-]*|pwd|secret|token|nonce|capability|captcha|cookie|authorization|api[_-]?key|username|tai[_-]?khoan|"
+                r"request[_-]?key|m2[_-]cap")
+_GIA_TRI = r"(?:(?:bearer|basic)\s+)?(?:\"(?:[^\"\\]|\\.)*\"|'(?:[^'\\]|\\.)*'|\S+)"  # giá trị trong nháy kép/đơn (kể cả khoảng trắng, nháy thoát) hoặc đến hết khoảng trắng; có thể mở bằng Bearer/Basic
+_BI_MAT = re.compile(
+    r"(?i)[\"']?[a-z0-9_.-]*(?:" + _KHOA_BI_MAT + r")[a-z0-9_-]*[\"']?\s*[:=]\s*" + _GIA_TRI   # password=..., "password":"...", TAX_PASSWORD='a b', nonce=..., capability=...
+    + r"|bearer\s+" + _GIA_TRI
+    + r"|[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}"                                    # dạng JWT
+    + r"|(?<![A-Za-z0-9_-])[A-Za-z0-9_-]{40,}(?![A-Za-z0-9_-])")                                         # chuỗi dài giống capability/token không kèm khóa
+_DUONG_PROFILE = re.compile(r"(?i)(?:[^\s\"'<>|]*[\\/])?profiles[\\/][^\s\"'<>|]*|(?<![A-Za-z0-9_.-])[A-Za-z0-9_.-]+\.env(?![A-Za-z0-9_-])")
+_DUONG_TUYET_DOI = re.compile(r"(?i)(?<![A-Za-z0-9])[a-z]:[\\/][^\s\"'<>|]*|\\\\[^\s\"'<>|]+")
 
 
 def an_toan(msg, toi_da=400) -> str:
-    """Dòng log của bộ tải → chuỗi hiển thị. Node đã tự che bí mật; đây là lớp thứ hai (khóa=giá trị, bearer, dạng JWT) — thà che thừa còn hơn lộ."""
+    """Dòng log của bộ tải → chuỗi hiển thị. Node đã tự che bí mật; đây là lớp thứ hai — thà che thừa còn hơn lộ:
+    đường dẫn tới profiles\\*.env → [profile]; đường dẫn tuyệt đối → [đường dẫn]; `khóa=giá trị` / `"khóa":"giá trị"` (giá trị có nháy đơn/kép hoặc khoảng trắng) với khóa
+    mật khẩu/pass*/secret/token/nonce/capability/captcha/cookie/authorization/api_key/username/request_key → [AN]; bearer …; dạng JWT; chuỗi dài ≥ 40 ký tự."""
     s = "".join(c for c in str(msg) if c == "\t" or c >= " ")[:toi_da]
-    return _BI_MAT.sub("[AN]", s)
+    s = _DUONG_PROFILE.sub("[profile]", s)
+    s = _BI_MAT.sub("[AN]", s)
+    return _DUONG_TUYET_DOI.sub("[đường dẫn]", s)
 
 
 def _ma(v):
