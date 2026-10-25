@@ -248,3 +248,21 @@ H3 phân loại 36 đầu việc: 19 gói đã nhập `hop-nhat`, 13 xung đột
 
 - Thử DEMO 8799 (`lat/ui-dem`, CSDL riêng p8799): lưới CRM 7 phần, Dự án đang bán mở thẳng; mục Mốc thanh toán chạy (2 mốc seed, 1 việc chờ, chỉnh dự kiến có lý do → hết việc chờ); nhãn vai có tên pháp nhân. Danh sách vai mô phỏng rất dài (~44 dòng gồm vai M2/M4/M5) — ghi "Cần Anh".
 - Quyết định lead (đêm): MDA giữ **M0035** (đã chạy DEMO p8799); KY-DOCX đổi sang **M0036** khi sửa sáng 26/10 (sửa test ghi cứng 35).
+
+### Nhật ký lát đêm — cập nhật 01:35
+
+| Lát | Worker · model | Giao → xong | Nhánh · commit | Kiểm / review | Test | Gộp |
+|---|---|---|---|---|---|---|
+| MDA-5a / MDA-5b | Codex | 00:13 → 00:20 | lat/mda-5a, lat/mda-5b 01954f4 | review cụm MDA Đạt (Nên sửa → 5a/5b) | PG 265 ok, 0 mã mới | **hợp nhất 7ce0344** (00:31) + ui-dem |
+| M4-5b (03B) | Codex | 00:10 → 00:27; v2 00:31 → 00:36 | lat/m4-5b 932f115 | kiem-nhanh Đạt có ĐK → v2; review-lat Đạt | PG 170 ok, 0 mã mới; node 12/12 | **hợp nhất 3b12e47** |
+| M4-5c / M4-5d | Codex | 00:50 → 00:59; 01:17 → 01:31 | lat/m4-5d | review lô Đạt (M4-5c), Nên sửa → 5d | node 03B 22/22, 01C 13/13 | **hợp nhất 646046c** |
+| MDA-4c | Codex | 00:20 → 00:26 | lat/mda-4c | review lô Đạt | khung 33/33 | ui-dem |
+| UI-3c / UI-3d | Codex | 00:43 → 00:46; 01:17 → 01:31 | lat/ui-3c, lat/ui-3d | review lô Đạt (Nên sửa → 3d) | 43/43; 45/45 | ui-dem |
+| MDA-2b | Codex | 00:43 → 00:46 | lat/mda-2b | review lô Đạt | node dự án 39/39 | ui-dem |
+| BG-e7 / BG-e7s | Codex | 00:54 → 00:56; 00:57 → 00:59 | lat/bg-e7, lat/bg-e7s e0f9853 | review lô Đạt | node 47/47; 104/113 (9 skip) | ui-dem; BG-e7s **hợp nhất 851b73e** |
+| KY-UI | Codex | 00:27 → 00:41; v2 00:42 → 00:52 | lat/ky-ui 15fc909 | review lô Đạt (gộp cùng/sau KY-DOCX) | node 4/4 bộ | chờ KY-DOCX |
+| T-NEN-c2 | Codex | 00:22 → 00:24 | — | bị chặn (thiếu bản candidate) | — | Cần Anh |
+
+- Review Opus đêm: MDA-1a (Không đạt → v2), BG cụm, AI-3, KY-DOCX, MDA cụm, dòng giao diện (10 lát), M4-5b, lô 7 lát — **8 lượt**, không lát nào gộp khi còn Chặn.
+- **Nền PG v3** (01:28, hop-nhat 7e9b915): 2433/20/66/66, 132 module, 0 mã mới so v2 — `nen-test-hop-nhat-pg-v3.json`.
+- Phiếu cổng A lần 2: `PHIEU-CONG-A-BAO-GIA-LAN-2.md` (DEMO 8798 = `lat/ui-dem`, khởi động lại 01:33 nạp UI-3d + BG-e7s).
