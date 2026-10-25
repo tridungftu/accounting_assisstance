@@ -28,6 +28,11 @@ Nhóm màu cố định (TL 49 §3): `ban_hang` xanh dương · `tien` xanh ng�
 - **Số trên thẻ phải khớp danh sách mở ra** khi bấm (`loc` là đúng tham số của danh sách đó — vd `GET /api/crm/hop-dong?the=W2`).
 - `GET /api/khung/he-thong` (UI-3): `{"module": [{"ma","ten","icon","nhom_mau","so_viec","qua_han","tam_dung","duong_dan"}], "thanh_co_dinh": [...]}`.
 
+### 2b. Bổ sung sau UI-2 (gộp af7c389, 25/10)
+- Danh sách lọc cho `loc` của thẻ: `GET /api/crm/bao-gia?trang_thai=<NHAP|…>` và `GET /api/crm/mau?trang_thai=<CHO_KIEM|CHO_CFO>` do khung xử lý (`khung_khai_bao.py`), dùng cùng service với route gốc; khác route gốc: không có `ly_do_chua_san_sang` (báo giá) và `ghi_nguon.ly_do` (mẫu); kèm `as_of` hoặc giá trị lạ → 400; người xem → 403. Gọi không có `trang_thai` → route gốc như cũ.
+- Danh sách báo giá chạm 200 dòng: `day_du: false` — giao diện **không** hiện con số như tổng đủ (UI-2b sẽ trả `tong: null` khi chưa đủ).
+- Số trên icon theo loại việc TL 42 §3 (UI-2b chỉnh): Bán hàng — Hợp đồng = W1 + W2, không số ở Thu tiền; Kế toán — Thu tiền = đợt đến hạn 7 ngày; CFO — Hợp đồng = HĐ chờ duyệt (`trang_thai=CHO_DUYET`).
+
 ## 3. CRM (TL 49 §2) — 6 phần
 Hợp đồng · Báo giá · Mẫu hợp đồng · Tiếp nhận hợp đồng ký · Thu tiền · Báo cáo & file soát. Thẻ theo vai: Bán hàng / Kế toán / CFO / Người xem như TL 49 §2 (con số lấy từ nguồn sẵn có — thẻ W1–W5 của `GET /api/crm/hop-dong` (C3), báo giá nháp, mẫu chờ duyệt…; nguồn nào chưa có → **không hiện thẻ đó** và ghi trong báo cáo, không bịa số).
 
