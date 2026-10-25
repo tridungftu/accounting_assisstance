@@ -11886,3 +11886,13 @@ from ..k2.sql_crm_doi_chieu import CRM_G5_SQL  # noqa: E402 — module chỉ h�
 M0032_CRM_G5 = CRM_G5_SQL
 PG_MIGRATIONS = (*PG_MIGRATIONS, M0032_CRM_G5)
 PG_SCHEMA_VERSION = len(PG_MIGRATIONS)
+
+# ---------------------------------------------------------------------------
+# 0033 — M4 · Nghiệm thu & chi phí dự án: 03B khai một phần bằng số tiền + dữ liệu gợi ý.
+# APPEND sau 1–32; không sửa dữ liệu tỷ lệ cũ hoặc module SQL M0029 đã ghim hash.
+# ---------------------------------------------------------------------------
+from ..k2.sql_ghi_nhan_so_tien import M4_03B_SO_TIEN_SQL  # noqa: E402 — chỉ hằng SQL
+
+M0033_M4_03B_SO_TIEN = M4_03B_SO_TIEN_SQL
+PG_MIGRATIONS = (*PG_MIGRATIONS, M0033_M4_03B_SO_TIEN)
+PG_SCHEMA_VERSION = len(PG_MIGRATIONS)
