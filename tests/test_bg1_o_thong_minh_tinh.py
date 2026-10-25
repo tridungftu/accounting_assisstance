@@ -597,7 +597,7 @@ class SeamBg1c(unittest.TestCase):
         kq = {"bao_gia_id": BG, "revision": 1, "so_bao_gia": "BG-THU", "trang_thai": "NHAP"}
         self.s._tra = mock.Mock(return_value=None)
         self.s._trung_don_vi = mock.Mock(return_value=[])
-        self.m._mot.side_effect = [cau_hinh_row, {"phap_nhan_id": "PN", "cau_hinh": {}}]  # cấu hình tỷ giá (trong giao dịch) rồi loại hình
+        self.m._mot.side_effect = [{"phap_nhan_id": "PN", "cau_hinh": {}}, cau_hinh_row]  # loại hình rồi cấu hình tỷ giá (cùng giao dịch)
         self.c.execute.reset_mock()
         self.c.execute.return_value.fetchone.return_value = {"r": {"ket_qua": kq, "lap_lai": False}}
         self.s.luu("nguoi-thu", bao_gia_id=None, expected_revision=None, du_lieu=du_lieu, khoa="bg1c-thu")
@@ -613,6 +613,21 @@ class SeamBg1c(unittest.TestCase):
         d2, t2, h2 = self.luu(bao_gia_moi(), None)  # cấu hình đổi/chưa có → báo giá MỚI nhận 26.000; H của cùng yêu cầu không đổi
         self.assertEqual((d2["fx"]["ty_gia"], t2["tong_minor"]), ("26000", "39000000000"))
         self.assertEqual(h1, h2)
+
+    def test_luu_bao_gia_da_co_khong_gui_ty_gia_giu_ty_gia_da_luu(self):
+        kq = {"bao_gia_id": BG, "revision": 2, "so_bao_gia": "BG-THU", "trang_thai": "NHAP"}
+        da_luu = GK.chuan_hoa_bao_gia(bao_gia_moi(), fx_mac_dinh={"ty_gia": "25000", "ngay": "2026-10-20"})
+        da_luu["fx"].update({"nguoi_nhap": "nguoi-truoc", "nhap_ngay": "2026-10-20"})
+        self.s._tra = mock.Mock(return_value=None)
+        self.s._trung_don_vi = mock.Mock(return_value=[])
+        self.s._bao_gia = mock.Mock(return_value={"du_lieu": da_luu})
+        self.m._mot.side_effect = [{"phap_nhan_id": "PN", "cau_hinh": {}}]  # KHÔNG đọc cấu hình tỷ giá
+        self.c.execute.return_value.fetchone.return_value = {"r": {"ket_qua": kq, "lap_lai": False}}
+        self.s.luu("nguoi-thu", bao_gia_id=BG, expected_revision=1, du_lieu=bao_gia_moi(), khoa="bg1c-sua")
+        d = json.loads(self.c.execute.call_args_list[0].args[1][7])
+        self.assertEqual(d["fx"], {**da_luu["fx"]})  # cùng tỷ giá/ngày/nguồn → giữ cả người nhập/ngày nhập
+        self.assertEqual(json.loads(self.c.execute.call_args_list[0].args[1][8])["tong_minor"], "37500000000")
+        self.assertEqual(self.m._mot.call_count, 1)
 
     def test_luu_bao_gia_vnd_tu_choi_ty_gia_khac_1_truoc_giao_dich(self):
         with self.assertRaises(DataError) as cm:

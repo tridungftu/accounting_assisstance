@@ -309,8 +309,10 @@ def chuan_hoa_bao_gia(du_lieu, *, fx_mac_dinh: dict | None = None, hom_nay: str 
                 ngay = hom_nay
             out["fx"] = {"cap": "USD/VND", "ty_gia": tg, "ngay": _ngay(ngay, "Ngày tỷ giá") if ngay not in (None, "") else None}
     elif tt == "USD" and fx_mac_dinh:
-        out["fx"] = {"cap": "USD/VND", "ty_gia": _so(fx_mac_dinh["ty_gia"], "tỷ giá mặc định"), "ngay": fx_mac_dinh.get("ngay") or hom_nay,
-                     "nguon": "MAC_DINH"}
+        out["fx"] = {"cap": "USD/VND", "ty_gia": _so(fx_mac_dinh["ty_gia"], "tỷ giá mặc định"), "ngay": fx_mac_dinh.get("ngay") or hom_nay}
+        nguon = fx_mac_dinh.get("nguon", "MAC_DINH")  # None = tỷ giá đã lưu do người nhập (giữ nguyên, không gắn nhãn mặc định)
+        if nguon:
+            out["fx"]["nguon"] = nguon
     if pbt not in (None, {}):
         pbt = _obj(pbt, "phí bảo trì", {"gia_tri", "tien_te", "co_so"})
         out["phi_bao_tri"] = {"gia_tri": _so(pbt.get("gia_tri"), "phí bảo trì"), "tien_te": _chon(pbt.get("tien_te"), "tiền tệ phí bảo trì", TIEN_TE),
@@ -715,9 +717,13 @@ class CrmGiaoKetK2:
         return {"ty_gia": TY_GIA_USD_MAC_DINH_PHAN_MEM, "hien_thi": _so_vn(TY_GIA_USD_MAC_DINH_PHAN_MEM), "nguon": "PHAN_MEM", "ap_dung_tu": None,
                 "ap_dung_tu_hien_thi": None, "nguoi_sua": None, "id": None}
 
-    def _fx_mac_dinh(self, c) -> dict:
+    def _fx_mac_dinh(self, c, truoc: dict | None = None) -> dict:
+        """Tỷ giá khi báo giá USD không gửi tỷ giá: báo giá ĐÃ LƯU (USD, có tỷ giá) giữ tỷ giá đã lưu; báo giá mới nhận mặc định chung hiện hành."""
+        fx_cu = (truoc or {}).get("fx") if ((truoc or {}).get("gia") or {}).get("tien_te") == "USD" else None
+        if isinstance(fx_cu, dict) and fx_cu.get("ty_gia"):
+            return {"ty_gia": fx_cu["ty_gia"], "ngay": fx_cu.get("ngay"), "nguon": fx_cu.get("nguon")}
         x = self._doc_ty_gia(c)
-        return {"ty_gia": x["ty_gia"], "ngay": x["ap_dung_tu"]}
+        return {"ty_gia": x["ty_gia"], "ngay": x["ap_dung_tu"], "nguon": "MAC_DINH"}
 
     def _quyen_ty_gia(self, c) -> dict:
         """Đọc: phiên có quyền báo giá ở ít nhất một pháp nhân. Sửa: vai kế toán/kế toán trưởng có module CRM ở ít nhất một pháp nhân."""
@@ -866,10 +872,12 @@ class CrmGiaoKetK2:
             cu = self._tra(c, hanh, khoa, bg or d0["loai_hinh_id"], h)
             if cu is not None:
                 return cu
-            # BG-1c: tỷ giá mặc định chung đọc trong CÙNG giao dịch rồi LƯU vào báo giá (đổi cấu hình sau không đổi báo giá đã lưu)
-            d = chuan_hoa_bao_gia(du_lieu, fx_mac_dinh=self._fx_mac_dinh(c) if self._can_fx_mac_dinh(d0) else None, hom_nay=m.hom_nay().isoformat())
-            lh = m._mot(c, "SELECT phap_nhan_id, cau_hinh FROM master.loai_hinh_doanh_thu WHERE id = %s", (d["loai_hinh_id"],))
+            lh = m._mot(c, "SELECT phap_nhan_id, cau_hinh FROM master.loai_hinh_doanh_thu WHERE id = %s", (d0["loai_hinh_id"],))
             truoc = self._bao_gia(c, bg)["du_lieu"] if bg else None
+            # BG-1c: USD không gửi tỷ giá → báo giá đã lưu giữ tỷ giá đã lưu; báo giá mới nhận mặc định chung đọc trong CÙNG giao dịch rồi LƯU
+            # vào báo giá (đổi cấu hình sau không đổi báo giá đã lưu)
+            d = chuan_hoa_bao_gia(du_lieu, fx_mac_dinh=self._fx_mac_dinh(c, truoc) if self._can_fx_mac_dinh(d0) else None,
+                                  hom_nay=m.hom_nay().isoformat())
             for r in d["lich"]:  # row ID logic giữ qua revision/chuyển; dòng mới nhận ID máy chủ
                 r["dong_id"] = r["dong_id"] or str(uuid.uuid4())
             if d["fx"]:  # người nhập/ngày nhập do máy chủ ghi; giữ nguyên khi tỷ giá không đổi
@@ -1073,8 +1081,8 @@ class CrmGiaoKetK2:
                 vao = {**bao_gia, "loai_hinh_id": bg["loai_hinh_id"]} if isinstance(bao_gia, dict) else bao_gia
                 moi = chuan_hoa_bao_gia(vao)
                 _chan_ty_gia_vnd(moi)
-                if self._can_fx_mac_dinh(moi):  # BG-1c: cùng quy tắc tỷ giá mặc định chung như báo giá (đọc trong cùng giao dịch)
-                    moi = chuan_hoa_bao_gia(vao, fx_mac_dinh=self._fx_mac_dinh(c), hom_nay=m.hom_nay().isoformat())
+                if self._can_fx_mac_dinh(moi):  # BG-1c: cùng quy tắc tỷ giá như báo giá (giữ tỷ giá đã lưu của bản soạn; chưa có → mặc định chung)
+                    moi = chuan_hoa_bao_gia(vao, fx_mac_dinh=self._fx_mac_dinh(c, bg), hom_nay=m.hom_nay().isoformat())
                 else:
                     moi = chuan_hoa_bao_gia(vao, hom_nay=m.hom_nay().isoformat())
                 for r in moi["lich"]:
