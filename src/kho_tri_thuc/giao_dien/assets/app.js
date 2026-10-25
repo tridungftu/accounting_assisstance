@@ -1058,6 +1058,29 @@
   pages.hoadonmua = "Hóa đơn mua XML";
   let m2 = null, m2Chon = null, m2Epoch = 0, m2FormEpoch = 0, m2PhamVi = [];
   let m2DocGen = 0, m2CtGen = 0;  // F2: thế hệ GET danh sách/chi tiết — chỉ phản hồi của lần GET bắt đầu SAU CÙNG được vẽ (A trễ không đè B)
+  // M2j: bộ lọc sống cùng phiên/vai, chỉ giữ handle do luồng tải cung cấp.
+  const m2LocLanTai = node("select"); m2LocLanTai.id = "m2-loc-lan-tai";
+  const m2LocLanTaiNhan = node("label", "Lần tải"); m2LocLanTaiNhan.htmlFor = m2LocLanTai.id;
+  $("m2-loc").parentNode.append(m2LocLanTaiNhan, m2LocLanTai);
+  function m2XoaLanTai() {
+    delete $("m2-loc").dataset.run;
+    delete $("m2-loc").dataset.chonLanTai;
+    delete m2LocLanTai.dataset.run;
+    const tatCa = node("option", "Tất cả hóa đơn"); tatCa.value = "";
+    m2LocLanTai.replaceChildren(tatCa); m2LocLanTai.value = ""; m2LocLanTai.disabled = true;
+  }
+  function m2CapNhatLanTai(chon = false) {
+    const run = $("m2-loc").dataset.run;
+    if (!run) return;
+    if (m2LocLanTai.dataset.run !== run) {
+      const dangLoc = !!m2LocLanTai.value, moi = node("option", "Mới từ lần tải này"); moi.value = run;
+      m2LocLanTai.replaceChildren(m2LocLanTai.children[0], moi); m2LocLanTai.dataset.run = run;
+      m2LocLanTai.disabled = false; m2LocLanTai.value = dangLoc ? run : "";
+    }
+    if (chon) m2LocLanTai.value = run;
+  }
+  m2XoaLanTai();
+  m2LocLanTai.addEventListener("change", () => { m2XoaTrangThai(); m2Load(); });
   const m2KhoaThaoTac = new Map();  // khóa thao tác theo (actor, hóa đơn, thao tác, đối tượng, token đồ thị) — sống qua refresh; đồ thị đổi → khóa mới
   const m2Khoa = () => "m2-" + Date.now().toString(36) + "-" + Math.random().toString(36).slice(2, 10);
   function m2KhoaLay(ctx) { const k = JSON.stringify(ctx); if (!m2KhoaThaoTac.has(k)) m2KhoaThaoTac.set(k, m2Khoa()); return m2KhoaThaoTac.get(k); }
@@ -1065,6 +1088,7 @@
   const M2_FORM_DA_DOI_LOI = "Một lần gửi trước kết thúc bằng lỗi hoặc mất kết nối sau khi form/nguồn đổi — chưa xác định máy chủ đã ghi hay chưa; bấm Làm mới để kiểm tra.";
   function m2XoaForm() { m2FormEpoch += 1; for (const id of ["m2-tl-native", "m2-tl-crosswalk", "m2-tl-loi", "m2-tl-khoa"]) $(id).value = ""; }
   function m2XoaTrangThai() {
+    if (vaiDangChan("m2")) m2XoaLanTai();
     m2Epoch += 1; m2 = null; m2Chon = null;
     for (const id of ["m2-nang-luc", "m2-nguon", "m2-hoa-don", "m2-mapping"]) $(id).replaceChildren();
     $("m2-chi-tiet").replaceChildren(); $("m2-chi-tiet").classList.add("hidden"); $("m2-tai-len").classList.add("hidden");
@@ -1240,14 +1264,20 @@
     if (!conHieuLuc()) return;
     const gen = ++m2DocGen, moiNhat = () => gen === m2DocGen && ep === m2Epoch && conHieuLuc();
     for (const [k, id] of [["phap_nhan", "m2-loc-pn"], ["ky", "m2-loc-ky"]]) if ($(id).value.trim()) q.set(k, $(id).value.trim());
+    const lanTai = m2LocLanTai.value;
+    if (lanTai) q.set("run", lanTai);
     try {
-      const s = await (await request("/api/m2" + (q.toString() ? "?" + q : ""))).json();
+      const s = await (await request((lanTai ? "/api/m2/tai-hoa-don/hoa-don" : "/api/m2") + (q.toString() ? "?" + q : ""))).json();
       if (!moiNhat()) return;
       m2 = s; m2Render(conHieuLuc);
     } catch (error) { if (moiNhat()) $("m2-status").textContent = error.message; }
   }
-  $("m2-refresh").addEventListener("click", () => m2Load());
-  $("m2-loc").addEventListener("click", () => { m2XoaTrangThai(); m2Load(); });
+  $("m2-refresh").addEventListener("click", () => { m2CapNhatLanTai(); m2Load(); });
+  $("m2-loc").addEventListener("click", () => {
+    m2CapNhatLanTai($("m2-loc").dataset.chonLanTai === "1");
+    delete $("m2-loc").dataset.chonLanTai;
+    m2XoaTrangThai(); m2Load();
+  });
   $("m2-doi-vai").addEventListener("click", () => {
     const login = $("m2-danh-tinh").value;  // repair05: xóa đồng bộ ngữ cảnh vai của CẢ M2/M5/L11 trước POST (helper chung ở khối L11)
     return doiVaiTuanTu(() => m2Post("danh-tinh", {dang_nhap: login}), "m2-status", "m2");
