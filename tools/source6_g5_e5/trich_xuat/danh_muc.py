@@ -15,9 +15,11 @@ Tham số hỏi thêm cho một lượt (giao diện / YEU_CAU_THEM.txt) đượ
 """
 import datetime
 import hashlib
+import json
 import os
 import re
 import shutil
+import tempfile
 from pathlib import Path
 
 from .cau_hinh import DANH_MUC_THAM_SO
@@ -213,7 +215,22 @@ def doc_yeu_cau_them(in_dir):
         return fh.read().splitlines()
 
 
-def save_catalog(rows, path=None):
+def _tep_tam(path, raw=None):
+    """Tệp cùng volume để os.replace nguyên tử; giữ tệp khi lỗi để chẩn đoán."""
+    with tempfile.NamedTemporaryFile(prefix=path.name + ".", suffix=".tmp",
+                                     dir=path.parent, delete=False) as fh:
+        if raw is not None:
+            fh.write(raw)
+            fh.flush()
+            os.fsync(fh.fileno())
+        return Path(fh.name)
+
+
+def duong_dan_nhat_ky(path):
+    return Path(path).with_suffix(".nhat_ky.jsonl")
+
+
+def save_catalog(rows, path=None, *, su_kien=None):
     """Ghi lại danh mục từ list dict (sao lưu bản cũ vào danh_muc_sao_luu\\). Trả đường dẫn bản sao lưu."""
     path = str(path or DANH_MUC_THAM_SO)
     seen, clean = set(), []
@@ -232,9 +249,31 @@ def save_catalog(rows, path=None):
     if os.path.exists(path):
         d = os.path.join(os.path.dirname(path), "danh_muc_sao_luu")
         os.makedirs(d, exist_ok=True)
-        bak = os.path.join(d, f"DANH_MUC_THAM_SO_{datetime.datetime.now():%Y%m%d_%H%M%S}.xlsx")
+        bak = os.path.join(d, f"{Path(path).stem}_{datetime.datetime.now():%Y%m%d_%H%M%S_%f}.xlsx")
         shutil.copy2(path, bak)
-    _ghi(path, clean)
+    target = Path(path)
+    staged = _tep_tam(target)
+    _ghi(staged, clean)
+    with staged.open("r+b") as fh:
+        os.fsync(fh.fileno())
+    journal_staged = None
+    if su_kien is not None:
+        su_kien = dict(su_kien, phien_ban_moi=hashlib.sha256(staged.read_bytes()).hexdigest())
+        journal = duong_dan_nhat_ky(target)
+        previous = journal.read_bytes() if journal.exists() else b""
+        if previous and not previous.endswith(b"\n"):
+            raise ValueError("Nhật ký danh mục thiếu ký tự xuống dòng cuối")
+        journal_staged = _tep_tam(journal, previous + (
+            json.dumps(su_kien, ensure_ascii=False) + "\n").encode("utf-8"))
+    rollback = _tep_tam(target, target.read_bytes()) if target.exists() else None
+    os.replace(staged, target)
+    if journal_staged is not None:
+        try:
+            os.replace(journal_staged, journal)
+        except OSError:
+            if rollback is not None:
+                os.replace(rollback, target)
+            raise
     return bak
 
 
@@ -270,10 +309,56 @@ def danh_muc_theo_loai(loai) -> Path:
     if not path.is_file():
         raise FileNotFoundError(f"Thiếu danh mục tham số cho loại {loai}: {path}")
     sha = hashlib.sha256(path.read_bytes()).hexdigest()
-    if sha != reg["sha256"]:
+    expected = reg["sha256"]
+    journal = duong_dan_nhat_ky(path)
+    if loai != "XD" and journal.exists():
+        try:
+            for line in journal.read_text(encoding="utf-8").splitlines():
+                event = json.loads(line)
+                if event["loai"] != loai or event["phien_ban_cu"] != expected:
+                    raise ValueError("Chuỗi phiên bản nhật ký không khớp")
+                expected = event["phien_ban_moi"]
+        except (KeyError, TypeError, ValueError) as exc:
+            raise ValueError(f"Nhật ký danh mục loại {loai} không hợp lệ: {exc}") from exc
+    if sha != expected:
         raise ValueError(f"SHA-256 danh mục loại {loai} lệch phiên bản đã ghim: "
-                         f"cần {reg['sha256']}, thực tế {sha}")
+                         f"cần {expected}, thực tế {sha}")
     return path
+
+
+def sua_danh_muc(loai, ma, truong, gia_tri, nguoi, ly_do):
+    """Sửa một ô theo whitelist; phiên bản là SHA-256 như contract E1-1."""
+    if loai == "XD":
+        raise ValueError("Loại XD không được sửa qua lệnh này; giữ nguyên danh mục gốc")
+    if truong not in KHOA or truong == "ma":
+        raise ValueError(f"Trường {truong!r} không được sửa")
+    if not nguoi.strip() or not ly_do.strip():
+        raise ValueError("Người sửa và lý do không được để trống")
+    value = str(gia_tri).strip()
+    if truong in ("dung", "luon_cloud"):
+        if value.lower() not in ("có", "co", "true", "1", "không", "khong", "false", "0"):
+            raise ValueError("Giá trị phải là Có hoặc Không")
+        value = value.lower() in ("có", "co", "true", "1")
+    elif truong == "muc":
+        if value not in ("0", "1", "2", "3"):
+            raise ValueError("Mức quan trọng phải là số nguyên từ 0 đến 3")
+        value = int(value)
+    path = danh_muc_theo_loai(loai)
+    rows = read_catalog(path)
+    matches = [r for r in rows if r["ma"] == ma]
+    if len(matches) != 1:
+        raise ValueError(f"Mã tham số {ma!r} không có hoặc bị trùng trong danh mục loại {loai}")
+    row = matches[0]
+    old = row[truong]
+    if old == value:
+        raise ValueError("Giá trị mới trùng giá trị cũ; danh mục chưa thay đổi")
+    row[truong] = value
+    event = {"thoi_diem": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+             "nguoi": nguoi.strip(), "ly_do": ly_do.strip(), "loai": loai, "ma": ma,
+             "truong": truong, "gia_tri_cu": old, "gia_tri_moi": value,
+             "phien_ban_cu": hashlib.sha256(path.read_bytes()).hexdigest()}
+    save_catalog(rows, path, su_kien=event)
+    return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
 class LoiChonMa(ValueError):
