@@ -179,7 +179,7 @@ CRM_DU_AN_BAN_SQL = (
             n := n + 1;
         END LOOP;
         IF n <> 1 THEN
-            RAISE EXCEPTION 'M0031: không thấy đúng một CHECK valid_to > valid_from của crm_bo_chuan_phien_ban (thấy %)', n;
+            RAISE EXCEPTION 'CRM_DA_MIGRATION: không thấy đúng một CHECK valid_to > valid_from của crm_bo_chuan_phien_ban (thấy %)', n;
         END IF;
     END $$""",
     """ALTER TABLE master.crm_bo_chuan_phien_ban ADD CONSTRAINT crm_bo_chuan_phien_ban_valid_to_check
