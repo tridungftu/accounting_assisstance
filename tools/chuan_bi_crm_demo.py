@@ -5,6 +5,7 @@ Dùng: python -X utf8 tools/chuan_bi_crm_demo.py --config <cau_hinh.toml> --root
 - environment = that → BO_QUA (mã 0), không đọc cấu hình kết nối, không đụng cluster.
 - Có cấu hình: kiểm cả hai DSN → bảo đảm cluster PostgreSQL ĐÃ CÓ chạy (ha_tang/pg_cum.py: dùng lại đúng cluster hoặc pg_ctl start
   cluster đang dừng; không stop/kill/xóa/initdb/cài) → tạo DB nếu thiếu, migrate, seed, kiểm login ứng dụng.
+  Seed gồm cả duyệt viên M4 DEMO (`m4_demo.khoi_tao_duyet`, L0-7: một lần, chỉ DB DEMO; lỗi bước này chỉ ghi `m4_duyet_seed`, không chặn mở DEMO).
 - Chưa có tệp kết nối cục bộ → CHUA_CAU_HINH (mã 2): app vẫn mở, trang CRM báo chưa cấu hình.
 - Lỗi → mã 3, chỉ thông điệp đã làm sạch (không DSN/mật khẩu/giá trị dòng).
 Mỗi lần chạy ghi một tệp trạng thái RIÊNG `<root>/crm-demo/chuan-bi-<UTC>-<pid>.json` (không ghi đè, không xóa tệp cũ) và in đúng một
@@ -27,9 +28,38 @@ from kho_tri_thuc.ha_tang.ket_noi import loi_sach  # noqa: E402
 from kho_tri_thuc.ha_tang.primitives import DataError, canonical_json  # noqa: E402
 from kho_tri_thuc.ha_tang.store import write_immutable  # noqa: E402
 from kho_tri_thuc.ha_tang.pg_cum import bao_dam_cum, doc_cum  # noqa: E402
-from kho_tri_thuc.k2.crm_khoi_dong import chuan_bi, doc_ket_noi, duong_dan_ket_noi  # noqa: E402
+from kho_tri_thuc.k2.crm_khoi_dong import chuan_bi, chuan_hoa_dsn, doc_ket_noi, duong_dan_ket_noi, nap_driver  # noqa: E402
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
+
+
+def bo_sung_duyet_vien_m4(kn: dict) -> dict:
+    """L0-7: seed DEMO (`crm_khoi_dong.chuan_bi`) chỉ gọi `m4_demo.khoi_tao` nên DEMO thiếu duyệt viên M4 (MO_PHONG_DUYET_M4, vai dự án DUYET).
+    Gọi tường minh `m4_demo.khoi_tao_duyet` (một lần, chỉ thêm, có marker — chạy lại không thêm gì; không cấp lại quyền đã thu hồi).
+    CHỈ DB DEMO: chỉ gọi sau `chay` đã loại kho thật (`environment = that` → BO_QUA) và sau `chuan_bi` thành công; DSN quản trị được kiểm lại là
+    loopback + tên DB có tiền tố DEMO (`chuan_hoa_dsn`) TRƯỚC khi kết nối. Không bao giờ ném lỗi: thất bại chỉ ghi trạng thái (DEMO vẫn mở như M4 chưa đủ)."""
+    from kho_tri_thuc.k2 import m4_demo
+    try:
+        admin_dsn = kn.get("admin_dsn")
+        if not admin_dsn:
+            return {"trang_thai": "BO_QUA", "ly_do": "Không có kết nối quản trị cục bộ."}
+        conninfo = chuan_hoa_dsn(admin_dsn)["conninfo"]       # DB DEMO + loopback, kiểm lại ngay trước khi kết nối
+        psycopg = nap_driver()
+        admin = psycopg.connect(conninfo, autocommit=True)
+        try:
+            kq = m4_demo.khoi_tao_duyet(admin)
+        finally:
+            admin.close()
+        return {"trang_thai": kq.get("trang_thai"), "ly_do": kq.get("ly_do"), "dem": kq.get("dem"), "mo_lai_khong_them": kq.get("mo_lai_khong_them")}
+    except Exception as exc:  # noqa: BLE001 — biên CLI: chỉ lỗi đã làm sạch, không chặn mở DEMO
+        return {"trang_thai": "LOI", **loi_sach(exc)}
+
+
+def chuan_bi_day_du(kn: dict) -> dict:
+    """Bootstrap mặc định của `chay`: seed DEMO chuẩn rồi bổ sung duyệt viên M4 (L0-7)."""
+    kq = chuan_bi(kn)
+    kq["m4_duyet_seed"] = bo_sung_duyet_vien_m4(kn)
+    return kq
 
 
 def chay(config_path: Path, root: Path, *, hdh=None, bootstrap=None, thu_muc_khoa: Path | None = None, repo_root: Path = REPO_ROOT) -> tuple[int, dict]:
@@ -45,7 +75,7 @@ def chay(config_path: Path, root: Path, *, hdh=None, bootstrap=None, thu_muc_kho
         if kn["endpoint"] != (cum.host, cum.port):
             raise DataError("KET_NOI_KHONG_DUNG_CUM", "Cấu hình kết nối CRM DEMO không trỏ đúng cluster PostgreSQL đã định danh.")
         cum_kq = bao_dam_cum(cum, Path(root) / "logs", thu_muc_khoa or Path(tempfile.gettempdir()) / "kho-tri-thuc", hdh=hdh)
-        return 0, {**(bootstrap or chuan_bi)(kn), "cum": cum_kq}
+        return 0, {**(bootstrap or chuan_bi_day_du)(kn), "cum": cum_kq}
     except DataError as exc:
         return (2 if exc.code == "CRM_CHUA_CAU_HINH" else 3), {"trang_thai": "CHUA_CAU_HINH" if exc.code == "CRM_CHUA_CAU_HINH" else "LOI",
                                                               "ma": exc.code, "thong_diep": str(exc)}
