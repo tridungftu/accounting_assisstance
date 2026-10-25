@@ -25,7 +25,7 @@ Trạng thái lát: Đang code → Chờ kiểm → Chờ Anh (cổng A/B) → S
 | AI-1 | Cổng Local AI (`tri_thuc\ai_cuc_bo.py`) gọi được LAN/Tailscale, kiểm tra như `privacy\local_ai.py` của Mask v2; test bằng máy AI giả | Codex | — | **Xong, đã gộp** (cfdf33c) — 40/40; review-lat sau gộp **Đạt**, 3 Nên sửa → lát **AI-1b** (Codex, chờ chỗ trống: `localhost`, LM Studio `/api/tags`, nhớ lỗi 15 giây, chuẩn hóa cài đặt khi đọc) |
 | MASK-1 | Chế độ API của Mask v2 (che / mở che / còn sót; khóa Bearer; chỉ 127.0.0.1) — làm trong thư mục Mask v2 theo `CLAUDE.md` của nó (không git, CHANGELOG, test + benchmark độ phủ không giảm; không đọc/sửa `data\`, `*.maskvault`, `*.maskkeep`, `*.key`) | Claude Opus | — | **XONG** 19:52 (Mask v2 2.7.0, không git): vòng 1 Không đạt (1 Chặn) → vòng 2 sửa + làm QD-24 → review Opus vòng 2 **Đạt**; 387 test đạt, benchmark không giảm. Nên sửa chuyển MASK-2 (định danh đã khai viết khác cách; nút Khóa ngay khi giao diện bận) |
 | MASK-2 | Đưa "định danh đã biết" và kiểm `dau_vet` của `AnDanh` vào lõi Mask v2; đo lại độ phủ | Claude | MASK-1 | **XONG 21:25** (Mask v2 2.7.1): review vòng 1 Không đạt → vòng 2 Đạt → vòng 3 sửa 2 Nên sửa; 449 test đạt; benchmark không đổi (lộ 1/101, held_out 6/51, thay nhầm 0). Còn chờ Anh: dấu vết cho màn che thủ công |
-| AI-2 | Cổng AI dùng chung: định tuyến loại việc, Cloud qua Mask API, nhật ký `nhat_ky.cong_ai_goi`, công tắc tắt Cloud | Claude | AI-1, MASK-1 | Chia **AI-2a** (lõi cổng, Claude Opus, đang code 21:12; Cloud mặc định tắt) + **AI-2b** (migration `nhat_ky.cong_ai_goi`, Codex, sau) |
+| AI-2 | Cổng AI dùng chung: định tuyến loại việc, Cloud qua Mask API, nhật ký `nhat_ky.cong_ai_goi`, công tắc tắt Cloud | Claude | AI-1, MASK-1 | **AI-2a XONG — gộp 1cf32eb** (review Opus độc lập Đạt; Cloud mặc định tắt) · **AI-2b** đang code (M0034 + bộ ghi nhật ký PG) |
 | AI-3 | Engine #6 (độc lập + bản trong repo) chuyển Cloud sang cổng AI; bỏ `AnDanh`, `goi_api` riêng | Codex | AI-2, MASK-2 | Chờ |
 | AI-4 | Mở Cloud theo TL 48 §1.5; đo độ chính xác Local theo loại việc; lịch giảm tỷ lệ kiểm xác suất **Anh đã đồng ý (§1.6)**: bắt đầu 20%; ≥ 90% trên 50 lượt gần nhất → 10%; ≥ 95% trên 100 lượt → 5%; tối thiểu 5%, không về 0; tụt dưới 90% → tự về 20% và báo lead | Claude | AI-3 qua review | Chờ |
 
@@ -71,7 +71,11 @@ Quy tắc áp cho mọi lát từ 25/10 (CD-001 việc 3): không lát nào vi�
 | C3d | Codex | gpt-6.1-sol · high | 21:14 | gộp 21:36 | review-lat Opus Đạt | Xanh — PG 24/24 + 23/23, 0 skip |
 | T-MIG2 (cổng cuối) | Codex | gpt-6.1-sol | 17:44 | gộp 21:36 | review-lat Opus Đạt | Xanh — CRM PG 514 đạt, 0 mã lỗi mới, skip 78→28 |
 | L0-8e v2 | Codex | gpt-6.1-sol · high | 21:02 | gộp 21:20 → **hoàn tác 21:14** (b25ff7a) | review-lat vòng 2 Đạt | **Đỏ** — hồi quy: test tự CREATE DATABASE (CRM) bị bộ chạy từ chối 'tên đã dùng' (lead kiểm thiếu nhóm này) |
-| L0-8e v3 | Codex | gpt-6.1-sol · high | 21:16 | 21:20 | lead kiểm đủ bộ (CRM + 03A + #6 + bộ chạy + đếm CSDL) | gốc: hook sở hữu cài lặp khi guard bọc ngoài; test bộ chạy 50/51 |
+| L0-8e v3 | Codex | gpt-6.1-sol · high | 21:16 | gộp lại 21:32 (b98a7bd, đảo hoàn tác + v3) | kiểm đủ bộ trên kiem/l0-8e | CRM 534 đạt; 03A 13/13; #6 22/22; CSDL 329/329; 1 mã mới g02 PDF (chính sách không Word COM) → T-PDF |
+| L0-8f (gộp) | Codex | — | — | gộp 21:33 (dd3ecc3) | kiem-nhanh Đạt | **hop-nhat: M4-03B PG 21/21 thật** — nợ M4-5a trả xong trên nhánh tích hợp |
+| AI-2a (gộp) | Claude | Opus | 21:12 | gộp 21:30 (1cf32eb) | review-lat Opus độc lập Đạt | 78/78; Cloud mặc định tắt |
+| T-PDF + PDF-1 | Codex | gpt-6.1-sol · high | 21:35 | 21:53 (PDF-1: công tắc Word→PDF mặc định tắt, QD-26) | chờ PG (sau đo nền) → kiem-nhanh | thuần 2/2; **phát hiện: sản phẩm chưa có công tắc tắt Word COM** (`nguon/crm_docx.py` ~:374, :530, :933) — CLAUDE.md §2 'không Word COM' → hỏi Anh |
+| AI-2b | Codex | gpt-6.1-sol · high | 21:35 | 21:43 | chờ PG (sau đo nền) → kiem-nhanh → review-lat | thuần 58 đạt; M0034 (11 cột, không cột văn bản) |
 | AI-2a | Claude | Opus | 21:12 | 21:30 | review-lat Opus độc lập đang chạy | Xanh — 78/78 (test_cong_ai 30); Cloud mặc định tắt |
 | L0-10b | Codex | gpt-6.1-sol · high | 20:45 | gộp 21:00 | kiem-nhanh Đạt | Xanh — 52/52; kiểm thật dịch vụ khớp |
 | UI-1b | Codex | gpt-6.1-sol · high | 20:55 | 21:02 | lead thử DEMO | Xanh — node khung 16/16; DEMO 8798 lần tải đầu không còn lỗi phiên |

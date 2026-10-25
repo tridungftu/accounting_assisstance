@@ -41,3 +41,13 @@ Còn lại là lỗi đã có ở nền (37 ca G6A "thiếu KTT_G6A_CLONE_*" ở
 
 ## 5. Đề xuất
 1. Quyết A (ghim lại SHA fixture hoặc `-text`) trước khi tin số ở worktree; 2. lát sửa B (+D); 3. lát điều tra E; 4. M4-03A/03B cần Root cấp login KT để bật; 5. giữ `--gioi-han 900` (cả bộ ~16 phút; `test_v13_backup_safety_pg` ~160 s).
+
+## Nền PG v2 — 25/10/2026 22:05 · hop-nhat `ec3d7d2` (sau L0-8e/8f, AI-2a, T-MIG2, C3d, M4-5a)
+Lệnh: `--runtime var\web\crm-demo\runtime.local.json --pg-demo …ket-noi.local.json --gioi-han 900` (bộ chạy có hook bảo vệ cho tiến trình con/cháu — L0-8e). Kết quả: **126 module · 2327 ok / 21 ERROR / 66 FAIL / 67 skip · 0 treo · 1134 s**; CSDL tạm tạo 74 / xóa 74, không sót. Dạng máy đọc: `nen-test-hop-nhat-pg-v2.json`. So nền PG cũ (`nen-test-hop-nhat-pg.json`, 8ff21a2): 12 mã lỗi "mới", lead phân loại:
+| Nhóm | Mã | Hướng |
+|---|---|---|
+| Ghim byte helper `test_m4_02c_pg.py` (L0-8f sửa helper) | `test_m4_03a_m26_integration`, `test_m4_04c_m27_integration` `…helper_m4_02c_pg_nguyen_byte` | cập nhật ghim (T-NEN-a) |
+| Test ghim số migration cũ | `test_m4_02b_k2.k01` (22), `test_m4_02c_http/pg setUpClass` (24) | kiểm M00xx có mặt, không ghim tổng (T-NEN-a) |
+| Hook "không xóa" trong tiến trình test (giống DEMO thật) | `test_e1_mua_danh_muc_sua`, `test_e1_mua_trich_phien_ban` (thư mục tạm giữ lại), `test_m1.test_backup_does_not_succeed_without_referenced_raw` | test nhận biết guard (T-NEN-b) |
+| Cần điều tra | `test_m4_master_dung_chung_pg.g02` (TypeError `expected_master`, thấy từ 19:36), `test_source6_lazy_excel` ×3 (bố cục đóng băng) | T-NEN-c |
+| Chập chờn đã biết | `test_trich6_host.HandlerSoHuuTests.test_cong_chan_truoc_handler_goc` | — |
