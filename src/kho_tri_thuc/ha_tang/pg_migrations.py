@@ -11874,3 +11874,15 @@ from ..k2.sql_crm_du_an_ban import CRM_DU_AN_BAN_SQL  # noqa: E402 — module ch
 M0031_CRM_DU_AN_BAN = CRM_DU_AN_BAN_SQL
 PG_MIGRATIONS = (*PG_MIGRATIONS, M0031_CRM_DU_AN_BAN)
 PG_SCHEMA_VERSION = len(PG_MIGRATIONS)
+
+# ---------------------------------------------------------------------------
+# 0032 — CRM-41 G5-B đối chiếu bản ký ↔ bản sinh (APPEND sau toàn bộ 1–31; không sửa byte/định nghĩa/checksum 1–31). Định nghĩa trong
+#        k2/sql_crm_doi_chieu.py (chỉ hằng SQL, không import ha_tang; module ghi rõ "owner cấp ordinal và APPEND") — lead cấp ordinal 25/10/2026
+#        vì S1 (C3) và worker G5 của máy chủ đọc các bảng/hàm này (thiếu thì PostgreSQL báo crm_g5_* không tồn tại). Không seed đăng ký engine;
+#        G5 VAN_HANH vẫn HOLD như M0025 ghi.
+# ---------------------------------------------------------------------------
+from ..k2.sql_crm_doi_chieu import CRM_G5_SQL  # noqa: E402 — module chỉ hằng SQL, không import ha_tang
+
+M0032_CRM_G5 = CRM_G5_SQL
+PG_MIGRATIONS = (*PG_MIGRATIONS, M0032_CRM_G5)
+PG_SCHEMA_VERSION = len(PG_MIGRATIONS)

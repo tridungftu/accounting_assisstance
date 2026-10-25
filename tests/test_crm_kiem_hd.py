@@ -6,7 +6,7 @@ Ba tầng:
      GUC fixture + nguồn phi_van_hanh; thứ tự kích hoạt nguyên tử; trả lại không đụng G4; guard/RLS/REVOKE; P1-A chỉ GRANT EXECUTE helper đọc K5
      cho vai ứng dụng CÓ SẴN; P1-B tra mã có quyền-trước-tra-cứu, giới hạn, che PII, nhật ký, không thay khách đã định danh.
   3. PG thật CHỈ trên bản sao DEMO SỞ HỮU do người gọi cấp (owner DSN + DSN login ứng dụng thường), SAU khi Root tích hợp M4M24 thực rồi
-     G6A (schema 25). Cổng: biến môi trường + provenance + registry đầy đủ & checksum + marker DEMO + quyền hiện hành của login. Thiếu/thiếu
+     G6A (tối thiểu M0025). Cổng: biến môi trường + provenance + registry đầy đủ & checksum + marker DEMO + quyền hiện hành của login. Thiếu/thiếu
      một phần → test FAIL với thông điệp ``NOT_VERIFIED`` (không skip, không coi là đạt). Không tạo DB/vai, không SET ROLE, không seed/bootstrap,
      không M9. Mọi ghi ở tầng này là giao dịch LỖI (rollback) — ca dương có ghi nằm ở tests/test_crm_kiem_hd_http.py.
 
@@ -43,7 +43,7 @@ CL_DU = {k: "XAC_NHAN" for k in KH.CHECKLIST}
 
 # ---------------------------------------------------------------------------------------------------------------- cổng bản sao DEMO sở hữu
 ENV_OWNER, ENV_APP, ENV_PROV, ENV_GHI = "KTT_G6A_CLONE_OWNER_DSN", "KTT_G6A_CLONE_APP_DSN", "KTT_G6A_CLONE_PROVENANCE", "KTT_G6A_CLONE_CHO_GHI"
-SCHEMA_DU_KIEN = 25  # 1–23 hiện hành + M24 (M4M24 THỰC do Root tích hợp) + G6A — ordinal do integration owner cấp; khác → NOT_VERIFIED
+SCHEMA_DU_KIEN = 25  # M0025 G6A sau M0024 M4 duyệt; cho phép owner append migration mới.
 VAI_UNG_DUNG = ("app_web", "app_ke_toan", "app_doc", "app_cong_ai")
 MARKER_DEMO = ("demo_seed_crm_nguoi_dung", "demo_seed_crm_g1_g7_v1")
 NGUOI_CAN = {"MO_PHONG_CRM_G_KT_A": "KE_TOAN", "MO_PHONG_CRM_G_BH_A": "BAN_HANG", "MO_PHONG_CRM_G_CFO_A": "CFO", "MO_PHONG_CRM_G_TAI_A": None}
@@ -72,9 +72,12 @@ def cong_clone(*, can_ghi: bool) -> tuple[dict | None, str | None]:
     from kho_tri_thuc.ha_tang import pg_migrations as PM
     from kho_tri_thuc.k2.crm_khoi_dong import TIEN_TO_DB, TIEN_TO_DB_KIEM_THU
     vi_tri = [i for i, x in enumerate(PM.PG_MIGRATIONS) if tuple(x) == tuple(CRM_G6A_SQL)]
-    if PM.PG_SCHEMA_VERSION != SCHEMA_DU_KIEN or vi_tri != [SCHEMA_DU_KIEN - 1]:
+    from kho_tri_thuc.m4.sql_duyet import M0024_M4_DUYET
+    vi_tri_m4 = [i for i, x in enumerate(PM.PG_MIGRATIONS) if tuple(x) == tuple(M0024_M4_DUYET)]
+    if (PM.PG_SCHEMA_VERSION < SCHEMA_DU_KIEN or PM.PG_SCHEMA_VERSION != len(PM.PG_MIGRATIONS)
+            or vi_tri != [SCHEMA_DU_KIEN - 1] or vi_tri_m4 != [23]):
         return None, (f"registry code chưa tích hợp M4M24 + G6A (PG_SCHEMA_VERSION={PM.PG_SCHEMA_VERSION}, vị trí G6A={vi_tri}; "
-                      f"cần {SCHEMA_DU_KIEN} với G6A là migration cuối)")
+                      f"cần ít nhất {SCHEMA_DU_KIEN}, G6A đúng một lần tại M0025 và M4 duyệt tại M0024; vị trí M4={vi_tri_m4})")
     mong = {i + 1: {PM._hash(x)} | set(PM.PG_MIGRATION_TUONG_THICH.get(i + 1, {})) for i, x in enumerate(PM.PG_MIGRATIONS)}
     co = ca = None
     try:
@@ -91,8 +94,8 @@ def cong_clone(*, can_ghi: bool) -> tuple[dict | None, str | None]:
             loi = "CSDL không phải DEMO/fixture (kho_crm_demo*/kho_test_*)"
         if loi is None:
             ls = co.execute("SELECT version, checksum FROM master.schema_migrations ORDER BY version").fetchall()
-            if [v for v, _ in ls] != list(range(1, SCHEMA_DU_KIEN + 1)) or any(c not in mong[v] for v, c in ls):
-                loi = "lịch sử schema_migrations của bản sao không đúng đầy đủ registry + checksum (1–25)"
+            if [v for v, _ in ls] != list(range(1, PM.PG_SCHEMA_VERSION + 1)) or any(c not in mong[v] for v, c in ls):
+                loi = "lịch sử schema_migrations của bản sao không đúng đầy đủ registry hiện hành + checksum (giữ prefix M0001–M0025)"
         if loi is None:
             mk = {k for (k,) in co.execute("SELECT key FROM master.he_thong WHERE key = ANY(%s)", (list(MARKER_DEMO),)).fetchall()}
             pn = [p for (p,) in co.execute("SELECT ma FROM master.phap_nhan").fetchall()]
@@ -326,11 +329,11 @@ class HopDongSql(unittest.TestCase):
         self.assertIsNone(re.search(r"^\s*(from|import)\s[^\n]*pg_migrations", src, re.M), "module G6A không được import/đăng ký registry")
         from kho_tri_thuc.ha_tang import pg_migrations as PM
         vi_tri = [i for i, x in enumerate(PM.PG_MIGRATIONS) if tuple(x) == tuple(CRM_G6A_SQL)]
-        if vi_tri:  # sau khi Root tích hợp: đúng MỘT lần, là migration cuối, sau M4M24
-            self.assertEqual((vi_tri, PM.PG_SCHEMA_VERSION), ([PM.PG_SCHEMA_VERSION - 1], SCHEMA_DU_KIEN))
-        else:  # gói này: registry nguyên trạng v23, không migration nào chứa đối tượng G6A
-            self.assertEqual(PM.PG_SCHEMA_VERSION, 23)
-            self.assertFalse(any("crm_kiem_" in s for m in PM.PG_MIGRATIONS for s in m))
+        self.assertEqual(vi_tri, [24], "owner đăng ký G6A đúng một lần tại M0025")
+        self.assertGreaterEqual(PM.PG_SCHEMA_VERSION, SCHEMA_DU_KIEN)
+        self.assertEqual(PM.PG_SCHEMA_VERSION, len(PM.PG_MIGRATIONS))
+        from kho_tri_thuc.m4.sql_duyet import M0024_M4_DUYET
+        self.assertEqual([i for i, x in enumerate(PM.PG_MIGRATIONS) if tuple(x) == tuple(M0024_M4_DUYET)], [23])
         self.assertEqual(CRM_G6A_SQL[0], "SET LOCAL check_function_bodies = off")
 
     def test_g5_van_hanh_hold_khong_bia(self):
