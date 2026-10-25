@@ -497,6 +497,22 @@ class TrichXuat:
                     d["logic"] = logic.get(d["ma"], [])
                     d["kiem_tra"] = ghep_kiem_tra(d["kiem_tra_tu"], d["logic"])
 
+        # E1-3: bảng có cấu trúc cạnh giá trị đơn, trước lần ghi JSON/niêm phong đầu.
+        # XD bỏ qua hoàn toàn; DTO không có bảng không cần nạp bộ diễn giải.
+        if self.loai_hop_dong != "XD":
+            ma_bang = {"TT-20"}
+            if self.loai_hop_dong in ("MUA_HH", "NHAP_KHAU", "DV_KY", "THUE_TS"):
+                ma_bang.add("TT-05")
+            bang_ts = {}
+            if bang_nguon.get("bang"):
+                from .doc_hop_dong import trich_bang_tham_so
+                bang_ts = trich_bang_tham_so(bang_nguon, self.loai_hop_dong)
+            for d in bang:
+                if d["ma"] in ma_bang:
+                    d["bang"] = bang_ts.get(d["ma"], [])
+                    d["bang_can_ra_soat"] = not d["bang"] or any(b["can_ra_soat"] for b in d["bang"])
+                    d["bang_ly_do"] = (["KHONG_NHAN_DIEN_DUOC_BANG"] if not d["bang"] else [])
+
         for d in bang:                       # giá trị máy trích (sau cloud) — luôn giữ lại khi người soát sửa
             d.update(gia_tri_ai=d["gia_tri"], da_xac_nhan=False, da_sua=False)
 

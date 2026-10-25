@@ -789,6 +789,149 @@ def bang_nguon_khong_ho_tro(path, ma="E3_PDF_KHONG_HO_TRO", dan_xuat=None):
     return _bn_khung("KHONG_HO_TRO", nguon, kieu, 0, [{"ma": ma, "vi_tri": None}], [])
 
 
+# E1-3: diễn giải DTO bảng đã đọc; KHÔNG mở lại DOCX/đổi bang_nguon.
+_E1_COT = {
+    "stt": ("stt", "số thứ tự"),
+    "ten_hang": ("tên hàng", "tên hàng hóa", "hàng hóa", "tên vật tư", "tên dịch vụ", "hạng mục", "nội dung dịch vụ", "tên tài sản",
+                 "tên hàng hóa/dịch vụ", "tên hàng hóa, dịch vụ"),
+    "ma_hang": ("mã", "mã hàng", "mã hàng hóa", "mã vật tư"),
+    "don_vi": ("đvt", "đơn vị", "đơn vị tính"),
+    "so_luong": ("sl", "số lượng"),
+    "don_gia": ("đơn giá", "đơn giá kỳ", "đơn giá theo kỳ", "đơn giá thuê"),
+    "thanh_tien": ("thành tiền", "giá trị"),
+    "ky": ("đợt", "kỳ", "đợt thanh toán", "kỳ thanh toán", "lần thanh toán", "kỳ tính phí"),
+    "ty_le": ("tỷ lệ", "tỉ lệ", "tỷ lệ thanh toán", "tỉ lệ thanh toán"),
+    "so_tien": ("số tiền", "số tiền thanh toán"),
+    "gia_tri_thanh_toan": ("tỷ lệ/số tiền", "tỷ lệ / số tiền", "tỉ lệ/số tiền"),
+    "han": ("hạn", "hạn thanh toán", "thời hạn", "thời hạn thanh toán", "ngày thanh toán", "thời điểm thanh toán"),
+}
+
+
+def _e1_nhan(s):
+    s = unicodedata.normalize("NFD", s.lower().replace("đ", "d"))
+    return " ".join("".join(c for c in s if unicodedata.category(c) != "Mn").split())
+
+
+def _e1_cot(s):
+    # Đơn vị ghi trong ngoặc chỉ phục vụ nhận diện; vẫn giữ nguyên tiêu đề nguồn.
+    s = _e1_nhan(re.sub(r"\([^)]*\)", "", s)).strip(" .:")
+    return _E1_TEN_COT.get(s)
+
+
+_E1_TEN_COT = {_e1_nhan(t): ma for ma, ten in _E1_COT.items() for t in ten}
+
+
+def _e1_chuan(s, ma):
+    """Chỉ nhận cú pháp chắc chắn, không tính tiền/tỷ lệ, không đổi đơn vị/kỳ.
+    Số có một dấu phân cách và ba chữ số cuối (1.000/1,000) là mơ hồ.
+    Ngày có thể hoán đổi ngày/tháng cũng để trống, không áp đặt locale.
+    """
+    import datetime
+    import decimal
+    s = s.strip()
+    if ma == "han":
+        if re.fullmatch(r"\d{4}-\d{2}-\d{2}", s):
+            try:
+                return datetime.date.fromisoformat(s).isoformat()
+            except ValueError:
+                return None
+        m = re.fullmatch(r"(\d{1,2})/(\d{1,2})/(\d{4})", s)
+        if m:
+            d, th, y = map(int, m.groups())
+            if d > 12 or d == th:
+                try:
+                    return datetime.date(y, th, d).isoformat()
+                except ValueError:
+                    pass
+        return None
+    if ma not in ("so_luong", "don_gia", "thanh_tien", "ty_le", "so_tien", "gia_tri_thanh_toan"):
+        return s or None
+    if ma in ("ty_le", "gia_tri_thanh_toan") and s.endswith("%"):
+        s = s[:-1].strip()
+    if re.fullmatch(r"[+-]?\d+", s):
+        pass
+    elif re.fullmatch(r"[+-]?\d+[.,]\d{1,2}", s):
+        s = s.replace(",", ".")
+    elif re.fullmatch(r"[+-]?\d{1,3}(\.\d{3}){2,}", s):
+        s = s.replace(".", "")
+    elif re.fullmatch(r"[+-]?\d{1,3}(,\d{3}){2,}", s):
+        s = s.replace(",", "")
+    elif re.fullmatch(r"[+-]?\d{1,3}(\.\d{3})+,\d{1,2}", s):
+        s = s.replace(".", "").replace(",", ".")
+    elif re.fullmatch(r"[+-]?\d{1,3}(,\d{3})+\.\d{1,2}", s):
+        s = s.replace(",", "")
+    else:
+        return None
+    return format(decimal.Decimal(s), "f")
+
+
+def trich_bang_tham_so(bang_nguon, loai_hop_dong):
+    """{mã: [bảng]} cạnh giá trị đơn. Chuỗi goc lấy nguyên từ DTO E3.
+    Ô gộp không được trải/copy; ô thiếu được biểu diễn riêng và gắn cờ.
+    Bảng/tiêu đề mơ hồ được giữ để rà soát, không chọn một cột thay người dùng.
+    """
+    if loai_hop_dong == "XD":
+        return {}
+    ds = {"TT-20": []}
+    if loai_hop_dong in ("MUA_HH", "NHAP_KHAU", "DV_KY", "THUE_TS"):
+        ds["TT-05"] = []
+    if bang_nguon.get("trang_thai") != "DAY_DU":
+        return ds
+    for b in bang_nguon.get("bang", []):
+        for i, header in enumerate(b["dong"]):
+            cot = [{"ma": _e1_cot(o["text"]), "goc": o["text"], "cot_nguon": o["grid_start"],
+                    "gop": o["grid_span"] != 1 or o["v_merge"] != "NONE" or bool(o["bang_con"])} for o in header["o"]]
+            nhan = {c["ma"] for c in cot}
+            ma = None
+            if {"ky", "han"} <= nhan and nhan & {"ty_le", "so_tien", "gia_tri_thanh_toan"}:
+                ma = "TT-20"
+            elif "TT-05" in ds and "don_gia" in nhan and nhan & {"ten_hang", "ma_hang", "ky"}:
+                ma = "TT-05"
+            if ma is None:
+                continue
+            trung = {c["ma"] for c in cot if c["ma"] and sum(x["ma"] == c["ma"] for x in cot) > 1}
+            loi = ["TIEU_DE_MO_HO"] if trung or any(c["gop"] for c in cot) else []
+            out = {"bang_id": b["id"], "vi_tri": b["vi_tri"], "cot": cot, "dong": [], "ly_do": loi}
+            for r in b["dong"][i + 1:]:
+                # Chỉ bỏ tiêu đề lặp chính xác (bảng dài sang trang); không bỏ dòng tổng/thuế/trống.
+                if [(o["grid_start"], o["text"]) for o in r["o"]] == [(o["grid_start"], o["text"]) for o in header["o"]]:
+                    continue
+                cells = []
+                for c in cot:
+                    o = next((o for o in r["o"] if o["grid_start"] <= c["cot_nguon"] < o["grid_start"] + o["grid_span"]), None)
+                    flags = []
+                    if o is None:
+                        flags.append("THIEU_O")
+                    elif o["grid_span"] != 1 or o["v_merge"] != "NONE" or o["bang_con"]:
+                        flags.append("O_GOP_HOAC_BANG_LONG")
+                    if o is not None and not o["text"].strip():
+                        flags.append("O_TRONG")
+                    if c["gop"] or c["ma"] in trung:
+                        flags.append("TIEU_DE_MO_HO")
+                    if c["ma"] is None:
+                        flags.append("COT_CHUA_NHAN_DIEN")
+                    # Chỉ ghi chữ ô gộp ở đúng cột bắt đầu, không nhân sang ô phủ.
+                    goc = o["text"] if o is not None and o["grid_start"] == c["cot_nguon"] else ""
+                    chuan = _e1_chuan(goc, c["ma"]) if not flags and c["ma"] else None
+                    if chuan is None and not flags and c["ma"]:
+                        flags.append("GIA_TRI_CHUA_CHAC_CHAN")
+                    cells.append({"ma": c["ma"], "cot_nguon": c["cot_nguon"], "o_id": o["id"] if o else None,
+                                  "goc": goc, "chuan": chuan, "can_ra_soat": bool(flags), "ly_do": flags})
+                known = {c["cot_nguon"] for c in cot}
+                extra = [o for o in r["o"] if o["grid_start"] not in known]
+                row_flags = ["COT_NGOAI_TIEU_DE"] if extra else []
+                cells.extend({"ma": None, "cot_nguon": o["grid_start"], "o_id": o["id"], "goc": o["text"],
+                              "chuan": None, "can_ra_soat": True, "ly_do": ["COT_NGOAI_TIEU_DE"]} for o in extra)
+                out["dong"].append({"dong_id": r["id"], "vi_tri": r["vi_tri"], "o": cells,
+                                    "can_ra_soat": bool(loi or row_flags or any(c["can_ra_soat"] for c in cells)), "ly_do": row_flags})
+            if not out["dong"]:
+                loi.append("KHONG_CO_DONG_DU_LIEU")
+            out["can_ra_soat"] = bool(loi or any(r["can_ra_soat"] for r in out["dong"]))
+            ds[ma].append(out)
+            break
+    return ds
+
+
 def read_docx(path):
     """Đọc .docx (đã/không có Track Changes — luôn tự chấp nhận trong XML). Trả (văn bản, thống kê).
     E3-01: ZIP/XML kiểm giới hạn trước khi phân tích (LoiE3); bằng chứng bảng thân văn bản đi riêng trong thống kê `_bang_nguon`."""
