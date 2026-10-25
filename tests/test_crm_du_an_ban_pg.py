@@ -56,7 +56,7 @@ class DuAnBanPostgres(unittest.TestCase):
         from kho_tri_thuc.k2.crm_khoi_dong import chuan_hoa_dsn, doc_ket_noi, nap_driver
         kn = doc_ket_noi(Path(os.environ[ENV]))  # chỉ CSDL DEMO kho_crm_demo*; không in DSN
         cls.psycopg = psycopg = nap_driver()
-        cls.db = LocalApp._crm_db  # cùng ánh xạ lỗi CSDL → DataError(mã) của máy chủ
+        cls.db = staticmethod(LocalApp._crm_db)  # cùng ánh xạ lỗi CSDL → DataError(mã) của máy chủ
         cls.admin = psycopg.connect(chuan_hoa_dsn(kn["admin_dsn"])["conninfo"], autocommit=True, row_factory=dict_row)
         cls.admin_t = psycopg.connect(chuan_hoa_dsn(kn["admin_dsn"])["conninfo"], autocommit=True)  # tuple row cho seed
         cls.app = psycopg.connect(chuan_hoa_dsn(kn["app_dsn"])["conninfo"], autocommit=True, row_factory=dict_row)
@@ -68,15 +68,15 @@ class DuAnBanPostgres(unittest.TestCase):
         cls.mau = CrmMauK2(cls.app, Path(tempfile.mkdtemp(prefix="ktt_da1_pg_")), conn_tin_cay=cls.admin)
         cls.dv = D.CrmDuAnBanK2(cls.mau)
         cls.gk = CrmGiaoKetK2(cls.mau)
-        cls.run = uuid.uuid4().hex[:8].upper()
+        cls.ma_chay = uuid.uuid4().hex[:8].upper()
         cls.hom_nay = cls.mau.hom_nay()
         q = cls.admin.execute
         cls.pn = q("SELECT id::text AS id FROM master.phap_nhan WHERE ma = 'PN_DEMO_A'").fetchone()["id"]
         cls.lh = q("""SELECT id::text AS id FROM master.loai_hinh_doanh_thu WHERE phap_nhan_id = %s AND ma = 'DT-KCN-THUE-DAT-DEMO'
                       AND valid_to IS NULL""", (cls.pn,)).fetchone()["id"]
         cls.du_an, cls.du_an_2 = (q("INSERT INTO master.du_an (phap_nhan_id, ma_junsky, ten) VALUES (%s, %s, %s) RETURNING id::text AS id",
-                                    (cls.pn, f"DA_DEMO_KT_{cls.run}{x}", f"Dự án kiểm thử DA-1 DEMO {cls.run}{x}")).fetchone()["id"] for x in ("", "B"))
-        cls.gd = f"GD{cls.run}"
+                                    (cls.pn, f"DA_DEMO_KT_{cls.ma_chay}{x}", f"Dự án kiểm thử DA-1 DEMO {cls.ma_chay}{x}")).fetchone()["id"] for x in ("", "B"))
+        cls.gd = f"GD{cls.ma_chay}"
 
     def setUp(self):
         if self.schema < 31:
@@ -84,7 +84,7 @@ class DuAnBanPostgres(unittest.TestCase):
 
     # ------------------------------------------------------------------ helpers
     def K(self, x):
-        return f"da1-{self.run}-{x}"
+        return f"da1-{self.ma_chay}-{x}"
 
     def ma(self, fn, *a, **kw):
         try:
@@ -103,7 +103,8 @@ class DuAnBanPostgres(unittest.TestCase):
                 "co_so_thue": "NET", "vat_phan_tram": "10", "giai_doan_g7": self.gd, **sua}
 
     def chuan_doc(self, gd, ngay):
-        return self.admin.execute("SELECT master.crm_g_chuan_doc(%s::uuid, %s, %s::date) AS r", (self.du_an, gd, ngay)).fetchone()["r"]
+        """`master.crm_g_chuan_doc` qua service G7 (danh tính phiên bán hàng trong giao dịch RR — đúng đường của báo giá)."""
+        return self.db(lambda: self.mau.doc_bo_chuan(BH, self.du_an, gd, ngay.isoformat()))
 
     def pb_g7(self, gd):
         return self.admin.execute("""SELECT v.id::text AS id, v.phien_ban, v.trang_thai, v.valid_from, v.valid_to, v.duyet_boi FROM master.crm_bo_chuan_phien_ban v
@@ -156,19 +157,19 @@ class DuAnBanPostgres(unittest.TestCase):
     def test_t04_lo_lich_su(self):
         self.can("da")
         da = self.s["da"]
-        r = self.db(lambda: self.dv.ghi_lo(BH, da_ban_id=da, lo=[{"ma": f"L1-{self.run}", "dien_tich": "15000"},
-                                                                {"ma": f"L2-{self.run}", "dien_tich": "820.25", "trang_thai": "GIU_CHO"}], khoa=self.K("lo")))
+        r = self.db(lambda: self.dv.ghi_lo(BH, da_ban_id=da, lo=[{"ma": f"L1-{self.ma_chay}", "dien_tich": "15000"},
+                                                                {"ma": f"L2-{self.ma_chay}", "dien_tich": "820.25", "trang_thai": "GIU_CHO"}], khoa=self.K("lo")))
         self.assertEqual((r["moi"], r["doi"], r["giu"]), (2, 0, 0))
-        r = self.db(lambda: self.dv.ghi_lo(BH, da_ban_id=da, lo=[{"ma": f"l1-{self.run}".lower(), "dien_tich": "15000", "trang_thai": "DA_BAN", "expected_lan": 1},
-                                                                {"ma": f"L2-{self.run}", "dien_tich": "820.25", "trang_thai": "GIU_CHO", "expected_lan": 1}],
+        r = self.db(lambda: self.dv.ghi_lo(BH, da_ban_id=da, lo=[{"ma": f"l1-{self.ma_chay}".lower(), "dien_tich": "15000", "trang_thai": "DA_BAN", "expected_lan": 1},
+                                                                {"ma": f"L2-{self.ma_chay}", "dien_tich": "820.25", "trang_thai": "GIU_CHO", "expected_lan": 1}],
                                            ly_do="đã ký DEMO", khoa=self.K("lo2")))
         self.assertEqual((r["moi"], r["doi"], r["giu"]), (0, 1, 1))
-        self.assertEqual(self.ma(self.dv.ghi_lo, BH, da_ban_id=da, lo=[{"ma": f"L1-{self.run}", "dien_tich": "1", "expected_lan": 1}], khoa=self.K("lo3")),
+        self.assertEqual(self.ma(self.dv.ghi_lo, BH, da_ban_id=da, lo=[{"ma": f"L1-{self.ma_chay}", "dien_tich": "1", "expected_lan": 1}], khoa=self.K("lo3")),
                          "CRM_DA_LO_LAN_CU")
-        self.assertEqual(self.ma(self.dv.ghi_lo, BH, da_ban_id=da, lo=[{"ma": f"L9-{self.run}", "dien_tich": "1", "expected_lan": 1}], khoa=self.K("lo4")),
+        self.assertEqual(self.ma(self.dv.ghi_lo, BH, da_ban_id=da, lo=[{"ma": f"L9-{self.ma_chay}", "dien_tich": "1", "expected_lan": 1}], khoa=self.K("lo4")),
                          "CRM_DA_LO_LAN_CU")
         ls = self.db(lambda: self.dv.lich_su(BH, da))["lo"]
-        l1 = next(x for x in ls if x["ma"] == f"L1-{self.run}")
+        l1 = next(x for x in ls if x["ma"] == f"L1-{self.ma_chay}")
         self.assertEqual([(h["lan"], h["trang_thai"]) for h in l1["lich_su"]], [(1, "CON_TRONG"), (2, "DA_BAN")])  # đổi = dòng lịch sử, không ghi đè
 
     def test_t05_g7_ap_dung_ngay_moi_cho_doc_thay(self):
@@ -226,7 +227,7 @@ class DuAnBanPostgres(unittest.TestCase):
             self.db(lambda: m.duyet_bo_chuan(CFO, version_id=r["phien_ban_id"], valid_from=valid_from.isoformat(), expected_graph=tok(r["phien_ban_id"]),
                                              khoa=self.K("duyet" + gd)))
             return r["phien_ban_id"]
-        gd = f"CFO{self.run}"
+        gd = f"CFO{self.ma_chay}"
         cfo = cfo_duyet(gd, self.hom_nay - timedelta(days=5))
         moi = self.db(lambda: self.dv.ap_dung_tien_do(BH, du_an_id=self.du_an, giai_doan=gd, dong=DONG2, khoa=self.K("g7cfo")))["phien_ban_id"]
         v = {x["id"]: x for x in self.pb_g7(gd)}
@@ -237,7 +238,7 @@ class DuAnBanPostgres(unittest.TestCase):
         self.assertEqual((self.s["g6a"](gd, self.hom_nay - timedelta(days=1)) if "g6a" in self.s else cfo), cfo)
         nguon = {x["id"]: x["nguon_hieu_luc"] for x in self.db(lambda: m.danh_sach_bo_chuan(KT))["phien_ban"]}
         self.assertEqual((nguon[cfo], nguon[moi]), ("CFO_DUYET", "AP_DUNG_NGAY"))
-        tl = f"CFT{self.run}"
+        tl = f"CFT{self.ma_chay}"
         cfo_duyet(tl, self.hom_nay + timedelta(days=5))  # CFO duyệt hiệu lực TƯƠNG LAI → bán hàng không áp dụng chồng
         self.assertEqual(self.ma(self.dv.ap_dung_tien_do, BH, du_an_id=self.du_an, giai_doan=tl, dong=DONG2, khoa=self.K("g7tl")), "CRM_G_HIEU_LUC_CHONG")
 
