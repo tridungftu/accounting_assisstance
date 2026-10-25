@@ -8,7 +8,7 @@ Trạng thái lát: Đang code → Chờ kiểm → Chờ Anh (cổng A/B) → S
 |---|---|---|---|---|---|
 | BG-1d | CRM · Báo giá màn hình 2 bước (BG-1b + BG-1d) | Claude Sonnet · review Codex | `lat/bg-1d` · DEMO 8791 | 25/10 | Chờ Anh — cổng A xem lại (`PHIEU-CONG-A-BAO-GIA-XEM-LAI.md`) |
 | DA-2 | CRM · màn Dự án đang bán (xem + thêm/sửa; ẩn luồng CFO) | Codex · review Claude | `lat/da-2` (= bg-1d + da-1) | 25/10 | Xong code đến DA-2c (33a2e29); review Đạt; chờ BG-1d qua cổng A để gộp |
-| M4-5a | M4 · Nghiệm thu & chi phí dự án · 03B máy chủ: khai một phần bằng số tiền + gợi ý hóa đơn — **M0033** | Codex · review Claude | `lat/m4-5a` | 25/10 19:16 (vòng 3) | **Đã gộp 834a53c** (M0033; chuỗi 33): review vòng 1 Đạt, vòng 3 sửa A1/A2/A4, `kiem-nhanh` Đạt, bộ M4/CRM PG không thêm mã lỗi. **Còn nợ:** 18 ca PG `test_m4_03b_common_pg` (gồm c11–c18 M0033) chưa chạy — bộ chạy chưa dựng được họ bản sao `03a` → lát **L0-8d** (ưu tiên kế tiếp), lead chạy ngay khi xong; lỗi → sửa trước nghiệm thu |
+| M4-5a | M4 · Nghiệm thu & chi phí dự án · 03B máy chủ: khai một phần bằng số tiền + gợi ý hóa đơn — **M0033** | Codex · review Claude | `lat/m4-5a` | 25/10 19:16 (vòng 3) | **XONG — đã gộp 834a53c** (M0033). **Nợ đã trả 25/10 21:05:** 21 ca PG `test_m4_03b_common_pg` (gồm SQL M0033) đạt thật trên bản sao 03a (nhờ L0-8d/8e/8f), c16 skip có chủ đích |
 | DA-3a | CRM · Báo giá nạp mặc định từ Dự án đang bán, ghi nhận khác tiêu chuẩn | Codex · review Claude | `lat/da-3a` (c077a83) | 25/10 | **XONG — đã gộp** (vòng 2 B1; kiem-nhanh Đạt; PG 29/29 + 16/16) |
 | T-MIG2 | Test PostgreSQL theo chuỗi migration mới | Codex | `lat/t-mig2` (26e9c35) | 25/10 | `t21` hết sau **L0-9b** (gốc: 8 fixture L11 bị L0-9 ép LF, lệch ghim SHA) — `test_crm_k2` chỉ còn lỗi có sẵn của nền; chờ chạy lại cả bộ PG → `kiem-nhanh` → `review-lat` → gộp |
 | UI-1 | Khung lưới icon dùng chung + áp CRM 6 phần (CD-002) | Claude Sonnet | `lat/ui-1` (= da-2 + hop-nhat) | 25/10 | DEMO 8798 (có L0-10) **chạy được**: lead thử 4 vai — thẻ/icon đúng TL 49 §2, thanh icon trái + đường dẫn đúng; **lỗi tìm thấy:** lần tải đầu báo 'Phiên CRM chưa có' (khung gọi trước /api/crm) → **UI-1b** (chờ suất trống); sau đó gửi phiếu cổng A |
@@ -67,7 +67,7 @@ Quy tắc áp cho mọi lát từ 25/10 (CD-001 việc 3): không lát nào vi�
 | MASK-2 | Claude | Opus | 20:31 | — | — | — |
 | L0-10 | Codex | gpt-6.1-sol · high | 20:38 | gộp 20:51 | review-lat Opus Đạt | Xanh — 46/46; DEMO 8798 chuẩn bị CRM chế độ DICH_VU |
 | L0-8f | Codex | gpt-6.1-sol · high | 20:47 | 20:44 (v1 dừng đúng: gốc ở helper test) | — | — |
-| L0-8f v2 | Codex | gpt-6.1-sol · high | 20:50 | 20:55 | — | 7/7 thuần; 1 lỗi mock bộ chạy ngoài phạm vi (lead xử lý khi gộp); PG đang chạy |
+| L0-8f v2 | Codex | gpt-6.1-sol · high | 20:50 | 20:55 | chờ L0-8e v2 + kiem-nhanh | **PG: 03B 21/21 (c16 skip có chủ đích), 03A 13/13** — nợ M4-5a trả xong; 1 lỗi mock bộ chạy xử lý khi gộp |
 | L0-8e v2 | Codex | gpt-6.1-sol · high | 21:02 | — | — | — |
 | L0-10b | Codex | gpt-6.1-sol · high | 20:45 | gộp 21:00 | kiem-nhanh Đạt | Xanh — 52/52; kiểm thật dịch vụ khớp |
 | UI-1b | Codex | gpt-6.1-sol · high | 20:55 | — | — | — |
