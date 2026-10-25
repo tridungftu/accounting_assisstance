@@ -2,7 +2,7 @@
 CODE_ONLY: coder viết, CHƯA CHẠY (WRITTEN_NOT_RUN).
 
 KHÔNG tạo CSDL/role, KHÔNG migrate/bootstrap/M9, KHÔNG SET ROLE, KHÔNG apply SQL: chạy DUY NHẤT trên một CLONE DEMO SỞ HỮU Root đã dựng (schema =
-PG_SCHEMA_VERSION hiện hành của registry — không hardcode số) VÀ đã tự apply `M4_MASTER_DUNG_CHUNG_SQL` (gói không đăng ký/ordinal). Env (không .env/var,
+PG_SCHEMA_VERSION hiện hành của registry — không hardcode số) VÀ đã tự apply `M4_MASTER_DUNG_CHUNG_SQL` (từ M4-4/7 gói là M0028 trong registry: clone migrate bằng registry hiện hành đã có SQL này; ghim SHA/marker của Root bên dưới vẫn được đòi như trước). Env (không .env/var,
 không hardcode/in DSN):
   KHO_M4_MC_CLONE_DSN         DSN chủ bảng (owner) — đường tin cậy của máy chủ
   KHO_M4_MC_CLONE_APP_DSN     login ứng dụng có sẵn (SCRAM, IN ROLE app_web, NOSUPERUSER, NOBYPASSRLS)

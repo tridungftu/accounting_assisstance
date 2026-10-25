@@ -1,7 +1,7 @@
 """M4-03B-01 — kiểm TĨNH + THUẦN identity nguồn dùng chung + đối chiếu căn cứ NT ↔ hóa đơn (không PostgreSQL, không mạng). WRITTEN_NOT_RUN.
 
 Phân loại (nhãn trung thực):
-- `SqlTinh`: chuỗi `M4_03B_COMMON_SQL` (hằng, KHÔNG đăng ký registry/ordinal): chỉ thêm đối tượng mới + nới CHECK module biên nhận chung; không chạm
+- `SqlTinh`: chuỗi `M4_03B_COMMON_SQL` (hằng; module không tự đăng ký/author ordinal — M0029 do ha_tang/pg_migrations.py cấp, kiểm ở test_m4_03b_m29_integration.py): chỉ thêm đối tượng mới + nới CHECK module biên nhận chung; không chạm
   bảng tiền/de_xuat/chung_tu/lien_ket_phan_bo/AP; financial_owner IS NULL; REVOKE PUBLIC; RLS; app chỉ EXECUTE hàm đọc sớm; lệnh không SECURITY DEFINER.
 - `KiemDauVao`: validator thật (allowlist, khóa thẩm quyền/khớp/tiền → DC_CLIENT_AUTHORITY, UUID chuẩn, NT không part, trùng/chồng phần, CAS).
 - `MienThuan`: gương `thieu` (mã + thứ tự = kho._dc_thieu), `trang_thai` dẫn xuất CAN_KIEM_LAI.

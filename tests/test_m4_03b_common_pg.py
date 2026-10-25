@@ -3,7 +3,7 @@
 Ba cổng (thiếu cổng nào → SkipTest NOT_VERIFIED, KHÔNG phải PASS):
 1. Cổng 03A (tests/test_m4_03a_pg.py: KHO_M4_03A_* + kiem_clone/registry/quyền) — mượn thuộc tính lớp gốc như test_m4_03a_full_basis_pg
    (không import lớp TestCase → test gốc không chạy lại); DSN chủ bảng phải là ĐÚNG chủ m4.kt_xac_nhan theo session_user.
-2. Cổng 03B: env KHO_M4_03B_DA_AP_DUNG=1 (Root đã append `M4_03B_COMMON_SQL` vào registry ở ordinal của Root rồi migrate clone) + kiểm CHỈ ĐỌC:
+2. Cổng 03B: env KHO_M4_03B_DA_AP_DUNG=1 (từ M4-4/7 `M4_03B_COMMON_SQL` là M0029 trong registry: clone migrate bằng registry hiện hành; cờ env vẫn là xác nhận của Root) + kiểm CHỈ ĐỌC:
    mọi bảng/hàm mới tồn tại và thân kho.dc_luu / kho.dc_xac_nhan / kho._dc_do_thi / ... trên clone BẰNG BYTE hằng trong file nguồn. Sai → LoiThietLap.
 3. Cổng hóa đơn (chỉ ca cross-source): KHO_M4_03B_HOA_DON_ID = hóa đơn M2 CÓ SẴN trên clone, cùng PN với hồ sơ DEMO, KT1 có module M2 trên PN đó.
    Dương thật cần thêm mst_ban = MST master của đối tác HĐ DEMO (máy chủ resolve, không seed). Lệch MST → ca dương SKIP NOT_VERIFIED kèm
@@ -50,7 +50,7 @@ ENV_HOA_DON = "KHO_M4_03B_HOA_DON_ID"
 ENV_DONG = "KHO_M4_03B_DONG_ID"
 ENV_CFO, ENV_XEM = "KHO_M4_03B_CFO", "KHO_M4_03B_XEM"
 CO_ENV_03B = P.CO_ENV and os.environ.get(ENV_DA_AP_DUNG) == "1"
-LY_DO_SKIP_03B = ("NOT_VERIFIED: chưa có clone 03A + M4_03B_COMMON_SQL do Root đăng ký/migrate (KHO_M4_03A_* + KHO_M4_03B_DA_AP_DUNG=1) — "
+LY_DO_SKIP_03B = ("NOT_VERIFIED: chưa có clone 03A + M4_03B_COMMON_SQL (M0029) do Root migrate (KHO_M4_03A_* + KHO_M4_03B_DA_AP_DUNG=1) — "
                   "test M4-03B PG không chạy, KHÔNG tính đạt")
 NOI = "\n".join(SG.M4_03B_COMMON_SQL)
 BANG_DC = tuple(f"kho.{t}" for t in SG.BANG)
@@ -75,7 +75,7 @@ class M4DoiChieuCanCuPG(unittest.TestCase):
             raise P.LoiThietLap("SETUP_FAILURE: DSN chủ bảng không phải ĐÚNG chủ m4.kt_xac_nhan theo session_user — không ghim được chứng thực")
         for t in BANG_DC:
             if _q1(cls.admin, "SELECT to_regclass(%s) IS NOT NULL", (t,)) is not True:
-                raise P.LoiThietLap(f"SETUP_FAILURE: clone chưa có {t} — M4_03B_COMMON_SQL chưa được Root đăng ký/migrate")
+                raise P.LoiThietLap(f"SETUP_FAILURE: clone chưa có {t} — M4_03B_COMMON_SQL (M0029) chưa được migrate vào clone")
         for h in (*SG.HAM_LENH, *SG.HAM_NOI_BO, *SG.HAM_DOC, *SG.HAM_TRIGGER):
             if _q1(cls.admin, "SELECT to_regprocedure(%s) IS NOT NULL", (h,)) is not True:
                 raise P.LoiThietLap(f"SETUP_FAILURE: clone thiếu hàm {h}")
