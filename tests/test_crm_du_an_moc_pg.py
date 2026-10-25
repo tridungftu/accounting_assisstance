@@ -32,17 +32,16 @@ class MocTinh(unittest.TestCase):
     def test_migration_append_sau_34_giu_nguyen_chuoi_cu(self):
         self.assertGreaterEqual(len(PM.PG_MIGRATIONS), 35)
         self.assertEqual(PM.PG_SCHEMA_VERSION, len(PM.PG_MIGRATIONS))
-        self.assertIs(PM.PG_MIGRATIONS[-1], PM.M0035_CRM_DU_AN_MOC)
-        self.assertIs(PM.M0035_CRM_DU_AN_MOC, CRM_DU_AN_MOC_SQL)
         self.assertIs(PM.PG_MIGRATIONS[30], CRM_DU_AN_BAN_SQL)
-        self.assertIs(PM.PG_MIGRATIONS[-2], PM.M0034_CONG_AI_NHAT_KY)
         self.assertEqual(sum(m is CRM_DU_AN_MOC_SQL for m in PM.PG_MIGRATIONS), 1)
-        # Chạy riêng phần registry trước APPEND M0035 để so toàn bộ chuỗi cũ.
+        moc_index = PM.PG_MIGRATIONS.index(CRM_DU_AN_MOC_SQL)
+        self.assertGreater(moc_index, PM.PG_MIGRATIONS.index(PM.M0034_CONG_AI_NHAT_KY))
+        # So toàn bộ registry trước mốc; không phụ thuộc số lead cấp khi gộp.
         source = (ROOT / "src/kho_tri_thuc/ha_tang/pg_migrations.py").read_text(encoding="utf-8")
-        prefix = source[:source.index("# 0035 — MDA-1a:")]
+        prefix = source[:source.index("from ..k2.sql_crm_du_an_moc import ")]
         old = {"__name__": PM.__name__, "__package__": PM.__package__}
         exec(compile(prefix, PM.__file__, "exec"), old)
-        self.assertEqual(PM.PG_MIGRATIONS[:-1], old["PG_MIGRATIONS"])
+        self.assertEqual(PM.PG_MIGRATIONS[:moc_index], old["PG_MIGRATIONS"])
 
     def test_bang_ham_bat_bien_va_quyen(self):
         for t in ("crm_da_moc", "crm_da_moc_ls"):
@@ -68,6 +67,12 @@ class MocTinh(unittest.TestCase):
                   "master.crm_g_bn_ghi", "FOR UPDATE"):
             self.assertIn(s, f)
         self.assertIn("CRM_DA_MOC_TRUNG", SQL)
+        self.assertIn(
+            "IF v ->> 'ngay_du_kien' IS NULL THEN\n"
+            "                IF o.id IS NOT NULL THEN\n"
+            "                    RAISE EXCEPTION 'CRM_DA_MOC_SAI: Ngày dự kiến không được để trống'",
+            f,
+        )
         self.assertEqual(SQL.count("LANGUAGE plpgsql STABLE"), 2)
         self.assertNotIn("CREATE EXTENSION", SQL)
 
@@ -75,13 +80,36 @@ class MocTinh(unittest.TestCase):
         f = next(s for s in CRM_DU_AN_MOC_SQL if "CREATE FUNCTION master.crm_da_moc_ten_chuan(" in s)
         self.assertIn("LANGUAGE sql IMMUTABLE STRICT", f)
         src, dst = re.search(r"U&'([^']+)',\s*'([^']+)'", f).groups()
-        src = re.sub(r"\\([0-9A-Fa-f]{4})", lambda m: chr(int(m[1], 16)), src)
-        mapping = {ord(c): dst[i] if i < len(dst) else None for i, c in enumerate(src)}
-        viet = "ÀÁẢÃẠĂẰẮẲẴẶÂẦẤẨẪẬ ÈÉẺẼẸÊỀẾỂỄỆ ÌÍỈĨỊ ÒÓỎÕỌÔỒỐỔỖỘƠỜỚỞỠỢ ÙÚỦŨỤƯỪỨỬỮỰ ỲÝỶỸỴ Đ"
-        expected = "A" * 17 + " " + "E" * 11 + " " + "I" * 5 + " " + "O" * 17 + " " + "U" * 11 + " " + "Y" * 5 + " D"
-        self.assertEqual(viet.translate(mapping), expected)
-        for ten in ("Xong chứng nhận đầu tư", unicodedata.normalize("NFD", "Xong chứng nhận đầu tư")):
-            self.assertEqual(ten.upper().translate(mapping), "XONG CHUNG NHAN DAU TU")
+        self.assertEqual(len(src), len(dst), "Nguồn/đích translate phải đủ cặp ký tự")
+        self.assertEqual(len(src), len(set(src)))
+        mapping = str.maketrans(src, dst)
+        # Độc lập với bảng SQL: đủ 12 nguyên âm × 6 thanh, cả hoa/thường + đ/Đ.
+        for base, expected in zip("aăâeêioôơuưy", "aaaeeiooouuy"):
+            for tone in ("", "\u0300", "\u0301", "\u0303", "\u0309", "\u0323"):
+                viet = unicodedata.normalize("NFC", base + tone)
+                for c in (viet, viet.upper()):
+                    with self.subTest(c=c):
+                        self.assertIn(c, src)
+                        self.assertEqual(c.translate(mapping), expected.upper())
+        self.assertEqual("đĐ".translate(mapping), "DD")
+        self.assertTrue(dst.isascii())
+        self.assertTrue(dst.isupper())
+        self.assertIn("btrim(regexp_replace(upper(regexp_replace(translate(p_ten,", f)
+        marks = re.search(r"U&'\[([^']+)\]', '', 'g'", f)[1]
+        marks = re.sub(r"\\([0-9A-Fa-f]{4})", lambda m: chr(int(m[1], 16)), marks)
+        self.assertEqual(set(marks), set("\u0300\u0301\u0303\u0309\u0323\u0306\u0302\u031b"))
+        self.assertIn("'[[:space:]]+', ' ', 'g'", f)
+        remove_marks = dict.fromkeys(map(ord, marks))
+        ascii_upper = str.maketrans("abcdefghijklmnopqrstuvwxyz", "ABCDEFGHIJKLMNOPQRSTUVWXYZ")
+        for ten in ("Xong chứng nhận đầu tư", "XONG CHỨNG NHẬN ĐẦU TƯ", "xong chung nhan dau tu",
+                    unicodedata.normalize("NFD", "Xong chứng nhận đầu tư"),
+                    unicodedata.normalize("NFD", "XONG CHỨNG NHẬN ĐẦU TƯ"),
+                    "  Xong  chứng\t nhận đầu tư  "):
+            with self.subTest(ten=ten):
+                # Locale C upper chỉ đổi ASCII: không dùng ten.upper().
+                key = ten.translate(mapping).translate(remove_marks).translate(ascii_upper)
+                key = re.sub(r"[ \t\n\r\f\v]+", " ", key).strip(" ")
+                self.assertEqual(key, "XONG CHUNG NHAN DAU TU")
         for p in ("src/kho_tri_thuc/k2/sql_crm_du_an_moc.py", "src/kho_tri_thuc/ha_tang/pg_migrations.py", "tests/test_crm_du_an_moc_pg.py"):
             raw = (ROOT / p).read_bytes()
             self.assertFalse(raw.startswith(b"\xef\xbb\xbf"), p)
@@ -251,6 +279,20 @@ class MocPostgres(unittest.TestCase):
         expected = "A" * 17 + " " + "E" * 11 + " " + "I" * 5 + " " + "O" * 17 + " " + "U" * 11 + " " + "Y" * 5 + " D"
         for ten in (viet, viet.lower(), unicodedata.normalize("NFD", viet)):
             self.assertEqual(self.c.execute("SELECT master.crm_da_moc_ten_chuan(%s)", (ten,)).fetchone()[0], expected)
+
+    def test_ten_chuan_cac_dang_cung_khoa(self):
+        for ten in ("Xong chứng nhận đầu tư", "XONG CHỨNG NHẬN ĐẦU TƯ", "xong chung nhan dau tu",
+                    unicodedata.normalize("NFD", "Xong chứng nhận đầu tư"),
+                    "  Xong  chứng\t nhận đầu tư  "):
+            with self.subTest(ten=ten):
+                self.assertEqual(self.c.execute("SELECT master.crm_da_moc_ten_chuan(%s)", (ten,)).fetchone()[0],
+                                 "XONG CHUNG NHAN DAU TU")
+
+    def test_sua_ngay_du_kien_null_bao_rieng_khong_ghi(self):
+        r = self.khai()
+        h = self.history(r)
+        self.loi("CRM_DA_MOC_SAI: Ngày dự kiến không được để trống", lambda: self.sua(r, ngay_du_kien=None))
+        self.assertEqual(self.history(r), h)
 
     def test_doc_ba_trang_thai_theo_ngay_sap_xep_va_hieu_luc(self):
         a = self.khai("A DEMO", ngay_du_kien=(self.today - timedelta(days=1)).isoformat())

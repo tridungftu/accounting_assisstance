@@ -45,12 +45,15 @@ CRM_DU_AN_MOC_SQL = (
         CHECK (hieu_luc_den IS NULL OR hieu_luc_den >= hieu_luc_tu))""",
     "CREATE UNIQUE INDEX crm_da_moc_ls_mo_uq ON master.crm_da_moc_ls (moc_id) WHERE hieu_luc_den IS NULL",
     "CREATE TRIGGER crm_da_moc_ls_kiem BEFORE INSERT OR UPDATE OR DELETE ON master.crm_da_moc_ls FOR EACH ROW EXECUTE FUNCTION master.crm_da_dong_mot_lan()",
-    # translate bỏ cả dấu dựng sẵn và dấu tổ hợp tiếng Việt (NFD), không extension.
+    # Ánh xạ đủ hoa/thường sang ASCII trước upper: không phụ thuộc locale C.
+    # Bỏ dấu tổ hợp (NFD), sau đó gộp và cắt khoảng trắng, không extension.
     """CREATE FUNCTION master.crm_da_moc_ten_chuan(p_ten text) RETURNS text
         LANGUAGE sql IMMUTABLE STRICT SET search_path = master, pg_temp AS $$
-        SELECT translate(upper(p_ten),
-            U&'ÀÁẢÃẠĂẰẮẲẴẶÂẦẤẨẪẬÈÉẺẼẸÊỀẾỂỄỆÌÍỈĨỊÒÓỎÕỌÔỒỐỔỖỘƠỜỚỞỠỢÙÚỦŨỤƯỪỨỬỮỰỲÝỶỸỴĐ\\0300\\0301\\0303\\0309\\0323\\0306\\0302\\031B',
-            'AAAAAAAAAAAAAAAAAEEEEEEEEEEEIIIIIOOOOOOOOOOOOOOOOOUUUUUUUUUUUYYYYYD')
+        SELECT btrim(regexp_replace(upper(regexp_replace(translate(p_ten,
+            U&'aàáảãạăằắẳẵặâầấẩẫậeèéẻẽẹêềếểễệiìíỉĩịoòóỏõọôồốổỗộơờớởỡợuùúủũụưừứửữựyỳýỷỹỵAÀÁẢÃẠĂẰẮẲẴẶÂẦẤẨẪẬEÈÉẺẼẸÊỀẾỂỄỆIÌÍỈĨỊOÒÓỎÕỌÔỒỐỔỖỘƠỜỚỞỠỢUÙÚỦŨỤƯỪỨỬỮỰYỲÝỶỸỴđĐ',
+            'AAAAAAAAAAAAAAAAAAEEEEEEEEEEEEIIIIIIOOOOOOOOOOOOOOOOOOUUUUUUUUUUUUYYYYYYAAAAAAAAAAAAAAAAAAEEEEEEEEEEEEIIIIIIOOOOOOOOOOOOOOOOOOUUUUUUUUUUUUYYYYYYDD'),
+            U&'[\\0300\\0301\\0303\\0309\\0323\\0306\\0302\\031B]', '', 'g')),
+            '[[:space:]]+', ' ', 'g'))
         $$""",
     # Khóa cùng dòng dự án như lệnh ghi: serialize các mốc khác nhau cùng dự án.
     # Trigger giữ ràng buộc cả khi chủ bảng INSERT trực tiếp, không chỉ qua lệnh.
@@ -130,6 +133,9 @@ CRM_DU_AN_MOC_SQL = (
                 RAISE EXCEPTION 'CRM_DA_MOC_SAI: tên cần 1–120 ký tự, tên tắt 1–20, không khoảng trắng thừa/ký tự cấm' USING ERRCODE = 'P0001';
             END IF;
             IF v ->> 'ngay_du_kien' IS NULL THEN
+                IF o.id IS NOT NULL THEN
+                    RAISE EXCEPTION 'CRM_DA_MOC_SAI: Ngày dự kiến không được để trống' USING ERRCODE = 'P0001';
+                END IF;
                 RAISE EXCEPTION 'CRM_DA_MOC_SAI: cần ngày dự kiến khi khai mốc' USING ERRCODE = 'P0001';
             END IF;
             FOR r IN SELECT k.key, k.value FROM jsonb_each_text(v) k WHERE k.key IN ('ngay_du_kien','ngay_thuc_te') LOOP
