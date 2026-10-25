@@ -18,11 +18,14 @@ import ipaddress
 import json
 import re
 import socket
+import time
 import urllib.error
 import urllib.request
 from urllib.parse import urlparse
 
 DEFAULTS = {"enabled": False, "url": "http://127.0.0.1:1234/v1/chat/completions", "model": "", "timeout_seconds": 8}
+_CONNECTION_FAILURES: dict[str, float] = {}  # Chỉ URL và mốc lỗi, không lưu nội dung AI.
+_CONNECTION_RETRY_SECONDS = 15
 _TAILSCALE = tuple(ipaddress.ip_network(n) for n in ("100.64.0.0/10", "fd7a:115c:a1e0::/48"))
 _ALLOWED_NETWORKS = tuple(ipaddress.ip_network(n) for n in (
     "127.0.0.0/8", "::1/128", "10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16",
@@ -41,10 +44,12 @@ def _parse_url(url: str):
             raise ValueError(shape)
     except ValueError:
         raise ValueError(shape) from None
+    if parsed.hostname == "localhost":
+        parsed = parsed._replace(netloc=f"127.0.0.1:{parsed.port}")
     try:
         address = ipaddress.ip_address(parsed.hostname or "")
     except ValueError:
-        raise ValueError("Hãy dùng IP của máy AI, không dùng tên miền hoặc localhost; Local AI không tra DNS.") from None
+        raise ValueError("Hãy dùng IP của máy AI hoặc localhost, không dùng tên miền; Local AI không tra DNS.") from None
     if not any(address in network for network in _ALLOWED_NETWORKS):
         raise ValueError("Hãy dùng IP máy này, mạng nội bộ RFC1918 hoặc Tailscale (100.64.0.0/10); "
                          "không dùng IP công cộng hoặc link-local.")
@@ -91,7 +96,7 @@ def local_ai_settings(settings: dict | None) -> dict:
                 value[key] = raw[key]
     value["error"] = ""
     try:
-        _parse_url(str(value["url"]))
+        value["url"] = _parse_url(str(value["url"])).geturl()
         problem = _model_problem(raw if isinstance(raw, dict) else value)
         if problem:
             raise ValueError(problem)
@@ -140,6 +145,10 @@ class _IPHandler(urllib.request.HTTPHandler):
         return self.do_open(lambda host, **kw: _IPConnection(host, source=self._source, **kw), req)
 
 
+class _LocalAIUnavailable(ValueError):
+    """Lỗi kết nối có thể thử lại sau khoảng nghỉ ngắn."""
+
+
 def _read_json(opener, url: str, timeout: int, body: bytes | None = None):
     request = urllib.request.Request(url, data=body, headers={"Content-Type": "application/json"})
     try:
@@ -148,7 +157,9 @@ def _read_json(opener, url: str, timeout: int, body: bytes | None = None):
     except urllib.error.URLError as exc:
         if isinstance(exc, urllib.error.HTTPError):
             raise
-        raise ValueError("Chưa kết nối được máy AI; hãy kiểm tra IP, cổng, LAN/Tailscale và bật máy AI.") from exc
+        raise _LocalAIUnavailable("Chưa kết nối được máy AI; hãy kiểm tra IP, cổng, LAN/Tailscale và bật máy AI.") from exc
+    except (OSError, http.client.HTTPException) as exc:
+        raise _LocalAIUnavailable("Chưa kết nối được máy AI; hãy kiểm tra IP, cổng, LAN/Tailscale và bật máy AI.") from exc
     if len(raw) > 2_000_000:
         raise ValueError("Phản hồi Local AI quá lớn; hãy kiểm tra máy AI.")
     try:
@@ -186,9 +197,9 @@ def _check_model(opener, settings: dict):
         if exc.code in (404, 405):
             return
         raise ValueError("Không kiểm tra được model; hãy kiểm tra dịch vụ Local AI.") from None
-    entries = tags.get("models", []) if isinstance(tags, dict) else []
+    entries = tags.get("models") if isinstance(tags, dict) else None
     if not isinstance(entries, list):
-        entries = []
+        return  # LM Studio có thể trả 200 cho đường dẫn không phải của Ollama.
     entry = next((m for m in entries if isinstance(m, dict) and any(
         str(m.get(key) or "").removesuffix(":latest") == model.removesuffix(":latest")
         for key in ("name", "model"))), None)
@@ -202,6 +213,7 @@ def _check_model(opener, settings: dict):
 def _ask(settings: dict, prompt: str, transport=None) -> str:
     """One chat completion; ``transport`` is injectable for tests."""
     parsed = _parse_url(str(settings["url"]))
+    settings = {**settings, "url": parsed.geturl()}
     problem = _model_problem(settings)
     if problem:
         raise ValueError(problem)
@@ -233,6 +245,12 @@ def choose_counterparty(settings: dict, statement_name: str, description: str, o
     settings = local_ai_settings({"local_ai": settings} if settings and "enabled" in settings else settings)
     if not settings["enabled"] or len(options) < 2:
         return None
+    now = time.monotonic()
+    for url, failed_at in tuple(_CONNECTION_FAILURES.items()):
+        if now - failed_at >= _CONNECTION_RETRY_SECONDS:
+            _CONNECTION_FAILURES.pop(url, None)
+    if settings["url"] in _CONNECTION_FAILURES:
+        return None
     codes = {str(item.get("code")): str(item.get("name") or "") for item in options if item.get("code")}
     if len(codes) < 2:
         return None
@@ -244,8 +262,12 @@ def choose_counterparty(settings: dict, statement_name: str, description: str, o
               "Trả lời đúng một dòng dạng: MA=<mã> | LY_DO=<một câu ngắn>")
     try:
         answer = _ask(settings, prompt, transport)
+    except (_LocalAIUnavailable, OSError, http.client.HTTPException):
+        _CONNECTION_FAILURES[settings["url"]] = time.monotonic()
+        return None
     except Exception:  # noqa: BLE001 - a hint source must never break a proposal
         return None
+    _CONNECTION_FAILURES.pop(settings["url"], None)
     found = re.search(r"MA\s*=\s*([^|\n]+)", answer or "")
     code = found.group(1).strip() if found else ""
     if not code or code.upper() == "KHONG" or code not in codes:
