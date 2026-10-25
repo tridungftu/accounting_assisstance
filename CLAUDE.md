@@ -16,6 +16,7 @@
 - Kho thật `var\plhn-that`, `var\web-that`, `cau_hinh.that.toml`: không đọc/sửa qua công cụ; kho thật vẫn SQLite. Không đọc `.env`.
 - M9 · Vốn vay & đầu tư tài chính dừng. Không bật cloud, không nhập Junsky, không gọi cổng thuế thật, không Request thật, không Word COM (xuất DOCX; PDF tạm xuất tay).
 - Dữ liệu thử chỉ DEMO; không đưa dữ liệu thật vào `tests\fixtures`.
+- **Không khởi động/dừng PostgreSQL DEMO hay server DEMO trong sandbox Codex** (`codex exec`): Codex tự cập nhật sẽ giết mọi tiến trình con trong sandbox — đã làm sập cụm 5432 hai lần (23/10, 25/10; `docs\46-chuyen-doi-dieu-phoi\SU-CO-POSTGRES-DEMO.md`). Chỉ lead khởi động, ngoài sandbox; Codex chỉ chạy test thuần/mock.
 
 ## 3. Trạng thái git (lead cập nhật, 24/10/2026 chiều)
 
