@@ -237,6 +237,31 @@ def _ask(settings: dict, prompt: str, transport=None) -> str:
         return ""
 
 
+LocalAIUnavailable = _LocalAIUnavailable  # Tên công khai cho cổng AI (AI-2a, ``tri_thuc.cong_ai``).
+
+
+def ask_local(settings: dict | None, prompt: str, transport=None) -> str:
+    """AI-2a: một lượt hỏi Local AI cho cổng AI dùng chung (``tri_thuc.cong_ai``).
+
+    Cùng kiểm tra địa chỉ/model và cùng khoảng nghỉ 15 giây sau lỗi kết nối như ``choose_counterparty``.
+    Ném ``LocalAIUnavailable`` khi Local AI tắt, cài đặt sai, đang nghỉ sau lỗi hoặc không kết nối được;
+    ``ValueError`` khi máy AI từ chối hoặc model không hợp lệ. Không ghi nội dung câu hỏi/câu trả lời.
+    """
+    settings = local_ai_settings({"local_ai": settings} if settings and "enabled" in settings else settings)
+    if not settings["enabled"]:
+        raise _LocalAIUnavailable(settings["error"] or "Local AI đang tắt trong cài đặt.")
+    failed_at = _CONNECTION_FAILURES.get(settings["url"])
+    if failed_at is not None and time.monotonic() - failed_at < _CONNECTION_RETRY_SECONDS:
+        raise _LocalAIUnavailable("Máy AI vừa không kết nối được; thử lại sau ít giây.")
+    try:
+        answer = _ask(settings, prompt, transport)
+    except (_LocalAIUnavailable, OSError, http.client.HTTPException):
+        _CONNECTION_FAILURES[settings["url"]] = time.monotonic()
+        raise _LocalAIUnavailable("Chưa kết nối được máy AI; hãy kiểm tra IP, cổng, LAN/Tailscale và bật máy AI.") from None
+    _CONNECTION_FAILURES.pop(settings["url"], None)
+    return answer
+
+
 def choose_counterparty(settings: dict, statement_name: str, description: str, options: list[dict], transport=None) -> dict | None:
     """Hỏi AI cục bộ chọn một mã trong các ứng viên; None khi tắt, lỗi hoặc không chắc.
 
