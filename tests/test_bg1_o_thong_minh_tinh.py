@@ -760,5 +760,58 @@ class SeamBg1c(unittest.TestCase):
             self.assertEqual(h.send_content.call_args.args[0], 403)  # danh tính không nhận từ trình duyệt
 
 
+class LoiTheoTruong(unittest.TestCase):
+    """Vòng 2 (review): lỗi nhập mang trường (DataError.locator) và HTTP giữ `truong` trong JSON lỗi — như lỗi theo trường của ô thông minh."""
+
+    def test_ty_gia_don_gia_dien_tich_va_lich_co_truong(self):
+        ca = [("fx.ty_gia", "CRM_GK_SO_SAI", {"fx": {"cap": "USD/VND", "ty_gia": v}}) for v in ("-1", "abc", "1" * 25, "1.5.0", "1,5", 25500)]
+        ca += [("fx.ty_gia", "CRM_GK_FX_SAI", {"fx": {"cap": "USD/VND", "ty_gia": v}}) for v in ("0", "0.000")]
+        ca += [("fx.cap", "CRM_GK_FX_SAI", {"fx": {"cap": "EUR/VND", "ty_gia": "25500"}}),
+               ("fx.ngay", "CRM_G_YEU_CAU_SAI", {"fx": {"cap": "USD/VND", "ty_gia": "25500", "ngay": "25/10/2026"}}),
+               ("fx", "CRM_GK_YEU_CAU_SAI", {"fx": {"ty_gia": "25500", "nguoi_nhap": "X"}}),
+               ("gia.don_gia", "CRM_GK_SO_SAI", {"gia": {"tien_te": "USD", "don_gia": "-100", "dien_tich": "15000"}}),
+               ("gia.dien_tich", "CRM_GK_SO_SAI", {"gia": {"tien_te": "USD", "don_gia": "100", "dien_tich": "15.000,5"}}),
+               ("gia.tong", "CRM_GK_SO_SAI", {"gia": {"tien_te": "VND", "tong": "1e9"}}),
+               ("gia.tien_te", "CRM_GK_YEU_CAU_SAI", {"gia": {"tien_te": "EUR"}}),
+               ("phi_bao_tri.gia_tri", "CRM_GK_SO_SAI", {"phi_bao_tri": {"gia_tri": "-1", "tien_te": "VND"}}),
+               ("lich.1.so_tien", "CRM_GK_SO_SAI", {"lich": [{"gia_tri_nhap": "30%"}, {"loai": "AMOUNT", "so_tien": "-5"}]}),
+               ("lich.0.moc_ngay", "CRM_G_YEU_CAU_SAI", {"lich": [{"gia_tri_nhap": "100%", "moc_loai": "NGAY", "moc_ngay": "2026-02-30"}]}),
+               ("het_han", "CRM_G_YEU_CAU_SAI", {"het_han": "31/12/2026"})]
+        for truong, ma, sua in ca:
+            with self.subTest(truong=truong, sua=sua):
+                with self.assertRaises(DataError) as cm:
+                    GK.chuan_hoa_bao_gia(bao_gia(**sua))
+                self.assertEqual((cm.exception.code, cm.exception.locator), (ma, truong))
+        with self.assertRaises(DataError) as cm:  # Lưu báo giá VND kèm tỷ giá khác 1
+            GK._chan_ty_gia_vnd(GK.chuan_hoa_bao_gia(bao_gia(gia={"tien_te": "VND", "tong": "1000"})))
+        self.assertEqual((cm.exception.code, cm.exception.locator), ("CRM_GK_FX_SAI", "fx.ty_gia"))
+
+    def test_http_tra_truong_trong_json_loi(self):
+        s = GK.CrmGiaoKetK2(SimpleNamespace(root=".", danh_tinh=mock.Mock(return_value={"id": "U1", "dang_nhap": "nguoi-thu"}),
+                                            _tx=mock.Mock(side_effect=AssertionError("không mở giao dịch khi dữ liệu sai")),
+                                            hom_nay=lambda: date(2026, 10, 25), conn_tin_cay=object()))
+        h = SimpleNamespace(crm_sid=lambda: "sid", send_content=mock.Mock())
+        app = SimpleNamespace(mutation_lock=nullcontext(), crm_phien=lambda sid: (None, "nguoi-thu", None), _crm_db=lambda f, *a, **kw: f(*a, **kw))
+        with mock.patch.object(HTTP, "dich_vu_gk", return_value=s):
+            for ty_gia, ma in (("-1", "CRM_GK_SO_SAI"), ("0", "CRM_GK_FX_SAI"), ("٢٥٩٩٩.٥", "CRM_GK_SO_SAI")):
+                with self.subTest(ty_gia=ty_gia):
+                    h.json_body = lambda ty_gia=ty_gia: {"du_lieu": bao_gia(fx={"cap": "USD/VND", "ty_gia": ty_gia})}
+                    HTTP.dieu_huong(h, app, True, "/api/crm/bao-gia/xem-truoc", {})
+                    code, body = h.send_content.call_args.args
+                    self.assertEqual((code, body["error"], body["truong"]), (400, ma, "fx.ty_gia"))
+                    self.assertTrue(body["message"])
+            h.json_body = lambda: {"du_lieu": bao_gia(gia={"tien_te": "USD", "don_gia": "100", "dien_tich": "١٥٠٠٠"})}
+            HTTP.dieu_huong(h, app, True, "/api/crm/bao-gia/xem-truoc", {})
+            self.assertEqual(h.send_content.call_args.args[1]["truong"], "gia.dien_tich")
+            h.json_body = lambda: {"du_lieu": bao_gia(), "nguoi": "khac"}  # lỗi không gắn trường: giữ nguyên hình dạng cũ
+            HTTP.dieu_huong(h, app, True, "/api/crm/bao-gia/xem-truoc", {})
+            self.assertEqual(set(h.send_content.call_args.args[1]), {"error", "message"})
+        with mock.patch.object(HTTP, "dich_vu_gk", return_value=s):
+            h.json_body = lambda: {"ty_gia": "26000%"}
+            HTTP.dieu_huong(h, app, True, "/api/crm/bao-gia/ty-gia-mac-dinh", {})
+            self.assertEqual(h.send_content.call_args.args[0], 400)
+            self.assertEqual(h.send_content.call_args.args[1]["truong"], "ty_gia")
+
+
 if __name__ == "__main__":
     unittest.main()

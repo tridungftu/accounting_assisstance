@@ -98,41 +98,51 @@ def danh_muc_moc_chuan() -> dict:
                             {"mau_ma": "SAU_KY_<n>", "nhan": "Sau ký + n ngày", "tham_so": "n", "toi_thieu": 0}]}
 
 
-def _loi(ma: str, msg: str):
-    raise DataError(ma, msg)
+def _loi(ma: str, msg: str, truong: str = "$"):
+    """Lỗi nhập; `truong` (vd "fx.ty_gia", "lich.0.so_tien") đi theo DataError.locator để HTTP trả về màn hình (lỗi theo trường)."""
+    raise DataError(ma, msg, truong)
 
 
-def _str(v, ten: str, toi_da: int, *, ngoac: bool = False):
+def _str(v, ten: str, toi_da: int, *, ngoac: bool = False, truong: str = "$"):
     if v is None or v == "":
         return None
     if not isinstance(v, str) or len(v) > toi_da or any(ord(c) < 32 for c in v) or (not ngoac and ("{" in v or "}" in v)):
-        _loi("CRM_GK_YEU_CAU_SAI", f"Trường {ten} không hợp lệ (chuỗi ≤ {toi_da}, không ký tự điều khiển/ngoặc nhọn).")
+        _loi("CRM_GK_YEU_CAU_SAI", f"Trường {ten} không hợp lệ (chuỗi ≤ {toi_da}, không ký tự điều khiển/ngoặc nhọn).", truong)
     return v
 
 
-def _so(v, ten: str):
-    """Số thập phân KHÔNG ÂM dạng chuỗi chính xác ('1234.5'); sai dạng/vượt miền → lỗi rõ (không làm tròn/không thành 0)."""
+def _so(v, ten: str, truong: str = "$"):
+    """Số thập phân KHÔNG ÂM dạng chuỗi chính xác ('1234.5'), CHỈ chữ số ASCII; sai dạng/vượt miền → lỗi theo trường (không làm tròn/không thành 0)."""
     if v is None or v == "":
         return None
     if not isinstance(v, str) or not RE_SO.fullmatch(v):
-        _loi("CRM_GK_SO_SAI", f"{ten} phải là số thập phân không âm dạng chuỗi, dấu chấm thập phân, ≤ 24 chữ số nguyên/12 chữ số lẻ.")
+        _loi("CRM_GK_SO_SAI", f"{ten} phải là số thập phân không âm dạng chuỗi (chữ số 0–9), dấu chấm thập phân, ≤ 24 chữ số nguyên/12 chữ số lẻ.",
+             truong)
     return v
 
 
-def _chon(v, ten: str, cho_phep: tuple):
+def _chon(v, ten: str, cho_phep: tuple, truong: str = "$"):
     if v is None or v == "":
         return None
     if v not in cho_phep:
-        _loi("CRM_GK_YEU_CAU_SAI", f"Trường {ten} chỉ nhận: {', '.join(cho_phep)}.")
+        _loi("CRM_GK_YEU_CAU_SAI", f"Trường {ten} chỉ nhận: {', '.join(cho_phep)}.", truong)
     return v
 
 
-def _obj(v, ten: str, khoa: set) -> dict:
+def _obj(v, ten: str, khoa: set, truong: str = "$") -> dict:
     if v is None:
         return {}
     if not isinstance(v, dict) or set(v) - khoa:
-        _loi("CRM_GK_YEU_CAU_SAI", f"Nhóm {ten} có trường ngoài phạm vi.")
+        _loi("CRM_GK_YEU_CAU_SAI", f"Nhóm {ten} có trường ngoài phạm vi.", truong)
     return v
+
+
+def _ngay_t(v, ten: str, truong: str) -> str:
+    """Ngày YYYY-MM-DD (bộ kiểm của G1) + gắn trường cho lỗi."""
+    try:
+        return _ngay(v, ten)
+    except DataError as exc:
+        raise DataError(exc.code, str(exc), truong) from None
 
 
 def _uuid_hoac_none(v, ten):
@@ -236,7 +246,7 @@ def loai_hinh_co_phi(cau_hinh) -> bool:
 def _chan_ty_gia_vnd(d: dict) -> None:
     """Lệnh Lưu: báo giá VND chỉ có tỷ giá 1 (QD-20261025-01) — không lưu tỷ giá khác (xem trước báo lỗi tại trường fx.ty_gia)."""
     if d["gia"]["tien_te"] == "VND" and d.get("fx"):
-        _loi("CRM_GK_FX_SAI", "Báo giá VND có tỷ giá cố định bằng 1 — bỏ tỷ giá hoặc chọn tiền tệ USD.")
+        _loi("CRM_GK_FX_SAI", "Báo giá VND có tỷ giá cố định bằng 1 — bỏ tỷ giá hoặc chọn tiền tệ USD.", "fx.ty_gia")
 
 
 # ================================================================================================== chuẩn hóa dữ liệu nhập
@@ -244,10 +254,11 @@ def _dong_lich(rows) -> list[dict]:
     if rows is None:
         return []
     if not isinstance(rows, list) or len(rows) > 200:
-        _loi("CRM_GK_LICH_SAI", "Lịch tối đa 200 dòng.")
+        _loi("CRM_GK_LICH_SAI", "Lịch tối đa 200 dòng.", "lich")
     out, ids = [], set()
     for i, r in enumerate(rows, start=1):
-        r = _obj(r, f"lịch dòng {i}", {"dong_id", "lan", "loai", "ty_le", "so_tien", "tien_te", "moc_loai", "moc_ngay", "moc_su_kien", "ghi_chu", "gia_tri_nhap"})
+        o = f"lich.{i - 1}"
+        r = _obj(r, f"lịch dòng {i}", {"dong_id", "lan", "loai", "ty_le", "so_tien", "tien_te", "moc_loai", "moc_ngay", "moc_su_kien", "ghi_chu", "gia_tri_nhap"}, o)
         nhap = None
         if "gia_tri_nhap" in r:
             nhap = r["gia_tri_nhap"]
@@ -255,24 +266,26 @@ def _dong_lich(rows) -> list[dict]:
             # Ô thông minh là nguồn duy nhất khi có mặt, kể cả rỗng/sai; bỏ giá trị typed cũ còn trên form.
             r = {**r, "loai": loai_nhap, "ty_le": so if loai_nhap == "PERCENT" else None,
                  "so_tien": so if loai_nhap == "AMOUNT" else None, "tien_te": None}
-        loai = _chon(r.get("loai"), f"loại giá trị dòng {i}", ("PERCENT", "AMOUNT"))
-        ml = _chon(r.get("moc_loai"), f"loại mốc dòng {i}", ("NGAY", "SU_KIEN"))
-        d = {"dong_id": _uuid_hoac_none(r.get("dong_id"), f"dong_id dòng {i}"), "lan": _str(r.get("lan"), f"lần dòng {i}", 40) or str(i),
-             "loai": loai, "ty_le": _so(r.get("ty_le"), f"tỷ lệ dòng {i}"), "so_tien": _so(r.get("so_tien"), f"số tiền dòng {i}"),
-             "tien_te": _chon(r.get("tien_te"), f"tiền tệ dòng {i}", TIEN_TE), "moc_loai": ml,
-             "moc_ngay": _ngay(r["moc_ngay"], f"Mốc ngày dòng {i}") if r.get("moc_ngay") else None,
-             "moc_su_kien": _str(r.get("moc_su_kien"), f"sự kiện dòng {i}", 80), "ghi_chu": _str(r.get("ghi_chu"), f"ghi chú dòng {i}", 1000)}
+        loai = _chon(r.get("loai"), f"loại giá trị dòng {i}", ("PERCENT", "AMOUNT"), f"{o}.loai")
+        ml = _chon(r.get("moc_loai"), f"loại mốc dòng {i}", ("NGAY", "SU_KIEN"), f"{o}.moc_loai")
+        d = {"dong_id": _uuid_hoac_none(r.get("dong_id"), f"dong_id dòng {i}"), "lan": _str(r.get("lan"), f"lần dòng {i}", 40, truong=f"{o}.lan") or str(i),
+             "loai": loai, "ty_le": _so(r.get("ty_le"), f"tỷ lệ dòng {i}", f"{o}.ty_le"),
+             "so_tien": _so(r.get("so_tien"), f"số tiền dòng {i}", f"{o}.so_tien"),
+             "tien_te": _chon(r.get("tien_te"), f"tiền tệ dòng {i}", TIEN_TE, f"{o}.tien_te"), "moc_loai": ml,
+             "moc_ngay": _ngay_t(r["moc_ngay"], f"Mốc ngày dòng {i}", f"{o}.moc_ngay") if r.get("moc_ngay") else None,
+             "moc_su_kien": _str(r.get("moc_su_kien"), f"sự kiện dòng {i}", 80, truong=f"{o}.moc_su_kien"),
+             "ghi_chu": _str(r.get("ghi_chu"), f"ghi chú dòng {i}", 1000, truong=f"{o}.ghi_chu")}
         if "gia_tri_nhap" in r:
             d["gia_tri_nhap"] = nhap
         if d["moc_su_kien"] is not None and not RE_MA.fullmatch(d["moc_su_kien"]):
-            _loi("CRM_GK_LICH_SAI", f"Sự kiện dòng {i} chỉ gồm chữ/số/_ . - (1–80).")
+            _loi("CRM_GK_LICH_SAI", f"Sự kiện dòng {i} chỉ gồm chữ/số/_ . - (1–80).", f"{o}.moc_su_kien")
         if (loai == "PERCENT" and d["so_tien"] is not None) or (loai == "AMOUNT" and d["ty_le"] is not None) or \
                 (loai is None and (d["ty_le"] is not None or d["so_tien"] is not None)):
-            _loi("CRM_GK_LICH_SAI", f"Dòng {i}: giá trị phải khớp loại (tỷ lệ % hoặc số tiền) — không suy từ nhãn.")
+            _loi("CRM_GK_LICH_SAI", f"Dòng {i}: giá trị phải khớp loại (tỷ lệ % hoặc số tiền) — không suy từ nhãn.", o)
         if (ml == "NGAY" and d["moc_su_kien"]) or (ml == "SU_KIEN" and d["moc_ngay"]) or (ml is None and (d["moc_ngay"] or d["moc_su_kien"])):
-            _loi("CRM_GK_LICH_SAI", f"Dòng {i}: mốc phải khớp loại (ngày hoặc sự kiện).")
+            _loi("CRM_GK_LICH_SAI", f"Dòng {i}: mốc phải khớp loại (ngày hoặc sự kiện).", f"{o}.moc_loai")
         if d["dong_id"] in ids and d["dong_id"] is not None:
-            _loi("CRM_GK_LICH_SAI", "Trùng mã dòng lịch.")
+            _loi("CRM_GK_LICH_SAI", "Trùng mã dòng lịch.", f"{o}.dong_id")
         ids.add(d["dong_id"])
         out.append(d)
     return out
@@ -286,64 +299,67 @@ def chuan_hoa_bao_gia(du_lieu, *, fx_mac_dinh: dict | None = None, hom_nay: str 
     lại để phép tính báo lỗi tại trường `fx.ty_gia` và lệnh Lưu từ chối."""
     d = _obj(du_lieu, "báo giá", KHOA_BG)
     if d.get("tien_chinh") not in (None, "", TIEN_CHINH):
-        _loi("CRM_GK_YEU_CAU_SAI", "Tiền chính của báo giá do máy chủ đặt (VND).")
-    gia = _obj(d.get("gia"), "giá", {"tien_te", "don_gia", "dien_tich", "tong", "co_so_thue", "vat_phan_tram"})
+        _loi("CRM_GK_YEU_CAU_SAI", "Tiền chính của báo giá do máy chủ đặt (VND).", "tien_chinh")
+    gia = _obj(d.get("gia"), "giá", {"tien_te", "don_gia", "dien_tich", "tong", "co_so_thue", "vat_phan_tram"}, "gia")
     fx = d.get("fx")
     pbt = d.get("phi_bao_tri")
-    khach = _obj(d.get("khach"), "khách", {"doi_tac_id", "du_thao"})
-    du_thao = _obj(khach.get("du_thao"), "khách dự thảo", {"ten", "lien_he"})
-    don_vi = _obj(d.get("don_vi"), "đơn vị", {"ma", "mo_ta", "can_cu"})  # can_cu luôn do máy chủ đặt (chưa có nguồn lô/căn) — giá trị gửi lên bị bỏ
+    khach = _obj(d.get("khach"), "khách", {"doi_tac_id", "du_thao"}, "khach")
+    du_thao = _obj(khach.get("du_thao"), "khách dự thảo", {"ten", "lien_he"}, "khach.du_thao")
+    don_vi = _obj(d.get("don_vi"), "đơn vị", {"ma", "mo_ta", "can_cu"}, "don_vi")  # can_cu luôn do máy chủ đặt (chưa có nguồn lô/căn) — giá trị gửi lên bị bỏ
     out = {
         "phien_ban_du_lieu": PHIEN_BAN_BG,
         "tien_chinh": TIEN_CHINH,
         "loai_hinh_id": _uuid(d.get("loai_hinh_id"), "loai_hinh_id"),
         "du_an_id": _uuid_hoac_none(d.get("du_an_id"), "du_an_id"),
-        "giai_doan_g7": _str(d.get("giai_doan_g7"), "giai đoạn bộ chuẩn", 80),
-        "nguon_lich": _chon(d.get("nguon_lich"), "nguồn lịch", ("DU_AN", "KHACH")) or "KHACH",
-        "don_vi": {"ma": _str(don_vi.get("ma"), "mã lô/căn", 80), "mo_ta": _str(don_vi.get("mo_ta"), "mô tả lô/căn", 300), "can_cu": None},
+        "giai_doan_g7": _str(d.get("giai_doan_g7"), "giai đoạn bộ chuẩn", 80, truong="giai_doan_g7"),
+        "nguon_lich": _chon(d.get("nguon_lich"), "nguồn lịch", ("DU_AN", "KHACH"), "nguon_lich") or "KHACH",
+        "don_vi": {"ma": _str(don_vi.get("ma"), "mã lô/căn", 80, truong="don_vi.ma"),
+                   "mo_ta": _str(don_vi.get("mo_ta"), "mô tả lô/căn", 300, truong="don_vi.mo_ta"), "can_cu": None},
         "khach": {"doi_tac_id": _uuid_hoac_none(khach.get("doi_tac_id"), "doi_tac_id"),
-                  "du_thao": None if not du_thao else {"ten": _str(du_thao.get("ten"), "tên khách dự thảo", 300),
-                                                       "lien_he": _str(du_thao.get("lien_he"), "liên hệ", 300)}},
-        "gia": {"tien_te": _chon(gia.get("tien_te"), "tiền tệ", TIEN_TE), "don_gia": _so(gia.get("don_gia"), "đơn giá"),
-                "dien_tich": _so(gia.get("dien_tich"), "diện tích"), "tong": _so(gia.get("tong"), "tổng giá trị"),
-                "co_so_thue": _chon(gia.get("co_so_thue"), "cơ sở thuế", ("NET", "GROSS")), "vat_phan_tram": _so(gia.get("vat_phan_tram"), "VAT %")},
+                  "du_thao": None if not du_thao else {"ten": _str(du_thao.get("ten"), "tên khách dự thảo", 300, truong="khach.du_thao.ten"),
+                                                       "lien_he": _str(du_thao.get("lien_he"), "liên hệ", 300, truong="khach.du_thao.lien_he")}},
+        "gia": {"tien_te": _chon(gia.get("tien_te"), "tiền tệ", TIEN_TE, "gia.tien_te"), "don_gia": _so(gia.get("don_gia"), "đơn giá", "gia.don_gia"),
+                "dien_tich": _so(gia.get("dien_tich"), "diện tích", "gia.dien_tich"), "tong": _so(gia.get("tong"), "tổng giá trị", "gia.tong"),
+                "co_so_thue": _chon(gia.get("co_so_thue"), "cơ sở thuế", ("NET", "GROSS"), "gia.co_so_thue"),
+                "vat_phan_tram": _so(gia.get("vat_phan_tram"), "VAT %", "gia.vat_phan_tram")},
         "fx": None, "phi_bao_tri": None,
         "lich": _dong_lich(d.get("lich")),
-        "het_han": _ngay(d["het_han"], "Ngày hết hạn") if d.get("het_han") else None,
-        "ghi_chu": _str(d.get("ghi_chu"), "ghi chú", 2000),
+        "het_han": _ngay_t(d["het_han"], "Ngày hết hạn", "het_han") if d.get("het_han") else None,
+        "ghi_chu": _str(d.get("ghi_chu"), "ghi chú", 2000, truong="ghi_chu"),
     }
     if "tong_gia_tri_ghi_de" in d:
         # Giữ nguyên đầu vào để phép tính trả lỗi tại trường, giống ô thông minh của lịch.
         out["tong_gia_tri_ghi_de"] = d["tong_gia_tri_ghi_de"]
     if out["giai_doan_g7"] is not None and not RE_MA.fullmatch(out["giai_doan_g7"]):
-        _loi("CRM_GK_YEU_CAU_SAI", "Giai đoạn bộ chuẩn chỉ gồm chữ/số/_ . - (1–80).")
+        _loi("CRM_GK_YEU_CAU_SAI", "Giai đoạn bộ chuẩn chỉ gồm chữ/số/_ . - (1–80).", "giai_doan_g7")
     tt = out["gia"]["tien_te"]
     if fx not in (None, {}):
-        fx = _obj(fx, "tỷ giá", {"cap", "ty_gia", "ngay"})
+        fx = _obj(fx, "tỷ giá", {"cap", "ty_gia", "ngay"}, "fx")
         if tt == "VND":
             # Báo giá VND: tỷ giá khóa = 1. Không gửi/gửi 1 → bỏ khối; khác 1 → giữ để báo lỗi theo trường (VND_TY_GIA_KHAC_1), Lưu từ chối.
-            tg = _so(fx.get("ty_gia"), "tỷ giá")
+            tg = _so(fx.get("ty_gia"), "tỷ giá", "fx.ty_gia")
             if tg is not None and Fraction(Decimal(tg)) != 1:
                 out["fx"] = {"cap": "USD/VND", "ty_gia": tg, "ngay": None}
         else:
             if fx.get("cap") not in (None, "", "USD/VND"):
-                _loi("CRM_GK_FX_SAI", "Tỷ giá chỉ nhận cặp USD/VND (nhập tay).")
-            tg = _so(fx.get("ty_gia"), "tỷ giá")
+                _loi("CRM_GK_FX_SAI", "Tỷ giá chỉ nhận cặp USD/VND (nhập tay).", "fx.cap")
+            tg = _so(fx.get("ty_gia"), "tỷ giá", "fx.ty_gia")
             if tg is None or Fraction(Decimal(tg)) <= 0:
-                _loi("CRM_GK_FX_SAI", "Tỷ giá phải dương.")
+                _loi("CRM_GK_FX_SAI", "Tỷ giá phải dương.", "fx.ty_gia")
             ngay = fx.get("ngay")
             if ngay in (None, "") and hom_nay:
                 ngay = hom_nay
-            out["fx"] = {"cap": "USD/VND", "ty_gia": tg, "ngay": _ngay(ngay, "Ngày tỷ giá") if ngay not in (None, "") else None}
+            out["fx"] = {"cap": "USD/VND", "ty_gia": tg, "ngay": _ngay_t(ngay, "Ngày tỷ giá", "fx.ngay") if ngay not in (None, "") else None}
     elif tt == "USD" and fx_mac_dinh:
-        out["fx"] = {"cap": "USD/VND", "ty_gia": _so(fx_mac_dinh["ty_gia"], "tỷ giá mặc định"), "ngay": fx_mac_dinh.get("ngay") or hom_nay}
+        out["fx"] = {"cap": "USD/VND", "ty_gia": _so(fx_mac_dinh["ty_gia"], "tỷ giá mặc định", "fx.ty_gia"), "ngay": fx_mac_dinh.get("ngay") or hom_nay}
         nguon = fx_mac_dinh.get("nguon", "MAC_DINH")  # None = tỷ giá đã lưu do người nhập (giữ nguyên, không gắn nhãn mặc định)
         if nguon:
             out["fx"]["nguon"] = nguon
     if pbt not in (None, {}):
-        pbt = _obj(pbt, "phí bảo trì", {"gia_tri", "tien_te", "co_so"})
-        out["phi_bao_tri"] = {"gia_tri": _so(pbt.get("gia_tri"), "phí bảo trì"), "tien_te": _chon(pbt.get("tien_te"), "tiền tệ phí bảo trì", TIEN_TE),
-                              "co_so": _str(pbt.get("co_so"), "cơ sở phí bảo trì", 300)}
+        pbt = _obj(pbt, "phí bảo trì", {"gia_tri", "tien_te", "co_so"}, "phi_bao_tri")
+        out["phi_bao_tri"] = {"gia_tri": _so(pbt.get("gia_tri"), "phí bảo trì", "phi_bao_tri.gia_tri"),
+                              "tien_te": _chon(pbt.get("tien_te"), "tiền tệ phí bảo trì", TIEN_TE, "phi_bao_tri.tien_te"),
+                              "co_so": _str(pbt.get("co_so"), "cơ sở phí bảo trì", 300, truong="phi_bao_tri.co_so")}
     return out
 
 
@@ -634,6 +650,13 @@ def chuan_hoa_truong(kieu: str, v):
     _loi("CRM_GK_KIEU_KHONG_HO_TRO", f"Kiểu trường '{kieu}' chưa hỗ trợ soạn.")
 
 
+def _truong_hd(khoa: str, kieu: str, v):
+    try:
+        return chuan_hoa_truong(kieu, v)
+    except DataError as exc:
+        raise DataError(exc.code, str(exc), f"gia_tri_truong.{khoa}" if exc.locator in (None, "", "$") else exc.locator) from None
+
+
 def hien_thi_truong(t: dict, v) -> str:
     """Chuỗi hiển thị của giá trị ĐÃ typed theo định dạng của danh mục; định dạng lạ → LoiRender (không xuất giả)."""
     if v is None:
@@ -792,9 +815,9 @@ class CrmGiaoKetK2:
         m, dt = self.mau, self.mau.danh_tinh(dang_nhap)
         loai, so, loi = _gia_tri_nhap(ty_gia) if ty_gia is not None else (None, None, "Chưa nhập tỷ giá.")
         if loi or loai != "AMOUNT" or so is None or Fraction(Decimal(so)) <= 0:
-            _loi("CRM_GK_FX_SAI", "Tỷ giá phải là số dương kiểu Việt (vd 26.000 hoặc 25.950,5), không có %." if not loi else loi)
+            _loi("CRM_GK_FX_SAI", "Tỷ giá phải là số dương kiểu Việt (vd 26.000 hoặc 25.950,5), không có %." if not loi else loi, "ty_gia")
         tg = _frac_str(Fraction(Decimal(so)))
-        ly = _str(ly_do, "lý do", 1000)
+        ly = _str(ly_do, "lý do", 1000, truong="ly_do")
         with m._tx(dt) as c:
             q = self._quyen_ty_gia(c)
             if not q["sua"]:
@@ -1119,7 +1142,7 @@ class CrmGiaoKetK2:
             la = sorted(set(gia_tri_truong) - set(dm))
             if la:
                 _loi("CRM_GK_TRUONG_LA", "Trường không thuộc danh mục của mẫu: " + ", ".join(la[:5]))
-            gt = {k: chuan_hoa_truong(dm[k]["kieu"], v) for k, v in gia_tri_truong.items()}
+            gt = {k: _truong_hd(k, dm[k]["kieu"], v) for k, v in gia_tri_truong.items()}
             bg = s["du_lieu"]["bao_gia"]
             if bao_gia is not None:  # sửa lịch/giá/FX khi soạn: cùng validator báo giá; giữ row ID logic; FX người nhập do máy chủ ghi
                 vao = {**bao_gia, "loai_hinh_id": bg["loai_hinh_id"]} if isinstance(bao_gia, dict) else bao_gia

@@ -153,6 +153,7 @@ class MienDauVao(unittest.TestCase):
                     with self.assertRaises(GK.DataError) as cm:
                         GK.chuan_hoa_bao_gia(du)
                     self.assertEqual(cm.exception.code, "CRM_GK_SO_SAI")
+                    self.assertEqual(cm.exception.locator, truong)
         for v in ("٣٠%", "３０%", "1.٠٠٠", "\u00a039.000"):  # ô thông minh: lỗi theo dòng, không lưu số lạ
             with self.subTest(o=v):
                 _, t = _python(bao_gia(vnd(tong="1000"), (v,)), False)
