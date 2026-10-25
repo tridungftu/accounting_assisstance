@@ -165,18 +165,22 @@ def dich_vu(app):
 def dich_vu_s1(app):
     """Tái dùng hạ tầng G nhưng GET S1 không khởi tạo/đánh thức worker G5.
 
-    Nếu G chưa khởi tạo, kết nối chủ bảng đã kiểm chỉ sống trong lần đọc này.
+    Kết nối chủ bảng riêng đã kiểm chỉ sống trong lần đọc này, kể cả khi G đã khởi tạo.
     Không công bố `_crm_g` để giữ nguyên lifecycle factory G hiện hành.
     """
-    svc = app.__dict__.get("_crm_g")
-    if svc is not None:
-        yield svc
-        return
     from ..k2.crm_mau import CrmMauK2
-    crm = app.crm()
-    chu = app._m5_ket_noi_chu(crm.conn)
+    # Kết nối riêng: đọc RR không chiếm kết nối/lệnh ghi của G/G5.
+    with app.mutation_lock:
+        crm = app.crm()
+        try:
+            chu = app._m5_ket_noi_chu(crm.conn)
+        except DataError:
+            raise DataError("CRM_G_CHUA_SAN_SANG", "Chưa có kết nối đọc CRM tin cậy.") from None
+        hom_nay = crm.hom_nay
+    if chu is None:
+        raise DataError("CRM_G_CHUA_SAN_SANG", "Chưa có kết nối đọc CRM tin cậy.")
     try:
-        yield CrmMauK2(crm.conn, app.root / "crm-g", conn_tin_cay=chu, hom_nay=crm.hom_nay)
+        yield CrmMauK2(chu, app.root / "crm-g", conn_tin_cay=chu, hom_nay=hom_nay)
     finally:
         if chu is not None:
             chu.close()
@@ -454,14 +458,14 @@ def dieu_huong(h, app, post: bool, path: str, query: dict):
                 # Router chung bỏ giá trị rỗng; đọc lại để bắt cả tham số lặp/rỗng.
                 with app.mutation_lock:
                     _, me, _ = app.crm_phien(h.crm_sid())
-                    try:
-                        loc = parse_qs(urlsplit(h.path).query, keep_blank_values=True, max_num_fields=30)
-                    except ValueError:
-                        raise DataError("CRM_S1_THAM_SO_SAI", "Bộ lọc có quá nhiều tham số.") from None
-                    bo_loc(loc)  # từ chối trước factory/kết nối
-                    with dich_vu_s1(app) as mau:
-                        return h.send_content(200, app._crm_db(CrmDanhSachK2(mau).danh_sach, me, loc),
-                                              headers={"Cache-Control": "no-store"})
+                try:
+                    loc = parse_qs(urlsplit(h.path).query, keep_blank_values=True, max_num_fields=30)
+                except ValueError:
+                    raise DataError("CRM_S1_THAM_SO_SAI", "Bộ lọc có quá nhiều tham số.") from None
+                bo_loc(loc)  # từ chối trước factory/kết nối
+                with dich_vu_s1(app) as mau:
+                    data = app._crm_db(CrmDanhSachK2(mau).danh_sach, me, loc)
+                return h.send_content(200, data, headers={"Cache-Control": "no-store"})
             if path == "/api/crm/mau":
                 with app.mutation_lock:
                     _, me, _ = app.crm_phien(h.crm_sid())
