@@ -364,9 +364,16 @@ def _bat_bao_ve_con():
     _gan_loc(kn, tkn)
     p = _tach_dsn(tkn, kn["admin_dsn"])
     so = _SoHuuPg(Path(os.environ["KHO_PG_DEMO_SO"]), os.environ["KHO_PG_DEMO_MA"], _cum(p))
-    goc = psycopg.Cursor.execute
-    if getattr(goc, "_pg_demo", False):
+    # .pth nạp trước sitecustomize; guard có thể bọc execute mà không chép _pg_demo.
+    # _chay_con còn nạp tệp này dưới tên module khác: giữ dấu trên psycopg dùng chung,
+    # không dựa vào hàm ngoài cùng và không tháo/ghi đè guard khi cài lại.
+    khoa_hook = (str(so.tep.resolve()), so.ma, so.cum)
+    da_cai = getattr(psycopg, "_ktt_pg_demo_hook", None)
+    if da_cai is not None:
+        if da_cai[0] != khoa_hook:
+            raise ValueError("Hook PostgreSQL DEMO đã thuộc sổ/lần chạy/cụm khác.")
         return
+    goc = psycopg.Cursor.execute
 
     def execute(cur, query, params=None, **kwargs):
         text = query if isinstance(query, str) else query.as_string(cur.connection) if hasattr(query, "as_string") else ""
@@ -401,6 +408,7 @@ def _bat_bao_ve_con():
 
     execute._pg_demo = True
     psycopg.Cursor.execute = execute
+    psycopg._ktt_pg_demo_hook = (khoa_hook, execute)
 
 
 def _bat_bao_ve_pth():

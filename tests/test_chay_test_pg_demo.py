@@ -1,8 +1,9 @@
-"""L0-8 vòng 2: test thuần sổ sở hữu/biên xuất, tuyệt đối không nối PostgreSQL."""
+"""L0-8: test thuần sổ sở hữu/biên xuất, tuyệt đối không nối PostgreSQL."""
 from __future__ import annotations
 
 import contextlib
 import functools
+import importlib.util
 import io
 import json
 import os
@@ -105,6 +106,7 @@ class PgDemoThuanTests(unittest.TestCase):
         self.so = R._SoHuuPg.tao_moi(self.tep, self.ma, self.cum, self.c.databases)
         fake_pg = types.ModuleType("psycopg")
         fake_pg.Cursor = _Cursor
+        fake_pg.Connection = _Connection
         fake_pg.Error = _PgError
         fake_pg.errors = types.SimpleNamespace(ObjectInUse=type("Busy", (_PgError,), {}), DuplicateDatabase=_Duplicate)
         fake_pg.sql = types.SimpleNamespace(SQL=_Sql, Identifier=Mock(side_effect=_Identifier))
@@ -117,6 +119,7 @@ class PgDemoThuanTests(unittest.TestCase):
         self.stack.enter_context(patch.object(sys, "stdout", sys.stdout))
         self.stack.enter_context(patch.object(sys, "stderr", sys.stderr))
         self.stack.enter_context(patch.object(_Cursor, "execute", _Cursor.execute))
+        self.stack.enter_context(patch.object(_Connection, "execute", _Connection.execute))
 
     def _pg_demo(self):
         pg = object.__new__(R._PgDemo)
@@ -131,12 +134,133 @@ class PgDemoThuanTests(unittest.TestCase):
         pg.khoa = None
         return pg
 
-    def _hook(self, pw="bi-mat-gia-123"):
+    def _hook(self, pw="bi-mat-gia-123", bo_chay=R):
         kn = {"admin_dsn": f"postgresql://demo:{pw}@127.0.0.1:5432/postgres"}
         tkn = types.SimpleNamespace(nap_tep=lambda p: kn)
         with patch.dict(os.environ, {"KHO_PG_DEMO_SO": str(self.tep), "KHO_PG_DEMO_MA": self.ma,
-                                    "KHO_PG_DEMO_KET_NOI": "khong-doc-tep-that"}), patch.object(R, "_nap_tien_ich_dsn", return_value=tkn):
-            R._bat_bao_ve_con()
+                                    "KHO_PG_DEMO_KET_NOI": "khong-doc-tep-that"}), patch.object(bo_chay, "_nap_tien_ich_dsn", return_value=tkn):
+            bo_chay._bat_bao_ve_con()
+
+    def _hook_qua_guard(self):
+        # Thứ tự thật: .pth cài sở hữu -> sitecustomize bọc guard -> _chay_con cài lại.
+        self._hook()
+        cursor_goc, connection_goc = self.pg.Cursor.execute, self.pg.Connection.execute
+        goi_guard = []
+
+        def cursor_guard(cur, query, params=None, **kwargs):
+            goi_guard.append(("cursor", str(query)))
+            if str(query).lstrip().upper().startswith("DROP DATABASE"):
+                return cur  # A517 giữ DROP lại, không gọi lớp bên trong.
+            return cursor_goc(cur, query, params, **kwargs)
+
+        def connection_guard(c, query, params=None):
+            goi_guard.append(("connection", str(query)))
+            if str(query).lstrip().upper().startswith("DROP DATABASE"):
+                return _Cursor(c)
+            return connection_goc(c, query, params)
+
+        # Cố ý không sao chép _pg_demo/__wrapped__, như guard bọc ngoài A517.
+        self.pg.Cursor.execute, self.pg.Connection.execute = cursor_guard, connection_guard
+        self.assertFalse(getattr(cursor_guard, "_pg_demo", False))
+        self._hook()
+        return goi_guard, cursor_guard, connection_guard
+
+    def test_guard_boc_ngoai_create_chi_dang_ky_mot_lan(self):
+        goi_guard, cursor_guard, connection_guard = self._hook_qua_guard()
+        dang_ky_goc = R._SoHuuPg.dang_ky
+        with patch.object(R._SoHuuPg, "dang_ky", autospec=True, side_effect=dang_ky_goc) as dang_ky:
+            for qua_cursor in (False, True):
+                ten = "kho_test_guard_cursor" if qua_cursor else "kho_test_guard_connection"
+                c = _Cursor(self.c) if qua_cursor else self.c
+                self.c.truoc_create = lambda t: self.assertEqual(self.so.doc()["muc"][t]["trang_thai"], "dang_tao")
+                with self.subTest(qua_cursor=qua_cursor):
+                    c.execute(f'CREATE DATABASE "{ten}"')
+                    self.assertEqual(self.so.doc()["muc"][ten]["trang_thai"], "da_tao")
+                    self.assertEqual(len(self.so.doc()["muc"]), 1 + qua_cursor)
+                    self.assertEqual(dang_ky.call_count, 1 + qua_cursor)
+            self.assertEqual(dang_ky.call_count, 2)  # một lần cho mỗi lệnh/kết nối, hai tên khác nhau
+        self.assertEqual(len(self.so.doc()["muc"]), 2)
+        self.assertEqual(sum(q.startswith("CREATE DATABASE") for q in self.c.sql), 2)
+        self.assertEqual(sum(q.startswith("CREATE DATABASE") for _, q in goi_guard), 3)
+        self.assertIs(self.pg.Cursor.execute, cursor_guard)
+        self.assertIs(self.pg.Connection.execute, connection_guard)
+        self.pg.connect.assert_not_called()
+
+    def test_hook_nap_ten_module_khac_khong_cai_lai_qua_guard(self):
+        _, cursor_guard, connection_guard = self._hook_qua_guard()
+        spec = importlib.util.spec_from_file_location("_l08_thu_nap_pth", R.__file__)
+        ban_pth = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(ban_pth)
+        self._hook(bo_chay=ban_pth)
+        self.assertIs(self.pg.Cursor.execute, cursor_guard)
+        self.assertIs(self.pg.Connection.execute, connection_guard)
+        self.c.execute('CREATE DATABASE "kho_test_guard_module_khac"')
+        self.assertEqual(len(self.so.doc()["muc"]), 1)
+        self.assertEqual(sum(q.startswith("CREATE DATABASE") for q in self.c.sql), 1)
+        self.pg.connect.assert_not_called()
+
+    def test_hook_da_cai_khong_chap_nhan_so_khac(self):
+        _, cursor_guard, _ = self._hook_qua_guard()
+        tep_khac = self.root / "so-khac.json"
+        R._SoHuuPg.tao_moi(tep_khac, self.ma, self.cum, self.c.databases)
+        with patch.object(self, "tep", tep_khac), self.assertRaisesRegex(ValueError, "sổ/lần chạy/cụm khác"):
+            self._hook()
+        self.assertIs(self.pg.Cursor.execute, cursor_guard)
+        self.assertEqual(self.so.doc()["muc"], {})
+        self.pg.connect.assert_not_called()
+
+    def test_guard_boc_ngoai_ten_co_san_van_tu_choi(self):
+        self._hook_qua_guard()
+        self.c.databases.add("kho_test_moi_cua_nguoi_khac")  # xuất hiện sau ảnh chụp
+        for ten in ("kho_test_co_san", "kho_test_moi_cua_nguoi_khac"):
+            with self.subTest(ten=ten), self.assertRaisesRegex(ValueError, "tên có sẵn/đã dùng"):
+                self.c.execute(f'CREATE DATABASE "{ten}"')
+        self.assertEqual(self.so.doc()["muc"], {})
+        self.assertFalse(any(q.startswith("CREATE DATABASE") for q in self.c.sql))
+
+    def test_guard_boc_ngoai_lenh_create_moi_khong_duoc_dung_lai_ten(self):
+        self._hook_qua_guard()
+        ten = "kho_test_guard_khong_dung_lai"
+        self.c.execute(f'CREATE DATABASE "{ten}"')
+        c_khac = _Connection(self.c.databases)
+        for c in (self.c, c_khac):
+            with self.subTest(cung_ket_noi=c is self.c), self.assertRaisesRegex(ValueError, "tên có sẵn/đã dùng"):
+                c.execute(f'CREATE DATABASE "{ten}"')
+        self.assertEqual(sum(q.startswith("CREATE DATABASE") for q in self.c.sql + c_khac.sql), 1)
+        self.assertEqual(len(self.so.doc()["muc"]), 1)
+
+    def test_guard_giu_drop_cua_test_de_goi_don_sau_module(self):
+        goi_guard, _, _ = self._hook_qua_guard()
+        ten = "kho_test_guard_giu_drop"
+        self.c.execute(f'CREATE DATABASE "{ten}"')
+        for c in (self.c, _Cursor(self.c)):
+            c.execute(f'DROP DATABASE "{ten}"')
+        self.assertIn(ten, self.c.databases)
+        self.assertEqual(self.so.doc()["muc"][ten]["trang_thai"], "da_tao")
+        self.assertFalse(any(q.startswith("DROP DATABASE") for q in self.c.sql))
+        pg = self._pg_demo()
+        # _goi là tiến trình quản trị không guard: dùng raw giả, không đi qua execute đã vá.
+        class Raw:
+            info = self.c.info
+
+            def execute(_, query, params=None):
+                result = self.c.raw(query, params)
+                return types.SimpleNamespace(fetchone=lambda: result)
+
+        def goi(viec, *args):
+            if viec == "liet-ke":
+                return {"csdl": sorted(self.c.databases)}
+            self.assertEqual((viec, args[:2]), ("xoa", (str(self.tep), self.ma)))
+            return self.so.xoa(Raw(), args[2:])
+
+        pg._goi = Mock(side_effect=goi)
+        so_goi_guard = len(goi_guard)
+        self.assertEqual(pg.don()["da_xoa"], 1)
+        self.assertEqual(len(goi_guard), so_goi_guard)
+        self.assertNotIn(ten, self.c.databases)
+        self.assertEqual(self.so.doc()["muc"][ten]["trang_thai"], "da_xoa")
+        self.assertEqual(sum(q.startswith("DROP DATABASE") for q in self.c.sql), 1)
+        self.pg.connect.assert_not_called()
 
     def test_csdl_tien_trinh_khac_xuat_hien_khong_bi_nhan_so_huu(self):
         self.so.dang_ky("kho_test_cua_minh", self.c)
