@@ -38,7 +38,7 @@
 3. Không khởi động postgres trong sandbox Codex; lát cần chạy pytest giao worker Claude hoặc ghi "lead chạy test".
 4. Giữ tối đa 3 worker cùng lúc.
 **Báo Anh khi:** không ghi được model của Codex (cần Anh xem cài đặt Codex).
-**Trạng thái:** ĐÃ NHẬN 19:02 25/10 — mở bảng "Nhật ký lát (CD-003)" trong TRANG-THAI.md; model Codex lấy từ cấu hình Codex (gpt-6.1-sol) + mức suy luận ghi theo từng lần giao
+**Trạng thái:** ĐÃ NHẬN 18:59 25/10 — mở bảng "Nhật ký lát (CD-003)" trong TRANG-THAI.md; model Codex lấy từ cấu hình Codex (gpt-6.1-sol) + mức suy luận ghi theo từng lần giao
 
 ## CD-004 · 25/10/2026 19:15 · Nâng lên 6 worker: 2 Claude (thiên về review, Opus) + 4 Codex lát nhỏ
 **Căn cứ:** Anh chốt 25/10 19:10–19:15 trong phiên điều phối: "chọn 2 Claude, 4 Codex, nhưng thiên về hướng Claude review và dùng model tốt để review. Giao cho Codex càng nhiều worker càng tốt nhưng lát cắt nhỏ, có kiểm soát." `CLAUDE.md` dòng Worker đã sửa cùng giờ; `D:\Claude\QUY-TRINH-CHUNG\DIEU-PHOI-CLAUDE-CODE-VA-CODEX.md` v1.2 §1.
@@ -49,4 +49,4 @@
 4. Điều kiện chạy song song: mỗi worker worktree + nhánh `lat/` riêng, **CSDL test và cổng web riêng theo mã lát**; khóa file chung trong `TRANG-THAI.md`; không khởi động postgres trong sandbox Codex.
 5. **Ngừng giao thêm** khi > 2 lát chờ review, chạm hạn mức gói (Claude hoặc Codex), hoặc test giữa các lát xung đột. Tăng Codex quá 4 chỉ khi Anh duyệt (đề xuất trong báo cáo ngày).
 **Báo Anh khi:** CSDL DEMO chưa chạy dịch vụ Windows (điều kiện bắt buộc trước khi lên 4 Codex); hàng chờ review dồn > 2 trong ngày.
-**Trạng thái:** MỚI
+**Trạng thái:** ĐÃ NHẬN 19:19 25/10 — đã chép `review-lat` vào `.claude\agents\`; tiêu đề TRANG-THAI sửa theo mức mới (25/10 vẫn 3 worker; từ 26/10: 2 Claude + 4 Codex); từ nay lát Codex chưa gộp (M4-5a v3, UI-2, DA-3a v2, T-MIG2) qua `kiem-nhanh` → `review-lat` trước khi gộp; AI-1, C3c đã gộp 18:58–19:03 (trước CD-004) → review-lat sau gộp. **Báo Anh:** dịch vụ Windows PostgreSQL DEMO **chưa cài** (Anh chưa bấm `CÀI DỊCH VỤ POSTGRES DEMO.cmd`) → chưa lên 4 Codex

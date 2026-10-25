@@ -2,7 +2,7 @@
 
 Trạng thái lát: Đang code → Chờ kiểm → Chờ Anh (cổng A/B) → Sửa → Xong · Bị chặn. Kế hoạch và hàng đợi đầy đủ: `4-KE-HOACH-LEAD.md`. Nền test: `NEN-TEST.md` mục 0b — **nền v4** (mục 0, 25/10): 1501/23/44/362, **0 treo**.
 
-## Lát đang chạy (tối đa 3 worker lập trình; review chỉ đọc chạy kèm) — từ 25/10 chia tối đa việc cho Codex (QD-20261025-16, -21)
+## Lát đang chạy — 25/10: tối đa 3 worker lập trình; **từ 26/10 (CD-004): tối đa 6 = 2 suất Claude (ưu tiên review) + 4 Codex lát nhỏ ≤ 3 file** (lên 4 Codex khi PostgreSQL DEMO đã chạy dịch vụ Windows). Mọi lát Codex: `kiem-nhanh` → `review-lat` (Opus) → gộp; ngừng giao khi > 2 lát chờ review
 
 | Lát | Việc | Worker | Nhánh · worktree | Giao lúc | Trạng thái |
 |---|---|---|---|---|---|
@@ -11,7 +11,7 @@ Trạng thái lát: Đang code → Chờ kiểm → Chờ Anh (cổng A/B) → S
 | M4-5a | M4 · Nghiệm thu & chi phí dự án · 03B máy chủ: khai một phần bằng số tiền + gợi ý hóa đơn — **M0033** | Codex · review Claude | `lat/m4-5a` | 25/10 19:16 (vòng 3) | Review vòng 1 Đạt → **vòng 3 đang code** (A1 khai vượt, A2 locator, A4 VND "…00"); sau đó lead chạy ca PostgreSQL c11–c18 trên CSDL có M0033 rồi gộp |
 | DA-3a | CRM · Báo giá nạp mặc định từ Dự án đang bán, ghi nhận khác tiêu chuẩn | Codex · review Claude | `lat/da-3a` (c077a83) | 25/10 | Review Đạt; chờ chỗ trống sửa **B1** (lead quyết: chỉ chặn dự án Ngừng bán khi tạo mới/đổi dự án/có lô; nháp cũ vẫn lưu được, ghi khác tiêu chuẩn) + chạy ca PostgreSQL |
 | T-MIG2 | Test PostgreSQL theo chuỗi migration mới | Codex | `lat/t-mig2` (26e9c35) | 25/10 | Còn 1 mã lỗi mới (`test_crm_k2.test_t21…`); lead xem nhật ký dựng bản sao G6A trước khi giao vòng 3 |
-| UI-1 | Khung lưới icon dùng chung + áp CRM 6 phần (CD-002) | Claude Sonnet | `lat/ui-1` (= da-2 + hop-nhat) | 25/10 | Worktree đã tạo; giao ngay sau khi chốt bản sửa nóng `app.js` (dưới) |
+| UI-1 | Khung lưới icon dùng chung + áp CRM 6 phần (CD-002) | Claude Sonnet | `lat/ui-1` (= da-2 + hop-nhat) | 25/10 | **Đang code** (worker Claude Sonnet, giao 19:21) |
 | UI-2 | Máy chủ `GET /api/khung/module/crm` (CD-002) | Codex | `lat/ui-2` | 25/10 19:16 | Đang code |
 | M2j-b | Sửa nóng `app.js`: bộ lọc "Lần tải" (M2j) làm vỡ 16 bộ test node (DOM giả không có phần tử cha) | Lead | `hop-nhat` | 25/10 19:08 | **Xong** — sửa 1 dòng; 16 → 7 bộ node không đạt, cả 7 cũng không đạt trên nền v4 (lỗi có sẵn) |
 
@@ -34,7 +34,7 @@ Quy tắc áp cho mọi lát từ 25/10 (CD-001 việc 3): không lát nào vi�
 
 | Lát | Việc | Worker | Phụ thuộc | Trạng thái |
 |---|---|---|---|---|
-| UI-1 | Khung dùng chung: trang chủ module (thẻ tổng quan + lưới icon), thanh icon trái thay menu chữ; áp CRM 6 phần (màn bên trong giữ nguyên) | Claude | — (dựng trên `lat/da-2` vì khóa `crm_g.js`/`style.css`) | Worktree `lat/ui-1` đã tạo; giao sau sửa nóng `app.js` |
+| UI-1 | Khung dùng chung: trang chủ module (thẻ tổng quan + lưới icon), thanh icon trái thay menu chữ; áp CRM 6 phần (màn bên trong giữ nguyên) | Claude | — (dựng trên `lat/da-2` vì khóa `crm_g.js`/`style.css`) | Đang code (19:21) |
 | UI-2 | Máy chủ `GET /api/khung/module/crm` đã lọc quyền + đếm việc chờ (nguồn sẵn có) — hợp đồng dữ liệu `HOP-DONG-DU-LIEU-KHUNG-LUOI.md` | Codex | — (song song UI-1) | Đang code (19:16) |
 | UI-3 | Trang chủ hệ thống: icon module, tìm nhanh, thanh cố định 4 mục, M9 "Tạm dừng" | Claude | UI-1 | Chờ |
 | UI-4 | Áp khung cho M2, M4, Duyệt chung K5 | Claude/Codex | Cổng A của UI-1 | Chờ |
@@ -51,10 +51,12 @@ Quy tắc áp cho mọi lát từ 25/10 (CD-001 việc 3): không lát nào vi�
 | AI-1 | Codex | gpt-6.1-sol · high | 18:45 | gộp 18:58 | 0 (lead đọc diff mạng) | Xanh — 40/40 |
 | M2s-b | Codex | gpt-6.1-sol · low | 18:45 | gộp 19:02 | 0 | Xanh — node 7/7 |
 | Review M4-5a + DA-3a | Claude | Sonnet | 18:40 | ~18:55 | — | — |
-| M2j-b (sửa nóng) | Lead | Opus | 19:08 | 19:28 | 0 | Xanh — node về đúng nền v4 (7 bộ lỗi có sẵn) |
+| M2j-b (sửa nóng) | Lead | Opus | 19:08 | 19:15 | 0 | Xanh — node về đúng nền v4 (7 bộ lỗi có sẵn) |
 | M4-5a v3 | Codex | gpt-6.1-sol · high | 19:16 | — | — | — |
 | UI-2 | Codex | gpt-6.1-sol · high | 19:16 | — | — | — |
 | Review MASK-1 | Claude | Opus | 19:17 | — | — | — |
+| UI-1 | Claude | Sonnet | 19:21 | — | — | — |
+| review-lat sau gộp AI-1 + C3c | Claude | Opus | 19:22 | — | — | — |
 
 ## Lát đã xong (24/10)
 
