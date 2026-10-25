@@ -29,3 +29,24 @@
 **Báo Anh khi:** phiếu cổng A của UI-1 sẵn sàng; cần quyết thêm về thẻ tổng quan.
 **Trạng thái:** ĐÃ NHẬN 18:46 25/10 — xếp UI-1…UI-4 vào kế hoạch + TRANG-THAI; UI-1 bắt đầu khi có chỗ trống (sau AI-0)
 
+
+## CD-003 · 25/10/2026 19:20 · Nhật ký lát để báo cáo hiệu quả hằng ngày
+**Căn cứ:** Anh yêu cầu 25/10 — phân tích hiệu quả công việc hằng ngày; báo cáo mẫu `docs\46-chuyen-doi-dieu-phoi\bao-cao-ngay\BAO-CAO-NGAY-20261025.md` §3.
+**Việc:**
+1. Mỗi lát giao/đóng: ghi 1 dòng vào `TRANG-THAI.md` gồm mã lát · worker (Claude/Codex) · model · giờ bắt đầu · giờ kết thúc · số vòng review · kết quả test (xanh/đỏ so NEN-TEST).
+2. Cuối ngày (trước 19:30): chạy `/usage`, ghi 1 dòng tổng token/model vào `bao-cao-ngay\USAGE-YYYYMMDD.md`.
+3. Không khởi động postgres trong sandbox Codex; lát cần chạy pytest giao worker Claude hoặc ghi "lead chạy test".
+4. Giữ tối đa 3 worker cùng lúc.
+**Báo Anh khi:** không ghi được model của Codex (cần Anh xem cài đặt Codex).
+**Trạng thái:** ĐÃ NHẬN 19:02 25/10 — mở bảng "Nhật ký lát (CD-003)" trong TRANG-THAI.md; model Codex lấy từ cấu hình Codex (gpt-6.1-sol) + mức suy luận ghi theo từng lần giao
+
+## CD-004 · 25/10/2026 19:15 · Nâng lên 6 worker: 2 Claude (thiên về review, Opus) + 4 Codex lát nhỏ
+**Căn cứ:** Anh chốt 25/10 19:10–19:15 trong phiên điều phối: "chọn 2 Claude, 4 Codex, nhưng thiên về hướng Claude review và dùng model tốt để review. Giao cho Codex càng nhiều worker càng tốt nhưng lát cắt nhỏ, có kiểm soát." `CLAUDE.md` dòng Worker đã sửa cùng giờ; `D:\Claude\QUY-TRINH-CHUNG\DIEU-PHOI-CLAUDE-CODE-VA-CODEX.md` v1.2 §1.
+**Việc (áp dụng từ 26/10):**
+1. Tối đa 6 worker cùng lúc = 2 suất Claude + 4 Codex. Sửa tiêu đề "tối đa 3 worker" trong `TRANG-THAI.md` theo mức mới.
+2. Chép `docs\46-chuyen-doi-dieu-phoi\cai-dat-claude\agents\review-lat.md` vào `.claude\agents\` (subagent Opus, chỉ đọc). Mọi lát Codex: `kiem-nhanh` (Haiku) → `review-lat` (Opus) → gộp; tối đa 2 vòng review. 2 suất Claude ưu tiên chạy review; còn trống mới nhận lát rủi ro cao (tiền, quyền, xóa dữ liệu) hoặc lát cần pytest.
+3. Lát Codex nhỏ: ≤ 3 file sửa, handoff ≤ 1 trang, tiêu chí đạt viết theo nghiệp vụ; mỗi lát ghi nhật ký theo CD-003.
+4. Điều kiện chạy song song: mỗi worker worktree + nhánh `lat/` riêng, **CSDL test và cổng web riêng theo mã lát**; khóa file chung trong `TRANG-THAI.md`; không khởi động postgres trong sandbox Codex.
+5. **Ngừng giao thêm** khi > 2 lát chờ review, chạm hạn mức gói (Claude hoặc Codex), hoặc test giữa các lát xung đột. Tăng Codex quá 4 chỉ khi Anh duyệt (đề xuất trong báo cáo ngày).
+**Báo Anh khi:** CSDL DEMO chưa chạy dịch vụ Windows (điều kiện bắt buộc trước khi lên 4 Codex); hàng chờ review dồn > 2 trong ngày.
+**Trạng thái:** MỚI

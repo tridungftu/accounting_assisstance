@@ -8,11 +8,11 @@ BG-1c, M4-6, L0-9, E1-4a, E1-4b, M2h, M2h-c, M2j, M2s, L0-8 + L0-8c, DA-1 (M0031
 ## Lát dở bị dừng khi mở lại phiên (worker đang chạy thì mất)
 | Lát | Tình trạng lúc dừng | Việc phiên mới làm |
 |---|---|---|
-| AI-1 (Codex) | **XONG trước khi mở lại phiên** — `lat-ai-1` 3 tệp chưa commit; báo cáo `giao-viec-20261025ao-cao-ai-1.md` (40/40 test, mock/loopback) | Cổng kiểm soát (diff, mã hóa, tự chạy test) → commit → gộp |
+| AI-1 (Codex) | **XONG trước khi mở lại phiên** — `lat-ai-1` 3 tệp chưa commit; báo cáo `giao-viec-20261025\bao-cao-ai-1.md` (40/40 test, mock/loopback) | Cổng kiểm soát (diff, mã hóa, tự chạy test) → commit → gộp |
 | C3c (Codex) | **XONG** — `lat-c3c` 3 tệp chưa commit; Codex **chưa chạy được test** (sandbox chặn python) | Lead chạy test (có PG) → commit → gộp |
 | M2s-b (Codex) | **XONG** — `lat-m2s-b` 2 tệp chưa commit (nhãn "Kế toán M2 (mô phỏng)", 7/7 node) | Kiểm → commit → gộp |
 | MASK-1 (Claude) | Mask v2: **0 tệp đã đổi** so với bản sao lưu `LUU-TRU\mask1-sao-luu-mask-v2-20261025-183855` | Giao lại `giao-mask-1.md` (Anh đã cấp quyền D:/GPT) |
-| Review M4-5a + DA-3a (Claude) | **XONG — Đạt cả hai, không Chặn**; kết quả `giao-viec-20261025ao-cao-review-m45a-da3a.md` | Giao Codex sửa A1, A2, B1; chạy PG (M4-5a c11–c18, DA-3a `KTT_DA3A_KET_NOI`) → gộp |
+| Review M4-5a + DA-3a (Claude) | **XONG — Đạt cả hai, không Chặn**; kết quả `giao-viec-20261025\bao-cao-review-m45a-da3a.md` | Giao Codex sửa A1, A2, B1; chạy PG (M4-5a c11–c18, DA-3a `KTT_DA3A_KET_NOI`) → gộp |
 
 ## Lát xong nhưng chưa gộp
 - **AI-0a** (engine #6 độc lập `D:\Claude\Ho tro review ho so xay dung\review_xaydung`, ngoài git): 4 tệp sửa + `tests/test_cloud_tam_khoa.py` (18 ca OK, không gọi mạng); `test_common_api` 25/25; `test_trich_xuat` 9 ca kiểm hành vi Cloud cũ nay thất bại đúng thiết kế (`TestNguonClaude` 3, `TestCloud` 6) → đánh dấu bỏ qua/viết lại ở AI-3. Sao lưu gốc: `LUU-TRU\ai-0a-sao-luu-review_xaydung-20261025-175621`.
