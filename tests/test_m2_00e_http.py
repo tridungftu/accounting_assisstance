@@ -372,7 +372,8 @@ class LuongTai(Co):
 
     def test_token_phien_bat_buoc(self):
         self.assertEqual(self.ma_loi(self.goi("GET", TIEN_TO, token=False)), "SESSION_TOKEN")
-        self.assertEqual(self.goi("POST", TIEN_TO + "/khoi-dong", {}, token=False).status, 403)
+        # POST không token bị từ chối TRƯỚC khi máy chủ đọc body; gửi kèm body có thể bị RST (WinError 10053) tùy thời điểm → thử không body để ca không chập chờn
+        self.assertEqual(self.goi("POST", TIEN_TO + "/khoi-dong", None, token=False).status, 403)
         p = self.goi("POST", TIEN_TO + "/bat-dau", self.chon(), sid="phien-khong-ton-tai")
         self.assertEqual((p.status, self.ma_loi(p)), (400, "CRM_PHIEN"))
 
