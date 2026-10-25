@@ -2,6 +2,18 @@
 
 Nền để "xanh" = **không thêm lỗi so với bảng này**. Đo bằng `tools/chay_test_theo_module.py`: mỗi module test chạy trong tiến trình con riêng, giới hạn 180 giây/module, engine sqlite, không PostgreSQL, không đụng kho thật.
 
+## 0. Nền v4 — dùng từ 25/10 (hop-nhat `eadb4e7`: sau BG-1a, M2b–M2d, E1-1, L0-3b, L0-6, L0-7)
+
+Đo toàn bộ trên worktree mới `nen-hop-nhat-v4`, có `--runtime`. Dạng máy đọc: `nen-test-hop-nhat-v4.json`. **Lát mới so với nền v4.**
+
+| | module | ok / ERROR / FAIL / skip | treo |
+|---|---|---|---|
+| v3 | 100 | 1408 / 22 / 44 / 360 | 1 |
+| **v4** | **103** | **1501 / 23 / 44 / 362** | **0** — hết module treo (L0-3b) |
+
+So với v3 theo mã lỗi: 1 mã mới `test_trich6_host.HandlerSoHuuTests.test_cong_chan_truoc_handler_goc` (`ConnectionAbortedError`) — **chập chờn khi chạy cả bộ**: chạy riêng module 3 lần đều chỉ còn 3 lỗi có sẵn (`VongDoiThatTests`, guard). Lỗi này cũng từng có ở nền v2. Không tính là lỗi mới của lát.
+Sau mốc v4 đã gộp thêm M4-4/7 (M0028/M0029, 29 migration) và L0-2g — các lát đó tự đo trước/sau, không mã lỗi mới.
+
 ## 0a. Nền v3 — dùng từ 24/10 tối (hop-nhat sau L0-2c, M4-2, BG-1a, M2b, L0-3c)
 
 Đo toàn bộ trên nhánh `lat/l0-3c` (= hop-nhat `ff9503f` + 12 test N5 đã sửa), có `--runtime`. Dạng máy đọc: `nen-test-hop-nhat-v3.json`. **Lát mới so với nền v3** (module mới gộp sau, như M2c `test_m2_00_nhan_tinh`, chưa có trong file — so với chạy trước/sau của chính lát).
