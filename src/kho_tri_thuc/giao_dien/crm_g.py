@@ -641,7 +641,7 @@ TRUONG_DA = {
     "du-an-ban/lo": {"da_ban_id", "lo", "ly_do", "khoa"},
     "du-an-ban/ngung-ban": {"da_ban_id", "expected_phien_ban", "ly_do", "khoa"},
     "du-an-ban/mo-ban-lai": {"da_ban_id", "expected_phien_ban", "ly_do", "khoa"},
-    "du-an-ban/tien-do": {"du_an_id", "giai_doan", "dong", "khoa"},  # G7 áp dụng ngay (bỏ CFO, QD-20261025-07)
+    "du-an-ban/tien-do": {"du_an_id", "expected_version", "giai_doan", "dong", "khoa"},  # G7 áp dụng ngay (bỏ CFO, QD-20261025-07)
 }
 MA_409_DA = frozenset({"CRM_DA_DA_CO", "CRM_DA_PHIEN_BAN_CU", "CRM_DA_LO_LAN_CU", "CRM_DA_TRANG_THAI", "CRM_DA_CHUA_BAT_BAN", "CRM_DA_NGAY_LUI",
                        "CRM_DA_DU_AN_DONG"})
@@ -669,12 +669,19 @@ def dich_vu_da(app):
 
 
 def _chi_query(h, query, cho_phep: set) -> None:
-    """Chỉ nhận đúng tham số truy vấn đã khai (cả query đã parse lẫn chuỗi thô, kể cả `?x` rỗng) — lạ → 400, không âm thầm bỏ qua."""
+    """Kiểm cả query thô giữ giá trị rỗng: đúng khóa, tối đa một giá trị/khóa, đúng định dạng và độ dài trước khi chuyển kiểu."""
     from urllib.parse import parse_qs
     tho = urlsplit(str(getattr(h, "path", "") or "")).query
-    la = (set(query or {}) | set(parse_qs(tho, keep_blank_values=True))) - set(cho_phep)
+    du_lieu_tho = parse_qs(tho, keep_blank_values=True)
+    la = (set(query or {}) | set(du_lieu_tho)) - set(cho_phep)
     if la:
         raise DataError("CRM_G_YEU_CAU_SAI", "Không nhận tham số truy vấn: " + ", ".join(sorted(la)[:5]))
+    mau = {"dang_ban": r"[01]", "phien_ban": r"[0-9]{1,9}", "du_an_id": "(?i:" + _UUID + ")", "ngay": r"[0-9]{4}-[0-9]{2}-[0-9]{2}"}
+    for nguon in (du_lieu_tho, query or {}):
+        for ten, ds in nguon.items():
+            if (not isinstance(ds, list) or len(ds) != 1 or not isinstance(ds[0], str)
+                    or not re.fullmatch(mau[ten], ds[0]) or (ten == "phien_ban" and int(ds[0]) == 0)):
+                raise DataError("CRM_G_YEU_CAU_SAI", "Tham số truy vấn không hợp lệ hoặc bị lặp: " + ten)
 
 
 def _lenh_da(da, me, ten: str, p: dict):
@@ -693,7 +700,7 @@ def _lenh_da(da, me, ten: str, p: dict):
     if ten == "du-an-ban/mo-ban-lai":
         return da.mo_ban_lai(me, da_ban_id=g("da_ban_id"), expected_phien_ban=g("expected_phien_ban"), ly_do=g("ly_do"), khoa=g("khoa"))
     if ten == "du-an-ban/tien-do":
-        return da.ap_dung_tien_do(me, du_an_id=g("du_an_id"), giai_doan=g("giai_doan"), dong=g("dong"), khoa=g("khoa"))
+        return da.ap_dung_tien_do(me, du_an_id=g("du_an_id"), expected_version=g("expected_version"), giai_doan=g("giai_doan"), dong=g("dong"), khoa=g("khoa"))
     raise DataError("NOT_FOUND", "Không có thao tác dự án đang bán này.")
 
 
@@ -744,6 +751,9 @@ def _dieu_huong_da(h, app, post: bool, path: str, query: dict):
                 if not isinstance(body, dict):
                     raise DataError("CRM_G_YEU_CAU_SAI", "Thân yêu cầu phải là object.")
                 payload = _than(body, TRUONG_DA[ten])
+                if "thong_tin" in payload and payload["thong_tin"] is not None:
+                    from ..k2.crm_du_an_ban import chuan_hoa_thong_tin
+                    payload["thong_tin"] = chuan_hoa_thong_tin(payload["thong_tin"])
                 with app.mutation_lock:
                     _, me, _ = app.crm_phien(h.crm_sid())
                     return h.send_content(200, app._crm_db(_lenh_da, dich_vu_da(app), me, ten, payload))
