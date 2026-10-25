@@ -75,7 +75,7 @@ Quy tắc áp cho mọi lát từ 25/10 (CD-001 việc 3): không lát nào vi�
 | L0-8f (gộp) | Codex | — | — | gộp 21:33 (dd3ecc3) | kiem-nhanh Đạt | **hop-nhat: M4-03B PG 21/21 thật** — nợ M4-5a trả xong trên nhánh tích hợp |
 | AI-2a (gộp) | Claude | Opus | 21:12 | gộp 21:30 (1cf32eb) | review-lat Opus độc lập Đạt | 78/78; Cloud mặc định tắt |
 | T-PDF | Codex | gpt-6.1-sol · high | 21:35 | — | — | — |
-| AI-2b | Codex | gpt-6.1-sol · high | 21:35 | — | — | — |
+| AI-2b | Codex | gpt-6.1-sol · high | 21:35 | 21:43 | chờ PG (sau đo nền) → kiem-nhanh → review-lat | thuần 58 đạt; M0034 (11 cột, không cột văn bản) |
 | AI-2a | Claude | Opus | 21:12 | 21:30 | review-lat Opus độc lập đang chạy | Xanh — 78/78 (test_cong_ai 30); Cloud mặc định tắt |
 | L0-10b | Codex | gpt-6.1-sol · high | 20:45 | gộp 21:00 | kiem-nhanh Đạt | Xanh — 52/52; kiểm thật dịch vụ khớp |
 | UI-1b | Codex | gpt-6.1-sol · high | 20:55 | 21:02 | lead thử DEMO | Xanh — node khung 16/16; DEMO 8798 lần tải đầu không còn lỗi phiên |
