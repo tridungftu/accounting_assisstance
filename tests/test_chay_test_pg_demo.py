@@ -784,11 +784,14 @@ class PgDemoThuanTests(unittest.TestCase):
                 patch.object(PG, "kiem_lineage_ung_dung") as lineage, patch.object(H03, "_seed_ke_toan") as seed, \
                 patch.object(KD, "kiem_ket_noi_chu") as owner, patch.object(hoa_don, "HoaDonK2") as service, \
                 patch.object(H03.tempfile, "mkdtemp", return_value=str(self.root)), \
-                patch.object(H03, "_nhan_hoa_don", return_value={"KHO_M4_03B_HOA_DON_ID": "hd-demo"}) as nhan:
-            for ten, fn in (("lineage", lineage), ("seed", seed), ("owner", owner), ("nhan", nhan)):
+                patch.object(H03, "_nhan_hoa_don", return_value={"KHO_M4_03B_HOA_DON_ID": "hd-demo"}) as nhan, \
+                patch.object(H03, "_seed_doi_tac", return_value={"KHO_M4_03B_DOI_TAC": "dt-demo"}) as doi_tac:  # L0-8f
+            for ten, fn in (("lineage", lineage), ("seed", seed), ("owner", owner), ("nhan", nhan), ("doi_tac", doi_tac)):
                 thu_tu.attach_mock(fn, ten)
-            self.assertEqual(H03.dung_du_lieu("chu-gia", "app-gia", db), {"KHO_M4_03B_HOA_DON_ID": "hd-demo"})
-            self.assertEqual([c[0] for c in thu_tu.mock_calls], ["lineage", "seed", "owner", "nhan"])
+            self.assertEqual(H03.dung_du_lieu("chu-gia", "app-gia", db),
+                             {"KHO_M4_03B_HOA_DON_ID": "hd-demo", "KHO_M4_03B_DOI_TAC": "dt-demo"})
+            self.assertEqual([c[0] for c in thu_tu.mock_calls], ["lineage", "seed", "owner", "nhan", "doi_tac"])
+            doi_tac.assert_called_once_with(admin)
             lineage.assert_called_once_with(admin)
             owner.assert_called_once_with(chu, app)
             service.assert_called_once_with(app, self.root, conn_chu=chu)
