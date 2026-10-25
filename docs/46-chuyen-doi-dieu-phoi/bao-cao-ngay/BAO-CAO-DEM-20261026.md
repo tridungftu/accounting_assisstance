@@ -38,7 +38,7 @@ Lead: phiên Claude Code chính (Opus 5.5). Khung: nhận CD-008 22:25 → giao 
   - KY-UI gộp cùng lúc với KY-DOCX.
 - **T-NEN-c2 bị chặn:** `test_source6_lazy_excel` cần bản "candidate" `tools/source6_lazy_excel/master_hd.py` đã duyệt. Không nhánh git nào có bản này, tài liệu giao gốc cũng không có → Cần Anh.
 - **T-NEN-a/b/c** (`lat/t-nen-*`): chưa gộp. a, b đã đạt kiểm nhanh và PG; c chờ T-NEN-c2.
-- **Dòng giao diện `lat/ui-dem`** (UI-1/UI-3, BG-e, MDA giao diện, DA-4/5): chưa gộp nhánh hợp nhất, chờ Anh qua cổng A. PG cả bộ trên nhánh này: <ĐIỀN 05:45>.
+- **Dòng giao diện `lat/ui-dem`** (UI-1/UI-3, BG-e, MDA giao diện, DA-4/5): chưa gộp nhánh hợp nhất, chờ Anh qua cổng A. PG cả bộ trên nhánh này (3ddad66, 02:38): 2474 đạt / 20 lỗi / 67 hỏng / 67 bỏ qua · 134 module; 2 mã mới đều ở `test_crm_41_02` (ghim băm tệp test do BG-e4 đổi) → T-UI41 sửa ghim, module 29/29 đạt (87c963c); node 14 bộ đạt.
 - **Hàng đợi chưa làm:** AI-4, MASK-3, E1-4 giao diện, BG-2/BG-3 (chờ cổng A gói 1), UI-4 (chờ cổng A UI-1), C3b, M2k.
 - **Ghi nhận ngoài lát:** sản phẩm `tools/source6_g5_e5/trich_xuat/danh_muc.py:280` còn xóa tệp rollback; M4 còn dùng Word COM (`m4/review_goc/master_hd.py:114`, `trich_xuat/doc_hop_dong.py:32`).
 
