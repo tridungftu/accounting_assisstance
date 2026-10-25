@@ -364,13 +364,6 @@
     const ngay = (hienThi, goc) => hienThi || (goc && !isNaN(new Date(goc).getTime()) ? dinhNgay.format(new Date(goc)) : "—");
     const khoang = r => `${ngay(r.hieu_luc_tu_hien_thi, r.hieu_luc_tu || r.valid_from)} → ${r.hieu_luc_den || r.valid_to ? "trước " + ngay(r.hieu_luc_den_hien_thi, r.hieu_luc_den || r.valid_to) : "hiện hành"}`;
     const nguoi = v => !v ? "—" : /^MO_PHONG_|^DEMO_/.test(v) ? "Người dùng mô phỏng" : /^[0-9a-f]{8}-[0-9a-f-]{27,}$/i.test(v) || /^\d+$/.test(v) ? "Người dùng" : v;
-    const giaTriDong = r => {
-      if (r.gia_tri_loai !== "AMOUNT") return r.gia_tri_loai === "PERCENT" ? giaTri(r).replace(".", ",") : "—";
-      // Chỉ đổi đơn vị biểu diễn của chuỗi minor; không tính giá/thuế, không qua float.
-      if (!["USD", "VND"].includes(r.tien_te) || !/^\d+$/.test(String(r.so_tien_minor ?? ""))) return "Chưa có giá trị hiển thị";
-      const s = String(r.so_tien_minor).padStart(r.tien_te === "USD" ? 3 : 1, "0");
-      return (r.tien_te === "USD" ? s.slice(0, -2) + "," + s.slice(-2) : s) + " " + r.tien_te;
-    };
     function mocDong(r) {
       if (r.moc_loai === "NGAY") return ngay(null, r.moc_ngay);
       if (r.moc_loai !== "SU_KIEN") return "—";
@@ -387,11 +380,10 @@
     function roi() { genDs += 1; genCt += 1; genLs += 1; }
     function xoa() { roi(); danhSach = chiTiet = lichSu = null; id = null; pb = ""; xemLichSu = false; loiDs = loiCt = loiLs = ""; }
     function loiDoc(e) {
-      if (loiAnNinh(e)) { xoa(); loiDs = "Phiên hoặc quyền truy cập đã thay đổi. Bấm Làm mới để tải lại."; }
+      if (loiAnNinh(e)) { xoa(); return loiDs = "Phiên hoặc quyền truy cập đã thay đổi. Bấm Làm mới để tải lại."; }
       else if (e.status === 404) return "Không thấy dự án trong phạm vi hiện hành.";
       else if (e.status === 0) return "Mất kết nối khi tải dữ liệu. Bấm Làm mới để thử lại.";
       else return "Không tải được dữ liệu dự án. Bấm Làm mới để thử lại.";
-      return "";
     }
     async function napDs() {
       if (K.vaiDangChan("crm_g")) return;
@@ -448,21 +440,21 @@
       thanh.append(...truong("Phiên bản đang xem", sel), nut(xemLichSu ? "Ẩn lịch sử" : "Lịch sử", () => { xemLichSu = !xemLichSu; genLs += 1; ve(); if (xemLichSu) napLs(); }));
       const chung = node("dl", undefined, "da-thong-tin");
       for (const [ten, v] of [["Vị trí", tt.vi_tri], ["Mô tả", tt.mo_ta], ["Đơn giá niêm yết", h.don_gia], ["Tiền tệ", nhan("tien_te", s.tien_te)],
-        ["Loại hình", h.loai_hinh], ["Thuế mặc định", h.thue], ["Trạng thái", h.trang_thai], ["Hiệu lực phiên bản", h.phien_ban]]) chung.append(node("dt", ten), node("dd", v || "Chưa có thông tin"));
-      box.append(thanh, node("h4", "Thông tin chung"), chung, node("h4", "Phí tiêu chuẩn"),
+        ["Loại hình", h.loai_hinh], ["Thuế suất", nhan("thue_suat", s.thue?.thue_suat)], ["Giá đất được trừ", h.gia_dat_tru], ["Trạng thái", h.trang_thai], ["Hiệu lực phiên bản", h.phien_ban]]) chung.append(node("dt", ten), node("dd", v || "Chưa có thông tin"));
+      box.append(thanh, node("h4", "Thông tin chung"), chung, node("p", "Giá chưa gồm VAT"), node("h4", "Phí tiêu chuẩn"),
         bangRong(["Tên phí", "Loại phí", "Mức", "Đơn vị tính", "Tiền tệ", "Cơ sở tính"], (s.phi || []).map((f, i) => [f.ten, h.phi?.[i]?.loai || nhan("loai_phi", f.loai), h.phi?.[i]?.muc || "Chưa có thông tin", nhan("don_vi_tinh", f.don_vi_tinh), nhan("tien_te", f.tien_te), f.co_so_tinh || "—"]), "Chưa có phí tiêu chuẩn."),
-        node("h4", "Lô/căn"), bangRong(["Mã lô/căn", "Diện tích (m²)", "Trạng thái"], (s.lo || []).map((l, i) => [l.ma, h.lo?.[i]?.dien_tich || String(l.dien_tich ?? "—").replace(".", ",") + " m²", h.lo?.[i]?.trang_thai || nhan("trang_thai_lo", l.trang_thai)]), "Chưa có lô/căn."),
+        node("h4", "Lô/căn"), bangRong(["Mã lô/căn", "Diện tích (m²)", "Trạng thái"], (s.lo || []).map((l, i) => [l.ma, h.lo?.[i]?.dien_tich || "Chưa có thông tin", h.lo?.[i]?.trang_thai || nhan("trang_thai_lo", l.trang_thai)]), "Chưa có lô/căn."),
         node("h4", "Tiến độ thanh toán tiêu chuẩn"));
       const bc = s.bo_chuan;
       box.append(node("p", !bc || bc.trang_thai !== "HIEU_LUC" ? "Chưa có tiến độ tiêu chuẩn hiệu lực." : `Phiên bản ${bc.version?.phien_ban || ""} · ${khoang(bc.version || {})} · ${bc.nguon === "AP_DUNG_NGAY" ? "Bán hàng áp dụng ngay" : bc.nguon === "CFO_DUYET" ? "CFO đã duyệt" : "Chưa có thông tin nguồn"}`));
-      if (bc?.trang_thai === "HIEU_LUC") box.append(bangRong(["Đợt", "Giá trị (%) / số tiền", "Mốc", "Ghi chú"], (bc.rows || []).map(r => [r.lan, giaTriDong(r), mocDong(r), r.ghi_chu || ""]), "Chưa có đợt thanh toán."));
+      if (bc?.trang_thai === "HIEU_LUC") box.append(bangRong(["Đợt", "Giá trị (%) / số tiền", "Mốc", "Ghi chú"], (bc.rows || []).map((r, i) => [r.lan, h.bo_chuan_dong?.[i]?.gia_tri_hien_thi || "Chưa có giá trị hiển thị", mocDong(r), r.ghi_chu || ""]), "Chưa có đợt thanh toán."));
       return box;
     }
     function veLs() {
       const box = node("section", undefined, "da-lich-su"); box.id = "crmg-da-lich-su"; box.append(node("h3", "Lịch sử dự án"));
       if (!lichSu) { box.append(node("p", loiLs || "Đang tải lịch sử…", loiLs ? "da-loi" : "")); return box; }
       const rows = [...(lichSu.phien_ban || [])].sort((a, b) => a.phien_ban - b.phien_ban);
-      const truong = {vi_tri: "Vị trí", mo_ta: "Mô tả", don_gia_niem_yet: "Đơn giá niêm yết", tien_te: "Tiền tệ", loai_hinh_id: "Loại hình", co_so_thue: "Cơ sở thuế", vat_phan_tram: "Thuế suất mặc định", giai_doan_g7: "Tiến độ tiêu chuẩn"};
+      const truong = {vi_tri: "Vị trí", mo_ta: "Mô tả", don_gia_niem_yet: "Đơn giá niêm yết", tien_te: "Tiền tệ", loai_hinh_id: "Loại hình", thue_suat: "Thuế suất", gia_dat_tru: "Giá đất được trừ", giai_doan_g7: "Tiến độ tiêu chuẩn"};
       box.append(node("h4", "Các phiên bản"), bangRong(["Phiên bản", "Hiệu lực từ → đến", "Người lập", "Lý do", "Trường đã đổi"], rows.map((v, i) => {
         let doi = "Khởi tạo";
         if (i) {
@@ -477,8 +469,9 @@
         }
         return ["Phiên bản " + v.phien_ban, khoang(v), nguoi(v.lap_boi_ten || v.lap_boi), v.ly_do || "—", doi];
       }), "Chưa có phiên bản."));
-      box.append(node("h4", "Sự kiện ngừng/mở bán"), bangRong(["Ngày", "Thao tác", "Người thực hiện", "Lý do"], (lichSu.su_kien || []).filter(x => ["CRM_DA_BAT_BAN", "CRM_DA_NGUNG_BAN", "CRM_DA_MO_BAN_LAI"].includes(x.hanh_dong)).map(x => [ngay(null, x.luc), x.hanh_dong_hien_thi || ({CRM_DA_BAT_BAN: "Bật bán", CRM_DA_NGUNG_BAN: "Ngừng bán", CRM_DA_MO_BAN_LAI: "Mở bán lại"})[x.hanh_dong], nguoi(x.nguoi_ten || x.nguoi), x.ly_do || "—"]), "Chưa có sự kiện ngừng/mở bán."));
-      box.append(node("h4", "Lịch sử lô/căn"), bangRong(["Mã lô/căn", "Lần", "Hiệu lực từ → đến", "Diện tích (m²)", "Trạng thái", "Người lập", "Ghi chú"], (lichSu.lo || []).flatMap(l => (l.lich_su || []).map(v => [l.ma, v.lan, khoang(v), String(v.dien_tich ?? "—").replace(".", ",") + " m²", v.trang_thai_hien_thi || nhan("trang_thai_lo", v.trang_thai), nguoi(v.tao_boi_ten || v.tao_boi), v.ghi_chu || "—"])), "Chưa có lịch sử lô/căn."));
+      box.append(node("h4", "Sự kiện bán hàng và áp dụng tiến độ"), bangRong(["Ngày", "Thao tác", "Người thực hiện", "Lý do"], (lichSu.su_kien || []).filter(x => ["CRM_DA_BAT_BAN", "CRM_DA_NGUNG_BAN", "CRM_DA_MO_BAN_LAI", "CRM_CHUAN_AP_DUNG"].includes(x.hanh_dong)).map(x => [ngay(null, x.luc), x.hanh_dong_hien_thi || ({CRM_DA_BAT_BAN: "Bật bán", CRM_DA_NGUNG_BAN: "Ngừng bán", CRM_DA_MO_BAN_LAI: "Mở bán lại", CRM_CHUAN_AP_DUNG: "Áp dụng tiến độ thanh toán tiêu chuẩn"})[x.hanh_dong], nguoi(x.nguoi_ten || x.nguoi), x.ly_do || "—"]), "Chưa có sự kiện bán hàng hoặc áp dụng tiến độ."));
+      box.append(node("h4", "Tiến độ tiêu chuẩn đã áp dụng"), bangRong(["Giai đoạn", "Phiên bản", "Hiệu lực từ", "Người áp dụng", "Căn cứ"], (lichSu.tien_do || []).filter(v => v.trang_thai === "HIEU_LUC" && !v.khoang_rong).map(v => [v.giai_doan_hien_thi || v.giai_doan || "Toàn dự án", v.phien_ban, ngay(v.valid_from_hien_thi, v.valid_from), nguoi(v.ap_dung_boi_ten || v.ap_dung_boi || v.duyet_boi_ten || v.duyet_boi), v.nguon === "AP_DUNG_NGAY" ? "Bán hàng áp dụng ngay — " + (v.can_cu || "Chưa có căn cứ") : v.nguon === "CFO_DUYET" ? "CFO duyệt (bản cũ)" : "Chưa có thông tin"]), "Chưa có tiến độ tiêu chuẩn đã áp dụng."));
+      box.append(node("h4", "Lịch sử lô/căn"), bangRong(["Mã lô/căn", "Lần", "Hiệu lực từ → đến", "Diện tích (m²)", "Trạng thái", "Người lập", "Ghi chú"], (lichSu.lo || []).flatMap(l => (l.lich_su || []).map(v => [l.ma, v.lan, khoang(v), v.dien_tich_hien_thi || "Chưa có thông tin", v.trang_thai_hien_thi || nhan("trang_thai_lo", v.trang_thai), nguoi(v.tao_boi_ten || v.tao_boi), v.ghi_chu || "—"])), "Chưa có lịch sử lô/căn."));
       return box;
     }
     function veDa() {
@@ -507,7 +500,7 @@
     ve(); trangThai("");
     Promise.resolve().then(() => napTong());  // trong barrier: chỉ ghi "cần nạp" — nạp lại khi ý định đổi vai mới nhất giải quyết
   }
-  function napTong() { if (tab === "du-an-ban") { duAnBan.nap(); return; } napDs(); if (tab === "chuan") napBc(); }
+  function napTong() { napDs(); if (tab === "chuan") napBc(); if (tab === "du-an-ban") duAnBan.nap(); }
   K.dangKyVai("crm_g", xoa, () => { napTong(); if (tab === "mau" && pbChon) napCt(); });
 
   // ------------------------------------------------------------------ vẽ

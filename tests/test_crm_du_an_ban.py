@@ -455,6 +455,45 @@ class Service(unittest.TestCase):
         self.assertEqual(D.hien_thi_anh_chup({"trang_thai": "CHUA_BAT_BAN", "ngay": "2026-10-25", "phien_ban": None}),
                          {"trang_thai": "Chưa có trong danh mục đang bán", "ngay": "25/10/2026"})
 
+    def test_chuoi_tien_do_chinh_xac_khong_doi_anh_chup(self):
+        anh = {"phien_ban": {"so": 1, "hieu_luc_tu": "2026-10-25"}, "bo_chuan": {
+            "trang_thai": "HIEU_LUC", "giai_doan": "DEMO_GD1", "nguon": "AP_DUNG_NGAY",
+            "version": {"phien_ban": 1, "valid_from": "2026-10-25"}, "rows": [
+                {"gia_tri_loai": "PERCENT", "gia_tri_thap_phan": "30.5"},
+                *({"gia_tri_loai": "AMOUNT", "so_tien_minor": so, "tien_te": tt} for so, tt in (
+                    ("1500000000", "VND"), ("5", "USD"), ("150050", "USD"),
+                    ("123456789012345678901234", "VND"), ("123456789012345678901234", "USD"),
+                    ("0", "VND"), ("-5", "USD"))),
+                {"gia_tri_loai": "AMOUNT", "so_tien_minor": "1", "tien_te": "EUR"}, {}]}}
+        truoc = json.dumps(anh, ensure_ascii=False, sort_keys=True)
+        ht = D.hien_thi_anh_chup(anh)
+        self.assertEqual([x["gia_tri_hien_thi"] for x in ht["bo_chuan_dong"]], [
+            "30,5%", "1.500.000.000 đ", "0,05 USD", "1.500,5 USD", "123.456.789.012.345.678.901.234 đ",
+            "1.234.567.890.123.456.789.012,34 USD", "0 đ", "-0,05 USD", None, None])
+        self.assertEqual(json.dumps(anh, ensure_ascii=False, sort_keys=True), truoc)
+        self.assertEqual(D.hien_thi_anh_chup({"phien_ban": anh["phien_ban"]})["bo_chuan_dong"], [])
+
+    def test_chuoi_thue_moi_va_gia_dat_tru(self):
+        for ma, nhan in D.THUE_SUAT.items():
+            for tt, so, chuoi in (("USD", "24", "24 USD/m²"), ("VND", "1234.5", "1.234,5 đ/m²"), ("USD", "0", "0 USD/m²")):
+                with self.subTest(thue=ma, tien_te=tt, so=so):
+                    ht = D.hien_thi_anh_chup({"phien_ban": {"so": 1, "hieu_luc_tu": "2026-10-25"},
+                                              "tien_te": tt, "thue": {"thue_suat": ma}, "gia_dat_tru": so})
+                    self.assertEqual(ht["thue"], "Giá chưa gồm VAT · " + nhan)
+                    self.assertEqual(ht["gia_dat_tru"], chuoi)
+
+    def test_lich_su_lo_dien_tich_hien_thi_tu_may_chu(self):
+        lo = [{"lo_id": "lo-DEMO", "ma": "A-DEMO", "lan": i + 1, "hieu_luc_tu": "2026-10-25",
+               "hieu_luc_den": None, "dien_tich": so, "trang_thai": "CON_TRONG", "ghi_chu": None,
+               "tao_boi": "DEMO_BH", "tao_luc": "2026-10-25T09:00:00Z"}
+              for i, so in enumerate(("1234.5", "0", "123456789012345678901234.123456789012"))]
+        with patch.object(self.s, "_da_ban", return_value={"du_an_id": DA, "phap_nhan_id": "pn-DEMO"}), \
+                patch.object(self.m, "_nhieu", side_effect=[[], [], lo, []]):
+            r = self.s.lich_su(ME, DB)
+        self.assertEqual([v["dien_tich_hien_thi"] for v in r["lo"][0]["lich_su"]],
+                         ["1.234,5 m²", "0 m²", "123.456.789.012.345.678.901.234,123456789012 m²"])
+        self.assertEqual(r["lo"][0]["lich_su"][0]["dien_tich"], "1234.5")
+
     def test_danh_muc_nhan_viet(self):
         dm = D.danh_muc()
         self.assertEqual(dm["thue_suat"], [{"ma": k, "nhan": v} for k, v in D.THUE_SUAT.items()])
