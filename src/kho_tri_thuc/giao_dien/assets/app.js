@@ -1139,7 +1139,7 @@
   }
   function m2Render(conHieuLuc = () => true) {
     if (!m2.cau_hinh) { $("m2-nguoi").textContent = m2.ly_do; $("m2-hoa-don").replaceChildren(empty("Chưa kết nối kho DEMO PostgreSQL", m2.ly_do)); return; }
-    $("m2-danh-tinh").replaceChildren(...m2.danh_tinh_demo.map(d => { const o = node("option", `${d.dang_nhap} (${d.vai_tro})`); o.value = d.dang_nhap; o.selected = d.dang_nhap === m2.nguoi.dang_nhap; return o; }));
+    $("m2-danh-tinh").replaceChildren(...m2.danh_tinh_demo.map(d => { const o = node("option", d.dang_nhap === "MO_PHONG_KT_M2_A" ? "Kế toán M2 (mô phỏng)" : `${d.dang_nhap} (${d.vai_tro})`); o.value = d.dang_nhap; o.selected = d.dang_nhap === m2.nguoi.dang_nhap; return o; }));
     const n = m2.nguoi;
     $("m2-nguoi").textContent = m2.khong_quyen ? `${n.dang_nhap} · ${m2.khong_quyen}` : `${n.dang_nhap} · ${n.vai_tro} · pháp nhân M2: ${(n.phap_nhan || []).join(", ") || "—"} · được làm: ${(n.hanh_dong || []).join(", ") || "chỉ xem"}`;
     $("m2-nang-luc").replaceChildren(m2.nang_luc_nguon.length ? ntTable(["Nguồn", "Năng lực nguồn", "PN đích (SOURCE_MAP)"], m2.nang_luc_nguon.map(c => [c.source_instance_id, c.hanh_dong, c.phap_nhan_dich || ""]))
