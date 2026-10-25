@@ -267,12 +267,13 @@ class ServerEnvTests(unittest.TestCase):
 class StubHDH(pg_cum.HeDieuHanh):
     """Hệ điều hành giả: trạng thái cluster/cổng/tiến trình trong bộ nhớ; ghi lại mọi argv."""
 
-    def __init__(self, cum, *, dang_chay=False, pid=4242, nghe=None, exe=None, cmd=None, status_ma=None, start_ma=0, start_len=True, cham=0.0):
+    def __init__(self, cum, *, dang_chay=False, pid=4242, nghe=None, exe=None, cmd=None, status_ma=None, start_ma=0, start_len=True, cham=0.0, dich_vu=None):
         super().__init__()
         self.cum, self.dang_chay, self.pid, self.status_ma, self.start_ma, self.start_len, self.cham = cum, dang_chay, pid, status_ma, start_ma, start_len, cham
         self.nghe = nghe if nghe is not None else ({cum.port: pid} if dang_chay else {})
-        self.exe = exe or str(cum.postgres)
-        self.cmd = cmd or f'"{cum.postgres}" -D "{cum.data_dir}" -h {cum.host} -p {cum.port}'
+        self.exe = str(cum.postgres) if exe is None else exe
+        self.cmd = f'"{cum.postgres}" -D "{cum.data_dir}" -h {cum.host} -p {cum.port}' if cmd is None else cmd
+        self.dich_vu = dich_vu or []
         self.lenh, self.lock = [], threading.Lock()
 
     def chay(self, argv, timeout=None):
@@ -295,12 +296,15 @@ class StubHDH(pg_cum.HeDieuHanh):
     def tien_trinh(self, pid):
         return {"exe": self.exe, "cmd": self.cmd} if pid == self.pid else {"exe": r"C:\khac\khac.exe", "cmd": "khac"}
 
+    def dich_vu_pg(self):
+        return self.dich_vu
+
 
 class CumTests(unittest.TestCase):
     """Bảo đảm cluster đã có — stub hệ điều hành; tệp runtime/data là tệp giả trong thư mục tạm."""
 
     def setUp(self):
-        self.tmp = Path(tempfile.mkdtemp(prefix="ktt-cum-"))
+        self.tmp = Path(tempfile.mkdtemp(prefix="ktt-cụm dịch vụ-"))
         (self.tmp / "bin").mkdir()
         (self.tmp / "bin" / "pg_ctl.exe").write_bytes(b"pg_ctl gia DEMO")
         (self.tmp / "bin" / "postgres.exe").write_bytes(b"postgres gia DEMO")
@@ -343,6 +347,86 @@ class CumTests(unittest.TestCase):
         self.assertEqual(self._chay(hdh), {"ket_qua": "DUNG_LAI", "pid": 4242, "endpoint": "127.0.0.1:5432"})
         self.assertEqual([a[1] for a in hdh.lenh], ["status"])
         self.assertFalse(self.log.exists())  # dùng lại: không tạo log start
+
+    def _hdh_dich_vu(self, dang_chay=False, **sua):
+        dong = ["4242", str(self.cum.data_dir), "1792930000", str(self.cum.port), "", self.cum.host, "", "ready"]
+        dong = sua.pop("dong_pid", dong)
+        (self.cum.data_dir / "postmaster.pid").write_text("\n".join(dong) + "\n", encoding="utf-8")
+        dv = {"State": "Running", "PathName": f'"{self.cum.pg_ctl}" runservice -N "ktt-postgres-demo" -D "{self.cum.data_dir}" -w -o "-h 127.0.0.1 -p 5432"'}
+        return StubHDH(self.cum, dang_chay=dang_chay, nghe={5432: 4242}, exe="", cmd="", **{"dich_vu": [dv], **sua})
+
+    def test_dich_vu_dung_cum_dung_lai_khi_status_3_hoac_exe_cmd_rong(self):
+        for dang_chay in (False, True):
+            with self.subTest(dang_chay=dang_chay):
+                hdh = self._hdh_dich_vu(dang_chay)
+                self.assertEqual(self._chay(hdh), {"ket_qua": "DUNG_LAI", "pid": 4242, "endpoint": "127.0.0.1:5432", "che_do": "DICH_VU"})
+                if dang_chay:
+                    self.assertEqual(pg_cum.xac_minh_dang_chay(self.cum, 4242, hdh), 4242)
+                self.assertEqual([a[1] for a in hdh.lenh], ["status"])
+                self.assertFalse(self.log.exists())
+                self._cam(hdh)
+
+    def test_dich_vu_pid_file_sai_hoac_thieu_bang_chung_giu_loi_cu(self):
+        for dang_chay in (False, True):
+            for ten, dong in (
+                    ("pid_khac", ["9999", str(self.cum.data_dir), "0", "5432", "", self.cum.host, "", "ready"]),
+                    ("data_khac", ["4242", str(self.cum.data_dir) + "2", "0", "5432", "", self.cum.host, "", "ready"]),
+                    ("cong_khac", ["4242", str(self.cum.data_dir), "0", "5433", "", self.cum.host, "", "ready"]),
+                    ("chua_ready", ["4242", str(self.cum.data_dir), "0", "5432", "", self.cum.host, "", "starting"]),
+                    ("pid_hong", ["hong", str(self.cum.data_dir), "0", "5432", "", self.cum.host, "", "ready"]),
+                    ("thieu_dong", ["4242", str(self.cum.data_dir)])):
+                with self.subTest(dang_chay=dang_chay, ten=ten):
+                    hdh = self._hdh_dich_vu(dang_chay, dong_pid=dong)
+                    _ma(self, "CUM_KHONG_XAC_MINH" if dang_chay else "CUM_CONG_BI_CHIEM", lambda: self._chay(hdh))
+                    self.assertEqual([a[1] for a in hdh.lenh], ["status"])
+                    self.assertFalse(self.log.exists())
+
+    def test_dich_vu_khong_doc_duoc_pid_file_giu_loi_cu(self):
+        for dang_chay in (False, True):
+            hdh = self._hdh_dich_vu(dang_chay)
+            with patch.object(hdh, "doc_postmaster_pid", return_value=None):
+                _ma(self, "CUM_KHONG_XAC_MINH" if dang_chay else "CUM_CONG_BI_CHIEM", lambda: self._chay(hdh))
+            self.assertEqual([a[1] for a in hdh.lenh], ["status"])
+
+    def test_dich_vu_sai_dinh_danh_hoac_khong_running_giu_loi_cu(self):
+        for dang_chay in (False, True):
+            hdh = self._hdh_dich_vu(dang_chay)
+            dv = hdh.dich_vu[0]
+            cmd = dv["PathName"]
+            for ten, dich_vu in (
+                    ("khong_co_dich_vu", []),
+                    ("da_dung", [{**dv, "State": "Stopped"}]),
+                    ("dang_len", [{**dv, "State": "Start Pending"}]),
+                    ("data_khac", [{**dv, "PathName": cmd.replace(f'-D "{self.cum.data_dir}"', f'-D "{self.cum.data_dir}2"')}]),
+                    ("runtime_khac", [{**dv, "PathName": cmd.replace(str(self.cum.pg_ctl), str(self.cum.pg_ctl) + "2")}]),
+                    ("khong_runservice", [{**dv, "PathName": cmd.replace("runservice", "start")}]),
+                    ("thieu_D", [{**dv, "PathName": cmd.replace(f'-D "{self.cum.data_dir}"', "")}]),
+                    ("D_trong_o", [{**dv, "PathName": f'"{self.cum.pg_ctl}" runservice -o "-D {self.cum.data_dir}"'}]),
+                    ("nhieu_D", [{**dv, "PathName": cmd + f' -D "{self.cum.data_dir}2"'}])):
+                with self.subTest(dang_chay=dang_chay, ten=ten):
+                    hdh.dich_vu = dich_vu
+                    _ma(self, "CUM_KHONG_XAC_MINH" if dang_chay else "CUM_CONG_BI_CHIEM", lambda: self._chay(hdh))
+                    self.assertNotIn("start", [a[1] for a in hdh.lenh])
+                    self.assertFalse(self.log.exists())
+
+    def test_cum_chay_tay_du_bang_chung_khong_can_dich_vu(self):
+        hdh = StubHDH(self.cum, dang_chay=True)
+        with patch.object(hdh, "doc_postmaster_pid", side_effect=AssertionError("không đọc PID file")), \
+                patch.object(hdh, "dich_vu_pg", side_effect=AssertionError("không đọc dịch vụ")):
+            self.assertEqual(self._chay(hdh), {"ket_qua": "DUNG_LAI", "pid": 4242, "endpoint": "127.0.0.1:5432"})
+
+    def test_doc_metadata_dich_vu_qua_hdh_gia(self):
+        dv = {"State": "Running", "PathName": f'"{self.cum.pg_ctl}" runservice -D "{self.cum.data_dir}"'}
+        hdh = pg_cum.HeDieuHanh()
+        for ma, out, mong in ((0, json.dumps(dv), [dv]), (0, json.dumps([dv, None]), [dv]),
+                              (0, "null", []), (0, "", []), (0, "hong", []), (1, json.dumps(dv), [])):
+            with patch.object(hdh, "chay", return_value=(ma, out)) as chay:
+                self.assertEqual(hdh.dich_vu_pg(), mong)
+            argv = chay.call_args.args[0]
+            self.assertIn("Win32_Service", argv[-1])
+            self.assertIn(r"'\u{0:x4}'", argv[-1])
+            self.assertNotIn("Start-Service", argv[-1])
+            self.assertNotIn("Stop-Service", argv[-1])
 
     def test_dang_chay_khong_xac_minh_duoc_thi_dung(self):
         cases = (StubHDH(self.cum, dang_chay=True, nghe={5432: 9999}),                                   # cổng thuộc PID khác
