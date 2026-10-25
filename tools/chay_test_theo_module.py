@@ -27,7 +27,7 @@ Dùng:
   DROP không dùng FORCE: CSDL còn phiên kết nối thì chờ rồi bỏ qua và báo.
 - Module cần "bản sao DEMO sở hữu" (biến *_CLONE_*): trước module công cụ dựng riêng một CSDL `kho_test_pgd_<hex>` bằng đúng lớp của dự án
   (`k2.crm_khoi_dong.chuan_bi`: migrate + seed DEMO), ghi dấu nguồn/checksum lên `master.he_thong` rồi đặt biến; xóa sau module.
-  Họ chưa dựng được (03A/03B cần login kế toán có vai dự án) giữ nguyên: thiếu biến → test skip như cũ.
+  Họ 03A/03B dùng seed M4 với ma trận kế toán DEMO riêng và nhận hóa đơn fixture qua HoaDonK2; không dựng giả lịch sử trước migration.
 - Tiến trình con do test tự sinh (PYTHONPATH=src ghi đè đường dẫn phụ thuộc của runtime) vẫn thấy psycopg nhờ một PYTHONUSERBASE tạm có
   tệp .pth trỏ tới `duong_dan_phu_thuoc` và cài hook sở hữu; probe lỗi/rỗng hoặc đường dẫn resolve ngoài nhật ký thì dừng, không ghi .pth.
 - Chỉ một lần chạy --pg-demo cùng lúc (khóa tệp trong thư mục tạm). `--pg-demo-don-so <sổ>`: dọn các CSDL còn trong sổ của lần chạy bị chết giữa chừng.
@@ -409,6 +409,9 @@ def _bat_bao_ve_pth():
 HO_CLONE = {
     "02c": {"dsn": ("KHO_M4_02C_CLONE_DSN", "KHO_M4_02C_CLONE_APP_DSN"), "db": "KHO_M4_02C_CLONE_DB",
             "mau": r"KHO_M4_02C_CLONE_|from tests\.test_m4_02c_pg import (?:\([^)]*\bENV_CHU\b|[^\n(]*\bENV_CHU\b)"},
+    "03a": {"dsn": ("KHO_M4_03A_CLONE_DSN", "KHO_M4_03A_CLONE_APP_DSN"), "db": "KHO_M4_03A_CLONE_DB",
+            "mau": (r'(?m)^ENV_CHU,\s*ENV_APP,\s*ENV_DB,\s*ENV_NGUON,\s*ENV_M24\s*=\s*\("KHO_M4_03A_CLONE_DSN"'
+                    r'|^ENV_DA_AP_DUNG\s*=\s*"KHO_M4_03B_DA_AP_DUNG"')},
     "mc": {"dsn": ("KHO_M4_MC_CLONE_DSN", "KHO_M4_MC_CLONE_APP_DSN"), "db": "KHO_M4_MC_CLONE_DB",
            "mau": r"KHO_M4_MC_CLONE_|from tests\.test_m4_master_dung_chung_pg import (?:\([^)]*\bENV_CHU\b|[^\n(]*\bENV_CHU\b)"},
     "04a": {"dsn": ("KHO_M4_04A_CLONE_DSN", "KHO_M4_04A_CLONE_APP_DSN"), "db": "KHO_M4_04A_CLONE_DB",
@@ -416,8 +419,8 @@ HO_CLONE = {
     "g6a": {"dsn": ("KTT_G6A_CLONE_OWNER_DSN", "KTT_G6A_CLONE_APP_DSN"), "db": None,
             "mau": r"KTT_G6A_CLONE_|\btest_crm_kiem_hd\b"},
 }
-# Họ nhận ra nhưng chưa dựng được (cần login kế toán có vai dự án KE_TOAN trên DA_XD_A1 do Root cấp): không đặt biến → test skip như cũ.
-HO_CHUA_HO_TRO = {"03a": r"KHO_M4_03A_|\btest_m4_03a_pg\b"}
+# Họ nhận ra nhưng chưa dựng được: không đặt biến → test skip như cũ.
+HO_CHUA_HO_TRO = {}
 
 
 def _nap_tien_ich_dsn():
@@ -472,6 +475,9 @@ def _dac_ta_ho(ho: str, db: str) -> tuple[dict, dict]:
     if ho == "02c":
         from kho_tri_thuc.m4.sql_duyet import M0024_M4_DUYET
         return {"m4_02c_clone_provenance": ma}, {"KHO_M4_02C_CLONE_PROVENANCE": ma, "KHO_M4_02C_M24_SHA256": _sha_sql(M0024_M4_DUYET)}
+    if ho == "03a":
+        from tools.pg_demo_ho_03a import dac_ta
+        return dac_ta(ma)
     if ho == "mc":
         from kho_tri_thuc.m4.sql_master_dung_chung import M4_MASTER_DUNG_CHUNG_SQL
         sha = _sha_sql(M4_MASTER_DUNG_CHUNG_SQL)
@@ -532,6 +538,9 @@ def _pg_tao_clone(tkn, kn: dict, ten: str, ho: str) -> dict:
     _, adm = tkn.thay_ten_csdl(kn["admin_dsn"], ten)
     kq = KD.chuan_bi({"app_dsn": app, "admin_dsn": adm}, tien_to=KD.TIEN_TO_DB_KIEM_THU)
     he, env = _dac_ta_ho(ho, ten)
+    if ho == "03a":
+        from tools.pg_demo_ho_03a import dung_du_lieu
+        env.update(dung_du_lieu(adm, app, ten))
     if he:
         with psycopg.connect(KD.chuan_hoa_dsn(adm, KD.TIEN_TO_DB_KIEM_THU)["conninfo"], autocommit=True) as c:
             for khoa, gia_tri in he.items():
