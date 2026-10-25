@@ -13,7 +13,7 @@ Dùng:
   engine sqlite (bỏ mọi biến KHO_* và PG* khỏi môi trường tiến trình con để không chạm PostgreSQL).
 - Mỗi module chạy một tiến trình con; quá --gioi-han giây (mặc định 180) thì giết cả cây tiến trình, ghi treo=1 và test đang chạy.
 - --ra: JSON module -> {ok, error, fail, skip, treo, giay} (+ tong, ids_loi, test_treo, loi_dau). Ghi lại sau mỗi module.
-- --runtime: chỉ dùng python và duong_dan_phu_thuoc; đường dẫn tương đối tính từ thư mục chứa file runtime.
+- --runtime: dùng python, duong_dan_phu_thuoc và thu_muc_khoi_dong (provider guard như launcher DEMO); đường dẫn tương đối tính từ tệp runtime.
 - Không sửa gì trong repo được đo; log và thư mục tạm của test nằm trong --nhat-ky (mặc định thư mục tạm hệ điều hành).
 - Không dùng dữ liệu thật; mặc định không PostgreSQL, không mạng.
 
@@ -29,7 +29,8 @@ Dùng:
   (`k2.crm_khoi_dong.chuan_bi`: migrate + seed DEMO), ghi dấu nguồn/checksum lên `master.he_thong` rồi đặt biến; xóa sau module.
   Họ 03A/03B dùng seed M4 với ma trận kế toán DEMO riêng và nhận hóa đơn fixture qua HoaDonK2; không dựng giả lịch sử trước migration.
 - Tiến trình con do test tự sinh (PYTHONPATH=src ghi đè đường dẫn phụ thuộc của runtime) vẫn thấy psycopg nhờ một PYTHONUSERBASE tạm có
-  tệp .pth trỏ tới `duong_dan_phu_thuoc` và cài hook sở hữu; probe lỗi/rỗng hoặc đường dẫn resolve ngoài nhật ký thì dừng, không ghi .pth.
+  tệp .pth trỏ tới phụ thuộc/provider khởi động và chuyển tiếp user site gốc, giữ hook giữ tệp bên cạnh hook sở hữu PG.
+  Probe lỗi/rỗng hoặc user site tạm resolve ngoài nhật ký thì dừng, không ghi .pth.
 - Chỉ một lần chạy --pg-demo cùng lúc (khóa tệp trong thư mục tạm). `--pg-demo-don-so <sổ>`: dọn các CSDL còn trong sổ của lần chạy bị chết giữa chừng.
 
 Kết thúc: mã 0 nếu không module nào có ERROR/FAIL/treo, ngược lại 1 (mã chỉ để tham khảo; nền được so bằng JSON).
@@ -702,8 +703,22 @@ class _PgDemo:
                " m._bat_bao_ve_pth()\n"
                "except BaseException:\n"
                " os._exit(2)\n")
-        dong = [str(p) for p in self.phu_thuoc] + [
+        dong = [str(p) for p in dict.fromkeys((*self.phu_thuoc, *_duong_khoi_dong()))] + [
                 f"import os; os.environ.get('KHO_PG_DEMO_SO') and exec({nap!r})"]
+        # User base tạm thay thế user base của caller: chuyển tiếp provider .pth
+        # ban đầu, không chép/vá guard. Host lọc KHO_* vẫn cần hook giữ tệp này.
+        cu = subprocess.run([self.python, "-c", "import site; print(site.getusersitepackages())"],
+                            capture_output=True, text=True, timeout=60,
+                            env=_moi_truong(self.repo, self.thu_muc_tam, self.phu_thuoc))
+        if cu.returncode != 0 or not cu.stdout.strip():
+            raise RuntimeError("Probe user site gốc lỗi hoặc rỗng; không ghi .pth.")
+        site_cu = Path(cu.stdout.strip()).resolve()
+        if site_cu != thu_muc:
+            nap_cu = ("try:\n import site\n"
+                      f" site.addsitedir({str(site_cu)!r})\n"
+                      "except BaseException:\n os._exit(2)\n")
+            # Phụ thuộc runtime vẫn đứng trước các package của user site gốc.
+            dong.insert(len(dong) - 1, f"import os; exec({nap_cu!r})")
         (thu_muc / "ktt-phu-thuoc.pth").write_text(_LOC.text("\n".join(dong) + "\n"), encoding="utf-8")
         return str(co_so)
 
@@ -875,7 +890,7 @@ def _doc_log_con(ong, tep_log: Path, dung: threading.Event, loc: _LocBiMat):
 
 
 def _doc_runtime(tep: Path) -> tuple[str, tuple[Path, ...]]:
-    """Chỉ lấy hai khóa runtime; không nạp cấu hình kết nối hay guard của app."""
+    """Lấy runtime và đường khởi động guard như launcher; không đọc cấu hình kết nối."""
     tep = tep.resolve()
     data = json.loads(tep.read_text(encoding="utf-8-sig"))
     if not isinstance(data, dict):
@@ -893,6 +908,14 @@ def _doc_runtime(tep: Path) -> tuple[str, tuple[Path, ...]]:
 
     executable = duong_dan(python)
     dependencies = tuple(duong_dan(p) for p in phu_thuoc)
+    khoi_dong = data.get("thu_muc_khoi_dong")
+    if khoi_dong is not None:
+        if not isinstance(khoi_dong, str) or not khoi_dong.strip():
+            raise ValueError("thu_muc_khoi_dong cần là đường dẫn không rỗng.")
+        startup = duong_dan(khoi_dong)
+        if not (startup / "sitecustomize.py").is_file():
+            raise ValueError("Không thấy sitecustomize.py trong thu_muc_khoi_dong.")
+        dependencies += (startup,)
     if not executable.is_file():
         raise ValueError("Không thấy file Python của runtime.")
     if any(not p.is_dir() for p in dependencies):
@@ -900,10 +923,21 @@ def _doc_runtime(tep: Path) -> tuple[str, tuple[Path, ...]]:
     return str(executable), dependencies
 
 
+def _duong_khoi_dong() -> tuple[Path, ...]:
+    # Giữ provider khởi động của caller, không kéo src của worktree khác vào test.
+    startup = [Path(p).resolve() for p in os.environ.get("PYTHONPATH", "").split(os.pathsep)
+               if p and (Path(p) / "sitecustomize.py").is_file()]
+    site_tep = getattr(sys.modules.get("sitecustomize"), "__file__", None)
+    if site_tep:
+        startup.append(Path(site_tep).resolve().parent)
+    return tuple(dict.fromkeys(startup))
+
+
 def _moi_truong(repo: Path, thu_muc_tam: Path, phu_thuoc: tuple[Path, ...] = (), them: dict | None = None) -> dict:
     env = {k: v for k, v in os.environ.items() if not (k.upper().startswith("KHO_") or k.upper().startswith("PG"))}
     env.update(them or {})  # --pg-demo: KHO_PG_DSN_TEST và biến bản sao DEMO — chỉ vào tiến trình con của test, không in/ghi
-    env["PYTHONPATH"] = os.pathsep.join(str(p) for p in (repo / "src", repo, *phu_thuoc))
+    duong = dict.fromkeys((repo / "src", repo, *phu_thuoc, *_duong_khoi_dong()))
+    env["PYTHONPATH"] = os.pathsep.join(str(p) for p in duong)
     env["PYTHONIOENCODING"] = "utf-8"
     env["PYTHONDONTWRITEBYTECODE"] = "1"
     env["TEMP"] = env["TMP"] = env["TMPDIR"] = str(thu_muc_tam)
@@ -1107,7 +1141,7 @@ def main(argv=None) -> int:
                     help="chỉ với --pg-demo: không chạy test, dọn các CSDL kho_test_* còn trong sổ ghi của một lần chạy bị chết giữa chừng")
     runtime = ap.add_mutually_exclusive_group()
     runtime.add_argument("--python", default=sys.executable, help="python.exe dùng chạy test (mặc định: chính python đang chạy script)")
-    runtime.add_argument("--runtime", type=Path, help="runtime.local.json: dùng python và duong_dan_phu_thuoc; kết nối PostgreSQL chỉ đến từ --pg-demo")
+    runtime.add_argument("--runtime", type=Path, help="runtime.local.json: dùng python, duong_dan_phu_thuoc, thu_muc_khoi_dong; kết nối PostgreSQL chỉ đến từ --pg-demo")
     args = ap.parse_args(argv)
 
     phu_thuoc = ()

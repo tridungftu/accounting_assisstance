@@ -241,6 +241,17 @@ class PgDemoThuanTests(unittest.TestCase):
         self.assertTrue(pth.resolve().is_relative_to(self.root))
         self.assertIn("_bat_bao_ve_pth", pth.read_text(encoding="utf-8"))
 
+    def test_probe_user_site_goc_loi_khong_ghi_pth(self):
+        pg = self._pg_demo()
+        site = self.root / "tam" / "site-phu-thuoc" / "site-packages"
+        for rc, out in ((1, ""), (0, "")):
+            with self.subTest(rc=rc), patch.object(R.subprocess, "run", side_effect=[
+                    types.SimpleNamespace(returncode=0, stdout=str(site)),
+                    types.SimpleNamespace(returncode=rc, stdout=out)]):
+                with self.assertRaisesRegex(RuntimeError, "không ghi .pth"):
+                    pg._site_phu_thuoc()
+        self.assertEqual(list(self.root.rglob("*.pth")), [])
+
     def test_pth_bao_ve_loi_phai_dung_khong_tiep_tuc_python(self):
         with patch.object(R, "_bat_bao_ve_con", side_effect=ValueError("sổ sai")), patch.object(R.os, "_exit") as thoat, contextlib.redirect_stderr(io.StringIO()):
             R._bat_bao_ve_pth()
@@ -292,6 +303,115 @@ class PgDemoThuanTests(unittest.TestCase):
                            "print(sys.modules[psycopg.Cursor.execute.__module__].__file__)", env)
         self.assertEqual(r.returncode, 0, r.stderr.decode("utf-8", errors="replace"))
         self.assertEqual(Path(r.stdout.decode("utf-8").strip()).resolve(), Path(R.__file__).resolve())
+
+    def _provider_guard_thu(self, thu_muc, sitecustomize=True):
+        """Provider TEST có hook thật; SHA khác A517 nên không được host chấp nhận."""
+        thu_muc.mkdir(parents=True, exist_ok=True)
+        (thu_muc / "codex_no_delete_guard.py").write_text(
+            "import os, shutil\n"
+            "def chan(*a, **kw):\n    raise PermissionError('DEMO giữ tệp')\n"
+            "os.remove = os.unlink = shutil.rmtree = chan\n", encoding="utf-8")
+        if sitecustomize:
+            (thu_muc / "sitecustomize.py").write_text("import codex_no_delete_guard\n", encoding="utf-8")
+        else:
+            (thu_muc / "guard-thu.pth").write_text("import codex_no_delete_guard\n", encoding="utf-8")
+
+    def _kiem_hook_con_va_chau(self, env, ma_host="GUARD_SHA_SAI"):
+        # Chỉ import/đọc chứng cứ trong các tiến trình thật: không mở host/server/CSDL.
+        kiem = ("from kho_tri_thuc.nguon import trich6_host as H; "
+                "from kho_tri_thuc.m4.review_compute import guard_dang_nap; "
+                "cc = H.chung_cu_guard(); "
+                "assert cc['module'] and cc['flag'] and cc['bytecode_tat'], cc; "
+                "assert H.HOOK_BAT_BUOC <= set(cc['hooks']), cc; "
+                "assert guard_dang_nap()[0], guard_dang_nap(); "
+                f"assert H.guard_hop_le(cc) == {ma_host!r}, cc")
+        ma = ("import subprocess, sys; " + kiem + "; "
+              "from kho_tri_thuc.k2.xay_dung import XayDungK2; "
+              "envs = [H.env_con(), XayDungK2._env_worker()]; "
+              "assert all('KHO_PG_DEMO_SO' not in e for e in envs); "
+              f"rs = [subprocess.run([sys.executable, '-X', 'utf8', '-c', {kiem!r}], "
+              "env=e, capture_output=True, timeout=15) for e in envs]; "
+              "assert all(r.returncode == 0 for r in rs), [(r.stdout, r.stderr) for r in rs]")
+        r = subprocess.run([sys.executable, "-X", "utf8", "-c", ma], env=env, cwd=self.root,
+                           capture_output=True, timeout=40)
+        self.assertEqual(r.returncode, 0, r.stderr.decode("utf-8", errors="replace"))
+
+    def test_runtime_khoi_dong_cai_hook_o_con_va_chau(self):
+        kd = self.root / "khởi động"
+        self._provider_guard_thu(kd)
+        runtime = self.root / "runtime.json"
+        runtime.write_text(json.dumps({"python": sys.executable, "duong_dan_phu_thuoc": [],
+                                       "thu_muc_khoi_dong": kd.name}), encoding="utf-8")
+        py, deps = R._doc_runtime(runtime)
+        self.assertEqual(py, sys.executable)
+        self.assertIn(kd, deps)
+        env = R._moi_truong(self.repo, self.root, deps, {"CODEX_NO_DELETE_FILES": "1",
+                                                       "PYTHONUSERBASE": str(self.root / "userbase-trong")})
+        self._kiem_hook_con_va_chau(env)
+        # .pth PG cũng giữ provider khi test tự ghi đè PYTHONPATH=src.
+        pg = self._pg_demo()
+        pg.phu_thuoc = deps
+        with patch.dict(os.environ, {"PYTHONUSERBASE": env["PYTHONUSERBASE"]}):
+            env["PYTHONUSERBASE"] = pg._site_phu_thuoc()
+        env["PYTHONPATH"] = str(self.repo / "src")
+        self._kiem_hook_con_va_chau(env)
+
+    def test_runtime_tu_choi_duong_khoi_dong_sai(self):
+        runtime = self.root / "runtime.json"
+        for kd in (1, "", "khong-co"):
+            with self.subTest(kd=kd):
+                runtime.write_text(json.dumps({"python": sys.executable, "duong_dan_phu_thuoc": [],
+                                               "thu_muc_khoi_dong": kd}), encoding="utf-8")
+                with self.assertRaisesRegex(ValueError, "thu_muc_khoi_dong"):
+                    R._doc_runtime(runtime)
+
+    def test_giu_provider_pythonpath_cua_caller(self):
+        kd = self.root / "provider-caller"
+        self._provider_guard_thu(kd)
+        with patch.dict(os.environ, {"PYTHONPATH": str(kd) + os.pathsep + str(self.root / "repo-khac")}):
+            env = R._moi_truong(self.repo, self.root, them={"CODEX_NO_DELETE_FILES": "1",
+                                                          "PYTHONUSERBASE": str(self.root / "userbase-trong")})
+        self.assertNotIn(str(self.root / "repo-khac"), env["PYTHONPATH"])
+        self._kiem_hook_con_va_chau(env)
+
+    def test_userbase_pg_chuyen_tiep_pth_guard_goc_cho_chau(self):
+        import sysconfig
+        ub = self.root / "userbase-goc"
+        scheme = "nt_user" if os.name == "nt" else "posix_user"
+        site = Path(sysconfig.get_path("purelib", scheme, vars={"userbase": str(ub)}))
+        self._provider_guard_thu(site, sitecustomize=False)
+        with patch.dict(os.environ, {"PYTHONUSERBASE": str(ub), "PYTHONPATH": str(self.repo / "src")}):
+            pg = self._pg_demo()
+            moi = pg._site_phu_thuoc()
+            env = R._moi_truong(self.repo, self.root, them={"PYTHONUSERBASE": moi, "CODEX_NO_DELETE_FILES": "1"})
+        self._kiem_hook_con_va_chau(env)
+
+    def test_thieu_hook_tien_trinh_that_van_dung_guard_khong_nap(self):
+        # -I bỏ cả hai provider, -B vẫn giữ yêu cầu không bytecode. Không import bù guard.
+        cfg = {"kieu": "trich6_host_cau_hinh/v1", "token": "d" * 40, "nguon": str(self.root / "nguon-khong-mo"),
+               "du_lieu": str(self.root / "khong-duoc-tao"), "instance_id": "demo"}
+        ma = (f"import sys; sys.path.insert(0, {str(self.repo / 'src')!r}); "
+              "from kho_tri_thuc.m4 import review_compute as C; "
+              f"assert C.main([{cfg['du_lieu']!r}]) == C.MA_GUARD_KHONG_NAP == 4; "
+              "from kho_tri_thuc.nguon import trich6_host as H; sys.exit(H._con(kenh=sys.stdout))")
+        env = R._moi_truong(self.repo, self.root, them={"CODEX_NO_DELETE_FILES": "1"})
+        r = subprocess.run([sys.executable, "-I", "-B", "-c", ma], env=env, cwd=self.root,
+                           input=json.dumps(cfg).encode("utf-8"), capture_output=True, timeout=15)
+        self.assertEqual(r.returncode, 4, r.stderr.decode("utf-8", errors="replace"))
+        self.assertEqual(json.loads(r.stdout)["ma"], "GUARD_KHONG_NAP")
+        self.assertIn(b"GUARD_KHONG_NAP", r.stderr)
+        self.assertFalse(Path(cfg["du_lieu"]).exists())
+
+    def test_guard_a517_that_o_chau_khi_runtime_co_provider(self):
+        from kho_tri_thuc.nguon import trich6_host as H
+        cc = H.chung_cu_guard()
+        if not cc["module"]:
+            self.skipTest("runtime không có provider guard A517 thật — lead chạy test với --runtime DEMO")
+        self.assertIsNone(H.guard_hop_le(cc), cc)
+        pg = self._pg_demo()
+        env = R._moi_truong(self.repo, self.root, them={"PYTHONUSERBASE": pg._site_phu_thuoc()})
+        env["PYTHONPATH"] = str(self.repo / "src")
+        self._kiem_hook_con_va_chau(env, ma_host=None)
 
     def test_timeout_giet_ca_chau_giu_stdout_va_tra_treo_dung_han(self):
         pid_chau = self.root / "pid-chau.txt"
