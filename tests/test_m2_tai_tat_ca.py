@@ -405,6 +405,72 @@ class TaiTatCaTest(unittest.TestCase):
         self.cho_job(2)
         self.assertEqual(self.node.chong, 0)
 
+    def test_co_tai_le_cu_mat_ket_noi_tra_loi_tieng_viet(self):
+        for ma in ("KHACH_KHONG_KET_NOI", "KHACH_QUA_HAN"):
+            with self.subTest(ma=ma):
+                self.dv._dang_chay = "DEMO-cu"
+                khach = self.tt.khach()
+                with patch.object(self.dv, "_khach", return_value=khach), patch.object(khach, "config", side_effect=mod.LoiKhach(ma)):
+                    status, body = self.goi()
+                self.assertEqual(status, 502)
+                self.assertEqual(body["error"], "M2_00B_" + ma)
+                self.assertIn("bộ tải", body["message"])
+                self.assertIsNone(self.dv._hang_doi)
+                self.assertEqual(self.dv._dang_chay, "DEMO-cu")
+        self.assertEqual(self.node.so_start, 0)
+
+    def test_loi_tao_va_start_thread_khong_giu_hang_doi(self):
+        for diem in ("Thread", "Thread.start"):
+            dich, ten = (mod.threading, "Thread") if diem == "Thread" else (mod.threading.Thread, "start")
+            with self.subTest(diem=diem), patch.object(dich, ten, side_effect=RuntimeError("DEMO")):
+                with self.assertRaises(RuntimeError):
+                    self.dv.tai_tat_ca(gia.SID_KT, CHON)
+                self.assertIsNone(self.dv._hang_doi)
+        self.assertEqual(self.goi()[0], 200, "Có thể tạo lại hàng đợi sau lỗi luồng")
+        self.cho_job(1)
+
+    def dung_chua_xac_nhan(self):
+        self.tt.san = False
+        self.tt.chung_dung = {"popen_pid": 123, "ma": "DEMO_CHUA_DUNG"}
+        return {"trang_thai": "DUNG_CHUA_XAC_NHAN", "chung_dung": self.tt.chung_dung}
+
+    def test_huy_chua_dung_tra_canh_bao_va_khong_mo_bo_tai_thu_hai(self):
+        self.assertEqual(self.goi()[0], 200)
+        self.cho_job(1)
+        with patch.object(self.tt, "stop", side_effect=self.dung_chua_xac_nhan):
+            status, body = self.goi(ten="huy-hang-doi", body={})
+            q = self.cho_xong()
+        self.assertEqual(status, 502)
+        self.assertEqual(body["message"], mod.CANH_BAO_DUNG)
+        self.assertNotIn("da_huy", body)
+        self.assertTrue(all(m["ly_do"] == mod.CANH_BAO_DUNG for m in q["muc"]))
+        self.assertIsNotNone(self.node.running, "Bộ tải cũ còn chạy trong mô phỏng")
+        with self.assertRaises(mod.DataError) as err:
+            self.dv.khoi_dong_neu_can()
+        self.assertEqual(err.exception.code, "M2_00B_DUNG_CHUA_XAC_NHAN")
+        self.assertEqual(self.tt.so_start, 0)
+        self.assertEqual(self.node.so_start, 1)
+
+    def test_ngoai_le_stop_chua_xac_nhan_giu_canh_bao(self):
+        with patch.object(self.dv, "status", side_effect=RuntimeError("DEMO")), patch.object(self.tt, "stop", side_effect=self.dung_chua_xac_nhan):
+            self.assertEqual(self.goi()[0], 200)
+            q = self.cho_xong()
+        self.assertEqual([m["trang_thai"] for m in q["muc"]], ["Lỗi", "Đã hủy"])
+        self.assertTrue(all(m["ly_do"] == mod.CANH_BAO_DUNG for m in q["muc"]))
+        with self.assertRaises(mod.DataError):
+            self.dv.khoi_dong_neu_can()
+        self.assertEqual(self.tt.so_start, 0)
+        self.assertEqual(self.node.so_start, 1)
+
+    def test_khoi_dong_lai_chi_sau_khi_stop_xac_nhan(self):
+        self.tt.san = False
+        loi = mod.DataError("M2_00B_DA_KHOI_DONG", "DEMO")
+        with patch.object(self.dv, "khoi_dong", side_effect=loi) as mo, patch.object(self.tt, "stop", side_effect=self.dung_chua_xac_nhan):
+            with self.assertRaises(mod.DataError) as err:
+                self.dv.khoi_dong_neu_can()
+        self.assertEqual(err.exception.code, "M2_00B_DUNG_CHUA_XAC_NHAN")
+        self.assertEqual(mo.call_count, 1, "Không thử khởi động lần hai khi chưa dừng")
+
     def test_profiles_doc_tien_do_khong_giu_khoa_hang_doi(self):
         self.assertEqual(self.goi()[0], 200)
         self.cho_job(1)

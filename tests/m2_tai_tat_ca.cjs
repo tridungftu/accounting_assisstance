@@ -104,5 +104,63 @@ async function main() {
   env.calls.at(-1).resolve(phanHoi(200, TT(ds, true, {hang_doi: {dang_chay: false, dang_co_hang_doi: true, muc: []}}))); await chay();
   assert.strictEqual(env.document.getElementById("m2-tct-huy-hang-doi"), null, "Không hiện Hủy cho hàng đợi người khác");
   console.log("H4: hủy hàng đợi, chống bấm đôi/phản hồi cũ, ẩn Hủy của người khác: đạt");
+
+  for (const status of [0, 400, 403, 409, 500, 502]) {
+    const env = moiTruong(), waits = [];
+    env.ctx.setTimeout = fn => { waits.push(fn); return waits.length; };
+    env.ctx.location.hash = "#hoadonmua";
+    vm.runInContext(JS, env.ctx);
+    env.calls[0].resolve(phanHoi(200, TT(ds, true, {hang_doi: q(true)}))); await chay();
+    const cu = env.calls.at(-1);
+    env.document.getElementById("m2-tct-huy-hang-doi").click(); await chay();
+    const post = env.calls.at(-1);
+    if (status === 0) post.reject(new Error("DEMO: mất kết nối"));
+    else post.resolve(phanHoi(status, {message: "DEMO: chưa xác nhận hủy"}));
+    await chay();
+    const moi = env.calls.at(-1);
+    assert.strictEqual(moi.url, API + "/hang-doi", `Hủy lỗi ${status} vẫn đọc lại tiến độ`);
+    assert.notStrictEqual(moi, cu);
+    moi.resolve(phanHoi(200, q(true))); await chay();
+    cu.resolve(phanHoi(200, q(false))); await chay();
+    assert.ok(env.document.getElementById("m2-tct-huy-hang-doi"), "Phản hồi poll cũ không đổi tiến độ");
+    assert.strictEqual(waits.length, 1);
+    waits.shift()(); await chay();
+    env.calls.at(-1).resolve(phanHoi(200, q(false))); await chay();
+    assert.ok(!env.document.getElementById("m2-tct-tat-ca").disabled);
+  }
+  console.log("H5: hủy lỗi mạng/HTTP luôn tiếp tục poll và chống phản hồi cũ: đạt");
+
+  for (const status of [0, 500, 502]) {
+    const env = moiTruong(), waits = [];
+    env.ctx.setTimeout = fn => { waits.push(fn); return waits.length; };
+    env.ctx.location.hash = "#hoadonmua";
+    vm.runInContext(JS, env.ctx);
+    env.calls[0].resolve(phanHoi(200, TT(ds, true, {hang_doi: q(true)}))); await chay();
+    const hong = async () => {
+      const c = env.calls.at(-1);
+      if (status === 0) c.reject(new Error("DEMO: mất kết nối"));
+      else c.resolve(phanHoi(status, {message: "DEMO: lỗi tạm thời"}));
+      await chay();
+    };
+    for (let i = 0; i < 19; i++) {
+      await hong();
+      assert.strictEqual(waits.length, 1);
+      waits.shift()(); await chay();
+    }
+    // Một phản hồi tốt phải đặt lại bộ đếm lỗi liên tiếp.
+    env.calls.at(-1).resolve(phanHoi(200, q(true))); await chay();
+    waits.shift()(); await chay();
+    for (let i = 0; i < 20; i++) {
+      await hong();
+      if (i < 19) { assert.strictEqual(waits.length, 1); waits.shift()(); await chay(); }
+    }
+    assert.strictEqual(waits.length, 0, `Lỗi ${status} dừng sau 20 lần liên tiếp`);
+    assert.strictEqual(env.document.getElementById("m2-tct-status").textContent, "Mất kết nối — bấm Làm mới");
+    env.document.getElementById("m2-tct-lam-moi").click(); await chay();
+    env.calls.at(-1).resolve(phanHoi(200, TT(ds, true, {hang_doi: q(true)}))); await chay();
+    assert.strictEqual(env.calls.at(-1).url, API + "/hang-doi", "Làm mới khởi động lại poll");
+    env.calls.at(-1).resolve(phanHoi(200, q(false))); await chay();
+  }
+  console.log("H6: lỗi 0/500/502 dừng sau 20 lần, reset khi thành công, Làm mới phục hồi: đạt");
 }
 main().then(() => process.exit(0)).catch(e => { console.error(e.stack || e); process.exit(1); });
