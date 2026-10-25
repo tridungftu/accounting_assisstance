@@ -528,6 +528,37 @@
     NT_KHONG_HIEN_HANH: "Căn cứ nghiệm thu đã đổi", NT_CHUA_KT_XAC_NHAN: "Đợt chưa được kế toán xác nhận", NT_KHAC_HOP_DONG: "Các đợt khác hợp đồng",
     BEN_BAN_HD_THIEU: "Hợp đồng thiếu đối tác", BEN_BAN_KHAC: "Đối tác hóa đơn khác hợp đồng", HOA_DON_CHUA_CO_PHIEN_BAN: "Hóa đơn chưa có bản hiện hành",
     CHO_MAPPING_M2: "Dòng hóa đơn chờ xác định tại màn hóa đơn"};
+  const DC_DINH_DANG = "Nhập số dương bằng chữ số 0–9, không dấu phân cách hàng nghìn; dấu chấm thập phân, ví dụ USD: 1234.50; VND: 1234 (số nguyên). USD tối đa hai số lẻ, số tiền dưới 10^18.";
+  const DC_DOI = "Đối chiếu đã đổi ở nơi khác — tải lại, kiểm rồi làm lại.";
+  const DC_LOI = {
+    DC_REVISION_CU: DC_DOI, DC_DO_THI_DOI: DC_DOI,
+    DC_CAN_KIEM_LAI: "Nguồn đã đổi — cần kiểm lại trước khi xác nhận.",
+    DC_NGUON_CU: "Nguồn đã đổi — tải lại căn cứ rồi lưu phiên bản mới.",
+    DC_HOA_DON_DA_GAN: "Hóa đơn đã gắn ở đối chiếu khác — tải lại và chọn hóa đơn chưa gắn.",
+    DC_DA_CO_GOC: "Tập nguồn đã có đối chiếu — tải lại và sửa bằng phiên bản mới của đối chiếu đó.",
+    DC_TAP_THUOC_GOC_KHAC: "Tập nguồn thuộc đối chiếu khác — tải lại và chọn đúng đối chiếu để sửa.",
+    DC_CHO_BO_SUNG: "Căn cứ chưa đủ — bổ sung hóa đơn, số tiền và đơn vị trước khi xác nhận.",
+    DC_PHAN_SAI: DC_DINH_DANG,
+    DC_CAN_CU_SAI: "Tệp căn cứ không còn phù hợp — tải lại và chọn tệp thuộc nguồn đã chọn.",
+    DC_KHAC_PN: "Các nguồn khác pháp nhân — chọn lại nguồn cùng pháp nhân.",
+    DC_PHAM_VI: "Nguồn ngoài phạm vi được phép — kiểm tra quyền và chọn lại nguồn.",
+    DC_KHONG_THAY: "Không tìm thấy đối chiếu — tải lại danh sách và chọn lại.",
+    DC_NGUON_SAI: "Nguồn không hợp lệ — tải lại và chọn lại căn cứ.",
+    DC_THAM_SO_SAI: "Thông tin đối chiếu không hợp lệ — tải lại và chọn lại nguồn trước khi lưu.",
+    DC_THANH_PHAN_SAI: "Thành phần đối chiếu không còn phù hợp — tải lại và kiểm tra nguồn đã chọn.",
+    DC_KHOA_THAO_TAC: "Lệnh lưu không còn hợp lệ — tải lại rồi thực hiện lại thao tác.",
+    DC_IDEMPOTENCY_KHAC: "Lệnh gửi lại khác lệnh trước — tải lại để kiểm tra kết quả trước khi làm lại.",
+    DC_XAC_NHAN_KHAC_NHAP: "Nội dung khác bản nháp — lưu nháp mới rồi xác nhận lại.",
+    DC_DANH_TINH: "Phiên đăng nhập không còn hợp lệ — đăng nhập lại rồi tải lại căn cứ."
+  };
+  function dcLoiMayChu(d) {
+    const code = [d && d.error, d && d.message].map(v => typeof v === "string" ? v.match(/\bDC_[A-Z_]+\b/) : null).find(Boolean);
+    return code && DC_LOI[code[0]] || "Không lưu được — tải lại rồi thử lại.";
+  }
+  function dcNhanDot(d) {
+    return [d.so_dot != null ? "Đợt " + d.so_dot : "Đợt đã xác nhận", d.ngay_nghiem_thu ? dcNgay(d.ngay_nghiem_thu) : null,
+      d.gia_tri_nt_xac_nhan != null ? dcTien(d.gia_tri_nt_xac_nhan, d.tien_te) : null].filter(Boolean).join(" · ");
+  }
   function dcState() {
     const key = chuoiCtx(dto.context);
     if (!dcMap.has(key)) dcMap.set(key, {key, parts: [], tep: [], tepBoSung: [], lyDo: "", data: null, hist: null, base: null, edit: true, busy: false, error: "", pending: null, saved: null});
@@ -546,15 +577,16 @@
       if (h && dcGanKhac(s, h).length) return "Hóa đơn đã gắn ở đối chiếu khác — không cho gắn trùng.";
       if (t.phan === "MOT_PHAN" && (!t.so_tien_khai || !t.tien_te)) return "Một phần bắt buộc nhập số tiền và đơn vị.";
       if (t.phan === "MOT_PHAN" && (!/^(0|[1-9][0-9]{0,17})(\.[0-9]{1,2})?$/.test(t.so_tien_khai) || !/[1-9]/.test(t.so_tien_khai) ||
-          !["VND", "USD"].includes(t.tien_te) || (t.tien_te === "VND" && t.so_tien_khai.includes(".")))) return "Số tiền một phần phải dương; VND nguyên, USD tối đa hai số lẻ.";
+          !["VND", "USD"].includes(t.tien_te) || (t.tien_te === "VND" && t.so_tien_khai.includes(".")))) return DC_DINH_DANG;
     }
     return "";
   }
   async function dcFetch(path, body) {
-    const res = await fetch("/api/m4/doi-chieu/" + path, {method: body ? "POST" : "GET", cache: "no-store", credentials: "same-origin",
-      headers: {"X-KTT-Token": TOKEN, ...(body ? {"Content-Type": "application/json"} : {})}, ...(body ? {body: typeof body === "string" ? body : JSON.stringify(body)} : {})});
+    let res; try { res = await fetch("/api/m4/doi-chieu/" + path, {method: body ? "POST" : "GET", cache: "no-store", credentials: "same-origin",
+      headers: {"X-KTT-Token": TOKEN, ...(body ? {"Content-Type": "application/json"} : {})}, ...(body ? {body: typeof body === "string" ? body : JSON.stringify(body)} : {})}); }
+    catch (_) { throw new Error(MAT_KET_NOI + "."); }
     let d; try { d = await res.json(); } catch (_) { throw new Error("Phản hồi không trọn; hãy tải lại căn cứ."); }
-    if (!res.ok) { const e = new Error(dcChu(d.message) || "Chưa thực hiện được thao tác đối chiếu."); e.status = res.status; e.known = res.status < 500; throw e; }
+    if (!res.ok) { const e = new Error(dcLoiMayChu(d)); e.reload = e.message === DC_DOI; e.status = res.status; e.known = res.status < 500; throw e; }
     if (!d || d.schema !== DC_SCHEMA) throw new Error("Dữ liệu đối chiếu chưa hợp lệ; hãy tải lại căn cứ.");
     return d;
   }
@@ -575,6 +607,14 @@
         s.data = null; throw new Error("Cần kiểm lại — căn cứ nghiệm thu đã đổi. Làm mới hồ sơ nghiệm thu trước khi đối chiếu.");
       }
       s.data = d;
+      s.dotOptions = [];
+      for (const row of (ds || []).filter(r => r.trang_thai === DA_XAC_NHAN && r.kt_pending_id !== dto.context.kt_pending_id)) {
+        const detail = await dcDocDot(row.kt_pending_id, true);
+        if (!f() || !dcLive(s)) return;
+        if (!detail) continue;
+        if (detail.context.hop_dong_id === dto.context.hop_dong_id) s.dotOptions.push({kt_pending_id: row.kt_pending_id,
+          ...(detail.dot || {}), gia_tri_nt_xac_nhan: detail.kt.gia_tri_nt_xac_nhan, tien_te: detail.kt.tien_te});
+      }
       if (!s.parts.length) s.parts = [{nguon: d.nguon_nt, phan: "TOAN_PHAN", so_tien_khai: null, tien_te: null}];
       const roots = d.can_cu.doi_chieu.goc_lien_quan;
       if (s.root || roots.length === 1) {
@@ -629,7 +669,7 @@
   }
   async function dcPhat(s) {
     if (!dcLive(s) || s.busy || !s.pending) return;
-    const f = fenceView(), rec = s.pending; s.busy = true; s.error = ""; ve_();
+    const f = fenceView(), rec = s.pending; let reload = false; s.busy = true; s.error = ""; ve_();
     try {
       const ack = await dcFetch(rec.path, rec.body);
       if (!f() || !dcLive(s)) return;
@@ -640,20 +680,33 @@
       if (!f() || !dcLive(s)) return;
       dcApHistory(s, h);
     } catch (e) {
-      if (f() && dcLive(s)) { if (e.known) s.pending = null; dcError(s, e); if (s.pending) s.error = "Chưa rõ kết quả. Gửi lại y nguyên để đối soát."; else s.edit = false; }
+      if (f() && dcLive(s)) { if (e.known) s.pending = null; reload = e.reload && e.known; dcError(s, e); if (s.pending) s.error = "Chưa rõ kết quả. Gửi lại y nguyên để đối soát."; else s.edit = false; }
     } finally { s.busy = false; if (f() && dcLive(s)) ve_(); }
+    if (reload && f() && dcLive(s)) {
+      await dcNap(s);
+      if (f() && dcLive(s) && !s.error) { s.error = "Đối chiếu đã đổi ở nơi khác — đã tải lại, kiểm rồi làm lại."; ve_(); }
+    }
+  }
+  async function dcDocDot(id, ungVien = false) {
+    let res;
+    try { res = await fetch("/api/m4/ke-toan/" + id, {headers: {"X-KTT-Token": TOKEN}, credentials: "same-origin", cache: "no-store"}); }
+    catch (_) { throw new Error(MAT_KET_NOI + "."); }
+    let d; try { d = await res.json(); } catch (_) { throw new Error("Phản hồi không trọn; hãy tải lại căn cứ."); }
+    if (!res.ok || !d || !d.context || !d.quyen || d.quyen.xem !== true || d.can_cu_hien_hanh !== true || !d.kt || d.kt.trang_thai !== DA_XAC_NHAN) {
+      if (ungVien && (res.ok || res.status === 403 || res.status === 404)) return null;
+      throw new Error("Chỉ chọn đợt đã xác nhận, hiện hành và cùng hợp đồng.");
+    }
+    return d;
   }
   async function dcThemDot(s, id) {
     if (!id || !dcSua(s)) return;
     const f = fenceView(); s.busy = true; ve_();
     try {
-      const res = await fetch("/api/m4/ke-toan/" + id, {headers: {"X-KTT-Token": TOKEN}, credentials: "same-origin", cache: "no-store"});
-      const d = await res.json(); if (!f() || !dcLive(s)) return;
-      if (!res.ok || !d.context || d.quyen.xem !== true || d.can_cu_hien_hanh !== true || !d.kt || d.kt.trang_thai !== DA_XAC_NHAN ||
-          d.context.hop_dong_id !== dto.context.hop_dong_id) throw new Error("Chỉ chọn đợt đã xác nhận, hiện hành và cùng hợp đồng.");
+      const d = await dcDocDot(id); if (!f() || !dcLive(s)) return;
+      if (d.context.hop_dong_id !== dto.context.hop_dong_id) throw new Error("Chỉ chọn đợt đã xác nhận, hiện hành và cùng hợp đồng.");
       const r = dcRef(d.context); if (!s.parts.some(t => dcKey(t.nguon) === dcKey(r))) s.parts.push({nguon: r, phan: "TOAN_PHAN", so_tien_khai: null, tien_te: null});
       s.tepBoSung = s.tepBoSung.filter(t => t.pending !== id).concat((d.nguon.tep_can_cu || []).map(tep => ({pending: id, tep})));
-    } catch (e) { if (f() && dcLive(s)) s.error = dcChu(e.message); }
+    } catch (e) { if (f() && dcLive(s)) dcError(s, e); }
     finally { s.busy = false; if (f() && dcLive(s)) ve_(); }
   }
   function veDoiChieu() {
@@ -686,18 +739,18 @@
       const sel = el("select", {"aria-label": "Phạm vi nguồn " + (i + 1)}, [["TOAN_PHAN", "Toàn bộ"], ["MOT_PHAN", "Một phần"]].map(([value, text]) => el("option", {value, text})));
       sel.value = t.phan; sel.disabled = !editable; sel.addEventListener("change", redraw(() => { t.phan = sel.value; t.so_tien_khai = null; t.tien_te = null; })); row.append(sel);
       if (t.phan === "MOT_PHAN") {
-        const input = el("input", {"aria-label": "Số tiền một phần nguồn " + (i + 1), type: "text", inputmode: "decimal", value: t.so_tien_khai || ""}); input.disabled = !editable;
+        const input = el("input", {"aria-label": "Số tiền một phần nguồn " + (i + 1), type: "text", inputmode: "decimal", placeholder: "Nhập số, dấu chấm thập phân: 1234.50 (USD); 1234 (VND)", value: t.so_tien_khai || ""}); input.disabled = !editable;
         input.addEventListener("input", () => { if (dcSua(s)) { t.so_tien_khai = input.value || null; dcNut(s, card); } });
         const unit = el("select", {"aria-label": "Đơn vị nguồn " + (i + 1)}, [["", "Chọn đơn vị"], ["VND", "VND"], ["USD", "USD"]].map(([value, text]) => el("option", {value, text})));
         unit.value = t.tien_te || ""; unit.disabled = !editable; unit.addEventListener("change", redraw(() => { t.tien_te = unit.value || null; }));
-        row.append(input, unit);
+        row.append(input, unit, nho(DC_DINH_DANG));
       }
       if (!(t.nguon.kind === "NT" && t.nguon.occurrence_id === dto.context.kt_pending_id)) row.append(nut("Bỏ nguồn " + (i + 1), redraw(() => s.parts.splice(i, 1)), "", !editable));
       card.append(row);
     });
-    const other = (ds || []).filter(r => r.trang_thai === DA_XAC_NHAN && !s.parts.some(t => t.nguon.occurrence_id === r.kt_pending_id));
+    const other = (s.dotOptions || []).filter(r => !s.parts.some(t => t.nguon.occurrence_id === r.kt_pending_id));
     const add = el("select", {"aria-label": "Thêm đợt đã xác nhận"}, el("option", {value: "", text: "Chọn thêm đợt đã xác nhận cùng hợp đồng"}),
-      other.map((r, i) => el("option", {value: r.kt_pending_id, text: "Hồ sơ đã xác nhận " + (i + 1)})));
+      other.map(r => el("option", {value: r.kt_pending_id, text: dcNhanDot(r)})));
     add.disabled = !editable; add.addEventListener("change", () => dcThemDot(s, add.value)); card.append(add);
     card.append(el("h4", {text: "Hóa đơn mua — thứ tự gợi ý"}));
     s.data.goi_y.hoa_don.forEach(h => {
