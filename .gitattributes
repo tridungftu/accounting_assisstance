@@ -26,3 +26,6 @@
 /src/kho_tri_thuc/m4/review_goc/app_kiem_tra_ho_so/core.py text eol=crlf
 /src/kho_tri_thuc/m4/review_goc/giao_dien/fonts/fonts.css text eol=crlf
 /src/kho_tri_thuc/m4/review_goc/giao_dien/fonts/*.woff2 -text
+# review L0-7: CSV ghim SHA trên bản CRLF; XLSX là nhị phân (cả hai hiện bị .gitignore, giữ đúng nếu sau này đưa vào git)
+/src/kho_tri_thuc/m4/review_goc/**/*.csv text eol=crlf
+/src/kho_tri_thuc/m4/review_goc/**/*.xlsx -text
