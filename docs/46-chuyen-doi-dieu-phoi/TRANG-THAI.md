@@ -6,7 +6,7 @@ Trạng thái lát: Đang code → Chờ kiểm → Chờ Anh (cổng A/B) → S
 
 | Lát | Việc | Worker | Nhánh · worktree | Giao lúc | Trạng thái |
 |---|---|---|---|---|---|
-| BG-1d | CRM · Báo giá màn hình 2 bước: bước 1 to/đầu (giá, tỷ giá, Tổng VND + bằng chữ, lịch VND, In sơ bộ); bước 2 sau khi khách đồng ý (khách, phí, Chuyển) | Claude Sonnet · review Codex | `lat/bg-1d` (đã gộp BG-1b + BG-1c vòng 2) · DEMO 8791 | 25/10 | Chờ kiểm — vòng 2 xong (f904fcc): 23/23 nhóm ca màn hình, 0 mã lỗi mới; lead kiểm lại DEMO đạt; review Codex vòng 2/2 đang chạy |
+| BG-1d | CRM · Báo giá màn hình 2 bước: bước 1 to/đầu (giá, tỷ giá, Tổng VND + bằng chữ, lịch VND, In sơ bộ); bước 2 sau khi khách đồng ý (khách, phí, Chuyển) | Claude Sonnet · review Codex | `lat/bg-1d` (đã gộp BG-1b + BG-1c vòng 2) · DEMO 8791 | 25/10 | Chờ Anh — cổng A xem lại (`PHIEU-CONG-A-BAO-GIA-XEM-LAI.md`); f904fcc; review Codex vòng 2/2 Đạt; 0 mã lỗi mới |
 | L0-8 | Bật test PostgreSQL trên cụm DEMO (CSDL tạm `kho_test_*`, xóa sau khi chạy) — QD-20261025-10 | Claude Sonnet | `lat/l0-8` | 25/10 | Đang code |
 | C3 | CRM 42 · read-model danh sách hợp đồng S1 `GET /api/crm/hop-dong` (phạm vi theo vai, thẻ W1–W5, ô Junsky "chưa có sổ") | Codex · review Claude | `lat/c3` | 25/10 | Sửa vòng 2 (Codex đang code) |
 | DA-1 | CRM · Dự án đang bán — máy chủ + CSDL (M0031): thông tin bán hàng có phiên bản, đơn giá niêm yết + tiền tệ, loại hình + thuế, phí tiêu chuẩn, lô/căn, tiến độ G7 bán hàng áp dụng ngay, quyền, nhật ký, ảnh chụp mặc định cho báo giá | Claude Opus | `lat/da-1` · DEMO 8793 (CSDL riêng p8793) | 25/10 | Chờ kiểm — 95f1169, bc48ac2, b9adfe7: test thuần 29/29, PostgreSQL 12/12 trên CSDL riêng, CRM 350 đạt, 0 mã lỗi mới; M0031 chạy thật 30 → 31; review Codex chờ lượt |
@@ -68,7 +68,7 @@ Worktree đo nền: `.claude/worktrees/nen-chinh-59b7d8e` (chinh) · `.claude/wo
 
 | Màn | Trạng thái |
 |---|---|
-| CRM · Báo giá (#42, TL 45) | Cổng A gói 1: **Sửa rồi xem lại** (25/10) — BG-1c máy chủ đã gộp (ec73112); BG-1d màn hình 2 bước chờ review Codex → lead tự kiểm DEMO → phiếu xem lại |
+| CRM · Báo giá (#42, TL 45) | **Chờ Anh kiểm cổng A (xem lại)** — `PHIEU-CONG-A-BAO-GIA-XEM-LAI.md`, DEMO http://127.0.0.1:8791 (25/10) |
 | CRM · Dự án đang bán (yêu cầu mới 25/10) | Anh đã chốt thiết kế (QD-20261025-05…09) — DA-1 máy chủ đang code (M0031) → DA-2 màn hình → DA-3 báo giá nạp mặc định |
 | M4 · màn 03B | Anh duyệt checklist (QD-20261025-13) — M4-5a máy chủ (một phần bằng số tiền) → M4-5b màn hình |
 
