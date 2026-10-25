@@ -45,3 +45,5 @@
 .gk-buoc1 .gk-lich td input[type=text]{font-size:15px;min-height:36px}.gk-buoc1 .gk-lan{font-size:16px}.gk-buoc .table-wrap td input[type=text]{width:100%}
 .gk-hanh-dong{display:flex;flex-wrap:wrap;align-items:flex-start;gap:8px 16px;margin-top:10px}.gk-hanh-dong .gk-oc{min-width:200px}
 .gk-nut-ly{display:inline-flex;flex-direction:column;gap:3px;max-width:440px}.gk-ly-nut{color:#8a4b12;font-size:.86em}.gk-ly-nut:empty{display:none}
+.gk-fxmd{margin:6px 0 10px;padding:6px 10px;border:1px dashed #cfd8c6;border-radius:8px;background:#fbfcf9;font-size:.92em;color:#4a5a43}.gk-fxmd-chu{font-variant-numeric:tabular-nums;font-weight:600}.gk-fxmd .link-button{margin-left:8px}
+.gk-fxmd-form{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:8px 14px;margin-top:8px;align-items:end}.gk-fxmd-form>.gk-loi,.gk-fxmd-form>.demo-actions,.gk-fxmd-form>.gk-ghi-chu{grid-column:1/-1;margin:0}.gk-fxmd-form .gk-oc input{min-height:34px;font-size:14px}

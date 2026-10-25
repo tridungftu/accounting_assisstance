@@ -28,7 +28,8 @@
 //  B3  Lưu mất ACK → gửi lại còn chờ → gõ tiếp → FINAL: im lặng, không làm mới; lần lưu sau dùng khóa mới + revision đã ghi nhận; G7 lỗi muộn im lặng.
 //  B5  (BG-1b, thay "Tính thử") lỗi mạng giữ kết quả cũ + một dòng báo, máy tự thử lại; lỗi 4xx hiện câu lỗi; ghi chú/mô tả không gọi máy chủ.
 // BG-1b (màn Báo giá gói 1: BG-01…BG-05; thay A8/A9/B5 cũ của "Tính thử"; timer GIẢ — `tien(ms)` — để kiểm "ngừng gõ 400 ms"):
-//  A8  nạp G7 vào lịch MỘT ô Giá trị (`30%`, `1.234,56`) + mốc một ô; khác tiền tệ báo giá → KHÔNG nạp (không ngầm hiểu USD thành VND).
+//  A8  nạp G7 vào lịch MỘT ô Giá trị (`30%`, `123.456`) + mốc một ô; lịch tính bằng VND kể cả khi đơn giá USD: bộ chuẩn VND nạp được, đợt tiền USD/thiếu tiền tệ → KHÔNG nạp
+//      (không bỏ đơn vị rồi gửi số trần: 100 USD thành 100 VND), đợt % nạp bình thường (BG-1d vòng 2).
 //  A9  lịch ≤ 3 ô nhập/dòng, 0 nút tính; gõ → "…" rồi sau 400 ms gọi xem-truoc; rời ô (change) → gọi ngay + đổi dạng `450000` → `450.000`; phản hồi cũ bị bỏ;
 //      Σ% / Σ tiền / nút In-Chuyển mờ kèm lý do; cập nhật tại chỗ (không vẽ lại form).
 //  A11 mốc một ô (Bàn giao · dd/mm/yyyy · Xây xong tầng n · Sau ký + n ngày), mã lạ gửi lại nguyên, mốc không hiểu chặn Lưu; thêm/đổi chỗ/bỏ dòng, Lần tự đánh số.
@@ -38,6 +39,11 @@
 //  A14 Bước 1 (giá + lịch, to, đứng trước) / Bước 2 (khách + phí, gấp); khối Tổng giá trị VND + phép tính + bằng chữ + USD tham chiếu do máy chủ trả; tỷ giá USD mặc định + nguồn
 //      "mặc định"/"đã sửa" (gửi chuỗi chuẩn "25500", trống → Lưu không gửi tỷ giá), VND khóa = 1 và không gửi; lỗi fx.ty_gia cạnh ô; In sơ bộ mở khi chưa có khách; Chuyển mờ + lý do
 //      (thiếu khách) hiện sẵn → điền khách + lưu → mở; báo giá mới/báo giá quy ước cũ không vỡ.
+// BG-1d vòng 2 (review Codex vòng 1 + lead; chạy CUỐI CÙNG vì dùng trợ giúp của FIX02/FIX03):
+//  A15 (1) Chuyển chỉ mở khi máy chủ đã trả danh sách lý do (rỗng) cho đúng revision đang mở: thiếu `ly_do_chan_chuyen`/`ly_do_chan_in` = CHƯA KIỂM → mờ + lý do, 0 POST;
+//      profile bắt buộc phí: thiếu phí chặn Chuyển nhưng không chặn In sơ bộ, phí nằm ở Bước 2; (3) tỷ giá đã lưu tay → xóa trống: xem trước và Lưu cùng gửi tỷ giá mặc định
+//      hiện hành (39 tỷ = 39 tỷ), chưa có tỷ giá mặc định → không tính/không Lưu; (4) dòng "Tỷ giá USD mặc định" cho mọi vai + Sửa (lý do bắt buộc, lỗi máy chủ hiện tiếng Việt);
+//      (5) thông báo lỗi tải tự hết khi tải lại được (không xóa thông báo của lệnh); (6) "Lần in" dd/mm/yyyy hh:mm năm 4 chữ số.
 const fs = require("fs");
 const path = require("path");
 const vm = require("vm");
@@ -339,36 +345,59 @@ async function main() {
   const goVao = (id, v, ev = "input") => { o(id).value = v; o(id).dispatch(ev); };
   const ketQua = (hien, extra = {}) => TINH([{hien_thi_mo: hien, loi: [], loi_chi_tiet: []}], extra);
 
-  // ---------------------------------------------------------------- A8 nạp G7 vào lịch MỘT ô Giá trị + mốc một ô; khác tiền tệ báo giá → không nạp
+  // ---------------------------------------------------------------- A8 nạp G7 vào lịch MỘT ô Giá trị + mốc một ô; lịch tính bằng VND kể cả khi đơn giá USD (BG-1d vòng 2, chặn #2)
   {
     o("bg-nguon").value = "DU_AN"; o("bg-nguon").dispatch("change"); await chay();
-    o("bg-tt").value = "USD"; o("bg-tt").dispatch("change");
+    o("bg-tt").value = "USD"; o("bg-tt").dispatch("change");  // đơn giá USD; lịch thanh toán vẫn là VND (tiền chính của máy chủ)
     o("bg-du-an").value = "da-1"; o("bg-du-an").dispatch("change");
     o("bg-g7").value = "GD1"; o("bg-g7").dispatch("input");
     const G7 = rows => ({trang_thai: "HIEU_LUC", version: {phien_ban: 3}, rows});
-    nut(gk(), "Nạp bộ chuẩn").click(); await chay();
-    cho(c => c.method === "GET" && c.url === "/api/crm/bo-chuan?du_an_id=da-1&giai_doan=GD1", "GET G7").resolve(phanHoi(200, G7([
-      {lan: "1", gia_tri_loai: "AMOUNT", gia_tri_thap_phan: null, so_tien_minor: "123456", tien_te: "USD", moc_loai: "NGAY", moc_ngay: "2026-12-01", moc_su_kien: null, ghi_chu: "đợt 1"},
-      {lan: "2", gia_tri_loai: "AMOUNT", gia_tri_thap_phan: null, so_tien_minor: "500000", tien_te: "USD", moc_loai: "SU_KIEN", moc_ngay: null, moc_su_kien: "BAN_GIAO", ghi_chu: null},
+    const napBoChuan = async rows => {
+      nut(gk(), "Nạp bộ chuẩn").click(); await chay();
+      cho(c => c.method === "GET" && c.url === "/api/crm/bo-chuan?du_an_id=da-1&giai_doan=GD1", "GET G7").resolve(phanHoi(200, G7(rows))); await chay();
+    };
+    const lichGt = () => tatCa(gk(), e => e.id && /^gk-bg-l-gt-\d+$/.test(e.id)).map(e => e.value);
+    const luuLich = async (moTa) => {
+      nut(gk(), "Lưu nháp").click(); await chay();
+      const p = cho(post("/api/crm/bao-gia/luu"), "POST " + moTa), body = JSON.parse(p.opts.body).du_lieu;
+      p.resolve(phanHoi(409, {error: "CRM_GK_REVISION_CU", message: moTa + " không lưu"})); await chay();
+      return body;
+    };
+    // bộ chuẩn VND hợp lệ nạp được dù đơn giá báo giá là USD: VND scale 0, giữ đúng thứ tự/mốc/ghi chú; đợt % nạp bình thường
+    await napBoChuan([
+      {lan: "1", gia_tri_loai: "AMOUNT", gia_tri_thap_phan: null, so_tien_minor: "123456", tien_te: "VND", moc_loai: "NGAY", moc_ngay: "2026-12-01", moc_su_kien: null, ghi_chu: "đợt 1"},
+      {lan: "2", gia_tri_loai: "AMOUNT", gia_tri_thap_phan: null, so_tien_minor: "5000000", tien_te: "VND", moc_loai: "SU_KIEN", moc_ngay: null, moc_su_kien: "BAN_GIAO", ghi_chu: null},
       {lan: "3", gia_tri_loai: "PERCENT", gia_tri_thap_phan: "10", so_tien_minor: null, tien_te: null, moc_loai: null, moc_ngay: null, moc_su_kien: null, ghi_chu: null},
-      {lan: "4", gia_tri_loai: "AMOUNT", gia_tri_thap_phan: null, so_tien_minor: "5", tien_te: "USD", moc_loai: null, moc_ngay: null, moc_su_kien: null, ghi_chu: null}])));
-    await chay();
+      {lan: "4", gia_tri_loai: "AMOUNT", gia_tri_thap_phan: null, so_tien_minor: "5", tien_te: "VND", moc_loai: null, moc_ngay: null, moc_su_kien: null, ghi_chu: null}]);
     assert.deepStrictEqual([0, 1, 2, 3].map(i => [o(`bg-l-gt-${i}`).value, o(`bg-l-mo-${i}`).value]),
-      [["1.234,56", "01/12/2026"], ["5.000", "Bàn giao"], ["10%", ""], ["0,05", ""]], "A8: giá trị/mốc G7 nạp sai");
-    nut(gk(), "Lưu nháp").click(); await chay();
-    const p = cho(post("/api/crm/bao-gia/luu"), "POST A8");
-    const lich8 = JSON.parse(p.opts.body).du_lieu.lich;
-    assert.deepStrictEqual(lich8.map(r => [r.lan, r.gia_tri_nhap, r.moc_loai, r.moc_ngay, r.moc_su_kien, r.ghi_chu]),
-      [["1", "1.234,56", "NGAY", "2026-12-01", null, "đợt 1"], ["2", "5.000", "SU_KIEN", null, "BAN_GIAO", null], ["3", "10%", null, null, null, null], ["4", "0,05", null, null, null, null]],
+      [["123.456", "01/12/2026"], ["5.000.000", "Bàn giao"], ["10%", ""], ["5", ""]], "A8: giá trị/mốc G7 VND nạp sai khi đơn giá USD (bộ chuẩn VND hợp lệ phải nạp được)");
+    assert.ok(trangThaiGk().textContent.includes("Đã nạp bộ chuẩn"), "A8: thiếu thông báo đã nạp: " + trangThaiGk().textContent);
+    const dl1 = await luuLich("A8 lưu");
+    assert.strictEqual(dl1.gia.tien_te, "USD", "A8: đơn giá phải còn USD");
+    assert.deepStrictEqual(dl1.lich.map(r => [r.lan, r.gia_tri_nhap, r.moc_loai, r.moc_ngay, r.moc_su_kien, r.ghi_chu]),
+      [["1", "123.456", "NGAY", "2026-12-01", null, "đợt 1"], ["2", "5.000.000", "SU_KIEN", null, "BAN_GIAO", null], ["3", "10%", null, null, null, null], ["4", "5", null, null, null, null]],
       "A8: body Lưu sai lịch G7");
-    assert.ok(lich8.every(r => !("loai" in r) && !("ty_le" in r) && !("so_tien" in r) && !("tien_te" in r)), "A8: trình duyệt gửi loại/tỷ lệ/tiền (máy chủ phải suy ra)");
-    p.resolve(phanHoi(409, {error: "CRM_GK_REVISION_CU", message: "A8 không lưu"})); await chay();
-    nut(gk(), "Nạp bộ chuẩn").click(); await chay();
-    cho(c => c.method === "GET" && c.url.startsWith("/api/crm/bo-chuan?"), "GET G7 khác tiền tệ").resolve(phanHoi(200, G7([
-      {lan: "1", gia_tri_loai: "AMOUNT", so_tien_minor: "100", tien_te: "VND", moc_loai: null, moc_ngay: null, moc_su_kien: null, ghi_chu: null}])));
-    await chay();
-    assert.strictEqual(o("bg-l-gt-0").value, "1.234,56", "A8: tiền tệ khác báo giá vẫn nạp/đè lịch");
-    assert.ok(trangThaiGk().textContent.includes("giữ nguyên"), "A8: thiếu thông báo không nạp");
+    assert.ok(dl1.lich.every(r => !("loai" in r) && !("ty_le" in r) && !("so_tien" in r) && !("tien_te" in r)), "A8: trình duyệt gửi loại/tỷ lệ/tiền (máy chủ phải suy ra)");
+    // bộ chuẩn có đợt TIỀN bằng USD (10000 cent = 100 USD): KHÔNG nạp (không bỏ đơn vị rồi gửi "100" thành 100 VND), không nạp một phần, lịch giữ nguyên
+    const truoc = lichGt();
+    await napBoChuan([
+      {lan: "1", gia_tri_loai: "PERCENT", gia_tri_thap_phan: "50", so_tien_minor: null, tien_te: null, moc_loai: null, moc_ngay: null, moc_su_kien: null, ghi_chu: null},
+      {lan: "2", gia_tri_loai: "AMOUNT", gia_tri_thap_phan: null, so_tien_minor: "10000", tien_te: "USD", moc_loai: null, moc_ngay: null, moc_su_kien: null, ghi_chu: null}]);
+    assert.deepStrictEqual(lichGt(), truoc, "A8: bộ chuẩn USD vẫn nạp/đè lịch VND");
+    const tb = trangThaiGk().textContent;
+    assert.ok(tb.includes("USD") && tb.includes("VND") && tb.includes("giữ nguyên") && tb.startsWith("Đợt 2"), "A8: thiếu thông báo không nạp đợt USD: " + tb);
+    const dl2 = await luuLich("A8 lưu sau khi từ chối USD");
+    assert.deepStrictEqual(dl2.lich.map(r => r.gia_tri_nhap), ["123.456", "5.000.000", "10%", "5"], "A8: lịch sau khi từ chối USD bị đổi");
+    assert.ok(!JSON.stringify(dl2.lich).includes('"100"'), "A8: số trần 100 (từ 100 USD) lọt vào lịch gửi máy chủ");
+    // thiếu tiền tệ ở đợt tiền: cũng không nạp
+    await napBoChuan([{lan: "1", gia_tri_loai: "AMOUNT", gia_tri_thap_phan: null, so_tien_minor: "100", tien_te: null, moc_loai: null, moc_ngay: null, moc_su_kien: null, ghi_chu: null}]);
+    assert.deepStrictEqual(lichGt(), truoc, "A8: đợt tiền thiếu tiền tệ vẫn nạp");
+    assert.ok(trangThaiGk().textContent.includes("tiền tệ chưa rõ"), "A8: thiếu thông báo tiền tệ chưa rõ");
+    // chỉ có đợt % → nạp bình thường (không phụ thuộc tiền tệ)
+    await napBoChuan([
+      {lan: "1", gia_tri_loai: "PERCENT", gia_tri_thap_phan: "30", so_tien_minor: null, tien_te: null, moc_loai: "SU_KIEN", moc_ngay: null, moc_su_kien: "KY_HD", ghi_chu: null},
+      {lan: "2", gia_tri_loai: "PERCENT", gia_tri_thap_phan: "70", so_tien_minor: null, tien_te: null, moc_loai: "SU_KIEN", moc_ngay: null, moc_su_kien: "BAN_GIAO", ghi_chu: null}]);
+    assert.deepStrictEqual([lichGt(), [0, 1].map(i => o(`bg-l-mo-${i}`).value)], [["30%", "70%"], ["Ký", "Bàn giao"]], "A8: bộ chuẩn theo % không nạp được");
     await traXem();
     console.log("A8 đạt");
   }
@@ -1131,6 +1160,167 @@ async function main() {
     cho(getBg, "C2 chi tiết E").resolve(phanHoi(200, CT("LO-R2-E", 4))); await chay();
     assert.ok(!nut(gk(), "In báo giá").disabled);
     console.log("C2 đạt");
+  }
+
+  // ---------------------------------------------------------------- A15 BG-1d vòng 2: tỷ giá mặc định (dòng + Sửa), lỗi tải tự hết, tỷ giá xóa trống = xem trước/Lưu, Chuyển chỉ mở khi máy chủ đã kiểm, profile phí, ngày
+  {
+    const MD = (extra = {}) => ({ty_gia: "26000", hien_thi: "26.000", nguon: "CAU_HINH", ap_dung_tu: "2026-10-25", ap_dung_tu_hien_thi: "25/10/2026", nguoi_sua: "KE_TOAN_X",
+      cap: "USD/VND", khoa: "crm.bao_gia.ty_gia_usd_mac_dinh", duoc_sua: false, ...extra});
+    const getMd = get("/api/crm/bao-gia/ty-gia-mac-dinh"), postMd = post("/api/crm/bao-gia/ty-gia-mac-dinh");
+    const traMd = async (d = MD(), status = 200) => { for (const c of conLai(getMd)) { c.xong = true; c.resolve(phanHoi(status, d)); } await chay(); };
+    const sach = async () => { for (const c of conLai(() => true)) { c.xong = true; c.resolve(phanHoi(404, {error: "NOT_FOUND"})); } await chay(); };
+    const lamMoiDs = async (md, statusMd = 200) => {  // ↻ Làm mới khi KHÔNG chọn báo giá nào: danh sách + tỷ giá mặc định
+      nut(gk(), "↻ Làm mới").click(); await chay();
+      cho(getDs, "A15 danh sách").resolve(phanHoi(200, DS2(BH))); await chay();
+      await traMd(md, statusMd);
+    };
+    const dongMd = () => tim(gk(), e => e._cls && e._cls.has("gk-fxmd"));
+    const b1 = () => tim(gk(), e => e._cls && e._cls.has("gk-buoc1")), b2 = () => tim(gk(), e => e._cls && e._cls.has("gk-buoc2"));
+    const inBtn = () => nut(gk(), "In báo giá sơ bộ"), chuyen = () => nut(gk(), "Chuyển sang soạn hợp đồng");
+    const lyNut = bt => bt.parent.children.find(e => e._cls && e._cls.has("gk-ly-nut"));
+    const idsTrong = el => tatCa(el, e => e.id && /^gk-bg-/.test(e.id) && (e.tagName === "INPUT" || e.tagName === "SELECT")).map(e => e.id);
+    const nguonFx = () => tim(gk(), e => e._cls && e._cls.has("gk-fx-nguon")).textContent;
+    const goMd = (id, v) => { $(id).value = v; $(id).dispatch("input"); };
+
+    // ---- (4) dòng "Tỷ giá USD mặc định" cho mọi vai; Sửa chỉ khi máy chủ cho phép; lý do bắt buộc; lỗi máy chủ hiện tiếng Việt
+    await sach();
+    nut(gk(), "+ Báo giá mới").click(); await chay();
+    await lamMoiDs(MD());
+    assert.ok(dongMd() && dongMd().textContent.includes("Tỷ giá USD mặc định: 26.000 · cập nhật 25/10/2026"), "A15: thiếu dòng tỷ giá mặc định: " + (dongMd() && dongMd().textContent));
+    assert.strictEqual(nut(dongMd(), "Sửa"), null, "A15: vai không được sửa mà vẫn thấy nút Sửa");
+    await lamMoiDs(MD({duoc_sua: true}));
+    assert.ok(nut(dongMd(), "Sửa"), "A15: vai kế toán không thấy nút Sửa");
+    nut(dongMd(), "Sửa").click(); await chay();
+    assert.strictEqual($("gk-fxmd-ty").value, "26.000", "A15: ô sửa không mang tỷ giá hiện hành");
+    nut(dongMd(), "Lưu tỷ giá").click(); await chay();   // thiếu lý do
+    assert.ok($("gk-fxmd-loi").textContent.includes("lý do") && conLai(postMd).length === 0, "A15: cho đổi tỷ giá khi không có lý do");
+    goMd("gk-fxmd-ty", "abc"); goMd("gk-fxmd-ly", "Theo tỷ giá ngân hàng 25/10");
+    nut(dongMd(), "Lưu tỷ giá").click(); await chay();
+    assert.ok($("gk-fxmd-loi").textContent.includes("Tỷ giá") && conLai(postMd).length === 0, "A15: gửi tỷ giá sai dạng");
+    goMd("gk-fxmd-ty", "25.950,5");
+    nut(dongMd(), "Lưu tỷ giá").click(); await chay();
+    const m1 = cho(postMd, "A15 sửa tỷ giá mặc định");
+    assert.deepStrictEqual(JSON.parse(m1.opts.body), {ty_gia: "25.950,5", ly_do: "Theo tỷ giá ngân hàng 25/10"}, "A15: body sửa tỷ giá mặc định (kiểu Việt, không khóa)");
+    m1.resolve(phanHoi(403, {error: "CRM_G_KHONG_CO_QUYEN", message: "Chỉ kế toán/kế toán trưởng được sửa tỷ giá mặc định của báo giá."})); await chay();
+    assert.ok($("gk-fxmd-loi").textContent.includes("Chỉ kế toán/kế toán trưởng"), "A15: lỗi máy chủ không hiện tiếng Việt cạnh ô sửa");
+    assert.strictEqual($("gk-fxmd-ly").value, "Theo tỷ giá ngân hàng 25/10", "A15: lỗi làm mất lý do đã gõ");
+    assert.ok(dongMd().textContent.includes("26.000"), "A15: tỷ giá đổi dù máy chủ từ chối");
+    nut(dongMd(), "Lưu tỷ giá").click(); await chay();
+    cho(postMd, "A15 sửa lần 2").resolve(phanHoi(200, MD({ty_gia: "25950.5", hien_thi: "25.950,5", duoc_sua: true, da_doi: true}))); await chay();
+    assert.ok(dongMd().textContent.includes("Tỷ giá USD mặc định: 25.950,5") && !$("gk-fxmd-ty"), "A15: dòng không cập nhật/ô sửa không đóng: " + dongMd().textContent);
+    assert.ok(toastTxt().includes("Đã cập nhật tỷ giá mặc định"), "A15: thiếu thông báo đã cập nhật");
+
+    // ---- (5) thông báo lỗi tải tự hết khi tải lại được; thông báo của lệnh thì không bị xóa
+    const MSG_PHIEN = "Phiên CRM chưa có hoặc đã hết — tải lại trang để nhận phiên mới.";
+    await sach();
+    nut(gk(), "↻ Làm mới").click(); await chay();
+    cho(getDs, "A15 lỗi phiên").resolve(phanHoi(400, {error: "CRM_PHIEN", message: MSG_PHIEN})); await chay();  // máy chủ thật trả 400 CRM_PHIEN khi phiên chưa có
+    await traMd({error: "CRM_PHIEN", message: MSG_PHIEN}, 400);
+    assert.strictEqual(trangThaiGk().textContent, MSG_PHIEN, "A15: thiếu thông báo lỗi phiên");
+    await lamMoiDs({error: "NOT_FOUND"}, 404);   // tải lại được danh sách (tỷ giá mặc định vẫn lỗi 404 → dòng báo chưa lấy được)
+    assert.strictEqual(trangThaiGk().textContent, "", "A15: thông báo lỗi tải cũ còn sau khi ↻ Làm mới đã tải được: " + trangThaiGk().textContent);
+    assert.ok(dongMd().textContent.includes("chưa lấy được"), "A15: không báo tỷ giá mặc định chưa lấy được: " + dongMd().textContent);
+
+    // ---- (3) chặn #3: tỷ giá đã lưu TAY (25.500) → xóa trống → xem trước và Lưu cùng gửi tỷ giá mặc định hiện hành → 39 tỷ = 39 tỷ
+    const NGAY_MD = "2026-10-25";
+    const TV = (minor, hienThi, extra = {}) => TINH([{hien_thi_mo: "= " + hienThi, loi: [], loi_chi_tiet: []}], {tien_te: "VND", tien_te_don_gia: "USD", quy_uoc: "VND_CHINH",
+      tong_minor: minor, tong_hien_thi: hienThi, tong_dong_hien_thi: hienThi, ...extra});
+    const ctTay = (rev = 1, fx = {cap: "USD/VND", ty_gia: "25500", ngay: "2026-10-20", nguoi_nhap: "KT", nhap_ngay: "2026-10-20"}, tinh = null) => {
+      const c = CT("LO-1", rev); c.du_lieu.tien_chinh = "VND"; c.quy_uoc = {ma: "VND_CHINH", ghi_chu: null};
+      c.du_lieu.gia = {tien_te: "USD", don_gia: "100", dien_tich: "15000", tong: null, co_so_thue: "NET", vat_phan_tram: null}; c.du_lieu.fx = fx;
+      c.tinh = tinh || TV("38250000000", "38.250.000.000 VND", {ty_gia: {gia_tri: "25500", hien_thi: "25.500", khoa: false, nguon: "NHAP", ngay: "2026-10-20", ngay_hien_thi: "20/10/2026"}}); return c;
+    };
+    const TY_MD = {gia_tri: "26000", hien_thi: "26.000", khoa: false, nguon: "NHAP", ngay: NGAY_MD, ngay_hien_thi: "25/10/2026"};  // máy chủ: tỷ giá gửi tường minh = "NHAP"
+    await sach();
+    await moBg("LO-1", ctTay());
+    assert.deepStrictEqual([o("bg-fx").value, tongSo().textContent, nguonFx()], ["25.500", "38.250.000.000 VND", "đã sửa"], "A15: báo giá lưu tay hiện sai");
+    assert.strictEqual(conLai(postXem).length, 0, "A15: mở báo giá đã lưu vẫn gọi tính");
+    // chưa có tỷ giá mặc định (mặc định lỗi 404 ở bước trước) → KHÔNG tính (không đoán), KHÔNG Lưu, tự thử lại; có rồi thì tính ngay theo mặc định
+    goVao("bg-fx", "", "change"); await chay();
+    const g1 = cho(getMd, "A15 lấy tỷ giá mặc định lần 1");
+    assert.strictEqual(conLai(postXem).length, 0, "A15: tính khi chưa có tỷ giá mặc định");
+    g1.resolve(phanHoi(500, {error: "PG_KHONG_KET_NOI", message: "tạm lỗi"})); await chay();
+    assert.ok(ghiLoiTinh().textContent.includes("tỷ giá mặc định"), "A15: thiếu báo chưa lấy được tỷ giá mặc định: " + ghiLoiTinh().textContent);
+    assert.strictEqual(o("bg-fx").value, "", "A15: ô tỷ giá vừa xóa còn hiện số cũ");
+    const nLuu0 = dem(postLuu);
+    nut(gk(), "Lưu nháp").click(); await chay();
+    assert.strictEqual(dem(postLuu), nLuu0, "A15: Lưu khi chưa có tỷ giá mặc định (sẽ lưu tỷ giá khác bản xem trước)");
+    assert.ok(trangThaiGk().textContent.includes("tỷ giá mặc định"), "A15: Lưu bị chặn mà không nói lý do: " + trangThaiGk().textContent);
+    tien(5000); await chay();
+    await traMd(MD());
+    const xm = cho(postXem, "A15 xem trước theo mặc định"), bm = JSON.parse(xm.opts.body).du_lieu;
+    assert.deepStrictEqual(bm.fx, {cap: "USD/VND", ty_gia: "26000", ngay: NGAY_MD}, "A15: xem trước không gửi TƯỜNG MINH tỷ giá mặc định hiện hành");
+    assert.strictEqual(o("bg-fx").value, "", "A15: ô tỷ giá hiện số cũ khi máy chủ chưa tính xong");
+    xm.resolve(phanHoi(200, XEM(TV("39000000000", "39.000.000.000 VND", {ty_gia: TY_MD})))); await chay();
+    assert.deepStrictEqual([tongSo().textContent, o("bg-fx").value], ["39.000.000.000 VND", "26.000"], "A15: tổng xem trước/ô tỷ giá sau khi xóa trống");
+    assert.ok(nguonFx().startsWith("mặc định") && nguonFx().includes("25/10/2026"), "A15: nhãn nguồn 'mặc định · dd/mm/yyyy': " + nguonFx());
+    nut(gk(), "Lưu nháp").click(); await chay();
+    const pl = cho(postLuu, "A15 lưu sau khi xóa tỷ giá"), bl = JSON.parse(pl.opts.body).du_lieu;
+    assert.deepStrictEqual(bl.fx, bm.fx, "A15: Lưu gửi tỷ giá KHÁC bản xem trước (xem trước 39 tỷ, lưu 38,25 tỷ)");
+    pl.resolve(phanHoi(200, {bao_gia_id: "bg-1", revision: 2, lap_lai: false})); await chay();
+    assert.ok(trangThaiGk().textContent.includes("Đã lưu nháp"), "A15: thông báo Đã lưu nháp bị xóa bởi lần tải sau lệnh: " + trangThaiGk().textContent);
+    cho(getDs, "A15 danh sách sau lưu").resolve(phanHoi(200, DS2(BH))); await chay();
+    cho(getBg, "A15 chi tiết sau lưu").resolve(phanHoi(200, ctTay(2, {cap: "USD/VND", ty_gia: "26000", ngay: NGAY_MD, nguoi_nhap: "KT", nhap_ngay: NGAY_MD}, TV("39000000000", "39.000.000.000 VND", {ty_gia: TY_MD})))); await chay();
+    assert.deepStrictEqual([o("bg-fx").value, tongSo().textContent], ["26.000", "39.000.000.000 VND"], "A15: mở lại không còn 39 tỷ");
+    assert.ok(trangThaiGk().textContent.includes("Đã lưu nháp"), "A15: thông báo lệnh bị xóa khi tải chi tiết");
+
+    // ---- (1) chặn #1: revision đã lưu thiếu điều kiện Chuyển (quy ước cũ/chưa tính lại) → Chuyển MỜ + lý do rõ, 0 POST; Lưu nháp → máy chủ tính lại → mở
+    await sach();
+    const ctCu = CT("LO-1", 1); delete ctCu.tinh.ly_do_chan_chuyen;
+    await moBg("LO-1", ctCu);
+    assert.ok(chuyen().disabled && lyNut(chuyen()).textContent.includes("Chưa kiểm điều kiện chuyển") && lyNut(chuyen()).textContent.includes("Lưu nháp") && chuyen().title.includes("Chưa kiểm điều kiện chuyển"),
+      "A15: Chuyển mở/không lý do khi revision thiếu ly_do_chan_chuyen: " + chuyen().disabled + " | " + lyNut(chuyen()).textContent);
+    assert.ok(!inBtn().disabled, "A15: In (đủ trường) bị mờ oan");
+    const nCh = dem(post("/api/crm/bao-gia/chuyen")); chuyen().click(); await chay();
+    assert.strictEqual(dem(post("/api/crm/bao-gia/chuyen")), nCh, "A15: Chuyển gửi khi chưa kiểm điều kiện");
+    nut(gk(), "Lưu nháp").click(); await chay();
+    cho(postLuu, "A15 lưu để máy kiểm lại").resolve(phanHoi(200, {bao_gia_id: "bg-1", revision: 2, lap_lai: false})); await chay();
+    cho(getDs, "A15 danh sách (kiểm lại)").resolve(phanHoi(200, DS2(BH))); await chay();
+    cho(getBg, "A15 chi tiết (kiểm lại)").resolve(phanHoi(200, CT("LO-1", 2))); await chay();
+    assert.ok(!chuyen().disabled && lyNut(chuyen()).textContent === "", "A15: Chuyển vẫn mờ sau khi máy chủ đã kiểm lại (rỗng)");
+    // thiếu cả ly_do_chan_in: In cũng chờ máy chủ kiểm — kể cả khi bản xem trước tự gọi đã trả (xem trước là của form, không phải của revision đã lưu)
+    await sach();
+    const ctCu2 = CT("LO-1", 1); delete ctCu2.tinh.ly_do_chan_in;
+    await moBg("LO-1", ctCu2);
+    await traXem();
+    assert.ok(inBtn().disabled && lyNut(inBtn()).textContent.includes("Chưa kiểm điều kiện in"), "A15: In mở khi revision thiếu ly_do_chan_in: " + lyNut(inBtn()).textContent);
+
+    // ---- profile bắt buộc phí: thiếu phí chặn Chuyển (hiện sẵn bên nút) nhưng KHÔNG chặn In sơ bộ; phí thuộc Bước 2; điền phí + lưu → mở
+    await sach();
+    const LY_PHI = "Chưa nhập phí quản lý/bảo trì.";
+    const ctPhi = (rev = 1, thieu = true) => {
+      const c = CT("LO-1", rev); c.du_lieu.khach.du_thao = {ten: "Khách Có Tên", lien_he: null};
+      if (!thieu) { c.du_lieu.phi_bao_tri = {gia_tri: "5000000", tien_te: "VND", co_so: null}; return c; }
+      c.tinh = TINH(c.tinh.dong, {ly_do_chan_chuyen: LY_PHI, chan_chuyen: [{ma: "THIEU_PHI_QUAN_LY_BAO_TRI", truong: "phi_bao_tri.gia_tri", thong_bao: LY_PHI}],
+        thieu: [{ma: "THIEU_PHI_QUAN_LY_BAO_TRI", truong: "phi_bao_tri.gia_tri"}]});
+      return c;
+    };
+    await moBg("LO-1", ctPhi());
+    assert.ok(chuyen().disabled && lyNut(chuyen()).textContent.includes(LY_PHI) && chuyen().title.includes(LY_PHI), "A15: thiếu phí mà Chuyển không mờ kèm lý do: " + lyNut(chuyen()).textContent);
+    assert.ok(!inBtn().disabled && inBtn().title === "", "A15: thiếu phí chặn cả In sơ bộ");
+    assert.ok(idsTrong(b2()).includes("gk-bg-pbt") && !idsTrong(b1()).includes("gk-bg-pbt") && b2().open === true, "A15: phí không nằm ở Bước 2 (mở vì đã có khách)");
+    assert.ok(!/phí/i.test(tim(b1(), e => e._cls && e._cls.has("gk-kiem")).textContent), "A15: Bước 1 còn nhắc phí: " + tim(b1(), e => e._cls && e._cls.has("gk-kiem")).textContent);
+    goVao("bg-pbt", "5.000.000", "change"); o("bg-pbt-tt").value = "VND"; o("bg-pbt-tt").dispatch("change"); await chay();
+    const xp = conLai(postXem), bp = JSON.parse(xp[xp.length - 1].opts.body).du_lieu;
+    assert.deepStrictEqual(bp.phi_bao_tri, {gia_tri: "5000000", tien_te: "VND", co_so: null}, "A15: xem trước không mang phí ở Bước 2");
+    await traXem();
+    assert.ok(!lyNut(chuyen()).textContent.includes("phí") && chuyen().disabled && chuyen().title.includes("chưa lưu"), "A15: sau khi điền phí còn lý do thiếu phí / Chuyển mở khi chưa lưu");
+    nut(gk(), "Lưu nháp").click(); await chay();
+    const pp = cho(postLuu, "A15 lưu phí");
+    assert.deepStrictEqual(JSON.parse(pp.opts.body).du_lieu.phi_bao_tri, {gia_tri: "5000000", tien_te: "VND", co_so: null}, "A15: Lưu không mang phí");
+    pp.resolve(phanHoi(200, {bao_gia_id: "bg-1", revision: 2, lap_lai: false})); await chay();
+    cho(getDs, "A15 danh sách (phí)").resolve(phanHoi(200, DS2(BH))); await chay();
+    cho(getBg, "A15 chi tiết (phí)").resolve(phanHoi(200, ctPhi(2, false))); await chay();
+    assert.ok(!chuyen().disabled && !inBtn().disabled && lyNut(chuyen()).textContent === "", "A15: có phí + đã lưu mà Chuyển vẫn mờ");
+
+    // ---- (6) "Lần in" dd/mm/yyyy hh:mm giờ Việt Nam, năm 4 chữ số (không "25/10/26")
+    await sach();
+    await moBg("LO-1", CT("LO-1", 1, [{id: "x-9", revision: 1, trang_thai: "PDF_CHUA_SAN_SANG", ly_do: "COM_MO:com_error", tao_luc: "2026-10-25T08:30:00Z"}]));
+    const lanIn = tim(gk(), e => e.tagName === "TABLE" && e.textContent.includes("DOCX ↓"));
+    assert.ok(lanIn && lanIn.textContent.includes("25/10/2026 15:30") && !/(^|[^\d/])\d{1,2}\/\d{1,2}\/\d{2}([^\d]|$)/.test(lanIn.textContent), "A15: ngày Lần in không dd/mm/yyyy: " + (lanIn && lanIn.textContent));
+    assert.ok(!lanIn.textContent.includes("COM_MO") && lanIn.textContent.includes("chưa dùng được Word"), "A15: lý do Lần in còn là mã kỹ thuật: " + lanIn.textContent);
+    await traXem();
+    console.log("A15 đạt");
   }
 
   if (loiNgoai.length) throw loiNgoai[0];
