@@ -26,13 +26,14 @@ Bộ tải #7 thật chưa có trong repo; mã này không bao giờ gọi cổn
 from __future__ import annotations
 
 import json
+import calendar
 import re
 import secrets
 import threading
 import time
 from pathlib import Path
 
-from ..ha_tang.primitives import DataError
+from ..ha_tang.primitives import DataError, canonical_json, sha256
 from ..m2.tai_hoa_don import CauHinhTaiHoaDon, DieuPhoiTaiHoaDon, TepPin, TienTrinhNode
 from ..m2.tai_hoa_don.cau_hinh import kiem_khong_reparse
 from ..m2.tai_hoa_don.dieu_phoi import RE_RUN_REL, kiem_lua_chon
@@ -655,7 +656,22 @@ def _nhan_mot_run(app, dv, sid, run_handle, ctx, run) -> dict:
 def tom_tat_manifest(m: dict, run_rel: str) -> dict:
     """Manifest đã qua `doc_manifest` → số đếm + nhóm + lỗi + đo đăng nhập. KHÔNG trả danh sách hóa đơn, MST, đường dẫn tuyệt đối, hash tệp."""
     dn = m["dang_nhap"]
+    tep = set()
+
+    def dem(v):
+        if isinstance(v, dict):
+            for k, x in v.items():
+                if k in {"file", "file_pdf"} and isinstance(x, str):
+                    tep.add(x)
+                elif isinstance(x, (dict, list)):
+                    dem(x)
+        elif isinstance(v, list):
+            for x in v:
+                dem(x)
+    dem(m)
+    nam, thang = map(int, m["ky"].split("-"))
     return {"phien_ban": PHIEN_BAN, "run_rel": run_rel, "nguon": m["nguon"], "run_id": m["run_id"], "ky": m["ky"], "chieu": m["chieu"], "trang_thai": m["trang_thai"],
+            "so_tep": len(tep), "khoang_ngay": {"tu": f"01/{thang:02d}/{nam}", "den": f"{calendar.monthrange(nam, thang)[1]:02d}/{thang:02d}/{nam}"},
             "bat_dau": m["bat_dau"], "ket_thuc": m["ket_thuc"], "phien_ban_bo_tai": an_toan(m["phien_ban_bo_tai"], 80),
             "tong": {k: m["tong"].get(k) for k in ("tong_hd", "xml_ok", "khong_xml_goc", "xml_loi", "xml_khong_yeu_cau", "pdf_ok", "pdf_loi", "bang_ke_trang_thai")},
             "co_bang_ke": isinstance(m["tong"].get("bang_ke"), dict),
@@ -776,7 +792,79 @@ def _manifest(h, app, query):
         raise DataError("M2_00B_RUN_REL_SAI", "Thư mục run không thuộc lần tải này.")
     dv.kiem_run(sid, run)
     thu_muc = kiem_khong_reparse(dv.cau_hinh.goc_tai.joinpath(*rel.split("/")), la_thu_muc=True)
-    return _gui(h, 200, tom_tat_manifest(doc_manifest(thu_muc, goc_hoi_cuu_tin_cay=dv.goc_hoi_cuu_tin_cay), rel))
+    data = tom_tat_manifest(doc_manifest(thu_muc, goc_hoi_cuu_tin_cay=dv.goc_hoi_cuu_tin_cay), rel)
+    # Đọc tệp có thể lâu: kiểm lại quyền/phiên sau IO, trước khi trả dữ liệu.
+    return _gui(h, 200, dv.ghi_duoi_khoa(sid, run, lambda _actor: data))
+
+
+def _hoa_don_lan_tai(h, app, query):
+    """Lọc danh sách M2 hiện hữu bằng biên nhận M2c đã lưu, không suy theo giờ nhận.
+
+    Không thêm danh sách/SQL hóa đơn khác: đọc các trang của danh_sach hiện hữu,
+    giao với hoa_don_id trong kết quả capture bất biến rồi mới phân trang kết quả.
+    """
+    from ..k2 import nguon_chung
+
+    q = _q(query, ("run", "phap_nhan", "ky", "trang"), ("run",))
+    run, dv, sid = _run(q["run"]), dich_vu(app), h.crm_sid()
+    # Danh sách đã nhận vẫn xem được khi bộ tải đóng: chỉ dùng binding máy chủ,
+    # không gọi RPC/khởi động Node để đọc hóa đơn.
+    ctx = dv.ghi_duoi_khoa(sid, run, lambda _actor: dv.ngu_canh(sid, run))
+    if q.get("phap_nhan", ctx["phap_nhan_ma"]) != ctx["phap_nhan_ma"]:
+        raise DataError("KHONG_CO_QUYEN_PHAP_NHAN", "Bộ lọc không thuộc pháp nhân của lần tải này.")
+    ky = q.get("ky")
+    if ky and not RE_KY.fullmatch(ky):
+        raise DataError("M2_YEU_CAU_SAI", "Kỳ phải dạng YYYY-MM.")
+    trang = max(1, int(q.get("trang", "1")))
+    keys = set()
+    yc = ctx["yeu_cau"]
+    thang = [yc["month"]] if yc["mode"] == "month" else range(1, 13)
+    runs = [(f"{yc['year']}-{t:02d}", c) for t in thang for c in yc["types"]]
+    for ky_run, chieu in runs:
+        rel = f"{ctx['phap_nhan_ma']}/{ky_run}/{'mua_vao' if chieu == 'purchase' else 'ban_ra'}/{ctx['run_id']}"
+        duong = dv.cau_hinh.goc_tai.joinpath(*rel.split("/"))
+        # Tải cả năm có thể chỉ hoàn tất một số tháng; không tự nhận phần còn thiếu.
+        if not (duong / "manifest.json").exists():
+            continue
+        goc = kiem_khong_reparse(duong, la_thu_muc=True)
+        m = doc_manifest(goc, goc_hoi_cuu_tin_cay=dv.goc_hoi_cuu_tin_cay)
+        if (m["run_id"], m["phap_nhan"]["ma"], m["ky"], m["chieu"]) != (ctx["run_id"], ctx["phap_nhan_ma"], ky_run, chieu) or any(
+            m["context"][k] != ctx[k] for k in ("source_instance", "scope_ref")
+        ):
+            raise DataError("M2_00B_RUN_REL_SAI", "Manifest không thuộc lần tải này.")
+        for hd in m["hoa_don"]:
+            for thu_tu in range(1, len(hd["xml_tep"]) + 1):
+                token = canonical_json([ctx["phap_nhan_ma"], m["ky"], m["chieu"], m["run_id"], hd["item_ordinal"], thu_tu]).encode("utf-8")
+                keys.add("M2c:" + sha256(token))  # đúng khóa bất biến nhan.py đã dùng
+
+    def doc(actor):
+        m2 = app.m2()
+        dt = m2.danh_tinh(actor)
+        ids = set()
+        with m2._tx(dt):
+            profile = nguon_chung.doc_profile(m2.conn, ctx["source_instance"])
+            for key in sorted(keys):
+                receipt = nguon_chung.tim_lan_nhan(m2.conn, ctx["source_instance"], profile, key)
+                items = (((receipt or {}).get("ket_qua_cuoi") or {}).get("promote") or {}).get("items", [])
+                ids.update(str(it["hoa_don_id"]) for it in items if it.get("hoa_don_id"))
+        loc = {"phap_nhan": [ctx["phap_nhan_ma"]]}
+        if ky:
+            loc["ky"] = [ky]
+        data = app.m2_state(actor, loc)
+        if data.get("khong_quyen"):
+            raise DataError("KHONG_CO_QUYEN_MODULE", "Vai hiện tại không có quyền xem hóa đơn M2.")
+        page, ds, so_trang = data, [], 1
+        while ids:
+            ds.extend(hd for hd in page["hoa_don"] if hd["id"] in ids)
+            if len(ds) >= len(ids) or so_trang * page["co"] >= page["tong"] or not page["hoa_don"]:
+                break
+            so_trang += 1
+            page = m2.danh_sach(actor, phap_nhan=ctx["phap_nhan_ma"], ky=ky, trang=so_trang)
+        co = data["co"]
+        return {**data, "hoa_don": ds[(trang - 1) * co:trang * co], "tong": len(ds), "trang": trang,
+                "lan_tai": {"run_handle": run, "nhan": "Mới từ lần tải này"}}
+
+    return _gui(h, 200, dv.ghi_duoi_khoa(sid, run, lambda actor: app._crm_db(doc, actor)))
 
 
 def _khung(ten, du_lieu, seq=None) -> bytes:
@@ -847,6 +935,8 @@ def dieu_huong(h, app, post: bool, path: str, query: dict):
                 return _su_kien(h, app, query)
             if ten == "manifest":
                 return _manifest(h, app, query)
+            if ten == "hoa-don":
+                return _hoa_don_lan_tai(h, app, query)
         else:
             if ten == "khoi-dong":
                 return _khoi_dong(h, app)

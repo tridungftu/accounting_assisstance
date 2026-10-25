@@ -218,12 +218,16 @@ Căn cứ: `D:\Claude\Phan mem ho tro ke toan\48-cong-ai-local-luon-co-cloud-qua
 
 | Mã | Việc | Worker gợi ý | Phụ thuộc | Trạng thái |
 |---|---|---|---|---|
-| AI-0 | Tạm khóa đường Cloud trực tiếp của engine #6 (bản trong repo kế toán và bản độc lập `D:\Claude\Ho tro review ho so xay dung`): "Nguồn AI: Claude" và "cloud xác nhận" báo "chờ nối qua Mask v2" | Codex | — | Sẵn sàng, ưu tiên |
-| AI-1 | Cổng Local AI (`tri_thuc\ai_cuc_bo.py`) gọi được LAN/Tailscale, kiểm tra như `privacy\local_ai.py` của Mask v2 | Codex | — | Sẵn sàng |
-| MASK-1 | Chế độ API của Mask v2 (che / mở che / còn sót; khóa Bearer; chỉ 127.0.0.1). Làm trong thư mục Mask v2 theo `CLAUDE.md` của nó: không git, ghi CHANGELOG, test + benchmark độ phủ không giảm | Claude | — | Sẵn sàng (cần quyền thư mục `D:\GPT\Phan mem Mask file\Mask file v2`) |
+| AI-0 | Tạm khóa đường Cloud trực tiếp của engine #6 (bản trong repo kế toán và bản độc lập `D:\Claude\Ho tro review ho so xay dung`): "Nguồn AI: Claude" và "cloud xác nhận" báo "chờ nối qua Mask v2" | Codex | — | Đang làm (CD-001): AI-0a bản độc lập (Codex, lần 1 lỗi sandbox, thử lại) + AI-0b bản trong repo (Codex) |
+| AI-1 | Cổng Local AI (`tri_thuc\ai_cuc_bo.py`) gọi được LAN/Tailscale, kiểm tra như `privacy\local_ai.py` của Mask v2 | Codex | — | Chờ slot (sau AI-0) |
+| MASK-1 | Chế độ API của Mask v2 (che / mở che / còn sót; khóa Bearer; chỉ 127.0.0.1). Làm trong thư mục Mask v2 theo `CLAUDE.md` của nó: không git, ghi CHANGELOG, test + benchmark độ phủ không giảm | Claude | — | Anh đã cấp quyền thư mục 25/10 — chờ slot |
 | MASK-2 | Đưa "định danh đã biết" và kiểm `dau_vet` của `AnDanh` vào lõi Mask v2 | Claude | MASK-1 | Chờ |
 | AI-2 | Cổng AI dùng chung: định tuyến loại việc, Cloud qua Mask API, nhật ký `nhat_ky.cong_ai_goi`, công tắc tắt Cloud | Claude | AI-1, MASK-1 | Chờ |
 | AI-3 | Engine #6 chuyển Cloud sang cổng AI; bỏ `AnDanh`/`goi_api` riêng | Codex | AI-2, MASK-2 | Chờ |
 | AI-4 | Mở Cloud theo TL 48 §1.5 (Local không chạy / Local không chắc / kiểm xác suất); đo độ chính xác Local theo loại việc, > 90% thì giảm dần tỷ lệ kiểm (§1.6); bí danh đối tác = mã Junsky; cụm mới chờ Anh duyệt | Claude | AI-3 qua review | Chờ |
 - 25/10: `test_web.LocalHttpTests` chập chờn khi chạy cả bộ (mã lỗi khác nhau giữa hai lần; lần lại khớp nền) — không tính là hồi quy, như `test_trich6_host.HandlerSoHuuTests`.
 - 25/10: M0032 = G5 (lead cấp; gói G5-B ghi rõ chờ owner cấp ordinal), M0033 = M4-5a. Codex DA-1d từng ghi chữ Việt thành `?` → cổng kiểm soát lead thêm bước grep mã hóa.
+- 25/10 (CD-002): thêm UI-1 (Claude), UI-2 (Codex), UI-3, UI-4 — lead chốt hợp đồng dữ liệu `HOP-DONG-DU-LIEU-KHUNG-LUOI.md`; UI-1 dựng trên `lat/da-2` để không sửa chồng `crm_g.js`/`style.css` với Báo giá.
+- 25/10: thư mục chính có 6 tệp `eol=lf` nằm CRLF trên đĩa (blob LF) → test ghim byte M26/M27 lệch; lead chuẩn hóa LF tại chỗ, `git diff` trống, 0 mã lỗi mới.
+- 25/10: lỡ để 5 worker lập trình chạy cùng lúc (2 Claude AI-0a/MASK-1 + 3 Codex AI-1/C3c/M2s-b) — vượt mức 3; không giao thêm tới khi về ≤ 3.
+- 25/10: T-MIG2 vòng 2 còn 1 mã lỗi mới (`test_crm_k2.test_t21…`) và họ bản sao G6A vẫn không dựng (`ho=-`) — chưa gộp; lead cần xem nhật ký dựng bản sao trước khi giao vòng 3.

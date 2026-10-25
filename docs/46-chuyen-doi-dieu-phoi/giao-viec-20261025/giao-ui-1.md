@@ -1,0 +1,17 @@
+# UI-1 — Khung lưới icon dùng chung (trang chủ module: thẻ + lưới; thanh icon trái) — áp CRM 6 phần
+
+Bạn là worker Claude của lead. Anh đã chốt (25/10, TL 49 `D:\Claude\Phan mem ho tro ke toan\49-trang-chu-luoi-icon.md` toàn bộ; TL 42 §0, §2, §16.2 `D:\Claude\Phan mem ho tro ke toan\42-man-hinh-crm-ke-toan-va-giao-ket.md`; hộp thư CD-002): **làm ngay, không hỏi lại**. Đọc `CLAUDE.md` (repo + thư mục cha). UTF-8 không BOM. Làm **chỉ trong worktree** `D:\Claude\Phan mem ho tro ke toan\Phần mềm kho tri thức\.claude\worktrees\lat-ui-1` (nhánh `lat/ui-1`, dựng trên `lat/da-2` = màn Báo giá BG-1d + Dự án đang bán, vì cùng sửa `crm_g.js`/`style.css` đang khóa). Commit nhỏ tiền tố `[UI-1]`, dòng cuối `Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>`. Lệnh > 1–2 phút → `run_in_background`.
+
+**Hợp đồng dữ liệu bắt buộc:** `docs/46-chuyen-doi-dieu-phoi/HOP-DONG-DU-LIEU-KHUNG-LUOI.md` (UI-2 — Codex — làm máy chủ `GET /api/khung/module/crm` song song theo cùng tệp). Trong lúc UI-2 chưa gộp: giao diện dùng **dữ liệu giả đúng hợp đồng** trong test node; khi chạy thật mà route chưa có → thông báo tiếng Việt, không vỡ trang.
+
+**Việc (TL 49 §1, §3; tận dụng — CD-002 việc 2):**
+1. **Khung dùng chung** (JS + CSS mới, không gắn cứng CRM): trang chủ module = **2–4 thẻ tổng quan** bấm được (mở danh sách theo `loc`) + **lưới icon** các phần (ô vuông bo góc, nền màu nhóm, hình nét trắng, tên ≤ 2 dòng, số đỏ góc khi `so_viec > 0`, nền đỏ nếu `qua_han`, `aria-label` kèm số); **thanh icon trái** (~96 px, icon 44 px, tên 11 px; Trang chủ + Lưới module trên cùng; phần đang mở có viền xanh, chữ đậm) **thay menu trái chữ** khi đang ở trong một phần; giữ đường dẫn (breadcrumb) trên đầu; làm mới khi mở trang và theo `lam_moi_sau_giay`.
+2. **Áp CRM:** 6 phần (Hợp đồng · Báo giá · Mẫu hợp đồng · Tiếp nhận hợp đồng ký · Thu tiền · Báo cáo & file soát) dẫn tới **các màn sẵn có** (danh sách hợp đồng nếu đã có, Báo giá BG-1d, mẫu G1/G7, Dự án đang bán…) — **không viết lại màn bên trong**, chỉ đổi điều hướng. Màn chưa có → icon dẫn tới khung trống "Đang làm" (không bịa).
+3. **Icon:** bộ mã nguồn mở nhúng SVG nội tuyến (vd Lucide ISC / Tabler MIT), không CDN; ghi tên + giấy phép vào `CHANGELOG.md`; **không dùng icon Apple**. Tương phản chữ/hình ≥ 4,5:1.
+4. Tiếng Việt, không mã kỹ thuật, ngày dd/mm/yyyy; màn 1280–1440 px, co được.
+5. **Tài sản tĩnh mới:** nếu thêm tệp JS/CSS mới phải khai trong danh sách tài sản `server.py` (dòng ~969) — đây là file khóa chung và có test ghim danh sách tài sản (CRM-41-02): ưu tiên **không thêm tệp tĩnh mới** (đặt khung trong `app.js`/`style.css` theo khối riêng có chú thích); nếu buộc phải thêm → sửa đúng một dòng whitelist + test ghim tương ứng, ghi lý do.
+6. **Test node** (mẫu `tests/crm_giao_ket_async.cjs` — DOM giả + fetch giả) `tests/khung_luoi_async.cjs`: 4 vai thấy đúng thẻ/icon theo dữ liệu giả; bấm thẻ gọi đúng danh sách với `loc`; số đỏ/nền đỏ; thanh icon trái chuyển Báo giá ↔ Thu tiền không về trang chủ; nút Trang chủ; không mã kỹ thuật; chèn DOM an toàn (`textContent`). Các bộ node CRM hiện có vẫn đạt.
+7. **Thử DEMO (lead làm, bạn chỉ chuẩn bị):** ghi trong báo cáo các bước cổng A TL 49 §4 (6 bước, 4 vai) để lead soạn phiếu.
+
+**Không làm:** máy chủ/route (UI-2), trang chủ hệ thống (UI-3), M2/M4/K5 (UI-4), sửa màn bên trong, xóa file.
+**Báo cáo cuối (≤ 1 trang):** cấu trúc khung (tệp, hàm), cách khai báo một module mới, bộ icon + giấy phép, ảnh chụp (nếu có) / mô tả bố cục, test, commit, các bước cổng A.

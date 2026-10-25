@@ -7,6 +7,25 @@ const {moiTruong, phanHoi, chay, JS, TT, MUC, API} = new Function("require", "__
   source.split("async function main()")[0] + "\nreturn {moiTruong, phanHoi, chay, JS, TT, MUC, API};")(require, __dirname);
 
 async function main() {
+  // M2s-b: chạy câu dựng option thật, giữ login làm giá trị đổi vai.
+  {
+    const app = fs.readFileSync(path.join(__dirname, "../src/kho_tri_thuc/giao_dien/assets/app.js"), "utf8");
+    const render = app.split(/\r?\n/).find(line => line.includes('$("m2-danh-tinh").replaceChildren'));
+    assert.ok(render, "Không thấy câu dựng danh sách đổi vai M2");
+    const login = "MO_PHONG_KT_M2_A";
+    let options;
+    vm.runInNewContext(render, {
+      m2: {nguoi: {dang_nhap: login}, danh_tinh_demo: [{dang_nhap: login, vai_tro: "KE_TOAN"}]},
+      $: id => { assert.strictEqual(id, "m2-danh-tinh"); return {replaceChildren: (...items) => { options = items; }}; },
+      node: (tag, text) => ({tagName: tag, textContent: text})
+    });
+    assert.strictEqual(options.length, 1);
+    assert.strictEqual(options[0].textContent, "Kế toán M2 (mô phỏng)");
+    assert.strictEqual(options[0].value, login);
+    assert.strictEqual(options[0].selected, true);
+    console.log("M2s-b: nhãn tiếng Việt và giá trị đổi vai: đạt");
+  }
+
   const {ctx, document, calls, vai} = moiTruong(), timers = [];
   const xacNhan = [];
   let dongY = false;

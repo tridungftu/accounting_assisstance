@@ -26,6 +26,8 @@ from .kiem_tra import check, gan_dieu_khoan, giong_nhau, la_khong_co, la_ok, nor
 
 GROUP_MAX = 8
 URL = {"anthropic": "https://api.anthropic.com/v1/messages", "openai": "https://api.openai.com/v1/chat/completions"}
+CHO_NOI_MASK_V2 = "CHO_NOI_MASK_V2"
+CLOUD_TAM_KHOA = CHO_NOI_MASK_V2 + ": Đường Cloud tạm khóa: chờ nối qua Mask file v2"
 
 
 class CloudLoi(Exception):
@@ -186,6 +188,9 @@ def thong_tin_dinh_danh(ket_qua):
 
 # ------------------------------------------------------------------ gọi API
 def goi_api(nha_cung_cap, model, khoa, prompt, timeout=180, system=None, max_tokens=4096):
+    # AI-0 25/10/2026 (TL 48): chặn cả lời gọi trực tiếp, không phụ thuộc cấu hình/env.
+    raise CloudLoi(CLOUD_TAM_KHOA)
+
     ncc = nha_cung_cap.lower()
     model = model or CLOUD_MODEL_MAC_DINH.get(ncc, "")
     url = os.environ.get(f"HD_CLOUD_URL_{ncc.upper()}") or URL.get(ncc)
@@ -250,6 +255,14 @@ def kiem_tra_cloud(bang, params, ket_qua, sent, rows_by_id, full_norm, full_loos
     """bang: list dòng kết quả (sẽ được SỬA: gia_tri, trich_dan, kiem_tra, nguon…).
     sent: {mã: [rows đã gửi local AI]}; ung_vien: {mã: [rows ứng viên tìm được khi rà lại toàn HĐ]} — gửi kèm để
     Claude không phải đọc lại đúng chỗ local có thể đã đọc sai. cfg: {nha_cung_cap, model, ty_le}. Trả dict tóm tắt."""
+    # AI-0: bỏ qua bước 8 trước khi đọc khóa, che dữ liệu hoặc ghi nhật ký gửi ra ngoài.
+    if ghi_log is not None:
+        ghi_log("Bỏ qua kiểm tra chéo cloud: " + CLOUD_TAM_KHOA)
+    return {"bat": False, "nha_cung_cap": cfg.get("nha_cung_cap") or "anthropic", "model": cfg.get("model") or "",
+            "so_o_chon": 0, "so_o_gui": 0, "khong_gui": [], "xac_nhan": 0, "sua": 0, "cung_khong_quy_dinh": 0,
+            "khong_xac_nhan": 0, "ma_loi": CHO_NOI_MASK_V2, "loi": CLOUD_TAM_KHOA, "nhat_ky": "",
+            "token_vao": 0, "token_ra": 0}
+
     ung_vien = ung_vien or {}
     ghi_log = ghi_log or (lambda m: None)
     ncc = (cfg.get("nha_cung_cap") or "anthropic").lower()
@@ -386,6 +399,9 @@ def kiem_tra_cloud(bang, params, ket_qua, sent, rows_by_id, full_norm, full_loos
 
 def thu_ket_noi(nha_cung_cap, model=None, timeout=60):
     """Gọi thử API bằng một câu ngắn (KHÔNG có dữ liệu hợp đồng) → {ok, model, giay, tra_loi | loi}."""
+    # AI-0: nút thử kết nối cũng không được đọc khóa hoặc gọi nhà cung cấp.
+    return {"ok": False, "model": model or "", "giay": 0, "ma_loi": CHO_NOI_MASK_V2, "loi": CLOUD_TAM_KHOA}
+
     import time
     ncc = (nha_cung_cap or "anthropic").lower()
     khoa = doc_khoa(ncc)
