@@ -1,0 +1,11 @@
+# DA-4b — Lưới CRM: phần "Dự án đang bán" mở thẳng màn Dự án đang bán (giao diện) — CD-006 mục 1
+
+Bạn là worker Codex, chạy không tương tác. Căn cứ: hộp thư **CD-006** mục 1; DA-4a đã khai báo phần thứ 7 ở máy chủ (`src/kho_tri_thuc/giao_dien/khung_khai_bao.py`: `du_an_ban`, tên "Dự án đang bán", icon `du-an`, đường dẫn `#crm/du-an-ban`, thứ tự 35). **Làm ngay, không hỏi lại.** Đọc `AGENTS.md`, `CLAUDE.md` (§4 giao diện tiếng Việt, không mã kỹ thuật). UTF-8 không BOM — **ghi tệp bằng UTF-8**. Worktree hiện tại, nhánh `lat/da-4b` (dòng giao diện CRM = BG-e1…e5 + DA-4a). Sandbox không ghi `.git`: **không commit**. Không mở server/PostgreSQL. Chạy node: `node tests/khung_luoi_async.cjs`, `node tests/crm_du_an_ban_async.cjs`, `node tests/crm_giao_ket_async.cjs` (+ 20 bộ: 8 bộ lỗi nền như handoff BG-e3).
+
+**Việc:**
+1. `src/kho_tri_thuc/giao_dien/assets/app.js` (khối "Áp khung cho CRM" ~:2008–2040): `phanId` thêm `du_an_ban: ["crm-g"]`; `KHUNG_ICON` (~:1702) thêm `"du-an"`; cập nhật chú thích bảng phần → khối (7 phần).
+2. `src/kho_tri_thuc/giao_dien/assets/style.css`: quy tắc `.khung-hinh-du-an` theo đúng cách các icon khung khác đang khai (Lucide ISC — dùng hình "building-2" của Lucide, cùng kiểu mask/SVG như `.khung-hinh-mau`; ghi nguồn trong chú thích như các icon khác).
+3. `src/kho_tri_thuc/giao_dien/assets/crm_g.js` (thẻ ~:734–748, `doiTab` ~:354, `trongCrm`): khi hash là `#crm/du-an-ban` → màn `#crm-g` mở **thẳng thẻ "Dự án đang bán"** (`tab = "du-an-ban"`, nạp `duAnBan.nap()`), **ẩn** hàng nút thẻ Mẫu/Bộ chuẩn; khi hash là `#crm/mau` → giữ thẻ Mẫu hợp đồng / Bộ chuẩn dự án như cũ và **ẩn** nút thẻ "Dự án đang bán" (đã có phần riêng). Màn cũ `#hopdong` giữ nguyên cả 3 thẻ. Đổi hash giữa hai phần không để lại thẻ sai (thế hệ `genVao`/`hashchange` hiện có).
+4. Test `tests/khung_luoi_async.cjs`: lưới CRM 7 ô đúng thứ tự, ô "Dự án đang bán" có icon `du-an` (không rơi về `mac-dinh`), bấm → `#crm/du-an-ban` hiện khối `crm-g` với thẻ Dự án đang bán đang chọn và không có nút thẻ Mẫu/Bộ chuẩn; `#crm/mau` không có nút thẻ Dự án đang bán.
+**File (≤ 4, gồm 1 test):** `app.js`, `style.css`, `crm_g.js`, `tests/khung_luoi_async.cjs`. Không xóa file. Không sửa máy chủ.
+**Báo cáo (≤ ⅓ trang):** sửa ở file:dòng · node trước/sau · thông điệp commit `[DA-4b] …`.

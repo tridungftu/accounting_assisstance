@@ -1,0 +1,14 @@
+# MDA-4a — Danh sách hợp đồng: hạn của đợt gắn mốc riêng dự án ("dự kiến dd/mm/yyyy", không đếm quá hạn khi chưa có ngày thực tế) — CD-007 mục 2, 4
+
+Bạn là worker Codex, chạy không tương tác. Căn cứ: hộp thư **CD-007** mục 2, 4, 5; thiết kế `docs\46-chuyen-doi-dieu-phoi\THIET-KE-MOC-DU-AN.md` §1 dòng "Hạn của đợt gắn mốc riêng". **Làm ngay, không hỏi lại.** Đọc `AGENTS.md`, `CLAUDE.md`. UTF-8 không BOM. Worktree hiện tại, nhánh `lat/mda-4a` (từ `lat/mda-1b`: bảng `master.crm_da_moc` / `crm_da_moc_ls` trong `k2/sql_crm_du_an_moc.py`). Sandbox không ghi `.git`: **không commit**. Không mở server/PostgreSQL (test PG tự skip — lead chạy).
+
+**Bối cảnh:** read-model danh sách hợp đồng `src/kho_tri_thuc/k2/crm_s1.py`: `_sql` (~:232) đọc lịch nghĩa vụ; `_dong` (~:255–330) tính `han`, cờ `QUA_HAN`, thẻ W5 (đến hạn 7 ngày), `dot_ke_tiep` (`trang_thai` `CO_NGAY` / `MOC_CHUA_CO_NGAY`). Đợt gắn sự kiện lưu `moc` dạng `SU_KIEN:<mã>` và `han` trống.
+**Việc (`crm_s1.py`):**
+1. Với đợt `han` trống và `moc` = `SU_KIEN:DAM-<uuid>` hoặc `SU_KIEN:DAM-<uuid>_<n>`: đọc dòng **đang mở** của mốc (`crm_da_moc_ls`, hiệu lực tại ngày máy chủ) trong **cùng truy vấn/giao dịch đọc** của S1 (thêm vào `_sql` bằng LEFT JOIN/LATERAL theo mã; không thêm migration). Quyền: đọc như phần còn lại của S1 (nếu cần quyền đọc bảng mốc mà kết nối S1 không có → dừng, báo lead tệp:dòng, không tự cấp quyền).
+2. Mốc **có ngày thực tế** → `han` hiệu lực = thực tế + n → xử lý **y như đợt có ngày** (QUA_HAN, W5, sắp xếp, `dot_ke_tiep.trang_thai = "CO_NGAY"`).
+3. Mốc **chưa có ngày thực tế** → không có `han`; thêm `han_du_kien` = dự kiến + n; `dot_ke_tiep` có `han_du_kien` và `trang_thai = "MOC_DU_KIEN"`; **không** đếm QUA_HAN/W5 dù dự kiến đã qua. Mốc đã ngừng dùng/không tìm thấy → giữ như hiện nay (`MOC_CHUA_CO_NGAY`).
+4. Không đổi hợp đồng API cũ ngoài 2 trường thêm (`han_du_kien`, giá trị `MOC_DU_KIEN`); ghi vào docstring đầu tệp. Màn danh sách (app.js) sẽ hiện "dự kiến dd/mm/yyyy" ở lát giao diện sau — không sửa giao diện ở lát này.
+**Test — tệp mới `tests/test_crm_s1_moc_du_an.py`:** giả lập `_dong` (không CSDL): đợt gắn mốc chưa có thực tế, dự kiến đã qua → không QUA_HAN, không W5, `MOC_DU_KIEN` + `han_du_kien` đúng (+ n); ghi thực tế → `han` = thực tế + n, quá hạn đếm đúng; mốc chuẩn (`SU_KIEN:KY_HD`) không đổi. Phần PostgreSQL (`skipUnless KHO_PG_DSN_TEST`, theo mẫu `tests/test_crm_42_s1_http.py` / `tests/test_crm_du_an_moc.py`): một hợp đồng DEMO có đợt gắn mốc riêng → danh sách S1 không vào lọc "Quá hạn" khi chưa có thực tế; ghi thực tế quá khứ → vào lọc "Quá hạn" (đúng 1).
+**File (≤ 2):** `src/kho_tri_thuc/k2/crm_s1.py`, `tests/test_crm_s1_moc_du_an.py`. Không xóa file. Nếu buộc sửa SQL nơi khác (vd hàm SQL lịch nghĩa vụ) → dừng, báo lead.
+**Chạy test:** `python -X utf8 -m unittest tests.test_crm_s1_moc_du_an tests.test_crm_42_s1_http` (phần PG skip) — ghi số trước/sau.
+**Báo cáo (≤ ⅓ trang):** sửa ở file:dòng · số test · thông điệp commit `[MDA-4a] …`.

@@ -208,3 +208,20 @@ H3 phân loại 36 đầu việc: 19 gói đã nhập `hop-nhat`, 13 xung đột
 - kiem-nhanh T-NEN: a đạt (test PG 58/58 xanh); b đạt có điều kiện (test PG xanh); c chưa xanh — source6_lazy_excel cần thư mục gốc tên files và master_hd.py chưa vào git → giữ nhánh, không gộp. Sản phẩm còn xóa tệp: tools/source6_g5_e5/trich_xuat/danh_muc.py:280.
 - 22:55 hạn mức Claude mở lại → chạy tiếp CD-008. Đang chạy: KY-DOCX (Claude Opus, lat-t-pdf, tiếp sau khi bị ngắt; giữ `pg_migrations.py` M0035), BG-e3 (Codex, lat/bg-e3 từ lat/bg-e2; giữ `crm_g.js`/`style.css` dòng giao diện), MDA-1a (Codex, lat/mda-1a từ kiem/gop-da-2; append migration — lead đánh số khi gộp sau KY-DOCX), AI-3 (Codex, lat/ai-3; giữ `m4/review_goc/trich_xuat/ai_cloud.py`, `cloud.py`), kiểm nhanh BG-e1/e2/e4 (Claude Haiku), test PG cả bộ cho kiem/gop-da-2 (lead).
 - Phát hiện: lưới CRM (UI-1) 6 phần không có ô "Dự án đang bán" (màn nằm trong thẻ con của "Mẫu hợp đồng") → lát DA-4 thêm phần thứ 7 sau BG-e3.
+
+### Nhật ký lát đêm 25→26/10 (CD-003 · CD-008) — cập nhật 23:37
+
+| Lát | Worker · model | Giao → xong | Nhánh · commit | Kiểm / review | Test | Gộp |
+|---|---|---|---|---|---|---|
+| KY-DOCX (QD-27) | Claude Opus | 22:20 → 23:15 (ngắt 22:30–22:55) | lat/t-pdf a940375 | review-lat: chờ | thuần 775/0/39/235 (0 mã mới); PG đang xếp hàng | chưa |
+| BG-e1 / BG-e2 / BG-e4 v2 | Codex | 22:10 → 22:40 | lat/bg-e1 32557c3, bg-e2 259ce65, bg-e4 29c67af | kiem-nhanh Đạt / Đạt / Có điều kiện (sửa ở BG-e5) | node 31/31, 20/20, 13/13 | gom lat/bg-gom 9db1501 |
+| BG-e3 (BG-18/23/24) | Codex | 22:58 → 23:12 | lat/bg-e3 f72a910 | review-lat cụm: đang chạy | node 35/35 | gom lat/bg-gom |
+| BG-e5 (sửa sau kiểm) | Codex | 23:15 → 23:24 | lat/bg-e5 | review-lat cụm: đang chạy | node 36, 20, 13, 10 | — |
+| Gộp thử da-2 (CD-006 b1) | lead | 23:05 → 23:33 | kiem/gop-da-2 1283999 | — | PG cả bộ 2340/21/67/66 vs v2: +2 mã (test cũ đòi giao diện cũ) + node crm_ky_ket_async | chờ T-DA2 |
+| T-DA2 | Codex | 23:35 → | kiem/gop-da-2 | — | — | — |
+| MDA-1a (SQL, M0035) | Codex | 23:00 → 23:10; v2 23:20 → 23:25 | lat/mda-1a a68d22b; v2 d8e0923 (trên mda-1b) | review-lat v1 Không đạt (1 Chặn: locale C) → v2 sửa | tĩnh 18/36 (18 PG skip); PG đang chạy | chưa |
+| MDA-1b (dịch vụ, HTTP, seed) | Codex | 23:12 → 23:19 | lat/mda-1b | — | 101/140 (39 skip) | — |
+| MDA-3s / MDA-4a | Codex | 23:27 → 23:33 | lat/mda-3s, lat/mda-4a → lat/mda-gom 39175d8 | — | 81/4 skip; 22/12 skip | — |
+| AI-3 | Codex | 23:00 → 23:06 dừng (PIN) → v2 23:17 → v3 23:32 | lat/ai-3 fd4b95f | review-lat Đạt (3 Nên sửa → v3) | thuần cả bộ: 0 mã mới (8 lỗi có sẵn ở hợp nhất) | chờ v3 |
+| T-WORD | Codex | 23:15 → 23:24 | lat/t-word → lat/t-pdf | — | giao_ket 62/64, 2 skip | — |
+| DA-4a / DA-4b (phần Dự án đang bán trên lưới) | Codex | 23:20 → 23:23; 4b 23:25 → | lat/da-4a cbfd2e0; lat/da-4b | — | khung 21/21 | — |

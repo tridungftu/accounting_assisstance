@@ -1,0 +1,19 @@
+# MDA-2 — Màn Dự án đang bán: mục "Mốc thanh toán của dự án" (khai mốc, ngày dự kiến/thực tế, lý do, lịch sử) — CD-006 mục 2, CD-007
+
+Bạn là worker Codex, chạy không tương tác. Căn cứ: hộp thư **CD-006** mục 2, **CD-007** mục 1–4; thiết kế `docs\46-chuyen-doi-dieu-phoi\THIET-KE-MOC-DU-AN.md` §1. **Làm ngay, không hỏi lại.** Đọc `AGENTS.md`, `CLAUDE.md` (§4: tiếng Việt nghiệp vụ, không mã kỹ thuật, ngày dd/mm/yyyy). UTF-8 không BOM — **ghi tệp bằng UTF-8**. Worktree hiện tại, nhánh `lat/mda-2` (dòng giao diện CRM sau DA-4b, đã nhận máy chủ MDA-1a/1b). Sandbox không ghi `.git`: **không commit**. Không mở server/PostgreSQL. Chạy node: `node tests/crm_du_an_ban_async.cjs`, `node tests/crm_giao_ket_async.cjs`, `node tests/khung_luoi_async.cjs` (+ 20 bộ: 8 bộ lỗi nền như handoff BG-e3).
+
+**API máy chủ (MDA-1b, `src/kho_tri_thuc/giao_dien/crm_g.py` docstring đầu tệp):**
+- `GET /api/crm/du-an-ban/moc?du_an_id=<uuid>` → `{moc: [{moc_id, ma, lan, ten, ten_tat, ngay_du_kien, ngay_thuc_te, trang_thai, ngay_du_kien_hien_thi, ngay_thuc_te_hien_thi, trang_thai_hien_thi, viec_cho}], so_viec_cho}`.
+- `GET /api/crm/du-an-ban/moc/{moc_id}/lich-su` → các lần + sự kiện (nhãn hành động tiếng Việt, cũ → mới, ai, lúc, lý do).
+- `POST /api/crm/du-an-ban/moc` thân `{da_ban_id, moc: {moc_id?, expected_lan?, ten?, ten_tat?, ngay_du_kien?, ngay_thuc_te?, dang_dung?}, ly_do?, khoa}` → `{moc_id, ma, lan, doi}`; 400 có `truong`; 409 khi lần cũ.
+Đọc thêm mã máy chủ để khớp tên trường đúng (không đoán).
+
+**Việc — `src/kho_tri_thuc/giao_dien/assets/crm_g.js` (khối `duAnBan`, chi tiết dự án ~:600–720), `style.css` (khối Dự án đang bán):**
+1. Trong chi tiết dự án đang bán thêm mục **"Mốc thanh toán của dự án"** (sau phần Tiến độ thanh toán tiêu chuẩn): bảng **Mốc · Tên tắt · Ngày dự kiến · Ngày thực tế · Trạng thái**; dòng `viec_cho` nổi bật (màu cảnh báo) với chữ "Quá ngày dự kiến — cần chỉnh ngày"; dòng đầu mục hiện "N mốc cần chỉnh ngày dự kiến" khi `so_viec_cho > 0`. Dự án chưa khai: "Dự án chưa khai mốc riêng — Báo giá chỉ dùng mốc cơ bản (Ký · Bàn giao · Sổ · Sau ký + n ngày · ngày cố định)."
+2. Nút **"+ Khai mốc"** → form: Tên mốc (bắt buộc), Tên tắt (tùy chọn, vd CNĐT), Ngày dự kiến (bắt buộc, gõ dd/mm/yyyy). Gửi `POST` với `khoa` theo đúng cách các lệnh Dự án đang bán khác tạo khóa (`nhanBanGhi`/biên nhận hiện có); thành công → tải lại danh sách mốc.
+3. Mỗi dòng có thao tác: **Chỉnh ngày dự kiến** (ô ngày + ô **Lý do bắt buộc** — nút Lưu mờ kèm "Cần lý do" khi trống); **Ghi ngày thực tế** (ô ngày ≤ hôm nay; nếu mốc đã có ngày thực tế thì đổi/bỏ cần lý do); **Sửa tên / tên tắt**; **Ngừng dùng** (cần xác nhận trong trang, không `confirm()`); **Lịch sử** (danh sách lần: ngày giờ dd/mm/yyyy hh:mm, người, hành động, cũ → mới, lý do). Luôn gửi `expected_lan` = `lan` đang hiện. 409 → "Mốc đã được sửa ở nơi khác — đã tải lại, kiểm rồi làm lại." và tải lại.
+4. Lỗi 400 có `truong` hiện ngay dưới ô tương ứng (theo cách các form Dự án đang bán khác hiện lỗi theo trường). Vai không có quyền ghi (máy chủ trả 403/`CRM_G_KHONG_CO_QUYEN`) → ẩn nút ghi theo đúng cách màn hiện ẩn các nút ghi khác (không tự suy quyền ở trình duyệt nếu màn chưa làm thế).
+5. Không mã kỹ thuật (`DAM-…`, `QUA_DU_KIEN`, `moc_id`) trên màn hình.
+**Test — `tests/crm_du_an_ban_async.cjs`:** máy chủ giả: (a) dự án chưa khai → câu mốc cơ bản; (b) khai mốc → POST đúng thân (ngày gửi `YYYY-MM-DD`, có `khoa`), danh sách tải lại; (c) chỉnh ngày dự kiến không lý do → nút mờ, có lý do → POST có `ly_do` + `expected_lan`; (d) mốc quá dự kiến → dòng nổi bật + đếm "1 mốc cần chỉnh ngày dự kiến"; (e) 409 → câu tải lại; (f) lịch sử hiện cũ → mới dd/mm/yyyy; (g) không chuỗi `DAM-` trong DOM.
+**File (≤ 3):** `crm_g.js`, `style.css`, `tests/crm_du_an_ban_async.cjs`. Không sửa máy chủ (thấy cần → dừng, báo lead). Không xóa file.
+**Báo cáo (≤ ⅓ trang):** sửa ở file:dòng · 7 ca test · node trước/sau · thông điệp commit `[MDA-2] …`.
