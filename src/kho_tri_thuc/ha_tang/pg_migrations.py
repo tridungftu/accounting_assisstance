@@ -11852,3 +11852,14 @@ from ..k2.sql_ghi_nhan_chung import M4_03B_COMMON_SQL  # noqa: E402 — module c
 M0029_M4_GHI_NHAN_CHUNG = M4_03B_COMMON_SQL
 PG_MIGRATIONS = (*PG_MIGRATIONS, M0029_M4_GHI_NHAN_CHUNG)
 PG_SCHEMA_VERSION = len(PG_MIGRATIONS)
+
+# ---------------------------------------------------------------------------
+# 0030 — BG-1c CRM · Báo giá: bước kiểm khi Ký tính Tổng VND = round(đơn giá × tỷ giá × diện tích, 0) cho báo giá v2 (tien_chinh = VND) và đọc
+#        ghi đè tổng (APPEND sau toàn bộ 1–29; không sửa byte/định nghĩa/checksum 1–29, không sửa M0025). Định nghĩa trong k2/sql_crm_bg1c.py
+#        (chỉ hằng SQL, không import ha_tang): CHỈ `CREATE OR REPLACE FUNCTION master.crm_kiem_lich_ky(uuid)` — cùng chữ ký/kiểu trả/hình dạng jsonb.
+# ---------------------------------------------------------------------------
+from ..k2.sql_crm_bg1c import CRM_BG1C_SQL  # noqa: E402 — module chỉ hằng SQL, không import ha_tang
+
+M0030_CRM_BG1C = CRM_BG1C_SQL
+PG_MIGRATIONS = (*PG_MIGRATIONS, M0030_CRM_BG1C)
+PG_SCHEMA_VERSION = len(PG_MIGRATIONS)
