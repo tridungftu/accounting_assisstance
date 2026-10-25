@@ -18,6 +18,7 @@ from datetime import date, timedelta
 
 from ..ha_tang.primitives import DataError
 from . import quyen
+from .crm_giao_ket import MOC_DU_AN_NGAY_TOI_DA, RE_MOC_DU_AN
 
 TRANG_THAI = {
     "SOAN_THAO": "Soạn thảo", "CHO_KY": "Chờ ký", "DA_KY": "Đã ký — chờ kế toán kiểm",
@@ -28,8 +29,7 @@ TRANG_THAI = {
 CO = {"THIEU_CAN_CU", "LECH_BAN_KY", "QUA_HAN", "TRA_LAI", "CHO_BO_SUNG"}
 THAM_SO = {"trang", "kich_thuoc_trang", "phap_nhan", "loai", "du_an", "trang_thai", "co", "nguoi_phu_trach",
            "ngay_ky_tu", "ngay_ky_den", "ngay_hieu_luc_tu", "ngay_hieu_luc_den", "tim", "the"}
-_MOC_DU_AN_RE = (r"^SU_KIEN:(DAM-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-"
-                 r"[0-9a-f]{4}-[0-9a-f]{12})(?:_([1-9][0-9]*))?$")
+_MOC_DU_AN_RE = RE_MOC_DU_AN.pattern.replace("^", "^SU_KIEN:", 1)
 
 
 def bo_loc(query: dict) -> dict:
@@ -160,12 +160,17 @@ _TOM_TAT = """
 # mốc cùng dự án/pháp nhân, dòng đang mở và đã hiệu lực tại ngày máy chủ.
 _NOI_MOC_DU_AN = """
     LEFT JOIN LATERAL (
-        SELECT s.ngay_du_kien, s.ngay_thuc_te, coalesce(ma.phan[2], '0')::integer AS so_ngay
-        FROM (SELECT regexp_match(l.moc, '""" + _MOC_DU_AN_RE + """') AS phan) ma
-        JOIN master.crm_da_moc m ON m.ma = ma.phan[1] AND m.phap_nhan_id = h.phap_nhan_id
+        SELECT s.ngay_du_kien, s.ngay_thuc_te, ma.so_ngay
+        FROM (
+            SELECT phan[1] AS ma,
+                   CASE WHEN phan IS NOT NULL THEN coalesce(phan[2], '0')::integer END AS so_ngay
+            FROM (SELECT regexp_match(l.moc, '""" + _MOC_DU_AN_RE + """') AS phan) khop
+        ) ma
+        JOIN master.crm_da_moc m ON m.ma = ma.ma AND m.phap_nhan_id = h.phap_nhan_id
         JOIN master.crm_da_ban d ON d.id = m.da_ban_id AND d.phap_nhan_id = h.phap_nhan_id
         JOIN master.crm_da_moc_ls s ON s.moc_id = m.id AND s.phap_nhan_id = h.phap_nhan_id
         WHERE l.han IS NULL AND h.xem_tien AND d.du_an_id = h.du_an_id
+          AND ma.so_ngay <= """ + str(MOC_DU_AN_NGAY_TOI_DA) + """
           AND s.dang_dung AND s.hieu_luc_den IS NULL AND s.hieu_luc_tu <= %(ngay)s
     ) dm ON true
 """
@@ -280,7 +285,7 @@ def _dong(r: dict, hom_nay: date) -> dict:
     lich = [dict(l) for l in r.get("lich") or []] if xem_tien else []
     for l in lich:
         moc = re.fullmatch(_MOC_DU_AN_RE, l.get("moc") or "")
-        if not l.get("han") and moc:
+        if not l.get("han") and moc and int(moc[2] or 0) <= MOC_DU_AN_NGAY_TOI_DA:
             n = timedelta(days=int(moc[2] or 0))
             if l.get("moc_ngay_thuc_te"):
                 l["han"] = (date.fromisoformat(_ngay(l["moc_ngay_thuc_te"])) + n).isoformat()

@@ -64,6 +64,17 @@ class _Mau(CrmMauK2):
         elif "master.crm_gk_bao_gia_luu(" in sql:
             self.da_luu.append(json.loads(params[7]))
             row = {"r": {"ket_qua": {"id": BG, "revision": len(self.da_luu)}, "lap_lai": False}}
+        elif "master.crm_gk_soan_luu(" in sql:
+            self.da_luu.append(json.loads(params[4]))
+            row = {"r": {"ket_qua": {"id": BG, "revision": len(self.da_luu)}, "lap_lai": False}}
+        elif "FROM master.crm_hd_soan s JOIN" in sql:
+            row = {"du_lieu": {"bao_gia": self.cu}, "phap_nhan_id": DA,
+                   "loai_hinh_id": self.cu["loai_hinh_id"], "mau_phien_ban_id": MID,
+                   "revision_hien_hanh": 1}
+        elif "SELECT danh_muc_ref, danh_muc_rev" in sql:
+            row = {"danh_muc_ref": MID, "danh_muc_rev": 1}
+        elif "FROM master.crm_danh_muc_truong" in sql:
+            return []
         elif "SELECT phap_nhan_id, cau_hinh" in sql:
             row = {"phap_nhan_id": DA, "cau_hinh": {}}
         elif "FROM master.crm_bao_gia b JOIN" in sql:
@@ -138,11 +149,46 @@ class LuuMocDuAn(unittest.TestCase):
         self.assertEqual(self.so_doc_moc(), 0)
 
     def test_ma_dam_sai_va_tham_so_ngoai_mien_khong_luu(self):
-        for ma in ("DAM-x", MA + "_0", MA + "_3651", MA + "_-1", MA + "_30x", MA + "_99999"):
-            with self.subTest(ma=ma), self.assertRaises(DataError) as cm:
-                self.luu(du_lieu(ma))
-            self.assertEqual((cm.exception.locator, str(cm.exception)), ("lich.0.moc_su_kien", LOI.format(1)))
+        for sua in (False, True):
+            for ma in ("DAM-x", MA + "_0007", MA + "_0", MA + "_3651", MA + "_-1",
+                       MA + "_30x", MA + "_99999", MA + "_" + "9" * 30):
+                with self.subTest(sua=sua, ma=ma):
+                    with self.assertRaises(DataError) as cm:
+                        self.luu(du_lieu(ma), sua)
+                    self.assertEqual((cm.exception.code, cm.exception.locator, str(cm.exception)),
+                                     ("CRM_GK_LICH_SAI", "lich.0.moc_su_kien", LOI.format(1)))
         self.assertEqual(self.m.da_luu, [])
+
+    def luu_soan(self, d):
+        return self.s.luu_soan(ME, soan_id=BG, expected_revision=1, gia_tri_truong={},
+                               bao_gia=d, khoa="mda5a-soan-demo")
+
+    def test_luu_soan_moc_hop_le_doc_va_luu_cung_giao_dich(self):
+        for ma in (MA, MA + "_1", MA + "_7", MA + "_3650"):
+            with self.subTest(ma=ma):
+                truoc = self.so_doc_moc()
+                self.assertFalse(self.luu_soan(du_lieu(ma))["lap_lai"])
+                self.assertEqual(self.so_doc_moc(), truoc + 1)
+                self.assertEqual(self.m.da_luu[-1]["bao_gia"]["lich"][0]["moc_su_kien"], ma)
+
+    def test_luu_soan_kiem_lai_moc_cu_va_chan_ma_sai_dung_truong(self):
+        for rows, ma in (([], MA + "_30"), ([], "DAM-" + KHAC),
+                         ([{"ma": MA, "ten": TEN}], MA + "_0007"),
+                         ([{"ma": MA, "ten": TEN}], MA + "_3651"),
+                         ([{"ma": MA, "ten": TEN}], MA + "_99999")):
+            with self.subTest(rows=rows, ma=ma):
+                self.m.moc[DA] = rows
+                d = du_lieu(ma)
+                self.m.cu = G.chuan_hoa_bao_gia(d)
+                with self.assertRaises(DataError) as cm:
+                    self.luu_soan(d)
+                self.assertEqual((cm.exception.code, cm.exception.locator, str(cm.exception)),
+                                 ("CRM_GK_LICH_SAI", "lich.0.moc_su_kien", LOI.format(1)))
+        self.assertEqual(self.m.da_luu, [])
+
+    def test_luu_soan_moc_chuan_khong_doc_moc_du_an(self):
+        self.luu_soan(du_lieu("KY_HD"))
+        self.assertEqual(self.so_doc_moc(), 0)
 
 
 class NhanVaBanIn(unittest.TestCase):

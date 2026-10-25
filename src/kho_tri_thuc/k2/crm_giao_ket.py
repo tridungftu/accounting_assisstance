@@ -76,7 +76,8 @@ KHOA_BG = {"loai_hinh_id", "du_an_id", "giai_doan_g7", "nguon_lich", "don_vi", "
 TRAM = Fraction(100)
 HAN_PDF_GIAY = 180.0
 MOC_CHUAN = (("KY_HD", "Ký"), ("BAN_GIAO", "Bàn giao"), ("SO", "Sổ"))
-RE_MOC_DU_AN = re.compile(r"(DAM-[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})(?:_([0-9]{1,4}))?")
+RE_MOC_DU_AN = re.compile(r"^(DAM-[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})(?:_([1-9][0-9]{0,3}))?$")
+MOC_DU_AN_NGAY_TOI_DA = 3650
 
 
 def nhan_moc_su_kien(ma: str | None, moc_du_an: dict[str, str] | None = None) -> str:
@@ -818,7 +819,7 @@ class CrmGiaoKetK2:
             if not ma.startswith("DAM-"):
                 continue
             m = RE_MOC_DU_AN.fullmatch(ma)
-            if m is None or (m[2] is not None and not 1 <= int(m[2]) <= 3650) or m[1] not in nhan:
+            if m is None or (m[2] is not None and int(m[2]) > MOC_DU_AN_NGAY_TOI_DA) or m[1] not in nhan:
                 _loi("CRM_GK_LICH_SAI", f"Dòng {i + 1}: mốc không thuộc dự án đã chọn hoặc đã ngừng dùng — chọn lại mốc.",
                      f"lich.{i}.moc_su_kien")
 
@@ -1314,6 +1315,7 @@ class CrmGiaoKetK2:
                     moi = chuan_hoa_bao_gia(vao, fx_mac_dinh=self._fx_mac_dinh(c, bg), hom_nay=m.hom_nay().isoformat())
                 else:
                     moi = chuan_hoa_bao_gia(vao, hom_nay=m.hom_nay().isoformat())
+                self._kiem_moc_du_an(c, moi)
                 for r in moi["lich"]:
                     r["dong_id"] = r["dong_id"] or str(uuid.uuid4())
                 if moi["fx"]:
