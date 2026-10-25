@@ -9,7 +9,7 @@ from __future__ import annotations
 import json
 import re
 from pathlib import Path
-from urllib.parse import quote, unquote
+from urllib.parse import parse_qs, quote, unquote, urlsplit
 
 from ..ha_tang.primitives import DataError
 
@@ -367,10 +367,39 @@ def _q(query: dict, cho_phep: set) -> dict:
     return out
 
 
+def _dc_doc(svc, me, pending):
+    """03B: chỉ ghép các dịch vụ có sẵn; nguồn NT lấy từ chi tiết 03A của phiên."""
+    from ..m4.ghi_nhan_nghiem_thu import dich_vu as dc, ref_tu_kt
+    from ..k2.ghi_nhan_chung import SCHEMA
+    ct = svc.kt_xem(me, kt_pending_id=pending, phong_bi_id=None)
+    if ct.get("quyen", {}).get("xem") is not True:
+        raise DataError("DC_PHAM_VI", "Không có quyền xem căn cứ của đợt này.")
+    gn = dc(svc)
+    ref = ref_tu_kt(ct)
+    return {"schema": SCHEMA, "nguon_nt": ref,
+            "can_cu": gn.xem_doi_chieu(me, {"nguon": [ref]}),
+            "goi_y": gn.goi_y_hoa_don(me, ct["context"]["dot_id"])}
+
+
 def dieu_huong(h, app, post: bool, path: str, query: dict):
     """Một điểm vào cho mọi route /api/m4* và tài sản /m4*. Tự trả lỗi có mã (403 phạm vi / 404 / 409 xung đột / 413 / 503 chưa cấu hình)."""
     try:
+        if path.startswith("/api/m4/doi-chieu/") and hasattr(h, "path"):
+            # Dispatcher chung bỏ tham số rỗng; 03B phải chặn cả ?actor= / ?la=.
+            query = parse_qs(urlsplit(h.path).query, keep_blank_values=True)
         if not post:
+            m = re.fullmatch(r"/api/m4/doi-chieu/(dot|lich-su|con-thieu)/(" + _UUID + r")", path)
+            if m:
+                _q(query, set())
+                with app.mutation_lock:
+                    _, me, _ = app.crm_phien(h.crm_sid())
+                    svc = dich_vu(app)
+                    if m.group(1) == "lich-su":
+                        from ..m4.ghi_nhan_nghiem_thu import dich_vu as dc
+                        result = app._crm_db(lambda: dc(svc).lich_su(me, m.group(2)))
+                    else:  # con-thieu dùng cùng căn cứ/quyền; UI đọc kt.thieu và hóa đơn chưa gắn
+                        result = app._crm_db(_dc_doc, svc, me, m.group(2))
+                return h.send_content(200, result, headers={"Cache-Control": "no-store"})
             if path in ("/m4.js", "/m4.css"):
                 mime = "text/javascript; charset=utf-8" if path.endswith(".js") else "text/css; charset=utf-8"
                 return h.send_content(200, (ASSETS / path[1:]).read_bytes(), mime)
@@ -500,6 +529,21 @@ def dieu_huong(h, app, post: bool, path: str, query: dict):
                     ten, _media, raw = app._crm_db(svc.tai_ve, me, m.group(2))
                 return h.send_content(200, raw, "application/octet-stream", {"Content-Disposition": "attachment; filename*=UTF-8''" + quote(ten, safe="")})
         else:
+            if path in ("/api/m4/doi-chieu/xem", "/api/m4/doi-chieu/luu", "/api/m4/doi-chieu/xac-nhan"):
+                from ..k2 import ghi_nhan_chung as GN
+                from ..m4.ghi_nhan_nghiem_thu import dich_vu as dc
+                _q(query, set())
+                ten = path.rsplit("/", 1)[1]
+                payload = h.json_body()
+                # Dùng validator hiện có, kể cả khóa lồng; tham số lạ 400, authority 403.
+                {"xem": GN.yeu_cau_xem, "luu": GN.yeu_cau_luu, "xac-nhan": GN.yeu_cau_xac_nhan}[ten](payload)
+                with app.mutation_lock:
+                    _, me, _ = app.crm_phien(h.crm_sid())
+                    svc = dich_vu(app)
+                def goi(s):
+                    gn = dc(s)
+                    return {"xem": gn.xem_doi_chieu, "luu": gn.luu_doi_chieu, "xac-nhan": gn.xac_nhan_doi_chieu}[ten](me, payload)
+                return h.send_content(200, _rieng(app, svc, goi), headers={"Cache-Control": "no-store"})
             if path == "/api/m4/tep":
                 encoded = h.headers.get("X-M4-Info", "")
                 if len(encoded) > 4000:
@@ -559,6 +603,18 @@ def dieu_huong(h, app, post: bool, path: str, query: dict):
                     return h.send_content(200, app._crm_db(_lenh, app, svc, me, ten, payload))
         return h.send_content(404, {"error": "NOT_FOUND", "message": "Không tìm thấy chức năng này."})
     except DataError as exc:
+        if path.startswith("/api/m4/doi-chieu/"):
+            from ..k2.ghi_nhan_chung import MA_HTTP
+            status = {"DC_YEU_CAU_SAI": 400, "DC_CLIENT_AUTHORITY": 403, "M4_YEU_CAU_SAI": 400}.get(
+                exc.code, MA_HTTP.get(exc.code, 403 if exc.code in MA_403 else 404 if exc.code in MA_404 else 503 if exc.code in MA_503 else 400))
+            labels = {"so_tien_khai": "số tiền một phần", "tien_te": "đơn vị tiền", "thanh_phan": "nguồn đã chọn", "nguon": "căn cứ",
+                      "expected_graph": "căn cứ đang xem", "expected_revision": "phiên bản đang xem", "doi_chieu_id": "đối chiếu",
+                      "phien_ban_id": "phiên bản", "can_cu_tep": "tệp căn cứ", "ly_do": "lý do", "khoa": "khóa thao tác"}
+            message = str(exc)
+            for field, label in labels.items():
+                message = re.sub(r"\b" + field + r"\b", label, message)
+            return h.send_content(status, {"error": exc.code, "message": message, "field": exc.locator},
+                                  headers={"Cache-Control": "no-store"})
         if path.startswith("/api/m4/ke-toan") and exc.code in MA_KT:  # FIX01: chỉ route KT, đúng mã
             st = MA_KT[exc.code]
             return h.send_content(st, {"error": exc.code, "message": KT_SAI_DTO_MSG if st == 500 else str(exc)})

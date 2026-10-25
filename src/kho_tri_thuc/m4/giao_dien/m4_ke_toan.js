@@ -510,6 +510,244 @@
     } catch (_) { if (f()) trangThai(MAT_KET_NOI + " — chưa tải được PDF.", true); }
   }
 
+  // ------------------------------------------------------------------ 03B: chỉ đối chiếu căn cứ, dùng dịch vụ chung; không suy ghép hóa đơn
+  const DC_SCHEMA = "M4_03B_DOI_CHIEU_CAN_CU_V1", dcMap = new Map();
+  const dcRef = c => ({kind: "NT", occurrence_id: c.kt_pending_id, source_version_id: c.phong_bi_id, part_id: null});
+  const dcKey = r => JSON.stringify([r.kind, r.occurrence_id, r.part_id]);
+  const dcCopy = x => JSON.parse(JSON.stringify(x));
+  const dcNgay = v => typeof v === "string" && /^\d{4}-\d{2}-\d{2}/.test(v) ? v.slice(0, 10).split("-").reverse().join("/") : "Chưa có ngày";
+  const dcTien = (v, tt) => {
+    if (v === null || v === undefined) return "Chưa đọc được số tiền";
+    const [nguyen, le] = String(v).split(".");
+    return nguyen.replace(/\B(?=(\d{3})+(?!\d))/g, ".") + (le ? "," + le : "") + " " + (tt || "chưa rõ đơn vị");
+  };
+  const dcChu = v => String(v || "").replace(/[0-9a-f]{8}-[0-9a-f-]{27,}/gi, "(đối chiếu liên quan)")
+    .replace(/\b[A-Z][A-Z0-9_]{3,}\b/g, "(cần kiểm tra)").replace(/\b[a-z]+(?:_[a-z0-9]+)+\b/g, "(trường dữ liệu)");
+  const DC_TT = {NHAP_DOI_CHIEU: "Nháp", KT_XAC_NHAN_CAN_CU: "Đã xác nhận — đã khóa", CAN_KIEM_LAI: "Cần kiểm lại"};
+  const DC_THIEU = {THIEU_NT: "Chưa gắn đợt nghiệm thu", THIEU_HOA_DON: "Đợt chưa có hóa đơn", PHAN_KHAI_THIEU: "Phần khai còn thiếu số tiền hoặc đơn vị",
+    NT_KHONG_HIEN_HANH: "Căn cứ nghiệm thu đã đổi", NT_CHUA_KT_XAC_NHAN: "Đợt chưa được kế toán xác nhận", NT_KHAC_HOP_DONG: "Các đợt khác hợp đồng",
+    BEN_BAN_HD_THIEU: "Hợp đồng thiếu đối tác", BEN_BAN_KHAC: "Đối tác hóa đơn khác hợp đồng", HOA_DON_CHUA_CO_PHIEN_BAN: "Hóa đơn chưa có bản hiện hành",
+    CHO_MAPPING_M2: "Dòng hóa đơn chờ xác định tại màn hóa đơn"};
+  function dcState() {
+    const key = chuoiCtx(dto.context);
+    if (!dcMap.has(key)) dcMap.set(key, {key, parts: [], tep: [], tepBoSung: [], lyDo: "", data: null, hist: null, base: null, edit: true, busy: false, error: "", pending: null, saved: null});
+    return dcMap.get(key);
+  }
+  const dcLive = s => vungSong() && !!dto && s.key === chuoiCtx(dto.context) && !thuHoi && dto.quyen.xem === true && !K.vaiDangChan(VAI);
+  const dcSua = s => dcLive(s) && tinhTrang === "OK" && dto.can_cu_hien_hanh && s.edit && !s.busy && !s.pending && s.data && s.data.can_cu.kt.duoc_ghi === true &&
+    (!s.hist || s.hist.kt.duoc_ghi === true) && !s.data.goi_y.khong_quyen;
+  const dcSig = s => JSON.stringify([s.parts, s.tep, s.lyDo]);
+  const dcHd = (s, r) => s.data.goi_y.hoa_don.find(h => dcKey(h.nguon) === dcKey(r));
+  const dcGanKhac = (s, h) => (h.da_gan_o || []).filter(x => !s.root || x.doi_chieu_id !== s.root);
+  function dcLoiPhan(s) {
+    if (!s.parts.some(t => t.nguon.kind === "HOA_DON")) return "Đợt chưa có hóa đơn — hãy bấm chọn hóa đơn.";
+    for (const t of s.parts) {
+      const h = t.nguon.kind === "HOA_DON" && dcHd(s, t.nguon);
+      if (h && dcGanKhac(s, h).length) return "Hóa đơn đã gắn ở đối chiếu khác — không cho gắn trùng.";
+      if (t.phan === "MOT_PHAN" && (!t.so_tien_khai || !t.tien_te)) return "Một phần bắt buộc nhập số tiền và đơn vị.";
+      if (t.phan === "MOT_PHAN" && (!/^(0|[1-9][0-9]{0,17})(\.[0-9]{1,2})?$/.test(t.so_tien_khai) || !/[1-9]/.test(t.so_tien_khai) ||
+          !["VND", "USD"].includes(t.tien_te) || (t.tien_te === "VND" && t.so_tien_khai.includes(".")))) return "Số tiền một phần phải dương; VND nguyên, USD tối đa hai số lẻ.";
+    }
+    return "";
+  }
+  async function dcFetch(path, body) {
+    const res = await fetch("/api/m4/doi-chieu/" + path, {method: body ? "POST" : "GET", cache: "no-store", credentials: "same-origin",
+      headers: {"X-KTT-Token": TOKEN, ...(body ? {"Content-Type": "application/json"} : {})}, ...(body ? {body: typeof body === "string" ? body : JSON.stringify(body)} : {})});
+    let d; try { d = await res.json(); } catch (_) { throw new Error("Phản hồi không trọn; hãy tải lại căn cứ."); }
+    if (!res.ok) { const e = new Error(dcChu(d.message) || "Chưa thực hiện được thao tác đối chiếu."); e.status = res.status; e.known = res.status < 500; throw e; }
+    if (!d || d.schema !== DC_SCHEMA) throw new Error("Dữ liệu đối chiếu chưa hợp lệ; hãy tải lại căn cứ.");
+    return d;
+  }
+  function dcNhan(s, r) {
+    if (r.kind === "NT") return r.occurrence_id === dto.context.kt_pending_id ? "Đợt đang mở" : "Đợt đã chọn " + (s.parts.filter(t => t.nguon.kind === "NT").findIndex(t => dcKey(t.nguon) === dcKey(r)) + 1);
+    const h = dcHd(s, r);
+    return h ? `Hóa đơn ${h.so_chuan || "chưa có số"} · ${h.ky_hieu || "chưa có ký hiệu"} · ${dcNgay(h.ngay_lap)}` : "Hóa đơn đã lưu (cần kiểm lại danh sách hiện hành)";
+  }
+  async function dcNap(s) {
+    if (!dcLive(s) || s.busy || s.pending) return;
+    const f = fenceView(); s.busy = true; s.error = ""; ve_();
+    try {
+      const d = await dcFetch("dot/" + dto.context.kt_pending_id);
+      if (!f() || !dcLive(s)) return;
+      if (!d.can_cu || !d.can_cu.kt || !Array.isArray(d.can_cu.doi_chieu.goc_lien_quan) || !d.goi_y || !Array.isArray(d.goi_y.hoa_don) ||
+          typeof d.goi_y.khong_quyen !== "boolean" || !laHex(d.can_cu.doi_chieu.graph_sha256)) throw new Error("Danh sách căn cứ chưa đầy đủ; hãy tải lại.");
+      if (!d.nguon_nt || d.nguon_nt.occurrence_id !== dto.context.kt_pending_id || d.nguon_nt.source_version_id !== dto.context.phong_bi_id) {
+        s.data = null; throw new Error("Cần kiểm lại — căn cứ nghiệm thu đã đổi. Làm mới hồ sơ nghiệm thu trước khi đối chiếu.");
+      }
+      s.data = d;
+      if (!s.parts.length) s.parts = [{nguon: d.nguon_nt, phan: "TOAN_PHAN", so_tien_khai: null, tien_te: null}];
+      const roots = d.can_cu.doi_chieu.goc_lien_quan;
+      if (s.root || roots.length === 1) {
+        const id = s.root || roots[0].doi_chieu_id;
+        const h = await dcFetch("lich-su/" + id);
+        if (!f() || !dcLive(s)) return;
+        dcApHistory(s, h);
+      }
+    } catch (e) { if (f() && dcLive(s)) dcError(s, e); }
+    finally { s.busy = false; if (f() && dcLive(s)) ve_(); }
+  }
+  function dcError(s, e) {
+    s.error = e.message || "Chưa đọc được đối chiếu.";
+    if (e.status === 403 || e.status === 404) { s.data = null; s.parts = []; s.hist = null; s.base = null; s.edit = false; }
+  }
+  function dcApHistory(s, h) {
+    const pbs = h.doi_chieu && h.doi_chieu.phien_ban, p = Array.isArray(pbs) && pbs[pbs.length - 1];
+    if (!p || !p.noi_dung || !Array.isArray(p.noi_dung.thanh_phan) || !Array.isArray(p.noi_dung.can_cu_tep) || !DC_TT[p.trang_thai] ||
+        !laHex(h.doi_chieu.graph_sha256) || !Number.isInteger(p.revision)) throw new Error("Lịch sử đối chiếu chưa đầy đủ; hãy tải lại.");
+    s.root = h.doi_chieu_id; s.hist = h; s.base = p; s.parts = dcCopy(p.noi_dung.thanh_phan);
+    s.tep = p.noi_dung.can_cu_tep.map(t => t.id); s.lyDo = p.noi_dung.ly_do || "";
+    s.edit = p.loai === "NHAP" && p.trang_thai === "NHAP_DOI_CHIEU"; s.saved = dcSig(s);
+  }
+  async function dcHistory(s, id) {
+    if (!dcLive(s) || s.busy || s.pending) return;
+    const f = fenceView(); s.busy = true; ve_();
+    try { const h = await dcFetch("lich-su/" + id); if (f() && dcLive(s)) dcApHistory(s, h); }
+    catch (e) { if (f() && dcLive(s)) dcError(s, e); }
+    finally { s.busy = false; if (f() && dcLive(s)) ve_(); }
+  }
+  async function dcGui(s, confirm) {
+    if (!dcLive(s) || s.busy || s.pending || !dcSua(s)) return;
+    const reason = dcLoiPhan(s);
+    if (confirm && (reason || !s.base || s.base.loai !== "NHAP" || s.base.trang_thai !== "NHAP_DOI_CHIEU" || s.saved !== dcSig(s) || (s.base.thieu || []).length)) return;
+    if (!confirm && (!s.lyDo.trim() || s.parts.some(t => t.phan === "MOT_PHAN" && t.so_tien_khai && !/^(0|[1-9][0-9]{0,17})(\.[0-9]{1,2})?$/.test(t.so_tien_khai)))) return;
+    const f = fenceView(); s.busy = true; s.error = ""; ve_();
+    try {
+      let body;
+      if (confirm) body = {doi_chieu_id: s.root, phien_ban_id: s.base.phien_ban_id, expected_revision: s.base.revision, expected_graph: s.base.graph_sha256, khoa: taoKhoa()};
+      else {
+        const preview = await dcFetch("xem", {nguon: s.parts.map(t => t.nguon)});
+        if (!f() || !dcLive(s)) return;
+        if (!laHex(preview.doi_chieu.graph_sha256) || preview.kt.duoc_ghi !== true) throw new Error("Chưa có quyền lưu tập căn cứ này.");
+        body = {doi_chieu_id: s.root || null, thanh_phan: dcCopy(s.parts).map(t => ({nguon: t.nguon, phan: t.phan, so_tien_khai: t.phan === "MOT_PHAN" ? t.so_tien_khai || null : null,
+          tien_te: t.phan === "MOT_PHAN" ? t.tien_te || null : null})), can_cu_tep: [...s.tep], expected_graph: preview.doi_chieu.graph_sha256,
+          expected_revision: s.base ? s.base.revision : 0, ly_do: s.lyDo, khoa: taoKhoa()};
+      }
+      s.pending = {path: confirm ? "xac-nhan" : "luu", body: JSON.stringify(body)};
+    } catch (e) { if (f() && dcLive(s)) dcError(s, e); }
+    finally { s.busy = false; }
+    if (f() && dcLive(s)) { if (s.pending) await dcPhat(s); else ve_(); }
+  }
+  async function dcPhat(s) {
+    if (!dcLive(s) || s.busy || !s.pending) return;
+    const f = fenceView(), rec = s.pending; s.busy = true; s.error = ""; ve_();
+    try {
+      const ack = await dcFetch(rec.path, rec.body);
+      if (!f() || !dcLive(s)) return;
+      const a = ack.doi_chieu;
+      if (!a || !laUuid(a.doi_chieu_id) || !laUuid(a.phien_ban_id) || !Number.isInteger(a.revision) || !DC_TT[a.trang_thai]) throw new Error("Chưa rõ kết quả đối chiếu.");
+      s.root = a.doi_chieu_id; s.pending = null;
+      const h = await dcFetch("lich-su/" + s.root);
+      if (!f() || !dcLive(s)) return;
+      dcApHistory(s, h);
+    } catch (e) {
+      if (f() && dcLive(s)) { if (e.known) s.pending = null; dcError(s, e); if (s.pending) s.error = "Chưa rõ kết quả. Gửi lại y nguyên để đối soát."; else s.edit = false; }
+    } finally { s.busy = false; if (f() && dcLive(s)) ve_(); }
+  }
+  async function dcThemDot(s, id) {
+    if (!id || !dcSua(s)) return;
+    const f = fenceView(); s.busy = true; ve_();
+    try {
+      const res = await fetch("/api/m4/ke-toan/" + id, {headers: {"X-KTT-Token": TOKEN}, credentials: "same-origin", cache: "no-store"});
+      const d = await res.json(); if (!f() || !dcLive(s)) return;
+      if (!res.ok || !d.context || d.quyen.xem !== true || d.can_cu_hien_hanh !== true || !d.kt || d.kt.trang_thai !== DA_XAC_NHAN ||
+          d.context.hop_dong_id !== dto.context.hop_dong_id) throw new Error("Chỉ chọn đợt đã xác nhận, hiện hành và cùng hợp đồng.");
+      const r = dcRef(d.context); if (!s.parts.some(t => dcKey(t.nguon) === dcKey(r))) s.parts.push({nguon: r, phan: "TOAN_PHAN", so_tien_khai: null, tien_te: null});
+      s.tepBoSung = s.tepBoSung.filter(t => t.pending !== id).concat((d.nguon.tep_can_cu || []).map(tep => ({pending: id, tep})));
+    } catch (e) { if (f() && dcLive(s)) s.error = dcChu(e.message); }
+    finally { s.busy = false; if (f() && dcLive(s)) ve_(); }
+  }
+  function veDoiChieu() {
+    const s = dcState(), card = el("section", {class: "m4-card m4-03b"}, el("h3", {text: "Đối chiếu căn cứ với hóa đơn"}));
+    const redraw = fn => () => { if (dcSua(s)) { fn(); ve_(); } };
+    card.append(nho("Chọn nguồn tường minh. Hóa đơn được lọc theo pháp nhân, đối tác hợp đồng và xếp theo kỳ, số tiền đọc được; kế toán bấm chọn."));
+    if (s.error) card.append(nho(dcChu(s.error), "m4-loi-chu"));
+    card.append(nut(s.data ? "Tải lại căn cứ đối chiếu" : "Mở đối chiếu", () => dcNap(s), "", s.busy || !!s.pending));
+    if (s.pending) card.append(nut("Gửi lại đối chiếu y nguyên", () => dcPhat(s), "", s.busy));
+    if (s.busy) card.append(nho("Đang đọc hoặc lưu đối chiếu…"));
+    if (!s.data) return card;
+    if (s.data.goi_y.khong_quyen) { card.append(nho("Không có quyền đọc hóa đơn mua. Danh sách hóa đơn được ẩn.")); return card; }
+    const roots = s.data.can_cu.doi_chieu.goc_lien_quan;
+    roots.forEach((r, i) => card.append(nut("Xem đối chiếu " + (i + 1), () => dcHistory(s, r.doi_chieu_id), "", s.busy || !!s.pending)));
+    if (roots.length > 1 && !s.root) { card.append(nho("Đợt thuộc nhiều đối chiếu. Chọn đối chiếu để xem và sửa đúng phiên bản.")); return card; }
+    if (s.base) card.append(pill(DC_TT[s.base.trang_thai], s.base.trang_thai === "CAN_KIEM_LAI" ? "m4-loi" : "m4-du"));
+    if (!s.edit) card.append(nut("Sửa bằng phiên bản mới", () => {
+      if (!dcLive(s) || s.busy || s.pending || !dto.can_cu_hien_hanh) return;
+      s.edit = true; s.saved = null;
+      s.parts.forEach(t => {
+        if (t.nguon.kind === "NT" && t.nguon.occurrence_id === dto.context.kt_pending_id) t.nguon = dcRef(dto.context);
+        const h = t.nguon.kind === "HOA_DON" && dcHd(s, t.nguon); if (h) t.nguon = dcCopy(h.nguon);
+        if (t.ty_le_khai !== undefined) { delete t.ty_le_khai; t.so_tien_khai = null; t.tien_te = null; }
+      }); ve_();
+    }, "", s.busy || !!s.pending || !dto.can_cu_hien_hanh));
+    const editable = !!dcSua(s);
+    card.append(el("h4", {text: "Nguồn đã chọn"}));
+    s.parts.forEach((t, i) => {
+      const row = el("div", {class: "m4-hang"}, el("span", {text: dcNhan(s, t.nguon)}));
+      const sel = el("select", {"aria-label": "Phạm vi nguồn " + (i + 1)}, [["TOAN_PHAN", "Toàn bộ"], ["MOT_PHAN", "Một phần"]].map(([value, text]) => el("option", {value, text})));
+      sel.value = t.phan; sel.disabled = !editable; sel.addEventListener("change", redraw(() => { t.phan = sel.value; t.so_tien_khai = null; t.tien_te = null; })); row.append(sel);
+      if (t.phan === "MOT_PHAN") {
+        const input = el("input", {"aria-label": "Số tiền một phần nguồn " + (i + 1), type: "text", inputmode: "decimal", value: t.so_tien_khai || ""}); input.disabled = !editable;
+        input.addEventListener("input", () => { if (dcSua(s)) { t.so_tien_khai = input.value || null; dcNut(s, card); } });
+        const unit = el("select", {"aria-label": "Đơn vị nguồn " + (i + 1)}, [["", "Chọn đơn vị"], ["VND", "VND"], ["USD", "USD"]].map(([value, text]) => el("option", {value, text})));
+        unit.value = t.tien_te || ""; unit.disabled = !editable; unit.addEventListener("change", redraw(() => { t.tien_te = unit.value || null; }));
+        row.append(input, unit);
+      }
+      if (!(t.nguon.kind === "NT" && t.nguon.occurrence_id === dto.context.kt_pending_id)) row.append(nut("Bỏ nguồn " + (i + 1), redraw(() => s.parts.splice(i, 1)), "", !editable));
+      card.append(row);
+    });
+    const other = (ds || []).filter(r => r.trang_thai === DA_XAC_NHAN && !s.parts.some(t => t.nguon.occurrence_id === r.kt_pending_id));
+    const add = el("select", {"aria-label": "Thêm đợt đã xác nhận"}, el("option", {value: "", text: "Chọn thêm đợt đã xác nhận cùng hợp đồng"}),
+      other.map((r, i) => el("option", {value: r.kt_pending_id, text: "Hồ sơ đã xác nhận " + (i + 1)})));
+    add.disabled = !editable; add.addEventListener("change", () => dcThemDot(s, add.value)); card.append(add);
+    card.append(el("h4", {text: "Hóa đơn mua — thứ tự gợi ý"}));
+    s.data.goi_y.hoa_don.forEach(h => {
+      const selected = s.parts.some(t => dcKey(t.nguon) === dcKey(h.nguon)), assigned = dcGanKhac(s, h);
+      const labels = assigned.map((x, i) => {
+        const pos = roots.findIndex(r => r.doi_chieu_id === x.doi_chieu_id);
+        return x.doi_chieu_id ? "đã gắn ở đối chiếu " + (pos >= 0 ? pos + 1 : "liên quan " + (i + 1)) : "đã gắn ở đối chiếu ngoài phạm vi";
+      });
+      card.append(el("div", {class: "m4-hang"}, el("span", {text: dcNhan(s, h.nguon) + " · " + dcTien(h.so_tien_doc_duoc, h.tien_te)}),
+        labels.length ? nho(labels.join("; ")) : null, nut(selected ? "Đã chọn hóa đơn" : "Chọn hóa đơn " + (h.so_chuan || "chưa có số"), redraw(() => {
+          if (!dcGanKhac(s, h).length && !s.parts.some(t => dcKey(t.nguon) === dcKey(h.nguon))) s.parts.push({nguon: dcCopy(h.nguon), phan: "TOAN_PHAN", so_tien_khai: null, tien_te: null});
+        }), "", !editable || selected || !!assigned.length)));
+    });
+    card.append(el("h4", {text: "Tệp căn cứ"}));
+    const tepUngVien = [...new Map([...(dto.nguon.tep_can_cu || []), ...s.tepBoSung.filter(x => s.parts.some(t => t.nguon.occurrence_id === x.pending)).map(x => x.tep)].map(t => [t.id, t])).values()];
+    for (const t of tepUngVien) {
+      const chk = el("input", {type: "checkbox", "aria-label": "Tệp căn cứ " + t.ten}); chk.checked = s.tep.includes(t.id); chk.disabled = !editable;
+      chk.addEventListener("change", redraw(() => { s.tep = chk.checked ? [...new Set([...s.tep, t.id])] : s.tep.filter(id => id !== t.id); }));
+      card.append(el("label", {}, chk, t.ten));
+    }
+    s.tep.filter(id => !tepUngVien.some(t => t.id === id)).forEach((id, i) => card.append(el("div", {class: "m4-hang"}, nho("Tệp căn cứ đã lưu của đợt trong nhóm " + (i + 1)),
+      nut("Bỏ tệp đã lưu " + (i + 1), redraw(() => { s.tep = s.tep.filter(x => x !== id); }), "", !editable))));
+    card.append(nho("Cần Anh: đường tải tệp mới hiện chỉ cấp cho phòng dự án soạn hồ sơ. Tại đây chọn tệp đã có trong hồ sơ; chưa hỗ trợ kế toán tải tệp mới."));
+    const reason = el("textarea", {"aria-label": "Lý do đối chiếu", value: s.lyDo}); reason.disabled = !editable;
+    reason.addEventListener("input", () => { if (dcSua(s)) { s.lyDo = reason.value; dcNut(s, card); } }); card.append(el("label", {}, "Lý do đối chiếu / phiên bản mới", reason));
+    card.append(nut("Lưu nháp đối chiếu", () => dcGui(s, false), "m4-chinh", !editable), nut("Xác nhận đối chiếu", () => dcGui(s, true), "m4-chinh", true), el("p", {class: "m4-03b-ly-do m4-nho"}));
+    card.append(el("h4", {text: "Còn thiếu"}));
+    const missing = s.base ? s.base.thieu || [] : s.data.can_cu.kt.thieu;
+    missing.forEach(code => card.append(nho(DC_THIEU[code] || "Căn cứ cần kiểm tra lại")));
+    if (dcLoiPhan(s)) card.append(nho(dcLoiPhan(s)));
+    const unlinked = s.data.goi_y.hoa_don.filter(h => !(h.da_gan_o || []).length && !s.parts.some(t => dcKey(t.nguon) === dcKey(h.nguon)));
+    unlinked.forEach(h => card.append(nho(dcNhan(s, h.nguon) + " — hóa đơn chưa gắn đợt")));
+    for (const t of (s.hist && s.hist.kt.phan_khai_con_thieu) || []) card.append(nho("Phần khai còn thiếu của đợt: " + (t.ly_do ? "Cần kiểm lại phần khai" : dcTien(t.so_tien_con_thieu, t.tien_te))));
+    if (s.hist) {
+      card.append(el("h4", {text: "Lịch sử phiên bản đối chiếu"}));
+      s.hist.doi_chieu.phien_ban.forEach(p => card.append(el("details", {}, el("summary", {text: `Phiên bản ${p.revision} · ${DC_TT[p.trang_thai]} · ${dcNgay(p.tao_luc)}`}),
+        nho(dcChu(p.ly_do)), (p.noi_dung.thanh_phan || []).map(t => nho(dcNhan(s, t.nguon) + " · " + (t.phan === "TOAN_PHAN" ? "Toàn bộ" : "Một phần · " + (t.ty_le_khai ? "Cần khai lại số tiền" : dcTien(t.so_tien_khai, t.tien_te))))),
+        nho("Tệp căn cứ: " + (p.noi_dung.can_cu_tep.length ? p.noi_dung.can_cu_tep.map(t => (dto.nguon.tep_can_cu.find(f => f.id === t.id) || {}).ten || "Tệp của đợt trong nhóm").join("; ") : "Chưa đính kèm")))));
+    }
+    dcNut(s, card); return card;
+  }
+  function dcNut(s, card) {
+    const buttons = [...card.querySelectorAll("button")], save = buttons.find(b => b.textContent === "Lưu nháp đối chiếu"), confirm = buttons.find(b => b.textContent === "Xác nhận đối chiếu");
+    const reason = !dcSua(s) ? "Đối chiếu đang khóa hoặc chưa có quyền sửa; hãy tải lại căn cứ hoặc tạo phiên bản mới." : dcLoiPhan(s) ||
+      (!s.base || s.base.loai !== "NHAP" || s.base.trang_thai !== "NHAP_DOI_CHIEU" || s.saved !== dcSig(s) ? "Lưu nháp hiện tại trước khi xác nhận." : (s.base.thieu || []).length ? "Căn cứ còn thiếu; hãy bổ sung trước khi xác nhận." : "");
+    if (save) save.disabled = !dcSua(s) || !s.lyDo.trim();
+    if (confirm) { confirm.disabled = !!reason; confirm.title = reason; }
+    const note = card.querySelector(".m4-03b-ly-do"); if (note) note.textContent = reason;
+  }
+
   // ------------------------------------------------------------------ giao diện
   function oNhap(nhan, gia, ghi, kieu) {  // cập nhật nháp + thế hệ form; không vẽ lại khi gõ
     const i = el(kieu === "area" ? "textarea" : "input", {"aria-label": nhan, autocomplete: "off"});
@@ -578,6 +816,7 @@
     if (q.luu === true && d.can_cu_hien_hanh && !(k && k.trang_thai === DA_XAC_NHAN)) kt.append(...veForm());
     else if (d.can_cu_hien_hanh && q.luu !== true) kt.append(nho("Vai này không có quyền lưu số liệu kế toán — chỉ xem.", "m4-loi-chu"));
     out.push(kt);
+    if (k && k.trang_thai === DA_XAC_NHAN) out.push(veDoiChieu());
 
     out.push(el("section", {class: "m4-card m4-kt-nhanh"}, el("h3", {text: "Nhánh sau xác nhận"}), bang(["Nhánh", "Trạng thái máy chủ", "Ghi chú"], [
       ["Ghi công nợ/AP", pill("Chưa triển khai (M4-03B)", "m4-xam"), "Đã ghi công nợ: không. Xác nhận kế toán không đồng nghĩa ghi công nợ/hạch toán."],
@@ -676,6 +915,7 @@
     ds = null; dsTinhTrang = "CHUA"; dsLoi = ""; pendingChon = null; phongBiChon = null;
     dto = null; tinhTrang = "CHUA"; loiGet = ""; thuHoi = false; statusChu = ""; statusLoi = false; ctxView = undefined;
     nhapMap.clear();
+    dcMap.clear();
   }
   K.dangKyVai(VAI, huy, () => { if (vungSong()) napDs(); });
   window.kttM4KeToan = Object.freeze({
