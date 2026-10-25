@@ -1,0 +1,6 @@
+Anh, **không thể sửa đúng lỗi chỉ bằng seed trong hai tệp được phép**. Tôi dừng, chưa sửa tệp và không commit.
+
+- **Gốc lỗi:** [test_m4_02c_pg.py:166](/D:/Claude/Phan%20mem%20ho%20tro%20ke%20toan/Phần%20mềm%20kho%20tri%20thức/.claude/worktrees/lat-l0-8f/tests/test_m4_02c_pg.py:166) tạo HĐ mới theo `run_id` ngẫu nhiên nhưng không gọi `gan_doi_tac_hop_dong`. `sql_m17.py:567` tạo master không có `doi_tac_id`; đường gắn chính thức tại `sql_master_dung_chung.py:470` chặn hồ sơ đã nộp. Seed chạy trước không thể gắn đối tác cho HĐ chưa tồn tại.
+- **Seed cần thêm:** đối tác có MST `DEMO_M2_SUPPLIER` và mapping hiện hành thuộc `PN_DEMO_A`. Tuy nhiên, producer/helper còn phải gắn đối tác bằng actor DEMO **trước nộp**; cần mở phạm vi sửa helper. Chưa đủ bằng chứng xác nhận bản sao Root cũ đã dựng thế nào.
+- **Test:** chưa chạy được vì `python` không khả dụng; runtime DEMO ngoài worktree bị từ chối đọc. Không nối PostgreSQL. Nếu giữ nguyên, c01 và các skip dây chuyền vẫn còn; c16 tiếp tục skip đúng chủ đích vì thiếu lịch sử trước M0033.
+- **Commit đề xuất khi sửa đủ phạm vi:** `[L0-8f] Gắn đối tác DEMO trước khi nộp hồ sơ 03a`.

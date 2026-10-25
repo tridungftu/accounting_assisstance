@@ -22,6 +22,9 @@ Cụm: `D:\Claude\Phan mem ho tro ke toan\var\postgresql-ktt-16\data` (PostgreSQ
 | **Dọn 323 CSDL test cũ `kho_test_*` + 160 vai trò test** (Anh chọn 25/10) — bấm đúp `DỌN CSDL TEST CŨ.cmd` (thư mục phần mềm), đọc hộp xác nhận rồi chọn Yes; CSDL đang có kết nối được giữ lại; biên nhận `var\pg-don-csdl-test-*.json`. Lead đã chạy thử chế độ chỉ liệt kê: 323 CSDL, 160 vai trò, 0 đang kết nối | **Anh bấm (làm trước)** | Chờ Anh |
 | **Chạy cụm như dịch vụ Windows `ktt-postgres-demo`** (Anh chọn 25/10) — bấm đúp `CÀI DỊCH VỤ POSTGRES DEMO.cmd`, chọn Yes khi Windows hỏi quyền; tệp tắt sạch cụm đang chạy, cấp quyền thư mục cho NetworkService, đăng ký dịch vụ tự khởi động, chờ cổng 5432; nhật ký `var\pg-dich-vu-*.txt` | **Anh bấm (sau khi dọn — ít tệp thì cấp quyền nhanh)** | **Xong 25/10 19:46** — Anh bấm 19:40 (chưa dọn CSDL test cũ); tắt sạch 19:40:39, cấp quyền ~5,5 phút, dịch vụ `ktt-postgres-demo` RUNNING, cổng 5432 sẵn sàng 19:46:13 (gián đoạn ~6 phút, không phải khôi phục sau sập); nhật ký `..\var\pg-dich-vu-20261025-194037.txt` |
 
+### Hệ quả phụ sau khi chuyển sang dịch vụ (25/10 20:35)
+Dưới tài khoản người dùng, `pg_ctl status` trả 3 "no server running" và không đọc được exe/lệnh của tiến trình dịch vụ → `ha_tang/pg_cum.py` coi cụm đang dừng mà cổng bị chiếm (`CUM_CONG_BI_CHIEM`), nên **mở DEMO có CRM (`mo_demo_worktree.ps1`, `MỞ BẢN DEMO.cmd`) chưa chuẩn bị được CRM**. Server DEMO đang chạy từ trước (8791…) không ảnh hưởng; bộ chạy test `--pg-demo` không ảnh hưởng. Sửa ở lát **L0-10** (nhận diện bằng `postmaster.pid` + dịch vụ `ktt-postgres-demo` RUNNING đúng `pg_ctl`/data; không giành/khởi động tiến trình).
+
 ## 3. Khi dữ liệu thật lớn lên thì sao? (số đo 25/10)
 
 - Cụm DEMO: **268.673 tệp, 4,8 GB**. Lần 25/10: bước fsync từng tệp 14:29:10 → 14:57:11 (**28 phút**); bước phát lại dữ liệu thật (redo) **0,00 giây**. Thời gian khôi phục tỷ lệ với **số tệp**, gần như không phụ thuộc lượng dữ liệu.

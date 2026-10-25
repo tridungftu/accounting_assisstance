@@ -1,0 +1,11 @@
+# Báo cáo UI-1 (worker Claude Sonnet, 25/10) — khung lưới icon dùng chung + áp CRM 6 phần
+
+Nhánh `lat/ui-1`: 920b9a4 (khung + CRM + test), f82fc44 (CHANGELOG), e7d36a0 (`day_du`); lead gộp nền hop-nhat 58d56fb, UI-2b 381b5e9, sửa giấy phép icon cb1fc9f.
+
+1. **Cấu trúc** (không thêm tệp tĩnh; không sửa `server.py`, `crm_g.py`, `khung_khai_bao.py`): `assets/app.js` khối "UI-1 · KHUNG LƯỚI ICON DÙNG CHUNG" (`khungDangKy`, `khungPhanTich`, `khungHopLe`, `khungTaiModule`/`khungTaiLoc`, `khungVe*`, `khungCapNhat`, `khungTat`, `khungHienLai`, cổng đổi vai); `window.kttKhung.dangKy`. `style.css` (khối UI-1 + icon), `index.html` (`nav#khung-rail`, bậc module trên đường dẫn, 3 vùng `khung-crm-*`), `crm_g.js` (hash `#crm/<phần>`; bỏ số thứ tự ở tiêu đề). Hash: `#crm` trang chủ; `#crm/<phần>` một phần; `#crm/<phần>?khóa=giá_trị` mở từ thẻ; `#hopdong` cũ giữ nguyên (lối thoát).
+2. **Khai báo module mới (4 bước):** máy chủ (mục module + `GET /api/khung/module/<mã>`) → trang (3 vùng + id màn) → `khungDangKy({...})` → icon mới vào `KHUNG_ICON` + `.khung-hinh-<tên>`. Phần chưa có màn → khung "Đang làm".
+3. **Icon:** Lucide v1.8.0 (ISC; phần gốc Feather — MIT), nhúng data-URI trong `style.css`, không CDN, không icon Apple; 11 icon; màu nhóm ≥ 4,5:1 với trắng.
+4. **Bố cục:** trang chủ = 2–4 thẻ + lưới icon 76 px (số góc đỏ nếu quá hạn kèm chữ, xám nếu chưa; > 99 → 99+; 0 không hiện); vào phần: thanh icon trái 96 px thay menu chữ, viền xanh phần đang mở, đường dẫn trên đầu; < 900 px thanh icon thành hàng ngang. Bấm thẻ → bảng danh sách (25 mục đầu; `day_du:false` → "N+ mục (chưa đủ)").
+5. **Test:** `tests/khung_luoi_async.cjs` 12 ca đạt. Node: 8 bộ hỏng sẵn trên nền (7 bộ cũ + `crm_ky_ket_async` do BG-1d đổi nhãn nút "Soạn hợp đồng (G3)" → "Soạn hợp đồng", cần sửa riêng).
+6. **Lưu ý:** "Trang chủ" trên thanh icon tạm về `#nhap` (UI-3 đổi); danh sách theo thẻ là bảng tối thiểu (chưa có màn danh sách HĐ S1 đầy đủ).
+7. **Cổng A (TL 49 §4, 4 vai Bán hàng / Kế toán / CFO / Người xem):** (1) thẻ + icon đúng TL 49 §2 (người xem 3 icon); (2) bấm thẻ → "N mục" bằng số thẻ; (3) số góc icon khớp việc trong phần; (4) Báo giá ↔ Thu tiền qua thanh icon, không về trang chủ, thử Back; (5) Trang chủ / Lưới module; (6) không còn mã kỹ thuật. Thêm: route khung lỗi → thông báo tiếng Việt + Thử lại + "Mở màn đầy đủ (bản cũ)"; `#hopdong` cũ dùng được.

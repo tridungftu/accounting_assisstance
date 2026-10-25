@@ -511,6 +511,11 @@ def dieu_huong(h, app, post: bool, path: str, query: dict):
                     _, me, _ = app.crm_phien(h.crm_sid())
                     return h.send_content(200, app._crm_db(dich_vu(app).chi_tiet, me, m.group(1)))
             # --- CRM-41-03 G2/G3 (đọc: quyền hiện hành trong cùng giao dịch RR trên kết nối chủ bảng)
+            if path == "/api/crm/bao-gia/mac-dinh":  # DA-3a: mặc định dự án; thuế chỉ hiển thị
+                _chi_query(h, query, {"du_an_id", "ngay"})
+                with app.mutation_lock:
+                    _, me, _ = app.crm_phien(h.crm_sid())
+                    return h.send_content(200, app._crm_db(dich_vu_gk(app).mac_dinh_bao_gia, me, _q(query, "du_an_id"), _q(query, "ngay")))
             if path == "/api/crm/bao-gia/moc-chuan":
                 _khong_query(h, query)
                 with app.mutation_lock:
