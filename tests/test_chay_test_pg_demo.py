@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import contextlib
+import functools
 import io
 import json
 import os
@@ -18,6 +19,18 @@ from unittest.mock import Mock, patch
 
 from tools import chay_test_theo_module as R
 from tools import pg_demo_ho_03a as H03
+
+
+def _co_lap_provider(test):
+    """Chỉ tiến trình thử dùng provider tự dựng; không đổi hook đã nạp của caller."""
+    @functools.wraps(test)
+    def chay(self):
+        with patch.dict(sys.modules, {"sitecustomize": None}), patch.dict(os.environ, {
+                "PYTHONPATH": str(self.repo / "src"),
+                "PYTHONUSERBASE": str(self.root / "userbase-trong"),
+                "PYTHONNOUSERSITE": ""}):
+            return test(self)
+    return chay
 
 
 class _Sql(str):
@@ -183,6 +196,68 @@ class PgDemoThuanTests(unittest.TestCase):
         self.assertEqual(self.so.xoa(self.c, [ten])["tu_choi"], [ten])
         self.assertIn(ten, self.c.databases)
 
+    def test_drop_bi_nuot_khong_bao_da_xoa_va_don_so_thu_lai_duoc(self):
+        ten = "kho_test_drop_bi_nuot"
+        self.so.dang_ky(ten, self.c)
+        self.c.databases.add(ten)
+        raw = self.c.raw
+
+        def nuot_drop(q, p=None):
+            if str(q).startswith("DROP DATABASE"):
+                self.c.sql.append(str(q))
+                return None
+            return raw(q, p)
+
+        self.c.raw = nuot_drop
+        kq = self.so.xoa(self.c, [ten])
+        self.assertEqual(kq["da_xoa"], [])
+        self.assertEqual(kq["con_lai_sau_xoa"], [ten])
+        self.assertEqual(self.so.doc()["muc"][ten]["trang_thai"], "con_lai_sau_xoa")
+        self.assertEqual(self.c.sql[-1], "SELECT 1 FROM pg_database WHERE datname = %s")
+        pg = self._pg_demo()
+        pg.vai_truoc = set()
+        pg.quet_ro_ri = Mock(return_value=0)
+
+        def goi(viec, *args):
+            if viec == "liet-ke":
+                return {"csdl": sorted(self.c.databases), "vai_tro": []}
+            return self.so.xoa(self.c, args[2:])
+
+        pg._goi = Mock(side_effect=goi)
+        with patch.object(R.time, "sleep"):
+            tong = pg.ket_thuc([])
+        self.assertEqual(tong["sot"], [ten])
+        self.assertEqual(tong["da_xoa"], 0)
+        self.assertIn(ten, pg.chua_xoa)
+        self.assertTrue(any(ten in cb for cb in tong["canh_bao"]))
+        console = io.StringIO()
+        with patch.object(R, "_khoa_loai_tru_pg", return_value=None), contextlib.redirect_stdout(console):
+            self.assertEqual(R._don_theo_so(pg, self.tep), 1)
+            self.c.raw = raw
+            self.assertEqual(R._don_theo_so(pg, self.tep), 0)
+        self.assertIn("CẢNH BÁO", console.getvalue())
+        self.assertNotIn(ten, self.c.databases)
+        self.assertEqual(self.so.doc()["muc"][ten]["trang_thai"], "da_xoa")
+
+    def test_kiem_sau_drop_loi_khong_ghi_hoan_tat(self):
+        ten = "kho_test_kiem_drop_loi"
+        self.so.dang_ky(ten, self.c)
+        self.c.databases.add(ten)
+        raw = self.c.raw
+
+        def hong_select(q, p=None):
+            if str(q) == "SELECT 1 FROM pg_database WHERE datname = %s":
+                raise _PgError("không kiểm được")
+            return raw(q, p)
+
+        self.c.raw = hong_select
+        kq = self.so.xoa(self.c, [ten])
+        self.assertEqual(kq["da_xoa"], [])
+        self.assertEqual(len(kq["loi"]), 1)
+        self.assertEqual(self.so.doc()["muc"][ten]["trang_thai"], "dang_tao")
+        self.c.raw = raw
+        self.assertEqual(self.so.xoa(self.c, [ten])["khong_co"], [ten])
+
     def test_hook_ghi_ben_truoc_create_drop_chung_lop_khong_force(self):
         self._hook()
         ten = "kho_test_hook"
@@ -268,6 +343,7 @@ class PgDemoThuanTests(unittest.TestCase):
                               env=env or R._moi_truong(self.repo, self.root, them={"KHO_PG_DEMO_SO": str(self.tep)}),
                               cwd=self.root, capture_output=True, timeout=10)
 
+    @_co_lap_provider
     def test_pth_nap_tep_loi_thoat_ma_2_khong_chay_test_con(self):
         site = self._site_that(self._pg_demo())
         ma = "import importlib.util; importlib.util.spec_from_file_location = lambda *a: None; "
@@ -278,6 +354,7 @@ class PgDemoThuanTests(unittest.TestCase):
         self.assertEqual(r.returncode, 2, r.stderr.decode("utf-8", errors="replace"))
         self.assertNotIn(b"TEST_DA_CHAY", r.stdout)
 
+    @_co_lap_provider
     def test_pth_hook_loi_thuc_te_thoat_ma_2(self):
         site = self._site_that(self._pg_demo())
         # Không có tệp kết nối/sổ hợp lệ: hook phải dừng dù import chính nó thành công.
@@ -285,6 +362,7 @@ class PgDemoThuanTests(unittest.TestCase):
         self.assertEqual(r.returncode, 2)
         self.assertNotIn(b"TEST_DA_CHAY", r.stdout)
 
+    @_co_lap_provider
     def test_pth_repo_khac_van_nap_dung_bao_ve_tu_duong_dan(self):
         repo_cu = self.root / "worktree-cu"
         (repo_cu / "tools").mkdir(parents=True)
@@ -336,6 +414,7 @@ class PgDemoThuanTests(unittest.TestCase):
                            capture_output=True, timeout=40)
         self.assertEqual(r.returncode, 0, r.stderr.decode("utf-8", errors="replace"))
 
+    @_co_lap_provider
     def test_runtime_khoi_dong_cai_hook_o_con_va_chau(self):
         kd = self.root / "khởi động"
         self._provider_guard_thu(kd)
@@ -365,6 +444,7 @@ class PgDemoThuanTests(unittest.TestCase):
                 with self.assertRaisesRegex(ValueError, "thu_muc_khoi_dong"):
                     R._doc_runtime(runtime)
 
+    @_co_lap_provider
     def test_giu_provider_pythonpath_cua_caller(self):
         kd = self.root / "provider-caller"
         self._provider_guard_thu(kd)
@@ -374,6 +454,7 @@ class PgDemoThuanTests(unittest.TestCase):
         self.assertNotIn(str(self.root / "repo-khac"), env["PYTHONPATH"])
         self._kiem_hook_con_va_chau(env)
 
+    @_co_lap_provider
     def test_userbase_pg_chuyen_tiep_pth_guard_goc_cho_chau(self):
         import sysconfig
         ub = self.root / "userbase-goc"
@@ -385,6 +466,49 @@ class PgDemoThuanTests(unittest.TestCase):
             moi = pg._site_phu_thuoc()
             env = R._moi_truong(self.repo, self.root, them={"PYTHONUSERBASE": moi, "CODEX_NO_DELETE_FILES": "1"})
         self._kiem_hook_con_va_chau(env)
+
+    @_co_lap_provider
+    def test_duong_khoi_dong_bo_sitecustomize_khong_co_guard(self):
+        la = self.root / "site-packages-la"
+        la.mkdir()
+        tep = la / "sitecustomize.py"
+        tep.write_text("# Không phải provider guard\n", encoding="utf-8")
+        kd = self.root / "provider-hop-le"
+        self._provider_guard_thu(kd)
+        with patch.dict(os.environ, {"PYTHONPATH": os.pathsep.join((str(la), str(kd)))}), \
+                patch.dict(sys.modules, {"sitecustomize": types.SimpleNamespace(__file__=str(tep))}):
+            self.assertEqual(R._duong_khoi_dong(), (kd,))
+        with patch.dict(sys.modules, {"sitecustomize": types.SimpleNamespace(__file__=str(kd / "sitecustomize.py"))}):
+            self.assertEqual(R._duong_khoi_dong(), (kd,))
+
+    @_co_lap_provider
+    def test_goi_pg_khong_nap_provider_nhung_test_van_giu_guard(self):
+        pg = self._pg_demo()
+        kd = self.root / "provider-runtime"
+        caller = self.root / "provider-caller"
+        deps = self.root / "phu-thuoc"
+        deps.mkdir()
+        self._provider_guard_thu(kd)
+        self._provider_guard_thu(caller)
+        runtime = self.root / "runtime.json"
+        runtime.write_text(json.dumps({"python": sys.executable, "duong_dan_phu_thuoc": [deps.name],
+                                       "thu_muc_khoi_dong": kd.name}), encoding="utf-8")
+        pg.python, pg.phu_thuoc = R._doc_runtime(runtime)
+        with patch.dict(os.environ, {"PYTHONPATH": str(caller), "CODEX_NO_DELETE_FILES": "1"}), \
+                patch.dict(sys.modules, {"sitecustomize": types.SimpleNamespace(__file__=str(caller / "sitecustomize.py"))}), \
+                patch.object(R.subprocess, "run", return_value=types.SimpleNamespace(stdout='{"ok": true}', returncode=0)) as run:
+            for viec in ("liet-ke", "tao-clone", "xoa"):
+                pg._goi(viec)
+                env = run.call_args.kwargs["env"]
+                self.assertEqual(env["PYTHONPATH"].split(os.pathsep), [str(self.repo / "src"), str(self.repo), str(deps)])
+                self.assertEqual(env["PYTHONNOUSERSITE"], "1")
+                self.assertEqual(env["CODEX_NO_DELETE_FILES"], "1")
+                self.assertEqual(env["KHO_PG_DEMO_SO"], str(self.tep))
+            env_test = R._moi_truong(self.repo, self.root, pg.phu_thuoc)
+        self.assertIn(str(kd), env_test["PYTHONPATH"].split(os.pathsep))
+        self.assertIn(str(caller), env_test["PYTHONPATH"].split(os.pathsep))
+        self.assertEqual(env_test["CODEX_NO_DELETE_FILES"], "1")
+        self.pg.connect.assert_not_called()
 
     def test_thieu_hook_tien_trinh_that_van_dung_guard_khong_nap(self):
         # -I bỏ cả hai provider, -B vẫn giữ yêu cầu không bytecode. Không import bù guard.
@@ -413,6 +537,7 @@ class PgDemoThuanTests(unittest.TestCase):
         env["PYTHONPATH"] = str(self.repo / "src")
         self._kiem_hook_con_va_chau(env, ma_host=None)
 
+    @_co_lap_provider
     def test_timeout_giet_ca_chau_giu_stdout_va_tra_treo_dung_han(self):
         pid_chau = self.root / "pid-chau.txt"
         goc_popen = subprocess.Popen

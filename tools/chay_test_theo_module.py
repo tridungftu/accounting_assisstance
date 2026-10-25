@@ -15,6 +15,8 @@ Dùng:
 - --ra: JSON module -> {ok, error, fail, skip, treo, giay} (+ tong, ids_loi, test_treo, loi_dau). Ghi lại sau mỗi module.
 - --runtime: dùng python, duong_dan_phu_thuoc và thu_muc_khoi_dong (provider guard như launcher DEMO); đường dẫn tương đối tính từ tệp runtime.
 - Không sửa gì trong repo được đo; log và thư mục tạm của test nằm trong --nhat-ky (mặc định thư mục tạm hệ điều hành).
+  Runtime có thu_muc_khoi_dong: tiến trình test nạp guard, bật CODEX_NO_DELETE_FILES=1;
+  provider có thể chuyển TEMP sang var\\codex-dieu-phoi\\retained-temp để giữ tệp.
 - Không dùng dữ liệu thật; mặc định không PostgreSQL, không mạng.
 
 --pg-demo <ket-noi.local.json> (L0-8, QD-20261025-10): bật các test PostgreSQL trên cụm DEMO loopback. Cần --runtime (hoặc --python) có psycopg.
@@ -23,7 +25,9 @@ Dùng:
 - Hook psycopg đăng ký bền TRƯỚC CREATE của test/clone. Sổ `pg-demo-so-ghi.json` gồm mã lần chạy ngẫu nhiên, cụm nguồn host:port,
   ảnh chụp tên CSDL TRƯỚC khi chạy và trạng thái từng mục. Sau MỖI module (kể cả lỗi/treo) và cuối cùng, lớp DROP kiểm tại chỗ:
   tên `kho_test_[a-z0-9_]+`, mục chưa hoàn tất đúng sổ/lần chạy/cụm, tên không có ở ảnh chụp trước; không nhận sở hữu từ chênh lệch danh sách.
-  Ghi bền "đã xóa" ngay sau từng DROP, không dùng lại mục đã hoàn tất. Không DROP CSDL khác hoặc vai trò.
+  Sau từng DROP kiểm lại pg_database rồi mới ghi bền "đã xóa"; còn thì ghi con_lai_sau_xoa và cảnh báo.
+  Tiến trình quản trị PG của bộ chạy không nạp provider khởi động; tiến trình test vẫn giữ guard.
+  Không dùng lại mục đã hoàn tất. Không DROP CSDL khác hoặc vai trò.
   DROP không dùng FORCE: CSDL còn phiên kết nối thì chờ rồi bỏ qua và báo.
 - Module cần "bản sao DEMO sở hữu" (biến *_CLONE_*): trước module công cụ dựng riêng một CSDL `kho_test_pgd_<hex>` bằng đúng lớp của dự án
   (`k2.crm_khoi_dong.chuan_bi`: migrate + seed DEMO), ghi dấu nguồn/checksum lên `master.he_thong` rồi đặt biến; xóa sau module.
@@ -277,7 +281,7 @@ class _SoHuuPg:
         return (isinstance(ten, str) and _RE_TEN_TAM.fullmatch(ten) and ten not in d["truoc"]
                 and isinstance(m, dict)
                 and m.get("ma_lan_chay") == self.ma and m.get("cum") == self.cum
-                and m.get("trang_thai") in ("dang_tao", "da_tao"))
+                and m.get("trang_thai") in ("dang_tao", "da_tao", "con_lai_sau_xoa"))
 
     def dang_ky(self, ten, c):
         self._kiem_cum(c)
@@ -301,7 +305,7 @@ class _SoHuuPg:
         import psycopg
         from psycopg import sql as S
         self._kiem_cum(c)
-        kq = {"da_xoa": [], "khong_co": [], "con_phien": [], "tu_choi": [], "loi": []}
+        kq = {"da_xoa": [], "khong_co": [], "con_phien": [], "con_lai_sau_xoa": [], "tu_choi": [], "loi": []}
         for ten in ten_csdl:
             with _khoa_so(self.tep):
                 d = self.doc()  # kiểm đủ ba điều kiện ngay tại nơi thực thi SQL
@@ -314,6 +318,11 @@ class _SoHuuPg:
                     for lan in range(20):
                         try:
                             c.execute(S.SQL("DROP DATABASE {}").format(S.Identifier(ten)))
+                            if c.execute("SELECT 1 FROM pg_database WHERE datname = %s", (ten,)).fetchone() is not None:
+                                kq["con_lai_sau_xoa"].append(ten)
+                                d["muc"][ten]["trang_thai"] = "con_lai_sau_xoa"
+                                _ghi_ben(self.tep, d)
+                                break
                             kq["da_xoa"].append(ten)
                             break
                         except psycopg.errors.ObjectInUse:
@@ -376,7 +385,7 @@ def _bat_bao_ve_con():
 
         if m[1].upper() == "DROP":
             kq = so.xoa(Raw(), [ten])
-            if kq["tu_choi"] or kq["loi"] or kq["con_phien"]:
+            if kq["tu_choi"] or kq["loi"] or kq["con_phien"] or kq["con_lai_sau_xoa"]:
                 raise ValueError("Từ chối/không thể DROP theo sổ sở hữu.")
             return cur
         so.dang_ky(ten, Raw())
@@ -652,7 +661,14 @@ class _PgDemo:
     # -- gọi việc ở tiến trình con
     def _goi(self, viec: str, *tham_so: str, timeout: int = 900) -> dict:
         lenh = [self.python, "-X", "utf8", str(Path(__file__).resolve()), "--pg", viec, str(self.tep), str(self.repo), *tham_so]
-        r = subprocess.run(lenh, cwd=str(self.repo), env=_moi_truong(self.repo, self.thu_muc_tam, self.phu_thuoc, self._env_so()), stdin=subprocess.DEVNULL,
+        # QD-20261025-10: bộ chạy được DROP đúng CSDL nó sở hữu. Chỉ tiến trình
+        # quản trị này bỏ provider khởi động, kể cả provider .pth ở user site.
+        deps = tuple(p for p in self.phu_thuoc if not (p / "sitecustomize.py").is_file()
+                     and not (p / "codex_no_delete_guard.py").is_file())
+        env = _moi_truong(self.repo, self.thu_muc_tam, deps, self._env_so())
+        env["PYTHONPATH"] = os.pathsep.join(str(p) for p in dict.fromkeys((self.repo / "src", self.repo, *deps)))
+        env["PYTHONNOUSERSITE"] = "1"
+        r = subprocess.run(lenh, cwd=str(self.repo), env=env, stdin=subprocess.DEVNULL,
                            capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=timeout)
         dong = [d for d in _LOC.text(r.stdout).splitlines() if d.strip()]
         try:
@@ -767,16 +783,20 @@ class _PgDemo:
             self._canh_bao(f"CSDL có sẵn biến mất (không phải do công cụ này): {d}")
         d = self._doc_so()
         can_xoa = [t for t in d["muc"] if self.so_huu._hop_le(d, t)]
-        dem = {"moi": len(moi), "da_xoa": 0, "con_phien": 0}
+        dem = {"moi": len(moi), "da_xoa": 0, "con_phien": 0, "con_lai_sau_xoa": 0}
         if can_xoa:
             xk = self._goi("xoa", str(self.so), self.ma, *can_xoa)
             self._doc_so()
             dem["da_xoa"] = len(xk["da_xoa"])
             dem["con_phien"] = len(xk["con_phien"])
-            for d in xk["da_xoa"]:
+            dem["con_lai_sau_xoa"] = len(xk["con_lai_sau_xoa"])
+            for d in xk["da_xoa"] + xk["khong_co"]:
                 self.chua_xoa.pop(d, None)
             for d in xk["con_phien"]:
                 self.chua_xoa[d] = "còn phiên kết nối"
+            for d in xk["con_lai_sau_xoa"]:
+                self.chua_xoa[d] = "còn trong pg_database sau DROP"
+                self._canh_bao(f"CSDL còn lại sau DROP: {d}")
             for d in xk["loi"] + xk["tu_choi"]:
                 self._canh_bao(f"không xóa được: {d}")
         self._ghi_so()
@@ -926,9 +946,10 @@ def _doc_runtime(tep: Path) -> tuple[str, tuple[Path, ...]]:
 def _duong_khoi_dong() -> tuple[Path, ...]:
     # Giữ provider khởi động của caller, không kéo src của worktree khác vào test.
     startup = [Path(p).resolve() for p in os.environ.get("PYTHONPATH", "").split(os.pathsep)
-               if p and (Path(p) / "sitecustomize.py").is_file()]
+               if p and (Path(p) / "sitecustomize.py").is_file()
+               and (Path(p) / "codex_no_delete_guard.py").is_file()]
     site_tep = getattr(sys.modules.get("sitecustomize"), "__file__", None)
-    if site_tep:
+    if site_tep and (Path(site_tep).resolve().parent / "codex_no_delete_guard.py").is_file():
         startup.append(Path(site_tep).resolve().parent)
     return tuple(dict.fromkeys(startup))
 
@@ -1118,7 +1139,9 @@ def _don_theo_so(pg: "_PgDemo", tep_so: Path) -> int:
         return 0
     kq = pg._goi("xoa", str(tep_so.resolve()), so.ma, *ten)
     print(f"[pg-demo] đã xóa {len(kq['da_xoa'])}, không còn {len(kq['khong_co'])}, còn phiên kết nối {len(kq['con_phien'])}, lỗi/từ chối {len(kq['loi']) + len(kq['tu_choi'])}")
-    return 0 if not (kq["con_phien"] or kq["loi"] or kq["tu_choi"]) else 1
+    if kq["con_lai_sau_xoa"]:
+        print(f"[pg-demo] CẢNH BÁO: CSDL còn lại sau DROP: {kq['con_lai_sau_xoa']}")
+    return 0 if not (kq["con_phien"] or kq["loi"] or kq["tu_choi"] or kq["con_lai_sau_xoa"]) else 1
 
 
 def main(argv=None) -> int:
