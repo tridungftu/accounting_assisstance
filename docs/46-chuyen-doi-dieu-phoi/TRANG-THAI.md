@@ -10,7 +10,7 @@ Trạng thái lát: Đang code → Chờ kiểm → Chờ Anh (cổng A/B) → S
 | DA-2 | CRM · màn Dự án đang bán (xem + thêm/sửa; ẩn luồng CFO) | Codex · review Claude | `lat/da-2` (= bg-1d + da-1) | 25/10 | Xong code đến DA-2c (33a2e29); review Đạt; chờ BG-1d qua cổng A để gộp |
 | M4-5a | M4 · Nghiệm thu & chi phí dự án · 03B máy chủ: khai một phần bằng số tiền + gợi ý hóa đơn — **M0033** | Codex · review Claude | `lat/m4-5a` | 25/10 19:16 (vòng 3) | **XONG — đã gộp 834a53c** (M0033). **Nợ đã trả 25/10 21:05:** 21 ca PG `test_m4_03b_common_pg` (gồm SQL M0033) đạt thật trên bản sao 03a (nhờ L0-8d/8e/8f), c16 skip có chủ đích |
 | DA-3a | CRM · Báo giá nạp mặc định từ Dự án đang bán, ghi nhận khác tiêu chuẩn | Codex · review Claude | `lat/da-3a` (c077a83) | 25/10 | **XONG — đã gộp** (vòng 2 B1; kiem-nhanh Đạt; PG 29/29 + 16/16) |
-| T-MIG2 | Test PostgreSQL theo chuỗi migration mới | Codex | `lat/t-mig2` (26e9c35) | 25/10 | `t21` hết sau **L0-9b** (gốc: 8 fixture L11 bị L0-9 ép LF, lệch ghim SHA) — `test_crm_k2` chỉ còn lỗi có sẵn của nền; chờ chạy lại cả bộ PG → `kiem-nhanh` → `review-lat` → gộp |
+| T-MIG2 | Test PostgreSQL theo chuỗi migration mới | Codex | `lat/t-mig2` (26e9c35) | 25/10 | Trên nền đã hoàn tác L0-8e: CRM PG 514 đạt / 0 ERROR / 33 FAIL nền / 28 skip — **0 mã lỗi mới** → review-lat đang chạy |
 | UI-1 | Khung lưới icon dùng chung + áp CRM 6 phần (CD-002) | Claude Sonnet | `lat/ui-1` (= da-2 + hop-nhat) | 25/10 | **Chờ Anh — cổng A** (DEMO 8798; phiếu `PHIEU-CONG-A-TRANG-CHU-LUOI-ICON.md`); UI-1b sửa lỗi lần tải đầu xong; gộp sau cổng A + BG-1d |
 | UI-2 | Máy chủ `GET /api/khung/module/crm` (CD-002) | Codex | `lat/ui-2` | 25/10 19:16 | **XONG — đã gộp af7c389**: kiem-nhanh Đạt, review-lat Opus Đạt (3 Nên sửa → **UI-2b** chờ chỗ trống: số icon theo TL 42 §3, không trả tổng cắt); lead còn gọi thử `/api/khung/module/crm` 4 vai trên DEMO khi chuẩn bị cổng A |
 | L0-10 | **Bị chặn mở DEMO có CRM** từ 19:46 (sau khi cụm chạy dịch vụ Windows): `pg_ctl status` dưới tài khoản người dùng báo 3, không đọc được tiến trình dịch vụ → `pg_cum.bao_dam_cum` báo CUM_CONG_BI_CHIEM; ảnh hưởng `mo_demo_worktree.ps1` và `MỞ BẢN DEMO.cmd` | Codex | `lat/l0-10` | 25/10 20:38 | **XONG — đã gộp c199a05** (review Opus Đạt); điểm Nên sửa/Để sau → L0-10b đang code |
@@ -68,7 +68,7 @@ Quy tắc áp cho mọi lát từ 25/10 (CD-001 việc 3): không lát nào vi�
 | L0-10 | Codex | gpt-6.1-sol · high | 20:38 | gộp 20:51 | review-lat Opus Đạt | Xanh — 46/46; DEMO 8798 chuẩn bị CRM chế độ DICH_VU |
 | L0-8f | Codex | gpt-6.1-sol · high | 20:47 | 20:44 (v1 dừng đúng: gốc ở helper test) | — | — |
 | L0-8f v2 | Codex | gpt-6.1-sol · high | 20:50 | 20:55 | kiem-nhanh Đạt; chờ L0-8e v3 (dựng trên L0-8e) | **PG: 03B 21/21 (c16 skip có chủ đích), 03A 13/13**; mock bộ chạy lead sửa (45/45); CSDL tạm 329/329 |
-| C3d | Codex | gpt-6.1-sol · high | 21:14 | 21:15 | — | thuần 13/13; PG chờ lượt |
+| C3d | Codex | gpt-6.1-sol · high | 21:14 | 21:15 | review-lat đang chạy | Xanh — PG 24/24 + 23/23, 0 skip |
 | L0-8e v2 | Codex | gpt-6.1-sol · high | 21:02 | gộp 21:20 → **hoàn tác 21:14** (b25ff7a) | review-lat vòng 2 Đạt | **Đỏ** — hồi quy: test tự CREATE DATABASE (CRM) bị bộ chạy từ chối 'tên đã dùng' (lead kiểm thiếu nhóm này) |
 | L0-8e v3 | Codex | gpt-6.1-sol · high | 21:16 | — | — | — |
 | AI-2a | Claude | Opus | 21:12 | — | — | — |
