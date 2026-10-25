@@ -27,6 +27,8 @@ Dùng:
 - Module cần "bản sao DEMO sở hữu" (biến *_CLONE_*): trước module công cụ dựng riêng một CSDL `kho_test_pgd_<hex>` bằng đúng lớp của dự án
   (`k2.crm_khoi_dong.chuan_bi`: migrate + seed DEMO), ghi dấu nguồn/checksum lên `master.he_thong` rồi đặt biến; xóa sau module.
   Họ chưa dựng được (03A/03B cần login kế toán có vai dự án) giữ nguyên: thiếu biến → test skip như cũ.
+- Tiến trình con do test tự sinh (PYTHONPATH=src ghi đè đường dẫn phụ thuộc của runtime) vẫn thấy psycopg nhờ một PYTHONUSERBASE tạm có
+  tệp .pth trỏ tới `duong_dan_phu_thuoc` (chỉ ghi trong thư mục nhật ký, chỉ khi --pg-demo; không đụng runtime).
 - Chỉ một lần chạy --pg-demo cùng lúc (khóa tệp trong thư mục tạm). `--pg-demo-don-so <sổ>`: dọn các CSDL còn trong sổ của lần chạy bị chết giữa chừng.
 
 Kết thúc: mã 0 nếu không module nào có ERROR/FAIL/treo, ngược lại 1 (mã chỉ để tham khảo; nền được so bằng JSON).
@@ -375,6 +377,7 @@ class _PgDemo:
         self.chua_xoa: dict[str, str] = {}
         self.canh_bao: list[str] = []
         self.chua_ho_tro: set[str] = set()
+        self.vai_moi: list[str] = []  # vai trò test để lại (chỉ ghi sổ để Anh/lead quyết dọn; công cụ KHÔNG xóa vai trò)
         self.env_chung: dict = {}
 
     # -- gọi việc ở tiến trình con
@@ -394,14 +397,28 @@ class _PgDemo:
     def _ghi_so(self):
         tam = self.so.with_name(self.so.name + ".tmp")
         tam.write_text(json.dumps({"truoc_n": len(self.truoc), "db_quan_tri": self.db_qt, "da_tao": self.da_tao, "da_xoa": self.da_xoa,
-                                   "chua_xoa": sorted(self.chua_xoa), "canh_bao": self.canh_bao}, ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
+                                   "chua_xoa": sorted(self.chua_xoa), "vai_tro_test_de_lai": self.vai_moi, "canh_bao": self.canh_bao}, ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
         os.replace(tam, self.so)
+
+    def _site_phu_thuoc(self) -> str:
+        """Nhiều test tự sinh tiến trình con với PYTHONPATH=src (ghi đè đường dẫn phụ thuộc của runtime) nên không thấy psycopg (lỗi PG_DRIVER).
+        Cho python thấy thư mục phụ thuộc qua "user site" của một PYTHONUSERBASE tạm (tệp .pth) — PYTHONPATH bị ghi đè không ảnh hưởng.
+        Chỉ ghi trong thư mục nhật ký; không đụng runtime."""
+        co_so = self.thu_muc_tam.parent / "site-phu-thuoc"
+        site = subprocess.run([self.python, "-c", "import site; print(site.getusersitepackages())"], capture_output=True, text=True, timeout=60,
+                              env={**os.environ, "PYTHONUSERBASE": str(co_so)}).stdout.strip()
+        thu_muc = Path(site)
+        thu_muc.mkdir(parents=True, exist_ok=True)
+        (thu_muc / "ktt-phu-thuoc.pth").write_text("\n".join(str(p) for p in self.phu_thuoc) + "\n", encoding="utf-8")
+        return str(co_so)
 
     def khoi_dong(self):
         self.khoa = _khoa_loai_tru_pg()
         kq = self._goi("liet-ke")
         self.db_qt, self.truoc, self.vai_truoc = kq["db_quan_tri"], set(kq["csdl"]), set(kq["vai_tro"])
         self.env_chung = {"KHO_PG_DSN_TEST": _uri(self.admin, self.db_qt)}
+        if self.phu_thuoc:
+            self.env_chung["PYTHONUSERBASE"] = self._site_phu_thuoc()
         self._ghi_so()
         n_tam = sum(1 for d in self.truoc if _RE_TEN_TAM.match(d))
         print(f"[pg-demo] cụm DEMO loopback: {len(self.truoc)} CSDL trước khi chạy (trong đó {n_tam} kho_test_* có sẵn — không đụng), "
@@ -478,6 +495,7 @@ class _PgDemo:
             khac_moi = sorted(d for d in hien - self.truoc if not _RE_TEN_TAM.match(d))
             mat = sorted(self.truoc - hien)
             vai_moi = sorted(set(kq["vai_tro"]) - self.vai_truoc)
+            self.vai_moi = vai_moi
             tong = {"truoc": len(self.truoc), "sau": len(hien), "tao_trong_lan_chay": len(set(self.da_tao) | set(self.da_xoa)), "da_xoa": len(set(self.da_xoa)),
                     "sot": sot, "csdl_khac_moi": khac_moi, "csdl_co_san_mat": mat, "vai_tro_moi_khong_xoa": len(vai_moi), "canh_bao": self.canh_bao}
         except Exception as exc:  # noqa: BLE001
