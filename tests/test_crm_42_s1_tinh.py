@@ -6,7 +6,7 @@ from datetime import date
 from unittest.mock import Mock, patch
 
 from kho_tri_thuc.ha_tang.primitives import DataError
-from kho_tri_thuc.k2.crm_s1 import CrmDanhSachK2, SQL, SQL_TRANG, _dong, bo_loc
+from kho_tri_thuc.k2.crm_s1 import CrmDanhSachK2, SQL, SQL_TRANG, _dong, _khop, _tom_tat, bo_loc
 
 NGAY = date(2026, 10, 25)
 
@@ -165,6 +165,65 @@ class S1Tinh(unittest.TestCase):
         self.assertIsNone(h["viec"]["W5"])
         self.assertIsNone(r["the_so"]["W5"]["so_luong"])
         self.assertNotIn("1234567", json.dumps(r))
+
+    def test_co_tien_che_ca_chi_tiet_va_scalar_db_chua_che(self):
+        raw = dong(gia_tri_minor=None, trang_thai="CHO_BO_SUNG", pb_cho_kiem=True,
+                   lich=[lich(han="2026-10-24"), lich(tien=None, dot=2)],
+                   thieu_gia_tri=True, thieu_lich=True, qua_han=True, den_han=3)
+        for ham in (_dong, _tom_tat):
+            with self.subTest(ham=ham.__name__):
+                duoc = ham(raw, NGAY)
+                self.assertTrue({"QUA_HAN", "THIEU_CAN_CU"}.issubset(duoc["co"]))
+                an = ham({**raw, "xem_tien": False}, NGAY)
+                self.assertEqual(an["co"], ["CHO_BO_SUNG"])
+                self.assertEqual((an["viec"]["W1"], an["viec"]["W3"]), (1, 1))
+                self.assertIsNone(an["viec"]["W5"])
+        for bieu_thuc in ("h.gia_tri_minor IS NULL", "coalesce(lc.thieu, false)", "coalesce(lc.qua_han, false)"):
+            self.assertIn(f"CASE WHEN h.xem_tien THEN {bieu_thuc} ELSE false END", SQL)
+
+    def test_xem_loc_co_tien_rong_co_nhan_khong_quyen(self):
+        m = MauGia([dong(xem_tien=False, gia_tri_minor=None,
+                         lich=[lich(han="2026-10-24"), lich(tien=None, dot=2)])])
+        m.danh_tinh.return_value.update(vai_tro="XEM", quyen={"DEMO-PN-A": {"module": ["CRM"]}})
+        svc = CrmDanhSachK2(m)
+        self.assertEqual(svc.danh_sach("MO_PHONG_XEM")["tong"], 1)
+        for co in ("QUA_HAN", "THIEU_CAN_CU"):
+            with self.subTest(co=co):
+                r = svc.danh_sach("MO_PHONG_XEM", {"co": co})
+                self.assertEqual((r["tong"], r["hop_dong"]), (0, []))
+                self.assertTrue(r["khong_quyen_xem_tien"])
+                self.assertIsNone(r["the_so"]["W5"]["so_luong"])
+                self.assertTrue(all(r["the_so"][w]["so_luong"] == 0 for w in ("W1", "W2", "W3", "W4")))
+                # Lọc vẫn từ chối nếu một nguồn tương lai trả sẵn cờ chưa che.
+                self.assertFalse(_khop({"nguoi_phu_trach": [], "co": [co], "khong_quyen_xem_tien": True}, {"co": co}))
+
+    def test_loc_co_tien_chi_giu_dong_duoc_quyen(self):
+        for co in ("QUA_HAN", "THIEU_CAN_CU"):
+            with self.subTest(co=co):
+                rows = [dong(id="DEMO-DUOC", gia_tri_minor=None, lich=[lich(han="2026-10-24")]),
+                        dong(id="DEMO-AN", xem_tien=False, gia_tri_minor=None, lich=[lich(han="2026-10-24")])]
+                r = self.doc(rows, co=co)
+                self.assertEqual([h["id"] for h in r["hop_dong"]], ["DEMO-DUOC"])
+                self.assertFalse(r["khong_quyen_xem_tien"])
+
+    def test_ban_hang_dong_trong_scope_db_co_tien_va_the_duong(self):
+        # Biên DB đã kiểm binding; PG kiểm binding lệch dự án, mock kiểm projection.
+        m = MauGia([dong(lich=[lich()])])
+        m.danh_tinh.return_value.update(vai_tro="BAN_HANG", quyen={"DEMO-PN-A": {"module": ["CRM"]}})
+        r = CrmDanhSachK2(m).danh_sach("MO_PHONG_BH")
+        self.assertEqual(r["hop_dong"][0]["gia_tri_minor"], "9007199254740993")
+        self.assertEqual((r["the_so"]["W2"]["so_luong"], r["the_so"]["W5"]["so_luong"]), (1, 1))
+        self.assertFalse(r["khong_quyen_xem_tien"])
+
+    def test_ban_hang_binding_lech_du_an_db_tra_rong_khong_lo_the(self):
+        # Mock kết quả scope DB; ca PG kiểm binding lệch dự án thực tế.
+        m = MauGia([])
+        m.danh_tinh.return_value.update(vai_tro="BAN_HANG", quyen={"DEMO-PN-A": {"module": ["CRM"]}})
+        r = CrmDanhSachK2(m).danh_sach("MO_PHONG_BH")
+        self.assertEqual((r["tong"], r["hop_dong"]), (0, []))
+        self.assertTrue(all(t["so_luong"] == 0 for t in r["the_so"].values()))
+        self.assertEqual(m.c.execute.call_count, 2)  # Không đọc chi tiết ngoài scope.
+        self.assertIn("master.crm_ky_pham_vi_duoc(s.id)", m.c.execute.call_args.args[0])
 
     def test_tien_tung_dong_w5_chi_cong_dong_duoc_quyen(self):
         r = self.doc([dong(lich=[lich()]), dong(id="DEMO-2", xem_tien=False, lich=[lich(), lich(dot=2)])])
