@@ -6,9 +6,9 @@ Trạng thái lát: Đang code → Chờ kiểm → Chờ Anh (cổng A/B) → S
 
 | Lát | Việc | Worker | Nhánh · worktree | Giao lúc | Trạng thái |
 |---|---|---|---|---|---|
-| BG-1d | CRM · Báo giá màn hình 2 bước: bước 1 to/đầu (giá, tỷ giá, Tổng VND + bằng chữ, lịch VND, In sơ bộ); bước 2 sau khi khách đồng ý (khách, phí, Chuyển) | Claude Sonnet · review Codex | `lat/bg-1d` (đã gộp BG-1b + BG-1c vòng 2) · DEMO 8791 | 25/10 | Chờ kiểm — test màn hình đạt hết, CRM 321 đạt, 0 mã lỗi mới; review Codex vòng 1 đang chạy |
+| BG-1d | CRM · Báo giá màn hình 2 bước: bước 1 to/đầu (giá, tỷ giá, Tổng VND + bằng chữ, lịch VND, In sơ bộ); bước 2 sau khi khách đồng ý (khách, phí, Chuyển) | Claude Sonnet · review Codex | `lat/bg-1d` (đã gộp BG-1b + BG-1c vòng 2) · DEMO 8791 | 25/10 | Sửa vòng 2 — review Codex: 3 Chặn (Chuyển ở báo giá cũ thiếu điều kiện; nạp G7 so sai tiền tệ; xóa tỷ giá làm xem trước ≠ lưu) + 2 Nên sửa; lead tự kiểm DEMO thêm: ô tỷ giá mặc định cho kế toán, thông báo phiên cũ không tắt |
 | L0-8 | Bật test PostgreSQL trên cụm DEMO (CSDL tạm `kho_test_*`, xóa sau khi chạy) — QD-20261025-10 | Claude Sonnet | `lat/l0-8` | 25/10 | Đang code |
-| C3 | CRM 42 · read-model danh sách hợp đồng S1 `GET /api/crm/hop-dong` (phạm vi theo vai, thẻ W1–W5, ô Junsky "chưa có sổ") | Codex · review Claude | `lat/c3` | 25/10 | Chờ kiểm — commit 5138079; CRM 322 đạt, 0 mã lỗi mới (test PostgreSQL chờ L0-8); review Claude vòng 1 đang chạy |
+| C3 | CRM 42 · read-model danh sách hợp đồng S1 `GET /api/crm/hop-dong` (phạm vi theo vai, thẻ W1–W5, ô Junsky "chưa có sổ") | Codex · review Claude | `lat/c3` | 25/10 | Chờ slot sửa vòng 2 — review Claude: 0 Chặn, 5 Nên sửa (quyền xem tiền theo QD-20261025-15, tải, test dương bán hàng, lỗi 503); chạy PostgreSQL sau L0-8 |
 | DA-1 | CRM · Dự án đang bán — máy chủ + CSDL (M0031): thông tin bán hàng có phiên bản, đơn giá niêm yết + tiền tệ, loại hình + thuế, phí tiêu chuẩn, lô/căn, tiến độ G7 bán hàng áp dụng ngay, quyền, nhật ký, ảnh chụp mặc định cho báo giá | Claude Opus | `lat/da-1` · DEMO 8793 (CSDL riêng p8793) | 25/10 | Đang code |
 
 ## Lát đã xong (24/10)

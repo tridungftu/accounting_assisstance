@@ -59,7 +59,7 @@ Căn cứ: lệnh của Anh 24/10 (mọi module đã chốt thiết kế; M9 d�
 | BG-1a | CRM · Báo giá gói 1 phía máy chủ: parse ô thông minh (`%`, dấu chấm/phẩy VN), BG-04 ghi đè + nhật ký, nhãn tên thay mã, mốc chuẩn | Codex | P0 | `crm_g.py` | Xong 24/10 — gộp 5a8042a (review Đạt, vòng 2 sửa 4 điểm) |
 | BG-1b | CRM · Báo giá gói 1 màn hình: BG-01…05, đo số ô trước/sau → **cổng A** | Claude | BG-1a | `crm_g.js` | Cổng A 25/10: Sửa rồi xem lại |
 | BG-1c | CRM · Báo giá — sửa theo cổng A, máy chủ (VND chính, tỷ giá mặc định 26.000 tham số chung, bằng chữ, In sơ bộ, Chuyển cần khách + phí, M0030 bước kiểm Ký) | Claude Opus | BG-1b | `crm_g.py`, `crm_giao_ket.py`, `pg_migrations.py` | Xong 25/10 — gộp ec73112 |
-| BG-1d | CRM · Báo giá — sửa theo cổng A, màn hình: bước 1 to và trước (giá, tỷ giá, Tổng VND + bằng chữ, USD tham chiếu, lịch VND), bước 2 sau khi khách đồng ý (khách, liên hệ, phí quản lý/bảo trì) → phiếu xem lại | Claude | BG-1c | `crm_g.js`, `style.css` | Chờ kiểm (review Codex vòng 1; đã gộp BG-1c vòng 2 — efa74b9) |
+| BG-1d | CRM · Báo giá — sửa theo cổng A, màn hình: bước 1 to và trước (giá, tỷ giá, Tổng VND + bằng chữ, USD tham chiếu, lịch VND), bước 2 sau khi khách đồng ý (khách, liên hệ, phí quản lý/bảo trì) → phiếu xem lại | Claude | BG-1c | `crm_g.js`, `style.css` | Sửa vòng 2 (25/10; review Codex 3 Chặn + 2 Nên sửa; + ô tỷ giá mặc định cho kế toán) |
 | DA-1 | CRM · Dự án đang bán — máy chủ + CSDL (theo `THIET-KE-DU-AN-DANG-BAN.md`): thông tin bán hàng có phiên bản, phí tiêu chuẩn, lô/căn, bộ chuẩn G7 bán hàng áp dụng ngay (bỏ CFO), quyền bán hàng, nhật ký | Claude Opus | BG-1c gộp | `pg_migrations.py`, `crm_g.py` | Đang code (25/10, Claude Opus, M0031) |
 | DA-2 | CRM · màn Dự án đang bán | Claude | DA-1 | `crm_g.js` | Chờ |
 | DA-3 | CRM · Báo giá chọn dự án → nạp mặc định; sửa riêng → "khác tiêu chuẩn" + nhật ký (gồm BG-09 lô/căn) | Claude | DA-1, BG-1d | `crm_g.*` | Chờ |
@@ -69,7 +69,8 @@ Căn cứ: lệnh của Anh 24/10 (mọi module đã chốt thiết kế; M9 d�
 | BG-3 | CRM · Báo giá gói 3: BG-13 thanh nút, BG-14 ngăn kiểm, số đo CHANGELOG → **cổng B** | Claude | BG-2b | `crm_g.js` | Chờ |
 | C1 | CRM 41 · G6A/G5 dịch vụ (`crm_kiem_hd`, `crm_doi_chieu`) chạy test thuần + PG DEMO | Codex | P0 | — | Chờ |
 | C2 | CRM 41 · hộp KT kiểm → Hiệu lực / Trả lại, xử lý lệch | Claude | C1 | `crm_g.*` | Chờ |
-| C3 | CRM 42 · read-model danh sách hợp đồng `GET /api/crm/hop-dong` (trạng thái, người phụ trách, thẻ W1–W5; ô Junsky tạm "chưa có sổ") | Codex | P0 | `server.py` | Chờ kiểm (commit 5138079, review Claude vòng 1) |
+| C3 | CRM 42 · read-model danh sách hợp đồng `GET /api/crm/hop-dong` (trạng thái, người phụ trách, thẻ W1–W5; ô Junsky tạm "chưa có sổ") | Codex | P0 | `server.py` | Chờ slot vòng 2 (review Claude 0 Chặn / 5 Nên sửa; QD-20261025-15) |
+| C3b | CRM 42 · phạm vi bán hàng cho hợp đồng luồng B (nhận #6 → KT kiểm → CFO duyệt) — hiện ẩn với bán hàng (an toàn) | Claude | C3; **Anh chốt nguồn phạm vi** (không suy từ người nộp) | `pg_migrations.py` | Chờ Anh |
 | C4 | CRM 42 · menu "Hợp đồng bán hàng" 6 mục + S1 danh sách (thẻ, cột, lọc) | Claude | C3 | `index.html`, `app.js` | Chờ |
 | C5 | CRM 42 · S2 tab Tổng quan / Nguồn & tham số / Lịch nghĩa vụ | Claude | C4 | `crm_g.*` | Chờ |
 | C6 | CRM 42 · S2 tab Thu tiền (+S8) / Phụ lục / Bản ký / Lịch sử | Claude | C5; ô Junsky chờ kiểm RLS | `crm_g.*` | Chờ |
@@ -94,7 +95,7 @@ Căn cứ: lệnh của Anh 24/10 (mọi module đã chốt thiết kế; M9 d�
 | M4-5 | M4 · 03B route + panel trong màn kế toán nghiệm thu | Claude | M4-4 | `giao_dien\m4.py` | Thay bằng M4-5a + M4-5b (Anh duyệt checklist 25/10) |
 | M4-5a | M4 · 03B máy chủ: "một phần" khai bằng số tiền (thay tỷ lệ) — migration mới; dữ liệu xếp hạng gợi ý hóa đơn (kỳ, đối tác, số tiền khi đọc được) | Claude Opus | M0029, BG-1c gộp (khóa migration) | `pg_migrations.py`, `k2\ghi_nhan_chung.py` | Chờ |
 | M4-5b | M4 · 03B màn hình: khối "Đối chiếu căn cứ với hóa đơn" trong màn Kế toán nghiệm thu theo `CHECKLIST-M4-03B.md` | Claude | M4-5a | `m4_ke_toan.js`, `giao_dien\m4.py` | Chờ |
-| M4-6 | M4 · 04 Request nháp: khôi phục `request_api.py`, `sql_request_nhap.py`, M0027; giữ CHUA_CAU_HINH, **không gọi Request thật** | Codex | P0 | — | Chờ |
+| M4-6 | M4 · 04 Request nháp: khôi phục `request_api.py`, `sql_request_nhap.py`, M0027; giữ CHUA_CAU_HINH, **không gọi Request thật** | Codex | P0 | — | Chờ slot — còn thiếu đúng phần nối `server.py` (`gan_request_nhap`/`go_request_nhap` + chuyển 3 route); giao Codex đã soạn |
 | M4-7 | M4 · migration master-reuse + rà `m4b2`/`m4b3` (= L0-2h) | Codex | P0 | — | Xong 25/10 — gộp 3d0be04 (M0028); rà m4b2/m4b3 còn ở L0-2h |
 
 **Chưa chốt thiết kế — lead soạn checklist, hỏi Anh bằng bảng chọn khi tới lượt (không hỏi dồn):**
