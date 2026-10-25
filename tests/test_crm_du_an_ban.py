@@ -170,6 +170,40 @@ class M31SqlTinh(unittest.TestCase):
             self.assertIn("master.crm_da_duoc_doc(", _ham(ten))
             self.assertIn("master.la_chu_bang('master.crm_da_ban'::regclass)", _ham(ten))
 
+    def test_xem_co_phan_cong_van_khong_duoc_ghi(self):
+        import sqlite3
+
+        # Chạy chính biểu thức quyền SQL với các hàm IAM giả; phân công luôn được cấp, không thay thế điều kiện vai/module/pháp nhân.
+        sql = re.search(r"SELECT (.*?)\$\$", _ham("crm_da_duoc_ghi"), re.S).group(1)
+        sql = sql.replace("master.", "").replace("p_pn", ":pn")
+        sql = sql.replace("ARRAY['BAN_HANG','KE_TOAN','KE_TOAN_TRUONG']", "'BAN_HANG,KE_TOAN,KE_TOAN_TRUONG'")
+        ctx = {"vai": "XEM", "crm": True}
+        with sqlite3.connect(":memory:") as c:
+            c.create_function("ktt_duoc", 2, lambda pn, module: pn == DA and module == "CRM" and ctx["crm"])
+            c.create_function("ktt_co_vai", 3, lambda pn, vai, loai: pn == DA and ctx["vai"] in vai.split(","))
+            c.create_function("ktt_hanh_dong_duoc", 4, lambda *a: True)
+            self.assertEqual(c.execute("SELECT " + sql, {"pn": DA}).fetchone()[0], 0)
+            for vai in ("BAN_HANG", "KE_TOAN", "KE_TOAN_TRUONG"):
+                ctx["vai"] = vai
+                self.assertEqual(c.execute("SELECT " + sql, {"pn": DA}).fetchone()[0], 1)
+                self.assertEqual(c.execute("SELECT " + sql, {"pn": DB}).fetchone()[0], 0)
+                ctx["crm"] = False
+                self.assertEqual(c.execute("SELECT " + sql, {"pn": DA}).fetchone()[0], 0)
+                ctx["crm"] = True
+
+    def test_g7_cas_sau_khoa_truoc_khong_doi_va_ghi(self):
+        f = _ham("crm_g_chuan_ap_dung")
+        khoa = f.index("FROM master.crm_bo_chuan WHERE")
+        doc = f.index("SELECT * INTO mo FROM master.crm_bo_chuan_phien_ban")
+        cas = f.index("IF p_expected_version IS DISTINCT FROM coalesce(mo.phien_ban, 0) THEN")
+        self.assertLess(f.index("pg_advisory_xact_lock("), khoa)
+        self.assertIn("FOR UPDATE;", f[khoa:doc])
+        self.assertIn("FOR UPDATE;", f[doc:cas])
+        self.assertLess(cas, f.index("IF mo.id IS NOT NULL AND mo.dong_sha256 = sha THEN"))
+        self.assertLess(cas, f.index("INSERT INTO master.crm_bo_chuan_phien_ban"))
+        self.assertIn("RAISE EXCEPTION 'CRM_DA_PHIEN_BAN_CU:", f)
+        self.assertIn("p_expected_version IS NULL OR p_expected_version < 0", f)
+
     def test_g7_ap_dung_ngay_can_cu_qd07(self):
         f = _ham("crm_g_chuan_ap_dung")
         self.assertEqual(S.CAN_CU_G7, "QD-20261025-07")
@@ -355,20 +389,29 @@ class Service(unittest.TestCase):
         self.assertEqual(l[5][1][3:], (6, True, None))
         self.assertNotEqual(l[0][1][1], l[1][1][1])  # cùng thông tin nhưng có/không phí → yêu cầu khác (H khác)
 
-    def test_tien_do_qua_crm_mau_ap_dung_bo_chuan(self):
+    def test_tien_do_cas_tham_so_va_hash(self):
         dong = [{"lan": "1", "gia_tri_loai": "PERCENT", "gia_tri_thap_phan": "100", "moc_loai": "SU_KIEN", "moc_su_kien": "KY_HD"}]
-        self.s.ap_dung_tien_do(ME, du_an_id=DA, giai_doan="", dong=dong, khoa="g")
-        self.s.ap_dung_tien_do(ME, du_an_id=DA, giai_doan="GD1", dong=dong, khoa="h")
+        self.s.ap_dung_tien_do(ME, du_an_id=DA, expected_version=0, giai_doan="", dong=dong, khoa="g")
+        self.s.ap_dung_tien_do(ME, du_an_id=DA, expected_version=1, giai_doan="GD1", dong=dong, khoa="h")
         (sql, p), (_, p2) = self.m.lenh
-        self.assertIn("master.crm_g_chuan_ap_dung(%s, %s, %s::uuid, %s, %s::jsonb)", sql)
+        self.assertIn("master.crm_g_chuan_ap_dung(%s, %s, %s::uuid, %s, %s::jsonb, %s)", sql)
         self.assertEqual((p[0], p[2], p[3], p2[3]), ("g", DA, None, "GD1"))
+        self.assertEqual((p[5], p2[5]), (0, 1))
+        self.assertEqual(p[1], _h("CRM_CHUAN_AP_DUNG", {"du_an_id": DA, "giai_doan": None, "dong": json.loads(p[4]), "expected_version": 0}))
+        self.s.ap_dung_tien_do(ME, du_an_id=DA, expected_version=1, dong=dong, khoa="j")
+        self.assertNotEqual(p[1], self.m.lenh[-1][1][1])  # đổi phiên bản mong đợi → đổi H
+        self.s.ap_dung_tien_do(ME, du_an_id=DA, expected_version=0, dong=dong, khoa="k")
+        self.assertEqual(p[1], self.m.lenh[-1][1][1])  # đổi khóa → giữ H
         self.assertEqual(len(json.loads(p[4])), 1)
         self.assertEqual(json.loads(p[4])[0]["moc_ngay"], None)  # dòng đủ 9 cột typed như G7
-        self.assertEqual(_ma(self.m.ap_dung_bo_chuan, ME, du_an_id=DA, giai_doan="GĐ", dong=dong, khoa="i")[0], "CRM_G_YEU_CAU_SAI")
-        self.assertEqual(_ma(self.m.ap_dung_bo_chuan, ME, du_an_id=DA, dong=[], khoa="i")[0], "CRM_G_CHUAN_SAI")
-        self.assertEqual(_ma(self.m.ap_dung_bo_chuan, ME, du_an_id=DA, dong=[{"lan": "1", "gia_tri_loai": "PERCENT", "gia_tri_thap_phan": 30}],
+        self.assertEqual(_ma(self.s.ap_dung_tien_do, ME, du_an_id=DA, expected_version=0, giai_doan="GĐ", dong=dong, khoa="i")[0], "CRM_G_YEU_CAU_SAI")
+        self.assertEqual(_ma(self.s.ap_dung_tien_do, ME, du_an_id=DA, expected_version=0, dong=[], khoa="i")[0], "CRM_G_CHUAN_SAI")
+        self.assertEqual(_ma(self.s.ap_dung_tien_do, ME, du_an_id=DA, expected_version=0, dong=[{"lan": "1", "gia_tri_loai": "PERCENT", "gia_tri_thap_phan": 30}],
                              khoa="i")[0], "CRM_G_CHUAN_SAI")
-        self.assertEqual(len(self.m.lenh), 2)
+        for n in (None, True, False, "1", -1, 1.0, 1_000_000_000):
+            self.assertEqual(_ma(self.s.ap_dung_tien_do, ME, du_an_id=DA, expected_version=n, dong=dong, khoa="i"),
+                             ("CRM_DA_YEU_CAU_SAI", "expected_version"))
+        self.assertEqual(len(self.m.lenh), 4)
 
     def test_anh_chup_mac_dinh_va_trong(self):
         anh = {"kieu": D.KIEU_ANH_CHUP, "trang_thai": "DANG_BAN", "ngay": "2026-10-25",
@@ -494,14 +537,67 @@ class Http(unittest.TestCase):
                              ([1, 2], 400, "CRM_G_YEU_CAU_SAI")):
             h, da = self.goi(True, "/api/crm/du-an-ban/bat-ban", body)
             self.assertEqual((h.st, h.data["error"], da.goi), (st, ma, []), body)
-        h, da = self.goi(True, "/api/crm/du-an-ban/tien-do", {"du_an_id": DA, "giai_doan": "GD1", "dong": [], "khoa": "k"})
-        self.assertEqual((da.goi[0][0], da.goi[0][2]["giai_doan"]), ("ap_dung_tien_do", "GD1"))
+        h, da = self.goi(True, "/api/crm/du-an-ban/tien-do", {"du_an_id": DA, "expected_version": 3, "giai_doan": "GD1", "dong": [], "khoa": "k"})
+        self.assertEqual((da.goi[0][0], da.goi[0][2]["giai_doan"], da.goi[0][2]["expected_version"]), ("ap_dung_tien_do", "GD1", 3))
         for ten, ham in (("cap-nhat", "cap_nhat"), ("phi", "sua_phi"), ("lo", "ghi_lo"), ("ngung-ban", "ngung_ban"), ("mo-ban-lai", "mo_ban_lai")):
             body = {k: None for k in CG.TRUONG_DA["du-an-ban/" + ten]}
             h, da = self.goi(True, "/api/crm/du-an-ban/" + ten, body)
             self.assertEqual((h.st, da.goi[0][0]), (200, ham))
         h, _ = self.goi(True, "/api/crm/du-an-ban/xoa", {"da_ban_id": DB})
         self.assertEqual(h.st, 404)
+
+    def test_query_tho_lap_rong_va_gioi_han(self):
+        from urllib.parse import parse_qs
+
+        ds = (("/api/crm/du-an-ban", "dang_ban=1&dang_ban="),
+              ("/api/crm/du-an-ban", "dang_ban=&dang_ban=1"),
+              ("/api/crm/du-an-ban", "dang_ban=1&dang_ban=1"),
+              ("/api/crm/du-an-ban", "dang_ban="),
+              ("/api/crm/du-an-ban", "dang_ban"),
+              (f"/api/crm/du-an-ban/{DB}", "phien_ban=" + "0" * 1000 + "1"),
+              (f"/api/crm/du-an-ban/{DB}", "phien_ban=0000000001"),
+              (f"/api/crm/du-an-ban/{DB}", "phien_ban=0"),
+              (f"/api/crm/du-an-ban/{DB}", "phien_ban=١"),
+              (f"/api/crm/du-an-ban/{DB}", "phien_ban="),
+              (f"/api/crm/du-an-ban/{DB}", "phien_ban=1&phien_ban="),
+              (f"/api/crm/du-an-ban/{DB}", "ngay="),
+              (f"/api/crm/du-an-ban/{DB}", "ngay=2026-10-25&ngay="),
+              (f"/api/crm/du-an-ban/{DB}", "ngay=02026-10-25"),
+              ("/api/crm/du-an-ban/anh-chup", "du_an_id="),
+              ("/api/crm/du-an-ban/anh-chup", "du_an_id=" + DA.replace("-", "")),
+              ("/api/crm/du-an-ban/anh-chup", "du_an_id=" + DA + "0"),
+              ("/api/crm/du-an-ban/anh-chup", "du_an_id=" + DA + "&du_an_id="))
+        for path, tho in ds:
+            with self.subTest(query=tho[:80]):
+                # Parser ngoài bỏ giá trị rỗng như server thật; route vẫn phải từ chối dựa trên query thô.
+                h, da = self.goi(False, path, query=parse_qs(tho), raw=path + "?" + tho)
+                self.assertEqual((h.st, h.data["error"], da.goi), (400, "CRM_G_YEU_CAU_SAI", []))
+        for value in ("1", "000000001", "999999999"):
+            h, _ = self.goi(False, f"/api/crm/du-an-ban/{DB}", query={"phien_ban": [value]}, raw=f"/api/crm/du-an-ban/{DB}?phien_ban={value}")
+            self.assertEqual(h.st, 200)
+
+    def test_tien_do_hai_nguoi_cung_ban_cu_tra_409(self):
+        m = _Mau()
+        da = D.CrmDuAnBanK2(m)
+        hien_tai, actors = [1], []
+
+        def lenh(dt, sql, p):
+            actors.append(dt["dang_nhap"])
+            if p[5] != hien_tai[0]:
+                raise DataError("CRM_DA_PHIEN_BAN_CU", "Tiến độ đã đổi.")
+            hien_tai[0] += 1
+            return {"phien_ban": hien_tai[0]}
+
+        body = {"du_an_id": DA, "expected_version": 1, "giai_doan": "GD1", "khoa": "bh",
+                "dong": [{"lan": "1", "gia_tri_loai": "PERCENT", "gia_tri_thap_phan": "100", "moc_loai": "SU_KIEN", "moc_su_kien": "KY_HD"}]}
+        with patch.object(m, "_lenh", side_effect=lenh), patch.object(_App, "crm_phien", side_effect=[("sid", ME, False), ("sid", "MO_PHONG_KT_A", False)]):
+            h1, _ = self.goi(True, "/api/crm/du-an-ban/tien-do", body, da=da)
+            h2, _ = self.goi(True, "/api/crm/du-an-ban/tien-do", {**body, "khoa": "kt"}, da=da)
+        self.assertEqual((h1.st, h1.data["phien_ban"], h2.st, h2.data["error"], hien_tai[0]), (200, 2, 409, "CRM_DA_PHIEN_BAN_CU", 2))
+        self.assertEqual(actors, [ME, "MO_PHONG_KT_A"])
+        for expected in (None, True, -1, "1"):
+            h, _ = self.goi(True, "/api/crm/du-an-ban/tien-do", {**body, "expected_version": expected}, da=da)
+            self.assertEqual((h.st, h.data["truong"]), (400, "expected_version"))
 
     def test_ma_loi(self):
         for ma, st in (("CRM_DA_PHIEN_BAN_CU", 409), ("CRM_DA_DA_CO", 409), ("CRM_DA_LO_LAN_CU", 409), ("CRM_DA_TRANG_THAI", 409),

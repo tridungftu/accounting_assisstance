@@ -19,7 +19,7 @@ Mới:
     tạo ngày hiệu lực sau phiên bản trước nên không bao giờ sinh khoảng rỗng). Mọi chỗ đọc "bộ chuẩn hiệu lực" (crm_g_chuan_doc, crm_kiem_g7,
     lệnh lưu báo giá) đọc theo `trang_thai = 'HIEU_LUC'` + khoảng ngày → đọc được phiên bản áp dụng ngay, không cần sửa.
   - Ảnh chụp mặc định `master.crm_da_anh_chup(du_an, ngày)` cho báo giá (DA-3), có `anh_chup_sha256` để so lại trong lệnh lưu.
-Quyền: đọc = phiên có module CRM trên pháp nhân; ghi = bán hàng/kế toán/kế toán trưởng có module CRM (hoặc phân công CRM_DU_AN_BAN). Mọi lệnh
+Quyền: đọc = phiên có module CRM trên pháp nhân; ghi = bán hàng/kế toán/kế toán trưởng có module CRM trên đúng pháp nhân dự án. Mọi lệnh
 ghi là hàm INVOKER chỉ chạy trên kết nối CHỦ BẢNG của máy chủ, kiểm quyền HIỆN HÀNH của phiên (GUC) TRƯỚC tra biên nhận.
 """
 
@@ -52,7 +52,7 @@ _HAM = ("master.crm_da_duoc_doc(uuid)", "master.crm_da_duoc_ghi(uuid)", "master.
         "master.crm_da_cap_nhat(text, text, text, uuid, integer, jsonb, jsonb, text)",
         "master.crm_da_doi_trang_thai(text, text, uuid, integer, boolean, text)", "master.crm_da_lo_ghi(text, text, uuid, jsonb, text)",
         "master.crm_da_anh_chup_pb(uuid, date)", "master.crm_da_anh_chup(uuid, date)",
-        "master.crm_g_chuan_ap_dung(text, text, uuid, text, jsonb)")
+        "master.crm_g_chuan_ap_dung(text, text, uuid, text, jsonb, integer)")
 
 CRM_DU_AN_BAN_SQL = (
     # ======================================================================= bảng: gốc + phiên bản + phí + lô/căn + lịch sử lô + bằng chứng G7
@@ -192,8 +192,7 @@ CRM_DU_AN_BAN_SQL = (
     """CREATE OR REPLACE FUNCTION master.crm_da_duoc_ghi(p_pn uuid) RETURNS boolean
         LANGUAGE sql STABLE SECURITY DEFINER SET search_path = master, pg_temp AS $$
         SELECT p_pn IS NOT NULL AND master.ktt_duoc(p_pn, 'CRM')
-               AND (master.ktt_co_vai(p_pn, ARRAY['BAN_HANG','KE_TOAN','KE_TOAN_TRUONG'], NULL)
-                    OR master.ktt_hanh_dong_duoc(p_pn, 'CRM', 'CRM_DU_AN_BAN', NULL))
+               AND master.ktt_co_vai(p_pn, ARRAY['BAN_HANG','KE_TOAN','KE_TOAN_TRUONG'], NULL)
         $$""",
     # preflight mọi lệnh ghi: chủ bảng → ghim dòng quyền → đọc được → ghi được → biên nhận (cùng H → FINAL cũ; khác H → CRM_G_IDEMPOTENCY_KHAC)
     """CREATE OR REPLACE FUNCTION master.crm_da_vao(p_hanh text, p_pn uuid, p_khoa text, p_h text) RETURNS jsonb
@@ -484,7 +483,7 @@ CRM_DU_AN_BAN_SQL = (
                                      'giu', giu, 'hieu_luc_tu', ngay, 'lo', ra);""" + _KET.format(pn="d.phap_nhan_id", a="'CRM_DA_LO'") + """
         END $$""",
     # ======================================================================= G7 áp dụng ngay (QD-20261025-07: bỏ bước CFO duyệt)
-    """CREATE OR REPLACE FUNCTION master.crm_g_chuan_ap_dung(p_khoa text, p_h text, p_du_an uuid, p_giai_doan text, p_dong jsonb) RETURNS jsonb
+    """CREATE OR REPLACE FUNCTION master.crm_g_chuan_ap_dung(p_khoa text, p_h text, p_du_an uuid, p_giai_doan text, p_dong jsonb, p_expected_version integer) RETURNS jsonb
         LANGUAGE plpgsql SET search_path = master, kho, pg_temp AS $$
         DECLARE ai text := master.ktt_danh_tinh(); a record; d record; cu jsonb; kq jsonb; b record; mo record; pb uuid; n integer; r record;
                 so integer; ngay date := master.ktt_ngay(); cuoi date; gd text; sha text;
@@ -516,6 +515,13 @@ CRM_DU_AN_BAN_SQL = (
             END IF;
             sha := encode(sha256(convert_to(p_dong::text, 'UTF8')), 'hex');
             SELECT * INTO mo FROM master.crm_bo_chuan_phien_ban WHERE bo_chuan_id = b.id AND trang_thai = 'HIEU_LUC' AND valid_to IS NULL FOR UPDATE;
+            -- CAS sau khóa bộ chuẩn; 0 = chưa có bản hiệu lực. Kiểm cả khi nội dung không đổi, trước mọi ghi phiên bản/nhật ký.
+            IF p_expected_version IS NULL OR p_expected_version < 0 OR p_expected_version > 999999999 THEN
+                RAISE EXCEPTION 'CRM_DA_YEU_CAU_SAI: cần phiên bản tiến độ mong đợi (0 nếu chưa có)' USING ERRCODE = 'P0001';
+            END IF;
+            IF p_expected_version IS DISTINCT FROM coalesce(mo.phien_ban, 0) THEN
+                RAISE EXCEPTION 'CRM_DA_PHIEN_BAN_CU: tiến độ tiêu chuẩn đã đổi — tải lại trước khi sửa' USING ERRCODE = 'P0001';
+            END IF;
             IF mo.id IS NOT NULL AND mo.dong_sha256 = sha THEN
                 kq := jsonb_build_object('bo_chuan_id', b.id, 'du_an_id', p_du_an, 'giai_doan', gd, 'phien_ban_id', mo.id, 'phien_ban', mo.phien_ban,
                                          'trang_thai', 'HIEU_LUC', 'valid_from', mo.valid_from, 'so_dong', mo.so_dong, 'khong_doi', true,

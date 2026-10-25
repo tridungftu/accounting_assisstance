@@ -128,6 +128,21 @@ class DuAnBanPostgres(unittest.TestCase):
         self.assertEqual(self.db(lambda: self.dv.chi_tiet(XEM, r["da_ban_id"]))["duoc_sua"], False)  # XEM đọc được, không sửa được
         self.s["da"], self.s["pb1"] = r["da_ban_id"], r["phien_ban_id"]
 
+    def test_t01a_xem_co_phan_cong_van_bi_tu_choi(self):
+        self.can("da")
+        # Phân công DEMO thật, dùng lại nếu có; không xóa/thu hồi quyền có sẵn.
+        self.admin.execute("""INSERT INTO master.phan_cong_hanh_dong (nguoi_dung_id, phap_nhan_id, module, hanh_dong, cap_boi)
+                              SELECT id, %s, 'CRM', 'CRM_DU_AN_BAN', 'TEST:DA-1-DEMO' FROM master.nguoi_dung WHERE dang_nhap = %s
+                              ON CONFLICT DO NOTHING""", (self.pn, XEM))
+        with self.mau._tx(self.mau.danh_tinh(XEM)) as c:
+            q = c.execute("""SELECT master.ktt_duoc(%s::uuid, 'CRM') AS crm,
+                                    master.ktt_hanh_dong_duoc(%s::uuid, 'CRM', 'CRM_DU_AN_BAN', NULL) AS phan_cong,
+                                    master.crm_da_duoc_ghi(%s::uuid) AS ghi""", (self.pn,) * 3).fetchone()
+            self.assertEqual((q["crm"], q["phan_cong"], q["ghi"]), (True, True, False))
+        self.assertEqual(self.ma(self.dv.bat_ban, XEM, du_an_id=self.du_an_2, thong_tin=self.tt(), khoa=self.K("xpc")), "CRM_G_KHONG_CO_QUYEN")
+        self.assertEqual(self.ma(self.dv.ap_dung_tien_do, XEM, du_an_id=self.du_an, expected_version=0, dong=DONG1, khoa=self.K("xpcg7")),
+                         "CRM_G_KHONG_CO_QUYEN")
+
     def test_t02_cap_nhat_phien_ban_moi(self):
         self.can("da")
         da = self.s["da"]
@@ -174,7 +189,7 @@ class DuAnBanPostgres(unittest.TestCase):
 
     def test_t05_g7_ap_dung_ngay_moi_cho_doc_thay(self):
         self.can("da")
-        g = self.db(lambda: self.dv.ap_dung_tien_do(BH, du_an_id=self.du_an, dong=DONG1, khoa=self.K("g7")))  # giai đoạn mặc định = của dự án
+        g = self.db(lambda: self.dv.ap_dung_tien_do(BH, du_an_id=self.du_an, expected_version=0, dong=DONG1, khoa=self.K("g7")))  # giai đoạn mặc định = của dự án
         self.assertEqual((g["giai_doan"], g["trang_thai"], g["valid_from"], g["can_cu"], g["khong_doi"]),
                          (self.gd, "HIEU_LUC", self.hom_nay.isoformat(), "QD-20261025-07", False))
         x = self.admin.execute("SELECT can_cu, ap_dung_boi, hieu_luc_tu FROM master.crm_bo_chuan_ap_dung WHERE phien_ban_id = %s", (g["phien_ban_id"],)).fetchone()
@@ -205,13 +220,13 @@ class DuAnBanPostgres(unittest.TestCase):
         self.s["g6a"] = lambda gd, ngay: (self.admin.execute(cau, {"pn": self.pn, "da": self.du_an, "gd": gd, "ngay": ngay}).fetchone() or {}).get("id")
         self.assertEqual(self.s["g6a"](self.gd, self.hom_nay), g["phien_ban_id"])
         # cùng dòng → không tạo phiên bản; dòng khác CÙNG NGÀY → phiên bản mới, phiên bản cũ thành khoảng rỗng, mọi chỗ đọc chọn phiên bản mới
-        self.assertTrue(self.db(lambda: self.dv.ap_dung_tien_do(BH, du_an_id=self.du_an, giai_doan=self.gd, dong=DONG1, khoa=self.K("g7b")))["khong_doi"])
-        g2 = self.db(lambda: self.dv.ap_dung_tien_do(KT, du_an_id=self.du_an, giai_doan=self.gd, dong=DONG2, khoa=self.K("g7c")))
+        self.assertTrue(self.db(lambda: self.dv.ap_dung_tien_do(BH, du_an_id=self.du_an, expected_version=1, giai_doan=self.gd, dong=DONG1, khoa=self.K("g7b")))["khong_doi"])
+        g2 = self.db(lambda: self.dv.ap_dung_tien_do(KT, du_an_id=self.du_an, expected_version=1, giai_doan=self.gd, dong=DONG2, khoa=self.K("g7c")))
         v = self.pb_g7(self.gd)
         self.assertEqual([(x["phien_ban"], x["valid_from"], x["valid_to"]) for x in v], [(1, self.hom_nay, self.hom_nay), (2, self.hom_nay, None)])
         self.assertEqual((self.chuan_doc(self.gd, self.hom_nay)["version"]["id"], self.s["g6a"](self.gd, self.hom_nay)), (g2["phien_ban_id"],) * 2)
-        self.assertEqual(self.ma(self.dv.ap_dung_tien_do, XEM, du_an_id=self.du_an, dong=DONG1, khoa=self.K("g7x")), "CRM_G_KHONG_CO_QUYEN")
-        self.assertEqual(self.ma(self.dv.ap_dung_tien_do, BH, du_an_id=self.du_an_2, giai_doan="GD1", dong=DONG1, khoa=self.K("g7y")), "CRM_DA_CHUA_BAT_BAN")
+        self.assertEqual(self.ma(self.dv.ap_dung_tien_do, XEM, du_an_id=self.du_an, expected_version=2, dong=DONG1, khoa=self.K("g7x")), "CRM_G_KHONG_CO_QUYEN")
+        self.assertEqual(self.ma(self.dv.ap_dung_tien_do, BH, du_an_id=self.du_an_2, expected_version=0, giai_doan="GD1", dong=DONG1, khoa=self.K("g7y")), "CRM_DA_CHUA_BAT_BAN")
         self.s["g7"] = g2["phien_ban_id"]
 
     def test_t06_g7_cfo_cu_giu_nguyen_nghia(self):
@@ -229,7 +244,7 @@ class DuAnBanPostgres(unittest.TestCase):
             return r["phien_ban_id"]
         gd = f"CFO{self.ma_chay}"
         cfo = cfo_duyet(gd, self.hom_nay - timedelta(days=5))
-        moi = self.db(lambda: self.dv.ap_dung_tien_do(BH, du_an_id=self.du_an, giai_doan=gd, dong=DONG2, khoa=self.K("g7cfo")))["phien_ban_id"]
+        moi = self.db(lambda: self.dv.ap_dung_tien_do(BH, du_an_id=self.du_an, expected_version=1, giai_doan=gd, dong=DONG2, khoa=self.K("g7cfo")))["phien_ban_id"]
         v = {x["id"]: x for x in self.pb_g7(gd)}
         self.assertEqual((v[cfo]["trang_thai"], v[cfo]["duyet_boi"], v[cfo]["valid_from"], v[cfo]["valid_to"]),
                          ("HIEU_LUC", CFO, self.hom_nay - timedelta(days=5), self.hom_nay))  # nghĩa cũ giữ nguyên, chỉ đóng tại hôm nay
@@ -240,7 +255,34 @@ class DuAnBanPostgres(unittest.TestCase):
         self.assertEqual((nguon[cfo], nguon[moi]), ("CFO_DUYET", "AP_DUNG_NGAY"))
         tl = f"CFT{self.ma_chay}"
         cfo_duyet(tl, self.hom_nay + timedelta(days=5))  # CFO duyệt hiệu lực TƯƠNG LAI → bán hàng không áp dụng chồng
-        self.assertEqual(self.ma(self.dv.ap_dung_tien_do, BH, du_an_id=self.du_an, giai_doan=tl, dong=DONG2, khoa=self.K("g7tl")), "CRM_G_HIEU_LUC_CHONG")
+        self.assertEqual(self.ma(self.dv.ap_dung_tien_do, BH, du_an_id=self.du_an, expected_version=1, giai_doan=tl, dong=DONG2, khoa=self.K("g7tl")), "CRM_G_HIEU_LUC_CHONG")
+
+    def test_t06a_g7_hai_nguoi_cung_sua_tu_ban_cu(self):
+        self.can("da")
+        gd = f"CAS{self.ma_chay}"
+        r1 = self.db(lambda: self.dv.ap_dung_tien_do(BH, du_an_id=self.du_an, expected_version=0, giai_doan=gd, dong=DONG1, khoa=self.K("cas0")))
+        # BH và KT đều đọc bản 1. BH lưu trước; KT gửi bản 1 phải bị từ chối, kể cả nội dung trùng bản BH vừa lưu.
+        da_doc = self.chuan_doc(gd, self.hom_nay)["version"]["phien_ban"]
+        self.assertEqual(da_doc, 1)
+        r2 = self.db(lambda: self.dv.ap_dung_tien_do(BH, du_an_id=self.du_an, expected_version=da_doc, giai_doan=gd, dong=DONG2, khoa=self.K("cas1")))
+        dem = lambda: self.admin.execute("""SELECT count(*) AS n FROM nhat_ky.su_kien WHERE doi_tuong_bang = 'master.crm_bo_chuan_phien_ban'
+                                            AND doi_tuong_id IN (SELECT v.id FROM master.crm_bo_chuan_phien_ban v JOIN master.crm_bo_chuan b
+                                                                ON b.id = v.bo_chuan_id WHERE b.du_an_id = %s AND b.giai_doan = %s)""",
+                                         (self.du_an, gd)).fetchone()["n"]
+        truoc = dem()
+        for dong, khoa in ((DONG1, "cas_cu"), (DONG2, "cas_trung")):
+            self.assertEqual(self.ma(self.dv.ap_dung_tien_do, KT, du_an_id=self.du_an, expected_version=da_doc, giai_doan=gd, dong=dong,
+                                     khoa=self.K(khoa)), "CRM_DA_PHIEN_BAN_CU")
+        self.assertEqual(dem(), truoc)
+        self.assertEqual([(v["phien_ban"], v["valid_to"]) for v in self.pb_g7(gd)], [(1, self.hom_nay), (2, None)])
+        self.assertEqual(self.chuan_doc(gd, self.hom_nay)["version"]["id"], r2["phien_ban_id"])
+        # Replay đúng khóa vẫn trả biên nhận cũ; yêu cầu mới từ bản 0 bị CAS chặn.
+        replay = self.db(lambda: self.dv.ap_dung_tien_do(BH, du_an_id=self.du_an, expected_version=0, giai_doan=gd, dong=DONG1, khoa=self.K("cas0")))
+        self.assertEqual((replay["lap_lai"], replay["phien_ban_id"]), (True, r1["phien_ban_id"]))
+        self.assertEqual(self.ma(self.dv.ap_dung_tien_do, KT, du_an_id=self.du_an, expected_version=0, giai_doan=gd, dong=DONG1, khoa=self.K("cas0_cu")),
+                         "CRM_DA_PHIEN_BAN_CU")
+        moi = self.db(lambda: self.dv.ap_dung_tien_do(KT, du_an_id=self.du_an, expected_version=2, giai_doan=gd, dong=DONG1, khoa=self.K("cas2")))
+        self.assertEqual(moi["phien_ban"], 3)
 
     def test_t07_anh_chup_mac_dinh(self):
         self.can("da", "g7")

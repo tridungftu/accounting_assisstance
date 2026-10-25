@@ -5,9 +5,9 @@ của `CrmMauK2`: danh tính phiên do máy chủ giữ + kết nối CHỦ BẢ
 - Thông tin bán hàng có PHIÊN BẢN bất biến: cờ đang bán, vị trí, mô tả, đơn giá niêm yết + tiền tệ, loại hình + thuế mặc định, giai đoạn tiến độ,
   danh sách phí tiêu chuẩn. Sửa = phiên bản mới hiệu lực ngay từ hôm nay (đóng phiên bản cũ + thêm phiên bản mới + nhật ký, cùng giao dịch);
   ngừng bán / mở bán lại = phiên bản mới + sự kiện nhật ký (QD-07). Lô/căn: đổi = dòng lịch sử mới, không ghi đè.
-- Tiến độ thanh toán tiêu chuẩn = bộ chuẩn G7; bán hàng áp dụng ngay, bỏ CFO (`CrmMauK2.ap_dung_bo_chuan`, căn cứ QD-20261025-07).
+- Tiến độ thanh toán tiêu chuẩn = bộ chuẩn G7; bán hàng áp dụng ngay, bỏ CFO (CAS `expected_version`, căn cứ QD-20261025-07).
 - Ảnh chụp mặc định `(dự án, ngày)` cho báo giá (DA-3): `anh_chup_mac_dinh` (giao dịch riêng) / `anh_chup_trong` (trong giao dịch của người gọi).
-- Đọc: phiên có module CRM trên pháp nhân. Ghi: bán hàng / kế toán / kế toán trưởng có module CRM (hoặc phân công CRM_DU_AN_BAN). Cổng thật ở CSDL.
+- Đọc: phiên có module CRM trên pháp nhân. Ghi: bán hàng / kế toán / kế toán trưởng có module CRM trên đúng pháp nhân dự án. Cổng thật ở CSDL.
 - Số: chuỗi thập phân chính xác, CHỈ chữ số ASCII, cùng literal với M0030 (`RE_SO` của báo giá); chuẩn hóa dạng gọn ("1.50" → "1.5"), không float.
 Trình duyệt không gửi actor/pháp nhân/trạng thái/kết quả; lỗi nhập trả theo trường (`DataError.locator`, HTTP `truong`).
 """
@@ -417,10 +417,21 @@ class CrmDuAnBanK2:
     def mo_ban_lai(self, dang_nhap: str, *, da_ban_id, expected_phien_ban, ly_do=None, khoa) -> dict:
         return self._doi_trang_thai(dang_nhap, "CRM_DA_MO_BAN_LAI", True, da_ban_id, expected_phien_ban, ly_do, khoa)
 
-    def ap_dung_tien_do(self, dang_nhap: str, *, du_an_id, giai_doan=None, dong, khoa) -> dict:
+    def ap_dung_tien_do(self, dang_nhap: str, *, du_an_id, expected_version=None, giai_doan=None, dong, khoa) -> dict:
         """Tiến độ thanh toán tiêu chuẩn của dự án đang bán = bộ chuẩn G7, áp dụng NGAY (bỏ CFO, QD-20261025-07); giai đoạn mặc định = giai đoạn
-        tiến độ của thông tin dự án hiện hành."""
-        return self.mau.ap_dung_bo_chuan(dang_nhap, du_an_id=du_an_id, giai_doan=giai_doan, dong=dong, khoa=khoa)
+        tiến độ của thông tin dự án hiện hành. `expected_version` bắt buộc = số bản hiệu lực đã đọc, 0 nếu chưa có; bản đã đổi → 409."""
+        m, dt = self.mau, self.mau.danh_tinh(dang_nhap)
+        da = _uuid(du_an_id, "du_an_id")
+        if type(expected_version) is not int or not 0 <= expected_version <= 999_999_999:
+            _loi("CRM_DA_YEU_CAU_SAI", "Cần phiên bản tiến độ mong đợi (số nguyên 0–999999999; 0 nếu chưa có).", "expected_version")
+        if giai_doan in ("", None):
+            giai_doan = None
+        elif not isinstance(giai_doan, str) or not GIAI_DOAN_RE.fullmatch(giai_doan):
+            _loi("CRM_G_YEU_CAU_SAI", "Giai đoạn chỉ gồm chữ/số/_ . - (1–80).", "giai_doan")
+        rows, khoa = m._dong_g7(dong), _khoa(khoa)
+        h = _h("CRM_CHUAN_AP_DUNG", {"du_an_id": da, "giai_doan": giai_doan, "dong": rows, "expected_version": expected_version})
+        return m._lenh(dt, "SELECT master.crm_g_chuan_ap_dung(%s, %s, %s::uuid, %s, %s::jsonb, %s) AS r",
+                       (khoa, h, da, giai_doan, json.dumps(rows, ensure_ascii=False), expected_version))
 
 
 # ================================================================================================== seed DEMO (chủ CSDL; qua CHÍNH hàm lệnh)
@@ -499,9 +510,10 @@ def khoi_tao_demo(admin_conn, *, hom_nay: date | None = None) -> dict:
                                             (khoa + "-lo", _h("CRM_DA_LO", {"da_ban_id": da, "lo": lo, "ly_do": None}), da,
                                              json.dumps([{k: v for k, v in z.items() if v is not None} for z in lo], ensure_ascii=False), None)).fetchone()[0]
                     dong = _dong_g7_demo(x["g7"])
-                    g = admin_conn.execute("SELECT master.crm_g_chuan_ap_dung(%s, %s, %s::uuid, %s, %s::jsonb)",
-                                           (khoa + "-tien-do", _h("CRM_CHUAN_AP_DUNG", {"du_an_id": du_an_id, "giai_doan": None, "dong": dong}), du_an_id,
-                                            None, json.dumps(dong, ensure_ascii=False))).fetchone()[0]
+                    g = admin_conn.execute("SELECT master.crm_g_chuan_ap_dung(%s, %s, %s::uuid, %s, %s::jsonb, %s)",
+                                           (khoa + "-tien-do", _h("CRM_CHUAN_AP_DUNG", {"du_an_id": du_an_id, "giai_doan": None, "dong": dong,
+                                                                                     "expected_version": 0}), du_an_id,
+                                            None, json.dumps(dong, ensure_ascii=False), 0)).fetchone()[0]
                     kq["du_an"].append({**mot, "trang_thai": "DU" if b["lap_lai"] else "DA_TAO", "phien_ban": b["ket_qua"]["phien_ban"],
                                         "so_phi": len(ph), "so_lo": len(lk["ket_qua"]["lo"]), "tien_do_phien_ban": g["ket_qua"]["phien_ban"],
                                         "mo_lai_khong_them": bool(b["lap_lai"] and lk["lap_lai"] and g["lap_lai"])})
