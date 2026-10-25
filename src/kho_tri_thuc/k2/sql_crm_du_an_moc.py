@@ -193,14 +193,15 @@ CRM_DU_AN_MOC_SQL = (
             END IF;
             SELECT coalesce(jsonb_agg(jsonb_build_object('moc_id', m.id, 'ma', m.ma, 'lan', s.lan, 'ten', s.ten, 'ten_tat', s.ten_tat,
                 'ngay_du_kien', s.ngay_du_kien, 'ngay_thuc_te', s.ngay_thuc_te,
+                'du_an_dang_ban', coalesce((SELECT v.dang_ban FROM master.crm_da_ban_phien_ban v
+                    WHERE v.da_ban_id = d.id AND v.hieu_luc_tu <= p_ngay
+                      AND (v.hieu_luc_den IS NULL OR p_ngay < v.hieu_luc_den)), false),
                 'trang_thai', CASE WHEN s.ngay_thuc_te IS NOT NULL THEN 'DA_XONG'
                                    WHEN s.ngay_du_kien >= p_ngay THEN 'CHUA_DEN' ELSE 'QUA_DU_KIEN' END)
                 ORDER BY s.ngay_du_kien, s.ten), '[]'::jsonb) INTO kq
             FROM master.crm_da_ban d JOIN master.crm_da_moc m ON m.da_ban_id = d.id
                 JOIN master.crm_da_moc_ls s ON s.moc_id = m.id
-            WHERE d.du_an_id = p_du_an AND s.dang_dung AND s.hieu_luc_tu <= p_ngay AND (s.hieu_luc_den IS NULL OR p_ngay < s.hieu_luc_den)
-              AND EXISTS (SELECT 1 FROM master.crm_da_ban_phien_ban v WHERE v.da_ban_id = d.id AND v.dang_ban
-                          AND v.hieu_luc_tu <= p_ngay AND (v.hieu_luc_den IS NULL OR p_ngay < v.hieu_luc_den));
+            WHERE d.du_an_id = p_du_an AND s.dang_dung AND s.hieu_luc_tu <= p_ngay AND (s.hieu_luc_den IS NULL OR p_ngay < s.hieu_luc_den);
             RETURN kq;
         END $$""",
     """CREATE FUNCTION master.crm_da_moc_ls_doc(p_moc uuid) RETURNS jsonb

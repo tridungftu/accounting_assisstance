@@ -76,6 +76,15 @@ class MocTinh(unittest.TestCase):
         self.assertEqual(SQL.count("LANGUAGE plpgsql STABLE"), 2)
         self.assertNotIn("CREATE EXTENSION", SQL)
 
+    def test_doc_moc_khong_loc_du_an_dang_ban(self):
+        f = next(s for s in CRM_DU_AN_MOC_SQL if "CREATE FUNCTION master.crm_da_moc_doc(" in s)
+        self.assertIn("'du_an_dang_ban', coalesce((SELECT v.dang_ban", f)
+        self.assertIn("v.hieu_luc_tu <= p_ngay", f)
+        self.assertIn("p_ngay < v.hieu_luc_den)), false)", f)
+        loc = f[f.index("FROM master.crm_da_ban d JOIN master.crm_da_moc m"):]
+        self.assertNotIn("dang_ban", loc)
+        self.assertIn("d.du_an_id = p_du_an AND s.dang_dung", loc)
+
     def test_anh_xa_dau_tieng_viet_va_utf8_khong_bom(self):
         f = next(s for s in CRM_DU_AN_MOC_SQL if "CREATE FUNCTION master.crm_da_moc_ten_chuan(" in s)
         self.assertIn("LANGUAGE sql IMMUTABLE STRICT", f)
@@ -313,7 +322,7 @@ class MocPostgres(unittest.TestCase):
     def test_du_an_chua_bat_ban_ngung_ban_va_moc_khac_du_an(self):
         chua_ban = self.project()
         self.assertEqual(self.doc(du_an=chua_ban), [])
-        r = self.khai()
+        r = self.khai(ngay_du_kien=(self.today - timedelta(days=1)).isoformat())
         self.loi("CRM_DA_MOC_SAI", lambda: self.sua({**r, "moc_id": str(uuid.uuid4())}, ten="Sai DEMO"))
         ban_khac = self.call("SELECT master.crm_da_bat_ban(%s, %s, %s, %s::jsonb, '[]'::jsonb, NULL)",
                             (uuid.uuid4().hex, "c" * 64, chua_ban, json.dumps({"loai_hinh_id": self.lh, "tien_te": "VND"})))
@@ -323,8 +332,12 @@ class MocPostgres(unittest.TestCase):
         khac = self.ghi({"ten": "Xong chứng nhận đầu tư DEMO", "ngay_du_kien": self.today.isoformat()}, da=da_khac)["ket_qua"]
         self.assertEqual([m["moc_id"] for m in self.doc(du_an=chua_ban)], [khac["moc_id"]])
         self.assertEqual([m["moc_id"] for m in self.doc()], [r["moc_id"]])
+        self.assertIs(self.doc()[0]["du_an_dang_ban"], True)
         self.call("SELECT master.crm_da_doi_trang_thai(%s, %s, %s, 1, false, 'Ngừng bán DEMO')", (uuid.uuid4().hex, "b" * 64, self.da))
-        self.assertEqual(self.doc(), [])
+        rows = self.doc()
+        self.assertEqual([m["moc_id"] for m in rows], [r["moc_id"]])
+        self.assertIs(rows[0]["du_an_dang_ban"], False)
+        self.assertEqual(rows[0]["trang_thai"], "QUA_DU_KIEN")
         self.assertEqual(len(self.history(r)["lich_su"]), 1)
 
     def test_replay_khong_them_lan_nhat_ky_va_khac_noi_dung(self):
