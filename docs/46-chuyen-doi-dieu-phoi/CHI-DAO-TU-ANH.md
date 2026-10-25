@@ -101,4 +101,4 @@
 - Không khởi động lại máy, không cập nhật phần mềm, không dừng dịch vụ PostgreSQL.
 - Nhật ký CD-003 đủ từng lát (worker, model, giờ, vòng review, test).
 **05:45 viết `docs\46-chuyen-doi-dieu-phoi\bao-cao-ngay\BAO-CAO-DEM-20261026.md`:** §1 Kết luận (≤ 5 dòng) · §2 Đã xong (lát, commit, test so nền, gộp chưa) · §3 Chưa xong / bị chặn + lý do · §4 Cần Anh quyết · §5 Anh kiểm gì lúc 6h (cổng A nào, DEMO cổng nào, phiếu nào) · §6 Số liệu (giờ chạy từng khối, số worker cao nhất, Claude/Codex, model, vòng review, `/usage` nếu có). Cập nhật dòng Trạng thái của CD-005…CD-008.
-**Trạng thái:** ĐÃ NHẬN 22:25 25/10 — chạy đêm từ 22:55 (Claude chạm hạn mức 22:30–22:55, ghi trong báo cáo §6).
+**Trạng thái:** XONG 26/10 05:36 — báo cáo `docs\46-chuyen-doi-dieu-phoi\bao-cao-ngay\BAO-CAO-DEM-20261026.md`; DEMO cổng 8798; phiếu cổng A lần 2 `PHIEU-CONG-A-BAO-GIA-LAN-2.md`; 7 việc Cần Anh ở §4.

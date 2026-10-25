@@ -277,3 +277,5 @@ H3 phân loại 36 đầu việc: 19 gói đã nhập `hop-nhat`, 13 xung đột
 | DA-6 | Codex | 02:15 → 02:13* | lat/da-6 | lead thử trình duyệt: mở thẳng Dự án đang bán sau tải trang → nạp được | node dự án 44/44 | ui-dem |
 
 \* DA-6 giao 02:12, xong 02:13 (lát 2 tệp). Dòng giao diện cuối đêm `lat/ui-dem` 3ddad66 = hợp nhất d0baee2 + toàn bộ lát giao diện; DEMO 8798 khởi động lại 02:16 từ bản này. PG cả bộ trên `lat/ui-dem` đang chạy.
+
+- 05:36 **kết thúc chạy đêm CD-008.** Báo cáo: `bao-cao-ngay/BAO-CAO-DEM-20261026.md`. Hợp nhất `hop-nhat-20261023` d0baee2 (+ tài liệu lead); dòng giao diện `lat/ui-dem` 87c963c chạy DEMO 8798. Việc mở sáng 26/10: KY-DOCX sửa k10 + đổi M0036 rồi gộp cùng KY-UI; Anh kiểm cổng A lần 2; 7 việc Cần Anh (báo cáo §4).

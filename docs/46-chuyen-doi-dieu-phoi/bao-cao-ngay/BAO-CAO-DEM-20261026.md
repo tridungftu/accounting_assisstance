@@ -75,7 +75,7 @@ Lead: phiên Claude Code chính (Opus 5.5). Khung: nhận CD-008 22:25 → giao 
 
 ## §6 Số liệu
 
-- **Thời gian chạy:** 22:25 nhận CD-008; 22:30–22:55 Claude chạm hạn mức (dừng 25 phút); 22:55 → <ĐIỀN> giao/kiểm/gộp.
+- **Thời gian chạy:** 22:25 nhận CD-008; 22:30–22:55 Claude chạm hạn mức (dừng 25 phút); 22:55 → 02:45 giao/kiểm/gộp (lát cuối DA-6, T-UI41); 02:45 → 05:36 không còn việc ưu tiên, chỉ đọc hộp thư mỗi giờ (không có CD mới); 05:36 chốt báo cáo.
 - **Worker:** cao nhất 6 cùng lúc (4 Codex + 2 Claude, đúng mức CD-004).
 - **Lát Codex:** ~45 commit lát trên các nhánh `lat/*`. **Lát Claude:** 1 (KY-DOCX, Opus).
 - **Review Claude:** 10 lượt review Opus + 3 lượt kiểm nhanh Haiku. Vòng review: tối đa 2/lát.
@@ -83,8 +83,8 @@ Lead: phiên Claude Code chính (Opus 5.5). Khung: nhận CD-008 22:25 → giao 
 - **Test PostgreSQL:**
   - nền v2 2327/21/66/67 → **v3 2433/20/66/66** (hợp nhất 7e9b915, 0 mã mới);
   - node trên nhánh hợp nhất: 11 → 13 bộ đạt.
-- **Hạn mức Claude** (`/usage`, 02:05):
-  - khung 5 giờ dùng 42% (đặt lại 03:50);
+- **Hạn mức Claude** (`/usage`, 02:05 → 05:36):
+  - khung 5 giờ dùng 42% lúc 02:05 (đã đặt lại 03:50; 05:36 còn 0%);
   - khung tuần (mọi model) dùng **76%**;
-  - ngữ cảnh phiên lead dùng 70%.
+  - ngữ cảnh phiên lead dùng 70% lúc 02:05, 75% lúc 05:36.
 - **Codex:** không chạm hạn mức trong đêm.
