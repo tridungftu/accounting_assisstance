@@ -7,7 +7,7 @@ Trạng thái lát: Đang code → Chờ kiểm → Chờ Anh (cổng A/B) → S
 | Lát | Việc | Worker | Nhánh · worktree | Giao lúc | Trạng thái |
 |---|---|---|---|---|---|
 | BG-1b | CRM · Báo giá gói 1 màn hình (BG-01…05) | Claude Sonnet | `lat/bg-1b` (86d5b5b) · DEMO http://127.0.0.1:8784 | 24/10 | **Chờ Anh cổng A** — phiếu `PHIEU-CONG-A-BAO-GIA-GOI-1.md`; lead đã tự thử (lịch 4 cột, dòng tổng, Σ 90% chặn In/Chuyển); ô/dòng 9→3, nút tính 1→0 |
-| M2e | M2-00 · nút "Tải từ cổng thuế" trong M2: route mỏng + giao diện, nối `dieu_phoi`/`khach`/`nhan`; tự thử với bộ tải giả | Claude Sonnet | `lat/m2e` · DEMO 8787 | 24/10 | Đang code — bị ngắt 1 lần, đã nối lại (đã có route mỏng, đăng ký server, cấu hình; còn giao diện, test) |
+| M2e | M2-00 · nút "Tải từ cổng thuế" trong M2: route mỏng + giao diện, nối `dieu_phoi`/`khach`/`nhan`; tự thử với bộ tải giả | Claude Sonnet | `lat/m2e` · DEMO 8787 | 24/10 | Chờ kiểm — 7 tệp; 32 test HTTP + giao diện S0–S6 đạt; luồng §3 đủ trên DEMO với bộ tải giả (không gọi cổng thật); review Codex vòng 1 đang chạy |
 
 ## Lát đã xong (24/10)
 
