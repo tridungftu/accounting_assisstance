@@ -1,0 +1,16 @@
+# L0-8 vòng 2 — sửa 5 Chặn + 1 Nên sửa của review (bộ chạy test PostgreSQL `--pg-demo`)
+
+Bạn là worker Codex, chạy không tương tác. Lead giao: **làm ngay, không hỏi lại**. Đọc `AGENTS.md`. UTF-8 không BOM. Worktree hiện tại, nhánh `lat/l0-8` (đầu `2a0af6c`). Sandbox không ghi `.git`: **không commit**. **Không nối CSDL, không chạy `--pg-demo` thật** — kiểm bằng test thuần/mock. Python: `& "$env:USERPROFILE\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe"`.
+
+**Đầu vào:** review vòng 1 (nguyên văn) `C:\Users\Admin\AppData\Local\Temp\claude\D--Claude-Phan-mem-ho-tro-ke-toan-Ph-n-m-m-kho-tri-th-c\c7ce96c2-538a-4331-bac6-4382c44a8688\scratchpad\bao-cao-review-l0-8.md` (R = `tools/chay_test_theo_module.py`). Quyết định Anh QD-20261025-10: chỉ tạo/xóa CSDL tạm `kho_test_*` **do chính lần chạy tạo**; không đụng CSDL khác; không lộ DSN/mật khẩu.
+
+**Việc:**
+1. **Sở hữu CSDL (Chặn #1, #2, #5):** một lớp duy nhất thực thi DROP, kiểm **đủ ba điều kiện tại chỗ**: tên khớp `^kho_test_[a-z0-9_]+$`; có trong **sổ của đúng lần chạy** (mã lần chạy ngẫu nhiên + định danh cụm nguồn host:port + ảnh chụp tên CSDL trước khi chạy), mục sổ ghi bền **trước** CREATE; tên không có trong ảnh chụp trước. **Không suy sở hữu từ chênh lệch danh sách.** Sau mỗi DROP thành công ghi bền "đã xóa" và không bao giờ dùng lại mục đó. Đường `--pg xoa` nội bộ và `--pg-demo-don-so` đi qua cùng lớp này. Tên đưa vào SQL dùng trích dẫn identifier của psycopg (`sql.Identifier`).
+2. **Bí mật (Chặn #3):** làm sạch DSN/mật khẩu/URI (`postgres://…`, `password=…`, giá trị mật khẩu thật đọc từ tệp kết nối) **trước mọi lần ghi hoặc in** — nhật ký từng module, stdout/stderr test con, traceback, JSON kết quả, console. Quét cuối giữ làm lưới an toàn, không phải cơ chế chính. Test mock: mật khẩu giả lọt vào traceback/stdout con → không xuất hiện ở bất kỳ tệp/console nào.
+3. **`.pth` (Chặn #4):** probe lỗi (mã thoát ≠ 0) hoặc stdout rỗng → dừng với lỗi rõ; đường dẫn sau `resolve()` phải nằm trong thư mục nhật ký của lần chạy trước khi ghi.
+4. **Test có sẵn (Nên sửa #6):** `tests/test_ket_noi.py:139`, `tests/test_pg_schema.py:64,215` đang `DROP DATABASE … WITH (FORCE)` và `DROP ROLE` — khi chạy dưới `--pg-demo`, đổi sang dùng CSDL do bộ chạy cấp (biến môi trường) hoặc bỏ `FORCE`; `DROP ROLE` chỉ cho vai trò test tự tạo trong chính test (tên `ktt_test_*`) — nếu không chứng minh được thì skip ca đó dưới `--pg-demo`, ghi rõ lý do.
+5. Test thuần mới `tests/test_chay_test_pg_demo.py` (mock psycopg/subprocess): CSDL `kho_test_*` do tiến trình khác tạo giữa chừng **không bị xóa**; chết sau CREATE trước khi ghi "đã xóa" → `--pg-demo-don-so` xóa đúng một lần; sổ khác cụm bị từ chối; mật khẩu giả không lọt; probe rỗng → dừng, không ghi `.pth`.
+
+**File được sửa/tạo (chỉ):** `tools/chay_test_theo_module.py`, `tests/test_ket_noi.py`, `tests/test_pg_schema.py`, `tests/test_chay_test_pg_demo.py` (mới), `docs/46-chuyen-doi-dieu-phoi/NEN-TEST-PG.md` (cập nhật mô tả an toàn). Không xóa file, không dữ liệu thật.
+**Test phải đạt:** `test_chay_test_pg_demo` + `test_ket_noi` + `test_pg_schema` (không có PG thì skip như cũ) + chạy bộ chạy **không** `--pg-demo` cho 3 module bất kỳ: kết quả giống hệt trước.
+**Báo cáo cuối (≤ ½ trang):** từng điểm 1–5 sửa ở file:dòng nào, ca test nào · file đã sửa · thông điệp commit `[L0-8] vòng 2: …`.

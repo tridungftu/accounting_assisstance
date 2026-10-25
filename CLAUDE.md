@@ -6,15 +6,18 @@
 
 ## 1. Ai làm gì (Anh chốt 23–24/10/2026)
 
-- **Lead = phiên Claude Code chính trên máy Anh, model Opus.** Codex Root đã dừng hẳn từ 24/10; Codex là worker (qua `codex exec`) và reviewer chéo khi lead gọi. **Lệnh Anh 25/10 (QD-20261025-16, -21): chia tối đa việc cho Codex** — mọi việc lập trình (kể cả migration, sửa test, script, review chéo code Claude) giao Codex theo lát nhỏ ≤ 3–5 file; lead chỉ giữ git/gộp, chạy PostgreSQL/DEMO, thử trình duyệt và cổng kiểm soát (diff đúng file, chữ Việt không bị ghi thành `?`, tự chạy test so nền); Claude chỉ review lát rủi ro cao (tiền, quyền, xóa dữ liệu).
-- Worker Claude: subagent `worker-lat-man-hinh` (Sonnet, worktree riêng). Kiểm nhanh: `kiem-nhanh` (Haiku, chỉ đọc). Lead tự chọn từng lát giao Claude hay Codex. Tối đa 3 worker cùng lúc.
+- **Lead = phiên Claude Code chính trên máy Anh, model Opus.** Codex Root đã dừng hẳn từ 24/10; Codex là worker (qua `codex exec`) và reviewer chéo khi lead gọi. **Lệnh Anh 25/10 (QD-20261025-16, -21): chia tối đa việc cho Codex** — mọi việc lập trình (kể cả migration, sửa test, script, review chéo code Claude) giao Codex theo lát nhỏ ≤ 3–5 file; lead chỉ giữ git/gộp, chạy PostgreSQL/DEMO, thử trình duyệt và cổng kiểm soát (diff đúng file, chữ Việt không bị ghi thành `?`, tự chạy test so nền); **Lệnh Anh 25/10 19:15 (CD-004): Claude thiên về review** — mọi lát Codex qua `kiem-nhanh` (Haiku) rồi `review-lat` (Opus) trước khi gộp.
+- Worker Claude: subagent `worker-lat-man-hinh` (Sonnet, worktree riêng). Kiểm nhanh: `kiem-nhanh` (Haiku, chỉ đọc). Reviewer: `review-lat` (Opus, chỉ đọc). Lead tự chọn từng lát giao Claude hay Codex. **Từ 26/10 (CD-004): tối đa 6 worker = 2 suất Claude (ưu tiên review/lát rủi ro cao) + 4 Codex; lát Codex nhỏ ≤ 3 file sửa; tăng Codex quá 4 chỉ khi Anh duyệt.**
 - **Lệnh của Anh 24/10/2026:** lead phân công Claude và Codex cho **tất cả các module** có thiết kế đã chốt trong hàng đợi (`HANG-DOI-YEU-CAU.md`, `THIET-KE-MODULE-DE-CHOT-2026-10-20\HANG-CHO-CODE.md`) — gồm #42 Báo giá (TL 45), #40 M2-00, #41 E1-MUA, phần còn lại của M4 · Nghiệm thu & chi phí dự án và CRM. M9 vẫn dừng. Module/đầu việc chưa chốt thiết kế: lead soạn checklist ngắn từ tài liệu thiết kế, hỏi Anh bằng bảng chọn trước khi code.
+
+- **Hộp thư chỉ đạo của Anh (25/10):** `docs\46-chuyen-doi-dieu-phoi\CHI-DAO-TU-ANH.md`. Phiên điều phối của Anh trên claude.ai ghi quyết định Anh đã chốt vào đây (mã `CD-NNN`, có căn cứ). Lead đọc file này trước khi giao mỗi lát mới và mỗi khi một lát đổi trạng thái; làm các mục `MỚI`, cập nhật dòng Trạng thái (`ĐÃ NHẬN` / `XONG` / `CẦN ANH XÁC NHẬN`). Ràng buộc cứng mục 2 luôn thắng.
 
 ## 2. Ràng buộc cứng
 
 - **Không xóa file**; cần bỏ thì chuyển vào `D:\Claude\Phan mem ho tro ke toan\LUU-TRU\`. Không `git clean`, `git reset --hard`, `push --force`.
 - Kho thật `var\plhn-that`, `var\web-that`, `cau_hinh.that.toml`: không đọc/sửa qua công cụ; kho thật vẫn SQLite. Không đọc `.env`.
-- M9 · Vốn vay & đầu tư tài chính dừng. Không bật cloud, không nhập Junsky, không gọi cổng thuế thật, không Request thật, không Word COM (xuất DOCX; PDF tạm xuất tay).
+- M9 · Vốn vay & đầu tư tài chính dừng. Không nhập Junsky, không gọi cổng thuế thật, không Request thật, không Word COM (xuất DOCX; PDF tạm xuất tay).
+- **Cổng AI (Anh chốt 25/10, TL 48 — `..\48-cong-ai-local-luon-co-cloud-qua-mask-v2.md`):** mọi lượt gọi AI qua một cổng; **luôn có đường Local AI** (máy AI qua LAN/Tailscale, kiểm tra địa chỉ như Mask v2) và phần mềm chạy đủ chỉ với Local AI; **Cloud được mở nhưng bắt buộc qua Mask file v2** (`D:\GPT\Phan mem Mask file\Mask file v2`) và kiểm còn sót định danh — còn sót thì không gửi; **không che số tiền/ngày**. Không code nào gọi `api.anthropic.com`/`api.openai.com` trực tiếp; đường Cloud trực tiếp của engine #6 (`AnDanh`) tạm khóa tới khi xong lát AI-3.
 - Dữ liệu thử chỉ DEMO; không đưa dữ liệu thật vào `tests\fixtures`.
 - **Không khởi động/dừng PostgreSQL DEMO hay server DEMO trong sandbox Codex** (`codex exec`): Codex tự cập nhật sẽ giết mọi tiến trình con trong sandbox — đã làm sập cụm 5432 hai lần (23/10, 25/10; `docs\46-chuyen-doi-dieu-phoi\SU-CO-POSTGRES-DEMO.md`). Chỉ lead khởi động, ngoài sandbox; Codex chỉ chạy test thuần/mock.
 

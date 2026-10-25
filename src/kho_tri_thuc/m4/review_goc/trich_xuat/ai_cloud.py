@@ -17,7 +17,7 @@ import threading
 
 from .ai_local import JSON_NHAC, SYSTEM, AILoi, DaDung, parse_json
 from .cau_hinh import CLOUD_MODEL_MAC_DINH, doc_khoa
-from .cloud import AnDanh, CloudLoi, goi_api
+from .cloud import CLOUD_TAM_KHOA, AnDanh, CloudLoi, goi_api
 
 TEN = "Claude (che định danh)"
 NHAC_CHE = ("\n\nMột số thông tin định danh đã được thay bằng nhãn trong ngoặc vuông như [BEN_A], [CONG_TY_1], [SO_HD_1] "
@@ -44,6 +44,9 @@ class MayCloud:
 
     # ---------------------------------------------------------------- tương thích MayAI
     def models(self, timeout=8):
+        # AI-0 25/10/2026 (TL 48): nguồn Cloud không khả dụng, không đọc khóa.
+        raise AILoi(CLOUD_TAM_KHOA)
+
         if not doc_khoa(self.ncc):
             raise AILoi(f"Chưa có API key {self.ncc} — vào Cài đặt → Kiểm tra chéo cloud để nhập")
         return [self.model]
@@ -81,6 +84,8 @@ class MayCloud:
 
     def _goi(self, prompt):
         """Gọi API trong luồng phụ để nút Dừng có hiệu lực ngay."""
+        raise AILoi(CLOUD_TAM_KHOA)
+
         kq = {}
 
         def chay():
@@ -102,6 +107,9 @@ class MayCloud:
 
     def chat_json(self, prompt, schema, key, num_ctx=None, what="AI"):
         """Trả (data đã mở che, token_vào, token_ra). Còn định danh sau khi che → AILoi (không gửi)."""
+        # Chặn trước cả đọc khóa/che/ghi file; hoi_trich cũng đi qua điểm này.
+        raise AILoi(CLOUD_TAM_KHOA)
+
         if self.dung is not None and self.dung.is_set():
             raise DaDung()
         self._khoa = self._khoa or doc_khoa(self.ncc)

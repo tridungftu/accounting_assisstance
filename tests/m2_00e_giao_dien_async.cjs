@@ -33,6 +33,8 @@ function moiTruong() {
     get id() { return this._id; }
     set id(v) { this._id = v; if (!reg.has(v)) reg.set(v, []); reg.get(v).push(this); if (!taoTinh) dongId.add(v); }
     get isConnected() { let e = this; while (e) { if (e === body) return true; e = e.parent; } return false; }
+    get parentNode() { return this.parent; }
+    set innerHTML(_) { throw new Error("Không chèn HTML từ dữ liệu máy chủ"); }
     get className() { return [...this._cls].join(" "); }
     set className(v) { this._cls = new Set(String(v || "").split(/\s+/).filter(Boolean)); }
     get classList() { const s = this; return {add: (...c) => c.forEach(x => s._cls.add(x)), remove: (...c) => c.forEach(x => s._cls.delete(x)),
@@ -194,6 +196,8 @@ async function main() {
   assert.strictEqual(lamMoi.length, 0);
   nh.resolve(phanHoi(200, NHAN_OK)); await chay();
   assert.ok(ketQua().includes("Đã nhận vào M2: mới 5 · đổi trạng thái 2 · không mã 1 · lỗi 0"), "S2: thiếu dòng kết quả nhận: " + ketQua());
+  assert.ok(nut($("m2-tct-ket-qua"), "Xem hóa đơn mới"));
+  assert.strictEqual($("m2-loc").dataset.run, HANDLE, "M2j: lưu đúng lần tải sau khi nhận");
   assert.strictEqual(lamMoi.length, 1, "S2: sau khi nhận phải làm mới danh sách hóa đơn M2");
   assert.ok(!$("m2-tct-bat-dau").disabled, "S2: nút tải phải mở lại sau khi xong");
   // mở thư mục / xem manifest / xem hóa đơn
@@ -203,11 +207,14 @@ async function main() {
   mo.resolve(phanHoi(200, {da_mo: true})); await chay();
   nut($("m2-tct-ket-qua"), "Xem manifest Mua vào 2026-09").click(); await chay();
   cho(get(`${API}/manifest?run=${HANDLE}&run_rel=${encodeURIComponent(RUN_REL)}`), "S2 GET manifest").resolve(phanHoi(200, {run_rel: RUN_REL, nguon: "TAI_MOI", ky: "2026-09",
-    chieu: "purchase", trang_thai: "COMPLETE", tong: {tong_hd: 8, xml_ok: 7, khong_xml_goc: 1, xml_loi: 0, pdf_loi: 0, bang_ke_trang_thai: "OK"},
+    chieu: "purchase", trang_thai: "COMPLETE", so_tep: 9, khoang_ngay: {tu: "01/09/2026", den: "30/09/2026"}, tong: {tong_hd: 8, xml_ok: 7, khong_xml_goc: 1, xml_loi: 0, pdf_loi: 0, bang_ke_trang_thai: "OK"},
     dang_nhap: {captcha_da_go: {trang_thai: "UNKNOWN", gia_tri: null}, token_tai_su_dung: {trang_thai: "UNKNOWN", gia_tri: null}, thoi_gian_cho_dang_nhap_giay: {trang_thai: "UNKNOWN", gia_tri: null}},
-    nhom: [], loi_chung: []})); await chay();
-  assert.ok(ketQua().includes("Manifest Mua vào 2026-09 — COMPLETE (tải mới)") && ketQua().includes("chưa đo"), "S2: thiếu bảng manifest: " + ketQua());
-  nut($("m2-tct-ket-qua"), "Xem hóa đơn của kỳ").click();
+    nhom: [{thu_tu: 1, scope: "<img src=x onerror=alert(1)>", ttxly: 5, loi: {code: "DEMO_LIST_FAILED", http_status: 403}}], loi_chung: []})); await chay();
+  assert.ok(ketQua().includes("Manifest Mua vào 2026-09 — Hoàn tất (tải mới)") && ketQua().includes("chưa đo"), "S2: thiếu bảng manifest: " + ketQua());
+  assert.ok(ketQua().includes("<img src=x onerror=alert(1)>") && ketQua().includes("DEMO_LIST_FAILED"), "M2j: lỗi manifest hiển thị dạng văn bản");
+  assert.ok(ketQua().includes("Số tệp dữ liệu: 9") && ketQua().includes("01/09/2026 – 30/09/2026"));
+  nut($("m2-tct-ket-qua"), "Xem hóa đơn mới").click();
+  assert.strictEqual($("m2-loc").dataset.chonLanTai, "1");
   assert.deepStrictEqual([$("m2-loc-pn").value, $("m2-loc-ky").value, loc.length], ["DEMO_A", "2026-09", 1], "S2: chuyển sang danh sách hóa đơn của kỳ");
   // lần tải sau: khóa MỚI
   $("m2-tct-form").dispatch("submit"); await chay();
@@ -337,10 +344,46 @@ async function main() {
     console.log("S6 đạt");
   }
 
+  await kiemBoLocM2j();
   await chay(4);
   assert.deepStrictEqual(loiNgoai.map(String), [], "có promise bị từ chối không xử lý");
   console.log("m2_00e_giao_dien_async: TẤT CẢ ĐẠT");
   process.exit(0);
+}
+
+async function kiemBoLocM2j() {
+  // Chạy nguyên khối danh sách M2 thật cùng DOM giả, không thay loader/bộ lọc.
+  const app = fs.readFileSync(path.join(ROOT, "src/kho_tri_thuc/giao_dien/assets/app.js"), "utf8");
+  const khoi = app.slice(app.indexOf('  pages.hoadonmua ='), app.indexOf('  // ---------------------------------------------------------------- L11 liên kết'));
+  const {ctx, document, calls} = moiTruong(), $ = id => document.getElementById(id);
+  Object.assign(ctx, {$, node: ctx.kttChung.node, pages: {}, URLSearchParams, vaiDangChan: () => ctx.kttChung._chan,
+    request: (url, opts) => ctx.fetch(url, opts), empty: ctx.kttChung.empty, toast() {}});
+  vm.runInContext(khoi + '\nthis.xoaM2j = m2XoaTrangThai;', ctx);
+  const loc = $("m2-loc-lan-tai");
+  assert.ok(loc.disabled && loc.value === "", "M2j: chưa có lần tải không bật bộ lọc");
+  $("m2-loc").dataset.run = HANDLE;
+  $("m2-refresh").click(); await chay();
+  assert.strictEqual(loc.children[1].textContent, "Mới từ lần tải này");
+  assert.ok(!loc.disabled && loc.value === "", "M2j: có thể chọn lần tải gần nhất");
+  $("m2-loc-pn").value = "DEMO_A"; $("m2-loc-ky").value = "2026-09";
+  $("m2-loc").dataset.chonLanTai = "1"; $("m2-loc").click(); await chay();
+  assert.strictEqual(loc.value, HANDLE);
+  let q = new URL(calls.at(-1).url, "http://demo");
+  assert.strictEqual(q.pathname, API + "/hoa-don");
+  assert.deepStrictEqual([...q.searchParams], [["phap_nhan", "DEMO_A"], ["ky", "2026-09"], ["run", HANDLE]]);
+  const cu = calls.at(-1);
+  loc.value = ""; loc.dispatch("change"); await chay();
+  q = new URL(calls.at(-1).url, "http://demo");
+  assert.strictEqual(q.pathname, "/api/m2"); assert.ok(!q.searchParams.has("run"));
+  cu.resolve(phanHoi(200, {cau_hinh: false, ly_do: "<img src=x onerror=alert(1)>"})); await chay();
+  assert.ok(!$("m2-hoa-don").textContent.includes("<img"), "M2j: phản hồi lọc cũ không đè bỏ lọc");
+  calls.at(-1).resolve(phanHoi(200, {cau_hinh: false, ly_do: "<img src=x onerror=alert(1)>"})); await chay();
+  assert.strictEqual($("m2-nguoi").textContent, "<img src=x onerror=alert(1)>");
+  $("m2-loc").dataset.chonLanTai = "1"; $("m2-loc").click(); await chay();
+  assert.strictEqual(loc.value, HANDLE, "M2j: xem lại lần tải sau bỏ lọc");
+  ctx.kttChung._chan = true; ctx.xoaM2j();
+  assert.ok(loc.disabled && loc.value === "" && !$("m2-loc").dataset.run, "M2j: đổi vai xóa lần tải đồng bộ");
+  console.log("M2j bộ lọc, bỏ lọc, phản hồi trễ, DOM an toàn: đạt");
 }
 
 main().catch(e => { console.error(e && e.stack || e); process.exit(1); });

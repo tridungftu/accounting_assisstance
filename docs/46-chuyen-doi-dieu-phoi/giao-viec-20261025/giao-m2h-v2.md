@@ -1,0 +1,14 @@
+# M2h vòng 2 — sửa theo review Claude ("Tải tất cả công ty")
+
+Bạn là worker Codex, chạy không tương tác. Lead giao: **làm ngay, không hỏi lại**. Đọc `AGENTS.md`, `CLAUDE.md` (đặc biệt §2: **không** khởi động PostgreSQL/server DEMO trong sandbox). UTF-8 không BOM. Worktree hiện tại, nhánh `lat/m2h` (commit `9fc91fb`). Sandbox không ghi `.git`: **không commit**. Chạy: `node tests/m2_tai_tat_ca.cjs`, Python `& "$env:USERPROFILE\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe" -X utf8 tools/chay_test_theo_module.py . --module test_m2_tai_tat_ca`.
+
+**Review vòng 1 (tóm tắt):**
+1. **Chặn** `giao_dien/m2_tai_hoa_don.py:227-258`: vòng chờ job **không có hạn** (không áp `cho_moi_job_s` như `chay_hang_doi` cũ); job RUNNING/UNKNOWN mãi → kẹt vĩnh viễn; nhánh `except Exception` (dòng ~254) `return` mà `q["dang_chay"]` vẫn True (lỗi psycopg trong `status()`/`_guard` rơi vào đây) → mọi tải lẻ và tải tất cả bị 409 tới khi khởi động lại máy chủ. **Sửa:** áp hạn theo `cho_moi_job_s` — quá hạn → dòng đó "Lỗi: Quá hạn chờ", gọi dừng bộ tải (`self.stop()` hoặc tương đương đã có) rồi sang pháp nhân sau / mở khóa; nhánh Exception cũng dừng bộ tải và **luôn** đặt `dang_chay=False` (dùng `finally`); thêm route **hủy hàng đợi** cho đúng người đã tạo hàng đợi (người khác → 403), hủy = dừng job đang chạy + các dòng "Chờ" thành "Đã hủy".
+2. **Nên sửa** `:181`: cờ `_dang_chay` chỉ xóa khi có người gọi `status` → tải lẻ xong mà đóng tab thì "Tải tất cả" bị 409 dù bộ tải rảnh. Sửa: trước khi từ chối, hỏi lại trạng thái thật của bộ tải (gọi `status` cho run đang giữ cờ, hoặc RPC config `running`) rồi mới quyết.
+3. **Nên sửa** `:202-212`, `:643`: `trang_thai_hang_doi` gọi `profiles()` (quét DB + RPC 15 giây) **trong** `_khoa_hang_doi`, mỗi 1,5 giây/client. Sửa: chụp danh sách dưới khóa, kiểm quyền/gọi `profiles` ngoài khóa; dùng chung kết quả `profiles` với `_trang_thai`.
+4. **Để sau nhưng làm luôn (nhỏ)** `assets/m2_tai_hoa_don.js:278-292`: `theoDoiHangDoi` dừng/giãn nhịp khi gặp 400/404/503 (không poll vô hạn); nút **Hủy** hiện khi hàng đợi của mình đang chạy; trước khi chạy hiện hộp xác nhận "Tải N công ty · <kỳ> · <chiều>?".
+5. Test thêm: job treo quá hạn → Lỗi "Quá hạn chờ" + pháp nhân sau vẫn chạy + khóa được mở; ngoại lệ không phải DataError → khóa mở; hủy hàng đợi (chủ được, người khác 403); `_dang_chay` cũ khi bộ tải đã rảnh → không 409; JS: poll dừng khi 503, nút Hủy, hộp xác nhận.
+
+**File được sửa (chỉ):** `src/kho_tri_thuc/giao_dien/m2_tai_hoa_don.py`, `src/kho_tri_thuc/giao_dien/assets/m2_tai_hoa_don.js`, `tests/test_m2_tai_tat_ca.py`, `tests/m2_tai_tat_ca.cjs`. Không gọi cổng thuế thật, không mạng, không `.env`, không xóa file.
+**Test phải đạt:** `node tests/m2_tai_tat_ca.cjs`, node test M2e hiện có, `--module test_m2_tai_tat_ca` (lead chạy `test_m2*` đầy đủ sau).
+**Báo cáo cuối (≤ ½ trang):** từng điểm 1–5 sửa ở file:dòng, ca test · file đã sửa · thông điệp commit `[M2h] vòng 2: …`.
