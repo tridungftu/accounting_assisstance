@@ -15,12 +15,13 @@ Trình duyệt không gửi actor/pháp nhân/trạng thái/kết quả; lỗi n
 from __future__ import annotations
 
 import json
+import re
 from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal
 from fractions import Fraction
 
 from ..ha_tang.primitives import DataError
-from .crm_giao_ket import RE_SO, _frac_str, _ngay_vn, _so_vn
+from .crm_giao_ket import RE_SO, _frac_str, _ngay_vn, _so_vn, danh_muc_moc_chuan
 from .crm_mau import GIAI_DOAN_RE, CrmMauK2, _h, _khoa, _ngay, _uuid, _v
 from .sql_crm_du_an_ban import CAN_CU_G7
 
@@ -38,7 +39,10 @@ TRANG_THAI_DA = {"DANG_BAN": "Đang bán", "NGUNG_BAN": "Ngừng bán", "CHUA_BA
                  "CHUA_CO_PHIEN_BAN": "Chưa bán vào ngày này"}
 NGUON_G7 = {"AP_DUNG_NGAY": "Bán hàng áp dụng ngay (" + CAN_CU_G7 + ")", "CFO_DUYET": "CFO đã duyệt"}
 HANH_DONG = {"CRM_DA_BAT_BAN": "Bật bán", "CRM_DA_CAP_NHAT": "Sửa thông tin", "CRM_DA_PHI": "Sửa phí tiêu chuẩn", "CRM_DA_LO": "Cập nhật lô/căn",
-             "CRM_DA_NGUNG_BAN": "Ngừng bán", "CRM_DA_MO_BAN_LAI": "Mở bán lại", "CRM_CHUAN_AP_DUNG": "Áp dụng tiến độ thanh toán tiêu chuẩn"}
+             "CRM_DA_NGUNG_BAN": "Ngừng bán", "CRM_DA_MO_BAN_LAI": "Mở bán lại", "CRM_CHUAN_AP_DUNG": "Áp dụng tiến độ thanh toán tiêu chuẩn",
+             "CRM_DA_MOC_KHAI": "Khai mốc", "CRM_DA_MOC_CHINH_DU_KIEN": "Chỉnh ngày dự kiến",
+             "CRM_DA_MOC_THUC_TE": "Ghi ngày thực tế", "CRM_DA_MOC_SUA": "Sửa mốc"}
+TRANG_THAI_MOC = {"DA_XONG": "Đã xong", "CHUA_DEN": "Chưa đến ngày dự kiến", "QUA_DU_KIEN": "Quá ngày dự kiến — cần chỉnh ngày"}
 TOI_DA_PHI, TOI_DA_LO = 50, 500
 
 
@@ -187,6 +191,50 @@ def chuan_hoa_lo(v, truong: str = "lo") -> list[dict]:
     return out
 
 
+def chuan_hoa_moc(v) -> dict:
+    """Giữ trường vắng mặt khi sửa; null tường minh cho phép bỏ tên tắt/ngày thực tế."""
+    if not isinstance(v, dict):
+        _loi("CRM_DA_MOC_SAI", "Cần thông tin mốc.", "moc")
+    la = sorted(set(v) - {"moc_id", "expected_lan", "ten", "ten_tat", "ngay_du_kien", "ngay_thuc_te", "dang_dung"})
+    if la:
+        _loi("CRM_DA_MOC_SAI", "Mốc có trường ngoài phạm vi.", "moc." + la[0])
+    out = dict(v)
+    for k, nhan, dai in (("ten", "tên mốc", 120), ("ten_tat", "tên tắt", 20)):
+        if k in v:
+            out[k] = _chuoi(v[k], nhan, dai, "moc." + k)
+    moi = v.get("moc_id") is None
+    if (moi or "ten" in v) and not out.get("ten"):
+        _loi("CRM_DA_MOC_SAI", "Cần nhập tên mốc.", "moc.ten")
+    if not moi:
+        out["moc_id"] = _uuid_t(v["moc_id"], "mốc", "moc.moc_id")
+        out["expected_lan"] = _so_nguyen(v.get("expected_lan"), "lần mong đợi", "moc.expected_lan")
+    elif "expected_lan" in v:
+        out["expected_lan"] = _so_nguyen(v["expected_lan"], "lần mong đợi", "moc.expected_lan", bat_buoc=False)
+    if "dang_dung" in v and type(v["dang_dung"]) is not bool:
+        _loi("CRM_DA_MOC_SAI", "Đang dùng phải là giá trị có/không.", "moc.dang_dung")
+    for k in ("ngay_du_kien", "ngay_thuc_te"):
+        if k not in v:
+            continue
+        x = v[k]
+        if x is None or x == "":
+            out[k] = None
+            continue
+        try:
+            if not isinstance(x, str):
+                raise ValueError
+            if re.fullmatch(r"[0-9]{2}/[0-9]{2}/[0-9]{4}", x):
+                out[k] = datetime.strptime(x, "%d/%m/%Y").date().isoformat()
+            elif re.fullmatch(r"[0-9]{4}-[0-9]{2}-[0-9]{2}", x):
+                out[k] = date.fromisoformat(x).isoformat()
+            else:
+                raise ValueError
+        except ValueError:
+            _loi("CRM_DA_MOC_NGAY_SAI", "Ngày không hợp lệ; nhập ngày/tháng/năm.", "moc." + k)
+    if (moi or "ngay_du_kien" in v) and not out.get("ngay_du_kien"):
+        _loi("CRM_DA_MOC_SAI", "Cần nhập ngày dự kiến.", "moc.ngay_du_kien")
+    return out
+
+
 def _ly_do(v, *, bat_buoc: bool = False):
     ly = _chuoi(v, "lý do", 1000, "ly_do", nhieu_dong=True)
     if bat_buoc and not ly:
@@ -261,6 +309,39 @@ class CrmDuAnBanK2:
         return self.mau.hom_nay().isoformat()
 
     # ------------------------------------------------------------------ đọc
+    def moc_ds(self, dang_nhap, du_an_id) -> dict:
+        m, dt = self.mau, self.mau.danh_tinh(dang_nhap)
+        da, ngay = _uuid_t(du_an_id, "dự án", "du_an_id"), self._hom_nay()
+        with m._tx(dt, rr=True) as c:
+            rows = _v(dict(c.execute("SELECT master.crm_da_moc_doc(%s::uuid, %s::date) AS r", (da, ngay)).fetchone()))["r"]
+        ds = [{**r, "ngay_du_kien_hien_thi": _ngay_vn(r.get("ngay_du_kien")),
+               "ngay_thuc_te_hien_thi": _ngay_vn(r.get("ngay_thuc_te")),
+               "trang_thai_hien_thi": TRANG_THAI_MOC.get(r["trang_thai"]), "viec_cho": r["trang_thai"] == "QUA_DU_KIEN"} for r in rows]
+        return {"du_an_id": da, "moc": ds, "so_viec_cho": sum(r["viec_cho"] for r in ds)}
+
+    def moc_lich_su(self, dang_nhap, moc_id) -> dict:
+        m, dt = self.mau, self.mau.danh_tinh(dang_nhap)
+        mid = _uuid_t(moc_id, "mốc", "moc_id")
+        with m._tx(dt, rr=True) as c:
+            r = _v(dict(c.execute("SELECT master.crm_da_moc_ls_doc(%s::uuid) AS r", (mid,)).fetchone()))["r"]
+        def ht(x):
+            return {**x, **{k + "_hien_thi": _ngay_vn(x.get(k)) for k in
+                           ("ngay_du_kien", "ngay_thuc_te", "hieu_luc_tu", "hieu_luc_den", "tao_luc")}}
+        return {**r, "lich_su": [ht(x) for x in r["lich_su"]], "nhat_ky": [
+            {**x, "hanh_dong_hien_thi": HANH_DONG.get(x["hanh_dong"], "Thao tác khác"), "luc_hien_thi": _ngay_vn(x.get("luc")),
+             "truoc_hien_thi": ht(x["truoc"]) if x.get("truoc") else None,
+             "sau_hien_thi": ht(x["sau"]) if x.get("sau") else None} for x in r["nhat_ky"]]}
+
+    def danh_muc_moc(self, dang_nhap, du_an_id=None) -> dict:
+        dm = danh_muc_moc_chuan()
+        if du_an_id is None:
+            return dm
+        for r in self.moc_ds(dang_nhap, du_an_id)["moc"]:
+            dm["moc"].append({"ma": r["ma"], "nhan": r["ten"], "ten_tat": r.get("ten_tat"),
+                              "du_kien": r["ngay_du_kien"], "thuc_te": r.get("ngay_thuc_te"), "rieng": True})
+            dm["moc_tham_so"].append({"mau_ma": r["ma"] + "_<n>", "nhan": r["ten"] + " + n ngày", "tham_so": "n", "toi_thieu": 1})
+        return dm
+
     @staticmethod
     def anh_chup_trong(c, du_an_id: str, ngay: str) -> dict:
         """Ảnh chụp mặc định gọi TRONG giao dịch đang mở của người gọi (kết nối chủ bảng có GUC danh tính phiên — vd lệnh Lưu báo giá DA-3):
@@ -424,6 +505,15 @@ class CrmDuAnBanK2:
         return self.mau._lenh(dt, "SELECT master.crm_da_lo_ghi(%s, %s, %s::uuid, %s::jsonb, %s) AS r",
                               (khoa, h, da, json.dumps(gui, ensure_ascii=False), ly))
 
+    def moc_ghi(self, dang_nhap, *, da_ban_id, moc, ly_do=None, khoa) -> dict:
+        dt = self.mau.danh_tinh(dang_nhap)
+        da, nd, ly, khoa = _uuid_t(da_ban_id, "dự án đang bán", "da_ban_id"), chuan_hoa_moc(moc), _ly_do(ly_do), _khoa(khoa)
+        if nd.get("ngay_thuc_te") and nd["ngay_thuc_te"] > self._hom_nay():
+            _loi("CRM_DA_MOC_NGAY_SAI", "Ngày thực tế không được sau hôm nay.", "moc.ngay_thuc_te")
+        h = _h("CRM_DA_MOC", {"da_ban_id": da, "moc": nd, "ly_do": ly})
+        return self.mau._lenh(dt, "SELECT master.crm_da_moc_ghi(%s, %s, %s::uuid, %s::jsonb, %s) AS r",
+                              (khoa, h, da, json.dumps(nd, ensure_ascii=False), ly))
+
     def _doi_trang_thai(self, dang_nhap, hanh: str, dang_ban: bool, da_ban_id, expected_phien_ban, ly_do, khoa) -> dict:
         dt = self.mau.danh_tinh(dang_nhap)
         da, n = _uuid(da_ban_id, "da_ban_id"), _so_nguyen(expected_phien_ban, "phiên bản mong đợi", "expected_phien_ban")
@@ -458,6 +548,7 @@ class CrmDuAnBanK2:
 # ================================================================================================== seed DEMO (chủ CSDL; qua CHÍNH hàm lệnh)
 SEED_NGUOI = "MO_PHONG_BAN_HANG"  # bán hàng DEMO có module CRM trên cả hai pháp nhân DEMO (crm_demo.NGUOI_DUNG)
 SEED_KHOA = "seed-du-an-ban-v1"
+SEED_MOC_KHOA = "seed-du-an-moc-v1"
 _G7_DEMO = ("lan", "gia_tri_loai", "gia_tri_thap_phan", "moc_loai", "moc_su_kien", "ghi_chu")
 SEED_DU_AN = (
     {"phap_nhan": "PN_DEMO_A", "du_an": "DA_KCN_DEMO", "loai_hinh": "DT-KCN-THUE-DAT-DEMO",
@@ -486,10 +577,31 @@ def _dong_g7_demo(rows) -> list[dict]:
     return CrmMauK2._dong_g7([dict(zip(_G7_DEMO, r)) for r in rows])
 
 
+def _seed_moc_demo(c, nguoi_id, da, ma, ngay) -> bool:
+    """Khóa riêng từng mốc; biên nhận giữ nguyên ngày seed kể cả mở lại vào ngày khác."""
+    if ma != "DA_KCN_DEMO":
+        return False
+    if not c.execute("SELECT to_regclass('master.crm_da_moc') IS NOT NULL").fetchone()[0]:
+        return False  # bản schema cũ vẫn seed dự án được
+    tao = False
+    for i, (ten, tat, lech) in enumerate((("Xong chứng nhận đầu tư", "CNĐT", 30),
+                                        ("Bàn giao hạ tầng giai đoạn 1 — DEMO", None, -5)), start=1):
+        khoa = f"{SEED_MOC_KHOA}-{ma}-{i}"
+        if c.execute("""SELECT 1 FROM master.crm_g_bien_nhan WHERE nguoi_dung_id = %s::uuid
+                        AND hanh_dong = 'CRM_DA_MOC' AND khoa = %s""", (nguoi_id, khoa)).fetchone():
+            continue
+        moc = chuan_hoa_moc({"ten": ten, "ten_tat": tat, "ngay_du_kien": (date.fromisoformat(ngay) + timedelta(days=lech)).isoformat()})
+        c.execute("SELECT master.crm_da_moc_ghi(%s, %s, %s::uuid, %s::jsonb, %s)",
+                  (khoa, _h("CRM_DA_MOC", {"da_ban_id": da, "moc": moc, "ly_do": None}), da, json.dumps(moc, ensure_ascii=False), None)).fetchone()
+        tao = True
+    return tao
+
+
 def khoi_tao_demo(admin_conn, *, hom_nay: date | None = None) -> dict:
     """Seed DEMO (chủ CSDL, psycopg autocommit, tuple row) — 2 dự án đang bán DEMO + phí + lô/căn + tiến độ tiêu chuẩn áp dụng ngay, ĐI QUA CHÍNH
-    các hàm lệnh M0031 dưới danh tính bán hàng DEMO (GUC cục bộ của giao dịch), khóa idempotent cố định: mở lại → replay biên nhận, không thêm phiên
-    bản. Dự án đã được người dùng bật bán (không phải seed) → BO_QUA_DA_CO, không đè. Không raise khi chưa sẵn sàng — trả trạng thái trung thực."""
+    các hàm lệnh M0031/M0035 dưới danh tính bán hàng DEMO (GUC cục bộ của giao dịch), khóa idempotent cố định: mở lại không thêm phiên
+    bản/mốc; M0035 bổ sung hai mốc cho dự án KCN đã seed ở bản cũ, giữ nguyên ngày khai khi mở lại khác ngày.
+    Dự án đã được người dùng bật bán (không phải seed) → BO_QUA_DA_CO, không đè. Không raise khi chưa sẵn sàng — trả trạng thái trung thực."""
     kq = {"trang_thai": "CHUA_SAN_SANG", "du_an": [], "ly_do": None}
     ngay = (hom_nay or _hom_nay_vn()).isoformat()
     with admin_conn.transaction():
@@ -520,7 +632,9 @@ def khoi_tao_demo(admin_conn, *, hom_nay: date | None = None) -> dict:
                     co_bien_nhan = admin_conn.execute("""SELECT 1 FROM master.crm_g_bien_nhan WHERE nguoi_dung_id = %s::uuid AND hanh_dong = 'CRM_DA_BAT_BAN'
                                                          AND khoa = %s""", (nd[0], khoa + "-bat-ban")).fetchone()
                     if da_co:  # đã seed (biên nhận của seed, cả ba lệnh cùng một savepoint) → DU; người dùng tự bật bán → không đè
-                        kq["du_an"].append({**mot, "trang_thai": "DU" if co_bien_nhan else "BO_QUA_DA_CO", "mo_lai_khong_them": True})
+                        tao_moc = _seed_moc_demo(admin_conn, nd[0], da_co[0], ma, ngay) if co_bien_nhan else False
+                        kq["du_an"].append({**mot, "trang_thai": "DA_TAO" if tao_moc else "DU" if co_bien_nhan else "BO_QUA_DA_CO",
+                                            "mo_lai_khong_them": not tao_moc})
                         continue
                     b = admin_conn.execute("SELECT master.crm_da_bat_ban(%s, %s, %s::uuid, %s::jsonb, %s::jsonb, %s)",
                                            (khoa + "-bat-ban", _h("CRM_DA_BAT_BAN", {"du_an_id": du_an_id, "thong_tin": tt, "phi": ph, "ly_do": None}),
@@ -535,6 +649,7 @@ def khoi_tao_demo(admin_conn, *, hom_nay: date | None = None) -> dict:
                                            (khoa + "-tien-do", _h("CRM_CHUAN_AP_DUNG", {"du_an_id": du_an_id, "giai_doan": None, "dong": dong,
                                                                                      "expected_version": 0}), du_an_id,
                                             None, json.dumps(dong, ensure_ascii=False), 0)).fetchone()[0]
+                    _seed_moc_demo(admin_conn, nd[0], da, ma, ngay)
                     kq["du_an"].append({**mot, "trang_thai": "DU" if b["lap_lai"] else "DA_TAO", "phien_ban": b["ket_qua"]["phien_ban"],
                                         "so_phi": len(ph), "so_lo": len(lk["ket_qua"]["lo"]), "tien_do_phien_ban": g["ket_qua"]["phien_ban"],
                                         "mo_lai_khong_them": bool(b["lap_lai"] and lk["lap_lai"] and g["lap_lai"])})
