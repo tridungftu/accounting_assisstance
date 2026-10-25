@@ -648,6 +648,13 @@ class TomTatNhan(unittest.TestCase):
         self.assertEqual(mod.tom_tat_nhan([run, {"loi": {"ma": "X"}}]),
                          {"moi": 2, "doi_trang_thai": 2, "khong_ma": 1, "loi": 3, "khong_doi": 1, "giu_cho_tien_te": 1})
 
+    def test_ma_loi_http_va_goi_y(self):
+        for ma, st in (("M2_00B_PN_MAPPING_ABSENT", 409), ("KHONG_CO_QUYEN_PHAP_NHAN", 403), ("M2_00B_NODE_SHA_SAI", 503), ("M2_00B_KHACH_QUA_HAN", 502),
+                       ("M2_00B_RUN_KHONG_CO", 404), ("CRM_PHIEN", 400), ("MA_LA_KHONG_BIET", 400)):
+            self.assertEqual(mod.trang_thai_http(ma), st, ma)
+        self.assertIn("CFO", mod.goi_y_ma("M2_00B_PN_MAPPING_ABSENT"))
+        self.assertIsNone(mod.goi_y_ma("MA_LA_KHONG_BIET"))
+
     def test_an_toan_che_bi_mat(self):
         self.assertEqual(mod.an_toan("TAX_PASSWORD=abc mat_khau: xyz bearer ABCDEF"), "[AN] [AN] [AN]")
         self.assertEqual(mod.an_toan("Dang mo cong thue ..."), "Dang mo cong thue ...")
