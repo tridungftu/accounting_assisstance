@@ -7,7 +7,7 @@ Trạng thái lát: Đang code → Chờ kiểm → Chờ Anh (cổng A/B) → S
 | Lát | Việc | Worker | Nhánh · worktree | Giao lúc | Trạng thái |
 |---|---|---|---|---|---|
 | BG-1b | CRM · Báo giá gói 1 màn hình (BG-01…05) | Claude Sonnet | `lat/bg-1b` (86d5b5b) · DEMO http://127.0.0.1:8784 | 24/10 | **Chờ Anh cổng A** — phiếu `PHIEU-CONG-A-BAO-GIA-GOI-1.md`; lead đã tự thử (lịch 4 cột, dòng tổng, Σ 90% chặn In/Chuyển); ô/dòng 9→3, nút tính 1→0 |
-| M4-4/7 | M4 · đăng ký M0028 (master dùng chung) + M0029 (03B ghi nhận chung), chỉ append; chứng minh migrate 0→29 trên CSDL DEMO riêng | Claude Sonnet | `lat/m4-47` · DEMO 8789 | 25/10 | Đang code |
+| M4-4/7 | M4 · đăng ký M0028 (master dùng chung) + M0029 (03B ghi nhận chung), chỉ append; chứng minh migrate 0→29 trên CSDL DEMO riêng | Claude Sonnet | `lat/m4-47` · DEMO 8789 | 25/10 | Chờ kiểm — M0028/M0029 append (22 dòng), áp thật 0→29 (6,6 s) và 27→29 (2,1 s); 0 mã lỗi mới, sửa thêm 2 FAIL có sẵn ở test master; review Codex vòng 1 đang chạy |
 | M2e | M2-00 · nút "Tải từ cổng thuế" trong M2: route mỏng + giao diện, nối `dieu_phoi`/`khach`/`nhan`; tự thử với bộ tải giả | Claude Sonnet | `lat/m2e` · DEMO 8787 | 24/10 | Đang code — bị ngắt 1 lần, đã nối lại (đã có route mỏng, đăng ký server, cấu hình; còn giao diện, test) |
 
 ## Lát đã xong (24/10)
