@@ -70,7 +70,7 @@ Quy tắc áp cho mọi lát từ 25/10 (CD-001 việc 3): không lát nào vi�
 | L0-8f v2 | Codex | gpt-6.1-sol · high | 20:50 | 20:55 | kiem-nhanh Đạt; chờ L0-8e v3 (dựng trên L0-8e) | **PG: 03B 21/21 (c16 skip có chủ đích), 03A 13/13**; mock bộ chạy lead sửa (45/45); CSDL tạm 329/329 |
 | C3d | Codex | gpt-6.1-sol · high | 21:14 | 21:15 | review-lat đang chạy | Xanh — PG 24/24 + 23/23, 0 skip |
 | L0-8e v2 | Codex | gpt-6.1-sol · high | 21:02 | gộp 21:20 → **hoàn tác 21:14** (b25ff7a) | review-lat vòng 2 Đạt | **Đỏ** — hồi quy: test tự CREATE DATABASE (CRM) bị bộ chạy từ chối 'tên đã dùng' (lead kiểm thiếu nhóm này) |
-| L0-8e v3 | Codex | gpt-6.1-sol · high | 21:16 | — | — | — |
+| L0-8e v3 | Codex | gpt-6.1-sol · high | 21:16 | 21:20 | lead kiểm đủ bộ (CRM + 03A + #6 + bộ chạy + đếm CSDL) | gốc: hook sở hữu cài lặp khi guard bọc ngoài; test bộ chạy 50/51 |
 | AI-2a | Claude | Opus | 21:12 | — | — | — |
 | L0-10b | Codex | gpt-6.1-sol · high | 20:45 | gộp 21:00 | kiem-nhanh Đạt | Xanh — 52/52; kiểm thật dịch vụ khớp |
 | UI-1b | Codex | gpt-6.1-sol · high | 20:55 | 21:02 | lead thử DEMO | Xanh — node khung 16/16; DEMO 8798 lần tải đầu không còn lỗi phiên |
