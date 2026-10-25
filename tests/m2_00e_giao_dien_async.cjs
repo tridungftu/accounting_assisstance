@@ -64,7 +64,7 @@ function moiTruong() {
   const vai = new Map();
   const K = {node: (tag, text, cls) => { const el = document.createElement(tag); if (text !== undefined) el.textContent = text; if (cls) el.className = cls; return el; },
     empty: (m, h) => { const b = document.createElement("div"); b.className = "empty-state"; const t = document.createElement("strong"); t.textContent = m; const p = document.createElement("p"); p.textContent = h; b.append(t, p); return b; },
-    toast() {}, dangKyVai: (ten, xoa, nap) => vai.set(ten, {xoa, nap}), vaiDangChan: () => false};
+    toast() {}, dangKyVai: (ten, xoa, nap) => vai.set(ten, {xoa, nap}), _chan: false, vaiDangChan: () => K._chan};
   const ctx = {document, Node: El, console, setTimeout, clearTimeout, setInterval, clearInterval, Promise, Map, Set, JSON, Math, Date, Number, String, Object, Array, Error, TypeError,
     RegExp, parseInt, encodeURIComponent, decodeURIComponent, AbortController, TextDecoder, Uint8Array, location: {hash: ""}, crypto: {randomUUID: () => "00000000-0000-4000-8000-" + String(++soUuid).padStart(12, "0")}, fetch,
     navigator: {}};
@@ -298,6 +298,7 @@ async function main() {
     assert.ok(tienTrinh().includes("Chờ đăng nhập"));
     const m = vai.get("m2_tai_hoa_don");
     assert.ok(m, "S5: chưa đăng ký vào cổng đổi vai");
+    ctx.kttChung._chan = true;  // barrier của cổng đổi vai đang dựng
     m.xoa();  // đồng bộ, trước mọi await
     assert.ok(s.opts.signal.aborted, "S5: luồng SSE phải bị hủy");
     assert.strictEqual(tienTrinh() + ketQua() + $("m2-tct-bo-tai").textContent, "", "S5: DOM phải xóa đồng bộ");
@@ -305,6 +306,8 @@ async function main() {
     L.day(sk(2, "done", {trang_thai: "COMPLETE", so_run: 1})); await chay();
     assert.strictEqual(conLai(c => c.url.startsWith(`${API}/trang-thai`)).length, 0, "S5: phản hồi muộn không được kéo theo GET trạng thái");
     assert.strictEqual(tienTrinh(), "", "S5: phản hồi muộn vẽ lại");
+    assert.strictEqual(conLai(get(API)).length, 0, "S5: không được GET (vai cũ) khi barrier đổi vai còn dựng");
+    ctx.kttChung._chan = false;
     m.nap(); await chay();
     cho(get(API), "S5 GET sau đổi vai").resolve(phanHoi(200, TT([MUC("DEMO_A", "MST_0100000001")], true))); await chay();
     assert.strictEqual($("m2-tct-phap-nhan").children.length, 1, "S5: phải nạp lại theo vai mới (1 pháp nhân)");
@@ -330,7 +333,7 @@ async function main() {
     cho(get(`${API}/trang-thai?run=${HANDLE}`), "S6 trạng thái 2").resolve(phanHoi(200, {run_handle: HANDLE, trang_thai: "RUNNING"})); await chay();
     assert.ok(tienTrinh().includes("Đang tải 1/4"), "S6: vẫn hiện bước đang tải: " + tienTrinh());
     $("m2-tct-form").children; // không làm gì thêm
-    const huy = vai.get("m2_tai_hoa_don"); huy.xoa();  // dọn: hủy vòng chờ còn treo
+    const huy = vai.get("m2_tai_hoa_don"); ctx.kttChung._chan = true; huy.xoa(); ctx.kttChung._chan = false;  // dọn: hủy vòng chờ còn treo
     console.log("S6 đạt");
   }
 

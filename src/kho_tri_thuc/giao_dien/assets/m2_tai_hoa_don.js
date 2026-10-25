@@ -129,9 +129,7 @@
     if (loiTai) { o.replaceChildren(boxLoi(loiTai, "Không đọc được trạng thái bộ tải"), nut("Thử lại", () => napTrangThai())); return; }
     if (!tt) { o.replaceChildren(node("p", "Đang tải…", "upload-status")); return; }
     if (!tt.cau_hinh) {
-      const box = K.empty("Bộ tải chưa cấu hình", tt.ly_do || "");
-      if (tt.goi_y) box.append(node("p", "Gợi ý: " + tt.goi_y, "upload-status"));
-      o.replaceChildren(box); return;
+      o.replaceChildren(K.empty("Bộ tải chưa cấu hình", (tt.ly_do || "") + (tt.goi_y ? " Gợi ý: " + tt.goi_y : ""))); return;
     }
     const kids = [];
     const b = tt.bo_tai || {};
@@ -426,6 +424,8 @@
     for (const id of ["m2-tct-bo-tai", "m2-tct-tien-trinh", "m2-tct-ket-qua"]) { const o = $(id); if (o) o.replaceChildren(); }
     const f = $("m2-tct-form"); if (f) f.classList.add("hidden");
     trangThai("");
+    // Cổng đổi vai chỉ nạp lại module đã "xin nạp" trong lúc barrier (hoặc module khởi tạo): đang xem màn này thì xin ngay để được nạp theo vai mới.
+    if (location.hash === "#hoadonmua") napTrangThai();
   }
   K.dangKyVai("m2_tai_hoa_don", xoa, () => napTrangThai());
 
