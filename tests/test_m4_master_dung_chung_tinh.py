@@ -6,6 +6,7 @@ Nhãn từng lớp:
   [DOMAIN_MOCK] XayDungK2.master_* / nhan_master_hop_dong / gan_doi_tac_hop_dong kiểm hình dạng DTO TRƯỚC CSDL (kết nối giả ghi lại SQL).
   [DISPATCH_MOCK] giao_dien/m4.dieu_huong với app/service giả: allowlist body/query, trường authority → 403, mã → HTTP, Cache-Control no-store.
 Không lớp nào ở đây là bằng chứng PG/HTTP thật/GUI — xem tests/test_m4_master_dung_chung_pg.py, _http.py, m4_master_dung_chung_async.cjs.
+Đăng ký (M4-4/7): hằng này là M0028 trong ha_tang/pg_migrations.py — kiểm ordinal/byte ở tests/test_m4_master_m28_integration.py; module hằng vẫn không import/đăng ký.
 """
 
 from __future__ import annotations
@@ -64,11 +65,11 @@ class TinhSql(unittest.TestCase):
         self.assertIsNone(re.search(r"(?i)\b(ALTER\s+POLICY|ALTER\s+TRIGGER|DISABLE\s+TRIGGER|NO\s+FORCE|ALTER\s+FUNCTION|CREATE\s+OR\s+REPLACE\s+TRIGGER)", TOAN))
         self.assertIsNone(re.search(r"(?i)\b(SET\s+ROLE|SET\s+SESSION|set_config|RESET\s+ROLE|BYPASSRLS|session_replication_role)", TOAN))
         self.assertIsNone(re.search(r"(?i)\b(TRUNCATE|DELETE\s+FROM)\b", TOAN))
-        for m in re.finditer(r"ALTER TABLE ([a-z_.]+)", TOAN):
+        for m in re.finditer(r"ALTER TABLE ([a-z0-9_.]+)", TOAN):
             self.assertIn(m.group(1), {"m4.master_can_cu", "m4.master_can_cu_phien_ban"}, "chỉ ALTER bảng mới của gói")
-        self.assertEqual(set(re.findall(r"CREATE TRIGGER ([a-z_]+)", TOAN)), TRIGGER_MOI)
-        self.assertEqual(set(re.findall(r"CREATE POLICY ([a-z_]+)", TOAN)), POLICY_MOI)
-        self.assertEqual(set(re.findall(r"CREATE TABLE ([a-z_.]+)", TOAN)), {"m4.master_can_cu", "m4.master_can_cu_phien_ban"})
+        self.assertEqual(set(re.findall(r"CREATE TRIGGER ([a-z0-9_]+)", TOAN)), TRIGGER_MOI)
+        self.assertEqual(set(re.findall(r"CREATE POLICY ([a-z0-9_]+)", TOAN)), POLICY_MOI)
+        self.assertEqual(set(re.findall(r"CREATE TABLE ([a-z0-9_.]+)", TOAN)), {"m4.master_can_cu", "m4.master_can_cu_phien_ban"})
         # observer trên bảng nguồn hiện hữu chỉ AFTER ROW (không BEFORE — không chặn/sửa đường ghi nguồn)
         for ten in ("ho_so_hop_dong_master_can_cu", "hop_dong_m4_master_can_cu", "doi_tac_ma_junsky_m4_can_cu", "duyet_phien_ban_master_can_cu_chen",
                     "duyet_phien_ban_master_can_cu_nop"):
@@ -84,7 +85,7 @@ class TinhSql(unittest.TestCase):
     def test_moi_ham_co_search_path_co_dinh_va_definer_dung_cho(self):
         for sig in MC.HAM_LENH + MC.HAM_DOC + MC.HAM_NOI_BO + MC.HAM_TRIGGER:
             than = _ham(_ten(sig))
-            self.assertRegex(than, r"SET search_path = [a-z_, ]*pg_temp", sig)
+            self.assertRegex(than, r"SET search_path = [a-z0-9_, ]*pg_temp", sig)
         for sig in MC.HAM_LENH + MC.HAM_DOC + MC.HAM_TRIGGER:
             self.assertIn("SECURITY DEFINER", _ham(_ten(sig)).split("AS $$", 1)[0], sig)
         for sig in ("m4._mc_sha(jsonb)", "m4._mc_meta(uuid, uuid, boolean)", "m4._mc_mapping_sha(uuid)"):

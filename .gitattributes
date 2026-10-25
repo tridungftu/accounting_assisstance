@@ -29,3 +29,6 @@
 # review L0-7: CSV ghim SHA trên bản CRLF; XLSX là nhị phân (cả hai hiện bị .gitignore, giữ đúng nếu sau này đưa vào git)
 /src/kho_tri_thuc/m4/review_goc/**/*.csv text eol=crlf
 /src/kho_tri_thuc/m4/review_goc/**/*.xlsx -text
+# M4-4/7: module hằng SQL của M0028/M0029 (SHA ghim trong test tích hợp tính trên LF)
+/src/kho_tri_thuc/m4/sql_master_dung_chung.py text eol=lf
+/src/kho_tri_thuc/k2/sql_ghi_nhan_chung.py text eol=lf

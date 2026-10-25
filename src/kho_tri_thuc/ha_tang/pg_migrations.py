@@ -11830,3 +11830,25 @@ from ..m4.sql_request_nhap import M4_REQUEST_NHAP  # noqa: E402 — module chỉ
 M0027_M4_REQUEST = M4_REQUEST_NHAP
 PG_MIGRATIONS = (*PG_MIGRATIONS, M0027_M4_REQUEST)
 PG_SCHEMA_VERSION = len(PG_MIGRATIONS)
+
+# ---------------------------------------------------------------------------
+# 0028 — M4 master dùng chung: nhận HĐ master, gắn đối tác, căn cứ master/mapping (APPEND sau toàn bộ 1–27; không sửa byte/định nghĩa/checksum 1–27;
+#        định nghĩa trong m4/sql_master_dung_chung.py (chỉ hằng SQL, không import ha_tang): đúng kế M17 (m4 lõi) và M24 (m4.duyet_phien_ban); chỉ THÊM
+#        2 bảng ghi-thêm + hàm + trigger quan sát + một policy SELECT hẹp trên master.hop_dong; không sao chép/dựng lại SQL ở đây.
+# ---------------------------------------------------------------------------
+from ..m4.sql_master_dung_chung import M4_MASTER_DUNG_CHUNG_SQL  # noqa: E402 — module chỉ hằng SQL, không import ha_tang
+
+M0028_M4_MASTER_DUNG_CHUNG = M4_MASTER_DUNG_CHUNG_SQL
+PG_MIGRATIONS = (*PG_MIGRATIONS, M0028_M4_MASTER_DUNG_CHUNG)
+PG_SCHEMA_VERSION = len(PG_MIGRATIONS)
+
+# ---------------------------------------------------------------------------
+# 0029 — M4-03B ghi nhận chung: identity nguồn kinh tế M2–M4 + đối chiếu căn cứ nghiệm thu ↔ hóa đơn do KT xác nhận (APPEND sau toàn bộ 1–28; không sửa
+#        byte/định nghĩa/checksum 1–28; định nghĩa trong k2/sql_ghi_nhan_chung.py gồm FIX01–FIX04 (chỉ hằng SQL, không import ha_tang): tham chiếu
+#        m4.kt_xac_nhan của M26 nên phải sau M26; nới CHECK module kho.bien_nhan_thao_tac thêm 'M4' + trigger biên nhận chủ bảng; không AP, không Request.
+# ---------------------------------------------------------------------------
+from ..k2.sql_ghi_nhan_chung import M4_03B_COMMON_SQL  # noqa: E402 — module chỉ hằng SQL, không import ha_tang
+
+M0029_M4_GHI_NHAN_CHUNG = M4_03B_COMMON_SQL
+PG_MIGRATIONS = (*PG_MIGRATIONS, M0029_M4_GHI_NHAN_CHUNG)
+PG_SCHEMA_VERSION = len(PG_MIGRATIONS)
