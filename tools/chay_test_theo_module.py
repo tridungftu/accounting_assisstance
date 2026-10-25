@@ -6,6 +6,7 @@ không kéo cả bộ test treo theo (bộ chạy cũ `tests/run_suite.py` chạ
 Dùng:
     python -X utf8 tools/chay_test_theo_module.py <duong_dan_repo> [--ra nen-test.json] [--module test_m1 ...]
                                                   [--gioi-han 180] [--nhat-ky <thu_muc>] [--runtime runtime.local.json]
+                                                  [--pg-demo ket-noi.local.json [--pg-demo-don-so pg-demo-so-ghi.json]]
 
 - <duong_dan_repo>: thư mục gốc có `src\\` và `tests\\` (worktree hiện tại, hay worktree đo nhánh khác).
 - Cách tìm test và môi trường giống `test.ps1` → `tests/run_suite.py`: `tests/test_*.py`, PYTHONPATH gồm <repo>/src và <repo>, `-X utf8`,
@@ -14,7 +15,19 @@ Dùng:
 - --ra: JSON module -> {ok, error, fail, skip, treo, giay} (+ tong, ids_loi, test_treo, loi_dau). Ghi lại sau mỗi module.
 - --runtime: chỉ dùng python và duong_dan_phu_thuoc; đường dẫn tương đối tính từ thư mục chứa file runtime.
 - Không sửa gì trong repo được đo; log và thư mục tạm của test nằm trong --nhat-ky (mặc định thư mục tạm hệ điều hành).
-- Không dùng dữ liệu thật; không PostgreSQL; không mạng.
+- Không dùng dữ liệu thật; mặc định không PostgreSQL, không mạng.
+
+--pg-demo <ket-noi.local.json> (L0-8, QD-20261025-10): bật các test PostgreSQL trên cụm DEMO loopback. Cần --runtime (hoặc --python) có psycopg.
+- Đọc DSN quản trị/ứng dụng BẰNG CHƯƠNG TRÌNH từ tệp kết nối; đặt `KHO_PG_DSN_TEST` (DSN chủ trỏ CSDL `postgres`) CHỈ trong môi trường tiến
+  trình con của test. Không in/log/ghi DSN hay mật khẩu; cuối lần chạy quét nhật ký để chắc chắn mật khẩu không lọt vào tệp nào.
+- Test tự tạo CSDL `kho_test_*` (và thường để lại). Công cụ chụp danh sách CSDL TRƯỚC khi chạy; sau MỖI module (kể cả lỗi/treo) và cuối
+  cùng, chỉ DROP những CSDL (a) có tên `kho_test_[a-z0-9_]+`, (b) KHÔNG có trong ảnh chụp ban đầu, (c) thuộc danh sách "đã tạo trong lần
+  chạy này" ghi ở sổ `pg-demo-so-ghi.json` cạnh nhật ký. Không DROP CSDL khác, không DROP vai trò (vai trò `ktt_test_*` test tạo chỉ được đếm).
+  DROP không dùng FORCE: CSDL còn phiên kết nối thì chờ rồi bỏ qua và báo.
+- Module cần "bản sao DEMO sở hữu" (biến *_CLONE_*): trước module công cụ dựng riêng một CSDL `kho_test_pgd_<hex>` bằng đúng lớp của dự án
+  (`k2.crm_khoi_dong.chuan_bi`: migrate + seed DEMO), ghi dấu nguồn/checksum lên `master.he_thong` rồi đặt biến; xóa sau module.
+  Họ chưa dựng được (03A/03B cần login kế toán có vai dự án) giữ nguyên: thiếu biến → test skip như cũ.
+- Chỉ một lần chạy --pg-demo cùng lúc (khóa tệp trong thư mục tạm). `--pg-demo-don-so <sổ>`: dọn các CSDL còn trong sổ của lần chạy bị chết giữa chừng.
 
 Kết thúc: mã 0 nếu không module nào có ERROR/FAIL/treo, ngược lại 1 (mã chỉ để tham khảo; nền được so bằng JSON).
 """
@@ -30,9 +43,11 @@ import sys
 import tempfile
 import time
 import unittest
+import uuid
 from collections import Counter
 from datetime import datetime
 from pathlib import Path
+from urllib.parse import quote, unquote, urlsplit
 
 GIOI_HAN_MAC_DINH = 180
 TB_TOI_DA = 3000  # ký tự traceback giữ lại cho mỗi lỗi trong nhật ký tiến độ
@@ -122,6 +137,365 @@ def _chay_con(repo: Path, module: str, tep_tien_do: Path) -> int:
     return 0
 
 
+# --------------------------------------------------------------------------- PostgreSQL DEMO (L0-8)
+_RE_TEN_TAM = re.compile(r"^kho_test_[a-z0-9_]{1,54}$")  # tên CSDL tạm của test: tiền tố kho_test_ + [a-z0-9_] (PostgreSQL <= 63 ký tự)
+_RE_DB_QUAN_TRI = re.compile(r"^[a-z][a-z0-9_]{0,62}$")
+HOST_LOOPBACK = ("127.0.0.1", "localhost", "::1")
+KHOA_DSN_DUNG = {"host", "port", "user", "password", "dbname"}
+KHOA_DSN_BO_QUA = {"connect_timeout", "application_name", "sslmode"}  # chấp nhận nhưng không đưa vào URI của test
+SO_GHI_TEN = "pg-demo-so-ghi.json"
+
+# Họ "bản sao DEMO sở hữu" (biến *_CLONE_*): biến DSN chủ / DSN ứng dụng, biến tên CSDL (nếu có) và mẫu nhận ra module cần họ.
+# Mỗi module một bản sao MỚI: nhiều ca cuối bộ thu hồi quyền không đảo ngược ("clone sau đó không dùng lại").
+HO_CLONE = {
+    "02c": {"dsn": ("KHO_M4_02C_CLONE_DSN", "KHO_M4_02C_CLONE_APP_DSN"), "db": "KHO_M4_02C_CLONE_DB",
+            "mau": r"KHO_M4_02C_CLONE_|from tests\.test_m4_02c_pg import (?:\([^)]*\bENV_CHU\b|[^\n(]*\bENV_CHU\b)"},
+    "mc": {"dsn": ("KHO_M4_MC_CLONE_DSN", "KHO_M4_MC_CLONE_APP_DSN"), "db": "KHO_M4_MC_CLONE_DB",
+           "mau": r"KHO_M4_MC_CLONE_|from tests\.test_m4_master_dung_chung_pg import (?:\([^)]*\bENV_CHU\b|[^\n(]*\bENV_CHU\b)"},
+    "04a": {"dsn": ("KHO_M4_04A_CLONE_DSN", "KHO_M4_04A_CLONE_APP_DSN"), "db": "KHO_M4_04A_CLONE_DB",
+            "mau": r"KHO_M4_04A_CLONE_|from tests\.test_m4_request_pg import (?:\([^)]*\bENV_CHU\b|[^\n(]*\bENV_CHU\b)"},
+    "g6a": {"dsn": ("KTT_G6A_CLONE_OWNER_DSN", "KTT_G6A_CLONE_APP_DSN"), "db": None,
+            "mau": r"KTT_G6A_CLONE_|\btest_crm_kiem_hd\b"},
+}
+# Họ nhận ra nhưng chưa dựng được (cần login kế toán có vai dự án KE_TOAN trên DA_XD_A1 do Root cấp): không đặt biến → test skip như cũ.
+HO_CHUA_HO_TRO = {"03a": r"KHO_M4_03A_|\btest_m4_03a_pg\b"}
+
+
+def _nap_tien_ich_dsn():
+    """Nạp tools/tao_ket_noi_demo_rieng.py (L0-4b) theo đường dẫn — dùng lại hàm đọc tệp kết nối và thay tên CSDL trong DSN, không in DSN."""
+    import importlib.util
+    duong_dan = Path(__file__).resolve().with_name("tao_ket_noi_demo_rieng.py")
+    spec = importlib.util.spec_from_file_location("ktt_tao_ket_noi_demo_rieng", duong_dan)
+    mod = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = mod
+    spec.loader.exec_module(mod)
+    return mod
+
+
+def _tach_dsn(tkn, dsn: str) -> dict:
+    """DSN (khóa=giá_trị hoặc URI) -> {host, port, user, password, dbname}. Từ chối: host không loopback, khóa lạ (service, hostaddr, options…).
+    Lỗi chỉ có thông điệp chung, không chứa nội dung DSN."""
+    if re.match(r"^\s*postgres(ql)?://", dsn, re.I):
+        sp = urlsplit(dsn.strip())
+        d = {"host": sp.hostname or "", "port": str(sp.port or 5432), "user": unquote(sp.username or ""), "password": unquote(sp.password or ""),
+             "dbname": unquote(sp.path[1:]) if sp.path.startswith("/") else ""}
+        thua = set(re.findall(r"([A-Za-z_]+)=", sp.query)) - KHOA_DSN_BO_QUA
+    else:
+        d = {k: tkn._gia_tri(dsn[a:b]) for k, a, b in tkn._quet_cap_khoa_gia_tri(dsn)}
+        thua = set(d) - KHOA_DSN_DUNG - KHOA_DSN_BO_QUA
+        d.setdefault("port", "5432")
+    if thua:
+        raise ValueError("Chuỗi kết nối có khóa không được hỗ trợ.")
+    if d.get("host") not in HOST_LOOPBACK:
+        raise ValueError("Chuỗi kết nối phải trỏ loopback (127.0.0.1 / localhost / ::1).")
+    if not (d.get("user") and d.get("password") and re.fullmatch(r"[0-9]{1,5}", d.get("port", "")) and _RE_DB_QUAN_TRI.match(d.get("dbname", ""))):
+        raise ValueError("Chuỗi kết nối thiếu user/password/port hoặc tên CSDL lạ.")
+    return {k: d[k] for k in KHOA_DSN_DUNG}
+
+
+def _uri(p: dict, dbname: str) -> str:
+    """URI postgresql://user:pw@host:port/dbname (user/password mã hóa phần trăm) — dạng test mong đợi: `DSN.rsplit('/', 1)[0] + '/' + tên`."""
+    if not _RE_DB_QUAN_TRI.match(dbname):
+        raise ValueError("Tên CSDL không hợp lệ.")
+    host = f"[{p['host']}]" if ":" in p["host"] else p["host"]
+    return f"postgresql://{quote(p['user'], safe='')}:{quote(p['password'], safe='')}@{host}:{p['port']}/{dbname}"
+
+
+def _sha_sql(dong) -> str:
+    import hashlib
+    return hashlib.sha256("\n".join(dong).encode("utf-8")).hexdigest()
+
+
+def _dac_ta_ho(ho: str, db: str) -> tuple[dict, dict]:
+    """(hàng ghi vào master.he_thong của bản sao, biến môi trường không bí mật) cho một họ. Giá trị "Root ghim" = định nghĩa SQL hiện tại của
+    chính repo được đo (cổng của test so ba nơi: bản sao = định nghĩa = biến). Nguồn gốc (provenance) là mã ngẫu nhiên gắn lần chạy này."""
+    ma = "L08-" + uuid.uuid4().hex
+    if ho == "02c":
+        from kho_tri_thuc.m4.sql_duyet import M0024_M4_DUYET
+        return {"m4_02c_clone_provenance": ma}, {"KHO_M4_02C_CLONE_PROVENANCE": ma, "KHO_M4_02C_M24_SHA256": _sha_sql(M0024_M4_DUYET)}
+    if ho == "mc":
+        from kho_tri_thuc.m4.sql_master_dung_chung import M4_MASTER_DUNG_CHUNG_SQL
+        sha = _sha_sql(M4_MASTER_DUNG_CHUNG_SQL)
+        return {"m4_mc_clone_provenance": ma, "m4_mc_sql_sha256": sha}, {"KHO_M4_MC_CLONE_PROVENANCE": ma, "KHO_M4_MC_SQL_SHA256": sha}
+    if ho == "04a":
+        from kho_tri_thuc.m4.sql_request_nhap import M4_REQUEST_NHAP
+        sha = _sha_sql(M4_REQUEST_NHAP)
+        return {"m4_04a_clone_provenance": ma, "m4_04a_request_sql_sha256": sha}, {"KHO_M4_04A_CLONE_PROVENANCE": ma, "KHO_M4_04A_SQL_SHA256": sha}
+    if ho == "g6a":
+        return {}, {"KTT_G6A_CLONE_PROVENANCE": f"OWNED_DEMO_CLONE:{db}:{ma}", "KTT_G6A_CLONE_CHO_GHI": "1"}
+    raise ValueError("Họ bản sao lạ.")
+
+
+# ---- việc chạy trong tiến trình con riêng (python của runtime có psycopg): in đúng một dòng JSON ASCII, không bao giờ in DSN
+def _loi_pg_sach(exc: BaseException) -> str:
+    """Chỉ tên loại lỗi + mã (DataError.code / sqlstate): thông điệp ngoại lệ có thể chứa nội dung chuỗi kết nối."""
+    ma = getattr(exc, "code", None) or getattr(exc, "sqlstate", None) or ""
+    return type(exc).__name__ + (f"({ma})" if isinstance(ma, str) and re.fullmatch(r"[A-Za-z0-9_]{1,60}", ma) else "")
+
+
+def _pg_ket_noi_quan_tri(kn: dict):
+    """Kết nối quản trị tới CSDL `postgres` (mặc định) hoặc, nếu không vào được, đúng CSDL ghi trong DSN. Trả (kết nối, tên CSDL)."""
+    import psycopg
+    from psycopg.conninfo import make_conninfo
+    try:
+        return psycopg.connect(make_conninfo(kn["admin_dsn"], dbname="postgres"), autocommit=True), "postgres"
+    except psycopg.OperationalError:
+        c = psycopg.connect(kn["admin_dsn"], autocommit=True)
+        return c, c.execute("SELECT current_database()").fetchone()[0]
+
+
+def _pg_liet_ke(tkn, kn: dict) -> dict:
+    _tach_dsn(tkn, kn["admin_dsn"])  # kiểm loopback trước khi kết nối
+    c, db_qt = _pg_ket_noi_quan_tri(kn)
+    with c:
+        csdl = [r[0] for r in c.execute("SELECT datname FROM pg_database WHERE NOT datistemplate ORDER BY 1").fetchall()]
+        vai = [r[0] for r in c.execute(r"SELECT rolname FROM pg_roles WHERE rolname ~ '^(ktt|kho)_test_' ORDER BY 1").fetchall()]
+    return {"db_quan_tri": db_qt, "csdl": csdl, "vai_tro": vai}
+
+
+def _pg_tao_clone(tkn, kn: dict, ten: str, ho: str) -> dict:
+    """Dựng bản sao DEMO: CREATE DATABASE + migrate + seed DEMO bằng `crm_khoi_dong.chuan_bi` (tiền tố kho_test_), rồi ghi dấu nguồn lên he_thong."""
+    if not _RE_TEN_TAM.match(ten) or ho not in HO_CLONE:
+        raise ValueError("Tên bản sao hoặc họ không hợp lệ.")
+    _tach_dsn(tkn, kn["admin_dsn"])
+    _tach_dsn(tkn, kn["app_dsn"])
+    import psycopg
+    from kho_tri_thuc.k2 import crm_khoi_dong as KD
+    _, app = tkn.thay_ten_csdl(kn["app_dsn"], ten)
+    _, adm = tkn.thay_ten_csdl(kn["admin_dsn"], ten)
+    kq = KD.chuan_bi({"app_dsn": app, "admin_dsn": adm}, tien_to=KD.TIEN_TO_DB_KIEM_THU)
+    he, env = _dac_ta_ho(ho, ten)
+    if he:
+        with psycopg.connect(KD.chuan_hoa_dsn(adm, KD.TIEN_TO_DB_KIEM_THU)["conninfo"], autocommit=True) as c:
+            for khoa, gia_tri in he.items():
+                c.execute("INSERT INTO master.he_thong (key, value) VALUES (%s, %s) ON CONFLICT (key) DO NOTHING", (khoa, gia_tri))
+    return {"db": ten, "ho": ho, "env": env, "schema": kq.get("schema_sau")}
+
+
+def _pg_xoa(tkn, kn: dict, ten_csdl: list[str]) -> dict:
+    """DROP DATABASE (không FORCE) đúng các tên truyền vào, mỗi tên phải khớp ^kho_test_[a-z0-9_]+$. Còn phiên kết nối -> chờ tối đa ~20 giây rồi báo."""
+    import psycopg
+    from psycopg import sql as S
+    _tach_dsn(tkn, kn["admin_dsn"])
+    kq = {"da_xoa": [], "khong_co": [], "con_phien": [], "tu_choi": [], "loi": []}
+    c, _ = _pg_ket_noi_quan_tri(kn)
+    with c:
+        for ten in ten_csdl:
+            if not _RE_TEN_TAM.match(ten):
+                kq["tu_choi"].append(ten[:70])
+                continue
+            if c.execute("SELECT 1 FROM pg_database WHERE datname = %s AND NOT datistemplate", (ten,)).fetchone() is None:
+                kq["khong_co"].append(ten)
+                continue
+            for lan in range(20):
+                try:
+                    c.execute(S.SQL("DROP DATABASE {}").format(S.Identifier(ten)))
+                    kq["da_xoa"].append(ten)
+                    break
+                except psycopg.errors.ObjectInUse:
+                    time.sleep(1)
+                except psycopg.Error as exc:
+                    kq["loi"].append(f"{ten}: {_loi_pg_sach(exc)}")
+                    break
+            else:
+                kq["con_phien"].append(ten)
+    return kq
+
+
+def _chay_viec_pg(a: list[str]) -> int:
+    """Chế độ con nội bộ: python script.py --pg <viec> <tep_ket_noi> <repo> [tham số…]. Kết quả: một dòng JSON ASCII ở cuối stdout."""
+    viec, tep_kn, repo = a[0], Path(a[1]), Path(a[2]).resolve()
+    tkn = _nap_tien_ich_dsn()  # nạp TRƯỚC khi bỏ thư mục tools khỏi sys.path
+    thu_muc_script = str(Path(__file__).resolve().parent)
+    sys.path[:] = [p for p in sys.path if p and str(Path(p).resolve()) != thu_muc_script]
+    for p in (repo, repo / "src"):
+        sys.path.insert(0, str(p))
+    try:
+        kn = tkn.nap_tep(tep_kn)
+        if viec == "liet-ke":
+            kq = _pg_liet_ke(tkn, kn)
+        elif viec == "tao-clone":
+            kq = _pg_tao_clone(tkn, kn, a[3], a[4])
+        elif viec == "xoa":
+            kq = _pg_xoa(tkn, kn, a[3:])
+        else:
+            raise ValueError("Việc lạ.")
+        print(json.dumps({"ok": True, **kq}, ensure_ascii=True))
+        return 0
+    except Exception as exc:  # noqa: BLE001 — biên tiến trình con: chỉ in loại lỗi
+        print(json.dumps({"ok": False, "loi": _loi_pg_sach(exc)}, ensure_ascii=True))
+        return 1
+
+
+# ---- phía cha
+def _khoa_loai_tru_pg():
+    """Khóa tệp (tự nhả khi tiến trình chết) để hai lần chạy --pg-demo không giẫm lên nhau: sau mỗi module công cụ coi mọi `kho_test_*` MỚI là của mình."""
+    f = open(Path(tempfile.gettempdir()) / "ktt-pg-demo-test.lock", "a+b")
+    try:
+        if os.name == "nt":
+            import msvcrt
+            f.seek(0)
+            msvcrt.locking(f.fileno(), msvcrt.LK_NBLCK, 1)
+        else:
+            import fcntl
+            fcntl.flock(f, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except OSError:
+        f.close()
+        raise RuntimeError("Đang có một lần chạy --pg-demo khác trên máy này; chờ nó xong rồi chạy lại.") from None
+    return f
+
+
+class _PgDemo:
+    """Quản lý CSDL tạm của test trên cụm PostgreSQL DEMO: ảnh chụp trước, dựng bản sao, dọn sau mỗi module, kiểm cuối. Không giữ/in DSN."""
+
+    def __init__(self, tep_ket_noi: Path, python: str, phu_thuoc: tuple, repo: Path, nhat_ky: Path):
+        self.tep, self.python, self.phu_thuoc, self.repo = tep_ket_noi.resolve(), python, phu_thuoc, repo
+        self.thu_muc_tam = nhat_ky / "tam" / "_pg"
+        self.thu_muc_tam.mkdir(parents=True, exist_ok=True)
+        self.so = nhat_ky / SO_GHI_TEN
+        tkn = _nap_tien_ich_dsn()
+        try:
+            kn = tkn.nap_tep(self.tep)
+            self.admin, self.app = _tach_dsn(tkn, kn["admin_dsn"]), _tach_dsn(tkn, kn["app_dsn"])
+        except Exception as exc:  # noqa: BLE001 — không để thông điệp (có thể chứa DSN) lọt ra
+            raise ValueError(f"Không đọc được tệp kết nối PostgreSQL DEMO ({_loi_pg_sach(exc)}).") from None
+        self.bi_mat = [x for x in (self.admin["password"], self.app["password"]) if len(x) >= 6]
+        self.khoa = None
+        self.db_qt = "postgres"
+        self.truoc: set[str] = set()
+        self.vai_truoc: set[str] = set()
+        self.da_tao: list[str] = []
+        self.da_xoa: list[str] = []
+        self.chua_xoa: dict[str, str] = {}
+        self.canh_bao: list[str] = []
+        self.chua_ho_tro: set[str] = set()
+        self.env_chung: dict = {}
+
+    # -- gọi việc ở tiến trình con
+    def _goi(self, viec: str, *tham_so: str, timeout: int = 900) -> dict:
+        lenh = [self.python, "-X", "utf8", str(Path(__file__).resolve()), "--pg", viec, str(self.tep), str(self.repo), *tham_so]
+        r = subprocess.run(lenh, cwd=str(self.repo), env=_moi_truong(self.repo, self.thu_muc_tam, self.phu_thuoc), stdin=subprocess.DEVNULL,
+                           capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=timeout)
+        dong = [d for d in r.stdout.splitlines() if d.strip()]
+        try:
+            kq = json.loads(dong[-1])
+        except (IndexError, ValueError):
+            raise RuntimeError(f"pg-demo '{viec}': tiến trình con thoát mã {r.returncode} không có kết quả") from None
+        if not kq.get("ok"):
+            raise RuntimeError(f"pg-demo '{viec}': {kq.get('loi', 'lỗi')}")
+        return kq
+
+    def _ghi_so(self):
+        tam = self.so.with_name(self.so.name + ".tmp")
+        tam.write_text(json.dumps({"truoc_n": len(self.truoc), "db_quan_tri": self.db_qt, "da_tao": self.da_tao, "da_xoa": self.da_xoa,
+                                   "chua_xoa": sorted(self.chua_xoa), "canh_bao": self.canh_bao}, ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
+        os.replace(tam, self.so)
+
+    def khoi_dong(self):
+        self.khoa = _khoa_loai_tru_pg()
+        kq = self._goi("liet-ke")
+        self.db_qt, self.truoc, self.vai_truoc = kq["db_quan_tri"], set(kq["csdl"]), set(kq["vai_tro"])
+        self.env_chung = {"KHO_PG_DSN_TEST": _uri(self.admin, self.db_qt)}
+        self._ghi_so()
+        n_tam = sum(1 for d in self.truoc if _RE_TEN_TAM.match(d))
+        print(f"[pg-demo] cụm DEMO loopback: {len(self.truoc)} CSDL trước khi chạy (trong đó {n_tam} kho_test_* có sẵn — không đụng), "
+              f"{len(self.vai_truoc)} vai trò ktt_test_/kho_test_* có sẵn; sổ ghi: {self.so}", flush=True)
+
+    # -- bản sao DEMO cho module cần
+    def ho_cua(self, noi_dung: str) -> list[str]:
+        for ma, mau in HO_CHUA_HO_TRO.items():
+            if re.search(mau, noi_dung):
+                self.chua_ho_tro.add(ma)
+        return [ma for ma, h in HO_CLONE.items() if re.search(h["mau"], noi_dung)]
+
+    def dung_clone(self, ho: str) -> dict:
+        """Dựng bản sao cho một họ; trả {env, db}. Tên được ghi vào sổ TRƯỚC khi tạo (chết giữa chừng vẫn dọn được)."""
+        ten = "kho_test_pgd_" + uuid.uuid4().hex[:12]
+        self.da_tao.append(ten)
+        self._ghi_so()
+        kq = self._goi("tao-clone", ten, ho, timeout=1500)
+        spec = HO_CLONE[ho]
+        env = dict(kq["env"])
+        env[spec["dsn"][0]] = _uri(self.admin, ten)
+        env[spec["dsn"][1]] = _uri(self.app, ten)
+        if spec["db"]:
+            env[spec["db"]] = ten
+        return {"env": env, "db": ten}
+
+    # -- dọn
+    def don(self) -> dict:
+        """DROP mọi `kho_test_*` MỚI (không có ở ảnh chụp đầu) thuộc danh sách đã tạo; trả đếm."""
+        kq = self._goi("liet-ke")
+        hien = set(kq["csdl"])
+        moi = sorted(d for d in hien - self.truoc if _RE_TEN_TAM.match(d))
+        la = sorted(d for d in hien - self.truoc if not _RE_TEN_TAM.match(d))
+        mat = sorted(self.truoc - hien)
+        for d in la:
+            self._canh_bao(f"CSDL không phải kho_test_* xuất hiện mới (không đụng): {d}")
+        for d in mat:
+            self._canh_bao(f"CSDL có sẵn biến mất (không phải do công cụ này): {d}")
+        for d in moi:
+            if d not in self.da_tao:
+                self.da_tao.append(d)
+        can_xoa = [d for d in moi if d in self.da_tao and d not in self.da_xoa]
+        dem = {"moi": len(moi), "da_xoa": 0, "con_phien": 0}
+        if can_xoa:
+            xk = self._goi("xoa", *can_xoa)
+            self.da_xoa.extend(xk["da_xoa"])
+            dem["da_xoa"] = len(xk["da_xoa"])
+            dem["con_phien"] = len(xk["con_phien"])
+            for d in xk["da_xoa"]:
+                self.chua_xoa.pop(d, None)
+            for d in xk["con_phien"]:
+                self.chua_xoa[d] = "còn phiên kết nối"
+            for d in xk["loi"] + xk["tu_choi"]:
+                self._canh_bao(f"không xóa được: {d}")
+        self._ghi_so()
+        return dem
+
+    def _canh_bao(self, thong_diep: str):
+        if thong_diep not in self.canh_bao:
+            self.canh_bao.append(thong_diep)
+
+    def ket_thuc(self, thu_muc_quet: list[Path]) -> dict:
+        """Dọn lần cuối (thử lại tối đa 3 lần), kiểm không sót, kiểm các CSDL khác không đổi, quét rò rỉ mật khẩu. Không ném lỗi."""
+        tong = {}
+        try:
+            for lan in range(3):
+                self.don()
+                if not self.chua_xoa:
+                    break
+                time.sleep(5)
+            kq = self._goi("liet-ke")
+            hien = set(kq["csdl"])
+            sot = sorted(d for d in hien - self.truoc if _RE_TEN_TAM.match(d))
+            khac_moi = sorted(d for d in hien - self.truoc if not _RE_TEN_TAM.match(d))
+            mat = sorted(self.truoc - hien)
+            vai_moi = sorted(set(kq["vai_tro"]) - self.vai_truoc)
+            tong = {"truoc": len(self.truoc), "sau": len(hien), "tao_trong_lan_chay": len(set(self.da_tao) | set(self.da_xoa)), "da_xoa": len(set(self.da_xoa)),
+                    "sot": sot, "csdl_khac_moi": khac_moi, "csdl_co_san_mat": mat, "vai_tro_moi_khong_xoa": len(vai_moi), "canh_bao": self.canh_bao}
+        except Exception as exc:  # noqa: BLE001
+            tong = {"loi_don": _loi_pg_sach(exc), "sot_theo_so": sorted(set(self.da_tao) - set(self.da_xoa)), "canh_bao": self.canh_bao}
+        tong["ro_ri_mat_khau_so_tep"] = self.quet_ro_ri(thu_muc_quet)
+        self._ghi_so()
+        return tong
+
+    def quet_ro_ri(self, goc: list[Path]) -> int:
+        """Đếm tệp trong các thư mục/tệp `goc` có chứa mật khẩu (dạng thô hoặc mã hóa phần trăm). Chỉ trả số, không in gì khác."""
+        mau = [m.encode("utf-8") for b in self.bi_mat for m in {b, quote(b, safe="")}]
+        dem = 0
+        for g in goc:
+            tep = [g] if g.is_file() else sorted(p for p in g.rglob("*") if p.is_file()) if g.is_dir() else []
+            for p in tep:
+                try:
+                    raw = p.read_bytes()
+                except OSError:
+                    continue
+                if any(m in raw for m in mau):
+                    dem += 1
+        return dem
+
+
 # --------------------------------------------------------------------------- tiến trình cha
 def _giet_cay(proc: subprocess.Popen):
     try:
@@ -164,8 +538,9 @@ def _doc_runtime(tep: Path) -> tuple[str, tuple[Path, ...]]:
     return str(executable), dependencies
 
 
-def _moi_truong(repo: Path, thu_muc_tam: Path, phu_thuoc: tuple[Path, ...] = ()) -> dict:
+def _moi_truong(repo: Path, thu_muc_tam: Path, phu_thuoc: tuple[Path, ...] = (), them: dict | None = None) -> dict:
     env = {k: v for k, v in os.environ.items() if not (k.upper().startswith("KHO_") or k.upper().startswith("PG"))}
+    env.update(them or {})  # --pg-demo: KHO_PG_DSN_TEST và biến bản sao DEMO — chỉ vào tiến trình con của test, không in/ghi
     env["PYTHONPATH"] = os.pathsep.join(str(p) for p in (repo / "src", repo, *phu_thuoc))
     env["PYTHONIOENCODING"] = "utf-8"
     env["PYTHONDONTWRITEBYTECODE"] = "1"
@@ -174,7 +549,7 @@ def _moi_truong(repo: Path, thu_muc_tam: Path, phu_thuoc: tuple[Path, ...] = ())
 
 
 def _chay_mot_module(repo: Path, module: str, gioi_han: int, thu_muc_nhat_ky: Path, python: str,
-                    phu_thuoc: tuple[Path, ...] = ()) -> dict:
+                    phu_thuoc: tuple[Path, ...] = (), them_env: dict | None = None) -> dict:
     tep_tien_do = thu_muc_nhat_ky / f"{module}.tiendo.jsonl"
     tep_log = thu_muc_nhat_ky / f"{module}.log"
     thu_muc_tam = thu_muc_nhat_ky / "tam" / module
@@ -190,7 +565,7 @@ def _chay_mot_module(repo: Path, module: str, gioi_han: int, thu_muc_nhat_ky: Pa
     ma_ra = None
     bat_dau = time.monotonic()
     with open(tep_log, "wb") as log:
-        proc = subprocess.Popen(lenh, cwd=str(repo), env=_moi_truong(repo, thu_muc_tam, phu_thuoc), stdin=subprocess.DEVNULL,
+        proc = subprocess.Popen(lenh, cwd=str(repo), env=_moi_truong(repo, thu_muc_tam, phu_thuoc, them_env), stdin=subprocess.DEVNULL,
                                 stdout=log, stderr=subprocess.STDOUT, **kwargs)
         try:
             ma_ra = proc.wait(timeout=gioi_han)
@@ -271,11 +646,68 @@ def _tim_module(repo: Path, mau: list[str]) -> list[str]:
     return chon
 
 
+def _chuan_bi_pg_module(pg: "_PgDemo", repo: Path, module: str) -> tuple[dict, dict]:
+    """Môi trường PostgreSQL cho một module: KHO_PG_DSN_TEST + (nếu module cần) bản sao DEMO mới của từng họ. Dựng lỗi -> module chạy không có biến
+    của họ đó (test skip/NOT_VERIFIED) và lỗi được ghi vào kết quả; không dừng cả bộ."""
+    tep = repo / "tests" / f"{module}.py"
+    try:
+        noi_dung = tep.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        noi_dung = ""
+    env, ho_dung, loi = dict(pg.env_chung), [], []
+    for ho in pg.ho_cua(noi_dung):
+        try:
+            kq = pg.dung_clone(ho)
+            env.update(kq["env"])
+            ho_dung.append(ho)
+        except Exception as exc:  # noqa: BLE001
+            loi.append(f"{ho}: {_loi_pg_sach(exc)}")
+    thong_tin = {"ho": ho_dung}
+    if loi:
+        thong_tin["loi_dung_ban_sao"] = loi
+    return env, thong_tin
+
+
+def _in_tom_tat_pg(pg: "_PgDemo", t: dict):
+    print("\n[pg-demo] KẾT THÚC DỌN CSDL TẠM")
+    if "loi_don" in t:
+        print(f"  LỖI khi dọn lần cuối ({t['loi_don']}); còn trong sổ chưa xóa: {t.get('sot_theo_so')}  → chạy lại với --pg-demo-don-so {pg.so}")
+    else:
+        print(f"  CSDL trước/sau: {t['truoc']} / {t['sau']} · tạo trong lần chạy: {t['tao_trong_lan_chay']} · đã xóa: {t['da_xoa']} · "
+              f"còn sót kho_test_* mới: {len(t['sot'])} {t['sot'] or ''}")
+        print(f"  CSDL khác xuất hiện mới: {len(t['csdl_khac_moi'])} · CSDL có sẵn bị mất: {len(t['csdl_co_san_mat'])} · "
+              f"vai trò ktt_test_*/kho_test_* test để lại (không xóa): {t['vai_tro_moi_khong_xoa']}")
+    if pg.chua_ho_tro:
+        print(f"  họ bản sao chưa dựng được (biến không đặt, test skip như cũ): {', '.join(sorted(pg.chua_ho_tro))}")
+    for cb in t.get("canh_bao", []):
+        print(f"  CẢNH BÁO: {cb}")
+    print(f"  tệp nhật ký/kết quả chứa mật khẩu kết nối: {t['ro_ri_mat_khau_so_tep']}")
+
+
+def _don_theo_so(pg: "_PgDemo", tep_so: Path) -> int:
+    """--pg-demo-don-so: dọn các CSDL còn trong sổ ghi của lần chạy cũ (mỗi tên phải khớp ^kho_test_… ; chỉ DROP tên có trong sổ)."""
+    pg.khoa = _khoa_loai_tru_pg()
+    try:
+        so = json.loads(tep_so.read_text(encoding="utf-8"))
+        ten = [d for d in so.get("da_tao", []) if isinstance(d, str) and _RE_TEN_TAM.match(d) and d not in so.get("da_xoa", [])]
+    except (OSError, ValueError, AttributeError):
+        print("Không đọc được sổ ghi.", file=sys.stderr)
+        return 2
+    if not ten:
+        print("[pg-demo] sổ ghi không còn CSDL nào cần xóa.")
+        return 0
+    kq = pg._goi("xoa", *ten)
+    print(f"[pg-demo] đã xóa {len(kq['da_xoa'])}, không còn {len(kq['khong_co'])}, còn phiên kết nối {len(kq['con_phien'])}, lỗi/từ chối {len(kq['loi']) + len(kq['tu_choi'])}")
+    return 0 if not (kq["con_phien"] or kq["loi"] or kq["tu_choi"]) else 1
+
+
 def main(argv=None) -> int:
     if argv is None:
         argv = sys.argv[1:]
     if argv and argv[0] == "--con":  # nội bộ: python script.py --con <repo> <module> <tep_tien_do>
         return _chay_con(Path(argv[1]).resolve(), argv[2], Path(argv[3]))
+    if argv and argv[0] == "--pg":  # nội bộ (--pg-demo): python script.py --pg <viec> <tep_ket_noi> <repo> [tham số…]
+        return _chay_viec_pg(argv[1:])
 
     ap = argparse.ArgumentParser(description="Chạy test từng module trong tiến trình riêng, giới hạn thời gian.")
     ap.add_argument("repo", type=Path, help="thư mục gốc repo/worktree cần đo (có src\\ và tests\\)")
@@ -283,6 +715,10 @@ def main(argv=None) -> int:
     ap.add_argument("--gioi-han", type=int, default=GIOI_HAN_MAC_DINH, help="giây tối đa cho mỗi module (mặc định 180)")
     ap.add_argument("--ra", type=Path, help="ghi JSON kết quả (module -> {ok,error,fail,skip,treo,giay,...}) vào file này")
     ap.add_argument("--nhat-ky", type=Path, help="thư mục log + thư mục tạm của test (mặc định: thư mục tạm hệ điều hành)")
+    ap.add_argument("--pg-demo", type=Path, metavar="KET_NOI_JSON",
+                    help="bật test PostgreSQL trên cụm DEMO loopback: ket-noi.local.json (khóa admin_dsn, app_dsn). Tạo CSDL tạm kho_test_* và xóa chính nó sau khi chạy (xem đầu tệp)")
+    ap.add_argument("--pg-demo-don-so", type=Path, metavar="SO_GHI_JSON",
+                    help="chỉ với --pg-demo: không chạy test, dọn các CSDL kho_test_* còn trong sổ ghi của một lần chạy bị chết giữa chừng")
     runtime = ap.add_mutually_exclusive_group()
     runtime.add_argument("--python", default=sys.executable, help="python.exe dùng chạy test (mặc định: chính python đang chạy script)")
     runtime.add_argument("--runtime", type=Path, help="runtime.local.json: dùng python và duong_dan_phu_thuoc, không dùng kết nối PostgreSQL")
@@ -302,6 +738,24 @@ def main(argv=None) -> int:
     nhat_ky = (args.nhat_ky or Path(tempfile.gettempdir()) / f"ktt-theo-module-{datetime.now():%Y%m%d-%H%M%S}").resolve()
     nhat_ky.mkdir(parents=True, exist_ok=True)
     modules = _tim_module(repo, args.module)
+    if args.pg_demo_don_so and not args.pg_demo:
+        ap.error("--pg-demo-don-so cần đi kèm --pg-demo")
+
+    pg = None
+    if args.pg_demo:
+        if not args.pg_demo.is_file():
+            ap.error("Không thấy tệp kết nối PostgreSQL DEMO (--pg-demo).")
+        if subprocess.run([args.python, "-c", "import psycopg"], capture_output=True, timeout=60,
+                          env=_moi_truong(repo, nhat_ky, phu_thuoc)).returncode != 0:
+            ap.error("--pg-demo cần python có psycopg: dùng --runtime runtime.local.json của bản DEMO.")
+        try:
+            pg = _PgDemo(args.pg_demo, args.python, phu_thuoc, repo, nhat_ky)
+            if args.pg_demo_don_so:
+                return _don_theo_so(pg, args.pg_demo_don_so)
+            pg.khoi_dong()
+        except (ValueError, RuntimeError) as exc:
+            print(f"--pg-demo: {exc}", file=sys.stderr)
+            return 2
 
     print(f"Repo: {repo}")
     try:
@@ -317,14 +771,31 @@ def main(argv=None) -> int:
 
     ket_qua = {}
     bat_dau = time.monotonic()
-    for i, m in enumerate(modules, 1):
-        r = _chay_mot_module(repo, m, args.gioi_han, nhat_ky, args.python, phu_thuoc)
-        ket_qua[m] = r
-        co = "TREO" if r["treo"] else ("LOI" if (r["error"] or r["fail"]) else "ok")
-        print(f"[{i:>3}/{len(modules)}] {co:<4} {m:<42} ok={r['ok']:<4} ERROR={r['error']:<4} FAIL={r['fail']:<3} skip={r['skip']:<4} {r['giay']:>6}s"
-              + (f"  treo-o={r.get('test_treo', '')[:80]}" if r["treo"] else ""), flush=True)
-        if args.ra:
-            _ghi_json(args.ra, ket_qua)
+    try:
+        for i, m in enumerate(modules, 1):
+            them_env, thong_tin_pg, dem = {}, None, {}
+            if pg:
+                them_env, thong_tin_pg = _chuan_bi_pg_module(pg, repo, m)
+            try:
+                r = _chay_mot_module(repo, m, args.gioi_han, nhat_ky, args.python, phu_thuoc, them_env)
+            finally:
+                if pg:  # dọn ngay sau module (kể cả lỗi/treo): CSDL tạm của module này và bản sao dựng cho nó
+                    try:
+                        dem = pg.don()
+                    except Exception as exc:  # noqa: BLE001 — dọn lỗi thì để ket_thuc() thử lại; không làm mất kết quả test
+                        dem = {"loi_don": _loi_pg_sach(exc)}
+            ket_qua[m] = r
+            if pg:
+                r["pg"] = {**thong_tin_pg, **dem}
+            co = "TREO" if r["treo"] else ("LOI" if (r["error"] or r["fail"]) else "ok")
+            print(f"[{i:>3}/{len(modules)}] {co:<4} {m:<42} ok={r['ok']:<4} ERROR={r['error']:<4} FAIL={r['fail']:<3} skip={r['skip']:<4} {r['giay']:>6}s"
+                  + (f"  treo-o={r.get('test_treo', '')[:80]}" if r["treo"] else "")
+                  + (f"  pg[ho={','.join(r['pg']['ho']) or '-'} tao={r['pg'].get('moi', '?')} xoa={r['pg'].get('da_xoa', '?')}]" if pg else ""), flush=True)
+            if args.ra:
+                _ghi_json(args.ra, ket_qua)
+    finally:
+        if pg:  # kể cả Ctrl+C / lỗi: dọn lần cuối, kiểm không sót, quét rò rỉ mật khẩu
+            _in_tom_tat_pg(pg, pg.ket_thuc([nhat_ky] + ([args.ra] if args.ra else [])))
 
     tong = Counter()
     for r in ket_qua.values():
@@ -343,6 +814,8 @@ def main(argv=None) -> int:
     if args.ra:
         _ghi_json(args.ra, ket_qua)
         print(f"\nĐã ghi {args.ra}")
+        if pg and pg.quet_ro_ri([args.ra]):
+            print("CẢNH BÁO: tệp kết quả chứa mật khẩu kết nối — KHÔNG commit; báo lead.", file=sys.stderr)
     # Giữ bản chi tiết (traceback đầu tiên mỗi module, nhóm dòng lỗi) cạnh nhật ký để dò nguyên nhân gốc.
     (nhat_ky / "chi-tiet.json").write_text(json.dumps(
         {m: {"loi_dau": r["loi_dau"], "tb_dau_tien": r["_tb_dau"], "dong_loi": r["_dong_loi"], "ids_loi": r["ids_loi"], "test_treo": r.get("test_treo", "")}
