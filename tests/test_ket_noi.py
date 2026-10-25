@@ -125,9 +125,13 @@ class KetNoiPGTests(unittest.TestCase):
     def setUpClass(cls):
         from kho_tri_thuc.ha_tang import postgres as pgk2
 
-        cls.db_name = "kho_test_" + uuid.uuid4().hex[:8]
-        with psycopg.connect(ADMIN_DSN, autocommit=True) as a:
-            a.execute(f'CREATE DATABASE "{cls.db_name}" ENCODING \'UTF8\' TEMPLATE template0')
+        cls.runner_cap = bool(os.environ.get("KHO_PG_DEMO_SO"))
+        cls.db_name = os.environ.get("KHO_PG_DEMO_DB") if cls.runner_cap else "kho_test_" + uuid.uuid4().hex[:8]
+        if not cls.db_name:
+            raise unittest.SkipTest("--pg-demo chưa cấp CSDL có sổ sở hữu cho test_ket_noi")
+        if not cls.runner_cap:
+            with psycopg.connect(ADMIN_DSN, autocommit=True) as a:
+                a.execute(psycopg.sql.SQL("CREATE DATABASE {} ENCODING 'UTF8' TEMPLATE template0").format(psycopg.sql.Identifier(cls.db_name)))
         cls.dsn = ADMIN_DSN.rsplit("/", 1)[0] + "/" + cls.db_name
         k2 = pgk2.connect(cls.dsn, autocommit=True)  # schema K2 để kiểm ghi nhật ký
         k2.execute("INSERT INTO master.phap_nhan (ma, ten, ma_don_vi_junsky) VALUES ('PLHN_FIXTURE','DEMO','99')")
@@ -135,8 +139,10 @@ class KetNoiPGTests(unittest.TestCase):
 
     @classmethod
     def tearDownClass(cls):
+        if cls.runner_cap:
+            return  # runner DROP qua sổ sở hữu sau khi module kết thúc
         with psycopg.connect(ADMIN_DSN, autocommit=True) as a:
-            a.execute(f'DROP DATABASE "{cls.db_name}" WITH (FORCE)')
+            a.execute(psycopg.sql.SQL("DROP DATABASE {}").format(psycopg.sql.Identifier(cls.db_name)))
 
     def _ket_noi(self, schema=None, **kw):
         from kho_tri_thuc.ha_tang.ket_noi import KetNoiPG
