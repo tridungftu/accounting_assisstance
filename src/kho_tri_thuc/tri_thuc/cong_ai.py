@@ -320,6 +320,48 @@ class BoGhiBoNho:
         self.ban_ghi.append(ban_ghi)
 
 
+class BoGhiPostgres:
+    """Ghi metadata vào ``nhat_ky.cong_ai_goi`` (M0034), không giữ DSN/khóa.
+
+    ``ket_noi`` là factory context manager cấp kết nối RIÊNG cho nhật ký, ví dụ
+    ``lambda: psycopg.connect(dsn)`` hoặc ``pool.connection``. Không truyền kết nối
+    đang dùng cho giao dịch nghiệp vụ. Mỗi dòng có giao dịch riêng, kể cả kết nối
+    autocommit; lỗi INSERT/commit/kết nối chỉ log tên loại lỗi, không làm mất kết quả AI.
+    """
+
+    def __init__(self, ket_noi: Callable):
+        self._ket_noi = ket_noi
+
+    def ghi(self, ban_ghi: BanGhiCongAI) -> None:
+        try:
+            with self._ket_noi() as conn:
+                with conn.transaction():
+                    with conn.cursor() as cur:
+                        cur.execute(
+                            """INSERT INTO nhat_ky.cong_ai_goi (
+                                ma_yeu_cau, luc, loai_viec, duong, cloud, nha_cung_cap, model,
+                                da_gui, so_ky_tu_gui, so_ky_tu_nhan, token_vao, token_ra,
+                                thoi_gian_ms, chi_phi_uoc, ma_luot_mask, ly_do_chuyen_cloud,
+                                ly_do_khong_gui, ket_qua, ly_do, trich_dan_hop_le,
+                                so_truong_bi_loai, loi, phap_nhan_id, viec_id, de_xuat_id,
+                                dau_vao_mask_hash, ket_qua_tom_tat
+                            ) VALUES (
+                                %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
+                                %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, NULL, NULL
+                            )""",
+                            (ban_ghi.ma_yeu_cau, ban_ghi.luc, ban_ghi.loai_viec, ban_ghi.duong,
+                             ban_ghi.duong == DUONG_CLOUD, ban_ghi.nha_cung_cap, ban_ghi.model,
+                             ban_ghi.da_gui, ban_ghi.so_ky_tu_gui, ban_ghi.so_ky_tu_nhan,
+                             ban_ghi.token_vao, ban_ghi.token_ra, ban_ghi.thoi_gian_ms,
+                             ban_ghi.chi_phi_uoc_usd, ban_ghi.ma_luot_mask, list(ban_ghi.ly_do_chuyen_cloud),
+                             ban_ghi.ly_do_khong_gui, ban_ghi.ket_qua, list(ban_ghi.ly_do),
+                             ban_ghi.trich_dan_hop_le, ban_ghi.so_truong_bi_loai, ban_ghi.loi,
+                             ban_ghi.phap_nhan_id, ban_ghi.viec_id, ban_ghi.de_xuat_id),
+                        )
+        except Exception as exc:  # noqa: BLE001 — không log thông báo/traceback có thể chứa dữ liệu hoặc DSN
+            _LOG.error("Không ghi được nhật ký cổng AI (%s).", type(exc).__name__)
+
+
 # ---------------------------------------------------------------------------------------------------------------
 # 4. Thông báo tiếng Việt theo mã lý do
 # ---------------------------------------------------------------------------------------------------------------

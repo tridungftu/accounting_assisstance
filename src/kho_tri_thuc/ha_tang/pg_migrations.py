@@ -11896,3 +11896,46 @@ from ..k2.sql_ghi_nhan_so_tien import M4_03B_SO_TIEN_SQL  # noqa: E402 — chỉ
 M0033_M4_03B_SO_TIEN = M4_03B_SO_TIEN_SQL
 PG_MIGRATIONS = (*PG_MIGRATIONS, M0033_M4_03B_SO_TIEN)
 PG_SCHEMA_VERSION = len(PG_MIGRATIONS)
+
+# ---------------------------------------------------------------------------
+# 0034 — AI-2b: metadata cổng AI (TL 48 §1.1), APPEND sau M0033; không đổi migration cũ.
+#        Ánh xạ BanGhiCongAI cần 11 cột mới (không phải 9). Cột mới để NULL cho
+#        bản ghi lịch sử khi chưa có metadata; không UPDATE nhật ký cũ.
+# ---------------------------------------------------------------------------
+M0034_CONG_AI_NHAT_KY = (
+    """ALTER TABLE nhat_ky.cong_ai_goi
+        ADD COLUMN ma_yeu_cau text,
+        ADD COLUMN duong text CHECK (duong IN ('LOCAL', 'CLOUD') AND cloud = (duong = 'CLOUD')),
+        ADD COLUMN da_gui boolean,
+        ADD COLUMN so_ky_tu_gui integer CHECK (so_ky_tu_gui >= 0),
+        ADD COLUMN so_ky_tu_nhan integer CHECK (so_ky_tu_nhan >= 0),
+        ADD COLUMN ma_luot_mask text,
+        ADD COLUMN ly_do_chuyen_cloud text[],
+        ADD COLUMN ly_do_khong_gui text,
+        ADD COLUMN ket_qua text CHECK (ket_qua IN ('DAT', 'KHONG_CHAC', 'KHONG_DUNG_DUOC', 'LOI', 'KHONG_GUI')),
+        ADD COLUMN ly_do text[],
+        ADD COLUMN so_truong_bi_loai integer CHECK (so_truong_bi_loai >= 0)""",
+    # Hai cột cũ không dùng: chặn nội dung mới, không xét/sửa dữ liệu lịch sử.
+    """ALTER TABLE nhat_ky.cong_ai_goi ADD CONSTRAINT cong_ai_goi_khong_noi_dung
+        CHECK (dau_vao_mask_hash IS NULL AND ket_qua_tom_tat IS NULL) NOT VALID""",
+    "CREATE INDEX cong_ai_goi_ma_yeu_cau ON nhat_ky.cong_ai_goi (ma_yeu_cau)",
+    # Giữ trigger chi_ghi_them/chan_truncate của M0005/M0009; quyền như nhật ký khác.
+    "REVOKE ALL ON nhat_ky.cong_ai_goi FROM PUBLIC",
+    """DO $$
+    DECLARE r text;
+    BEGIN
+        FOREACH r IN ARRAY ARRAY['app_web','app_ke_toan','app_doc','app_cong_ai'] LOOP
+            IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = r) THEN
+                EXECUTE format('REVOKE UPDATE, DELETE, TRUNCATE ON nhat_ky.cong_ai_goi FROM %I', r);
+                IF r IN ('app_ke_toan', 'app_cong_ai') THEN
+                    EXECUTE format('GRANT SELECT, INSERT ON nhat_ky.cong_ai_goi TO %I', r);
+                ELSIF r = 'app_doc' THEN
+                    EXECUTE format('GRANT SELECT ON nhat_ky.cong_ai_goi TO %I', r);
+                END IF;
+            END IF;
+        END LOOP;
+    END $$""",
+)
+
+PG_MIGRATIONS = (*PG_MIGRATIONS, M0034_CONG_AI_NHAT_KY)
+PG_SCHEMA_VERSION = len(PG_MIGRATIONS)
