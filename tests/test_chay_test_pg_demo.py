@@ -17,6 +17,7 @@ from pathlib import Path
 from unittest.mock import Mock, patch
 
 from tools import chay_test_theo_module as R
+from tools import pg_demo_ho_03a as H03
 
 
 class _Sql(str):
@@ -421,6 +422,185 @@ class PgDemoThuanTests(unittest.TestCase):
                 R._pg_tao_clone(None, {"admin_dsn": dsn, "app_dsn": dsn}, "kho_test_trung", "02c")
         chuan_bi.assert_not_called()
         self.pg.connect.assert_not_called()
+
+    def test_ho_03a_nhan_dung_hai_module_khong_bat_test_thuan(self):
+        pg = self._pg_demo()
+        nhan = {p.stem for p in (self.repo / "tests").glob("test_*.py")
+                if "03a" in pg.ho_cua(p.read_text(encoding="utf-8"))}
+        self.assertEqual(nhan, {"test_m4_03a_pg", "test_m4_03b_common_pg"})
+        self.assertNotIn("03a", R.HO_CHUA_HO_TRO)
+        self.assertEqual(pg.chua_ho_tro, set())
+
+    def test_03a_ghim_ordinal_checksum_registry_hien_hanh(self):
+        from kho_tri_thuc.ha_tang.pg_migrations import PG_MIGRATIONS
+        from kho_tri_thuc.m4.sql_duyet import M0024_M4_DUYET
+        from kho_tri_thuc.m4.sql_ke_toan_nghiem_thu import M4_03A_SQL
+        he, env = R._dac_ta_ho("03a", "kho_test_pgd_0123456789ab")
+        self.assertEqual(he["m4_03a_clone_provenance"], env["KHO_M4_03A_CLONE_PROVENANCE"])
+        self.assertIs(PG_MIGRATIONS[int(env["KHO_M4_03A_VERSION"]) - 1], M4_03A_SQL)
+        self.assertEqual(env["KHO_M4_03A_M24_SHA256"], R._sha_sql(M0024_M4_DUYET))
+        self.assertEqual(env["KHO_M4_03A_SHA256"], R._sha_sql(M4_03A_SQL))
+        self.assertEqual(env["KHO_M4_03B_DA_AP_DUNG"], "1")
+        self.assertEqual(len({env["KHO_M4_03A_" + k] for k in ("KT1", "KT2", "KT_KHAC")}), 3)
+
+    def test_03a_registry_thieu_m33_khong_cap_co_da_ap_dung(self):
+        from kho_tri_thuc.ha_tang import pg_migrations as PGM
+        from kho_tri_thuc.k2.sql_ghi_nhan_so_tien import M4_03B_SO_TIEN_SQL
+        with patch.object(PGM, "PG_MIGRATIONS", tuple(s for s in PGM.PG_MIGRATIONS if s is not M4_03B_SO_TIEN_SQL)):
+            with self.assertRaisesRegex(ValueError, "Registry"):
+                H03.dac_ta("nguon-gia")
+
+    def test_03a_clone_moi_moi_module_du_env_khong_log_dsn_va_don_dung_so(self):
+        from kho_tri_thuc.k2 import crm_khoi_dong as KD
+        from kho_tri_thuc.ha_tang.pg_migrations import PG_SCHEMA_VERSION
+        pg = self._pg_demo()
+        pg.admin = dict(host="127.0.0.1", port="5432", user="chu", password="gia-bi-mat-chu", dbname="kho_crm_demo")
+        pg.app = {**pg.admin, "user": "web", "password": "gia-bi-mat-web"}
+        kn = {"admin_dsn": R._uri(pg.admin, "kho_crm_demo"), "app_dsn": R._uri(pg.app, "kho_crm_demo")}
+        self.pg.connect.side_effect = lambda *a, **k: contextlib.nullcontext(Mock())
+        tkn = R._nap_tien_ich_dsn()
+        optional = {"KHO_M4_03B_HOA_DON_ID": "hoa-don-demo", "KHO_M4_03B_DONG_ID": "dong-demo"}
+        tao = []
+
+        def tao_vide(kn, ten):
+            self.assertRegex(ten, r"^kho_test_[a-z0-9_]+$")
+            self.so.dang_ky(ten, self.c)
+            self.c.databases.add(ten)
+            tao.append(ten)
+
+        def goi(viec, ten, ho, **kw):
+            self.assertEqual((viec, ho), ("tao-clone", "03a"))
+            result = R._pg_tao_clone(tkn, kn, ten, ho)
+            # JSON trả từ tiến trình dựng clone không được mang DSN.
+            sach = json.dumps(result)
+            self.assertNotIn("postgresql://", sach)
+            self.assertNotIn("gia-bi-mat", sach)
+            return result
+
+        pg._goi = Mock(side_effect=goi)
+        console = io.StringIO()
+        with patch.object(R, "_pg_tao_vide", side_effect=tao_vide), \
+                patch.object(KD, "chuan_bi", return_value={"schema_sau": PG_SCHEMA_VERSION}) as boot, \
+                patch.object(KD, "chuan_hoa_dsn", side_effect=lambda dsn, _: {"conninfo": dsn}), \
+                patch.object(H03, "dung_du_lieu", return_value=optional) as seed, contextlib.redirect_stdout(console):
+            for module in ("test_m4_03a_pg", "test_m4_03b_common_pg"):
+                env, info = R._chuan_bi_pg_module(pg, self.repo, module)
+                self.assertEqual(info, {"ho": ["03a"]})
+                du = {"KHO_M4_03A_" + k for k in ("CLONE_DSN", "CLONE_APP_DSN", "CLONE_DB", "CLONE_PROVENANCE",
+                                                       "M24_SHA256", "VERSION", "SHA256", "KT1", "KT2", "KT_KHAC")}
+                du |= {"KHO_M4_03B_" + k for k in ("DA_AP_DUNG", "HOA_DON_ID", "DONG_ID", "CFO", "XEM")}
+                self.assertEqual(set(env), du)
+                ten = env["KHO_M4_03A_CLONE_DB"]
+                self.assertNotIn("kho_crm_demo", env["KHO_M4_03A_CLONE_DSN"])
+                self.assertTrue(env["KHO_M4_03A_CLONE_DSN"].endswith("/" + ten))
+                self.assertTrue(env["KHO_M4_03A_CLONE_APP_DSN"].endswith("/" + ten))
+                # Tiến trình con test nhận đủ biến, biến môi trường của cha giữ nguyên.
+                self.assertEqual({k: v for k, v in R._moi_truong(self.repo, self.root, them=env).items() if k in du}, env)
+                seed.assert_called_with(boot.call_args.args[0]["admin_dsn"], boot.call_args.args[0]["app_dsn"], ten)
+                R._ghi_json(self.root / (module + ".json"), {module: info})
+                self.assertEqual(self.so.xoa(self.c, [ten])["da_xoa"], [ten])
+        self.assertEqual(len(set(tao)), 2)
+        self.assertNotIn("postgresql://", console.getvalue())
+        self.assertNotIn("gia-bi-mat", console.getvalue())
+        self.assertFalse(any("kho_crm_demo" in sql for sql in self.c.sql))
+        for p in self.root.glob("*.json"):
+            self.assertNotIn("gia-bi-mat", p.read_text(encoding="utf-8"))
+
+    def test_03a_khong_nhan_so_huu_hay_drop_csdl_crm_demo(self):
+        for ten in ("kho_crm_demo", "kho_crm_demo_lt_l08d"):
+            with self.assertRaises(ValueError):
+                self.so.dang_ky(ten, self.c)
+            self.assertEqual(self.so.xoa(self.c, [ten])["tu_choi"], [ten])
+            with self.assertRaises(ValueError):
+                R._pg_tao_clone(None, {}, ten, "03a")
+        self.pg.connect.assert_not_called()
+
+    def test_03a_helper_chan_db_demo_va_cap_dsn_khac_clone_truoc_connect(self):
+        from kho_tri_thuc.k2 import crm_khoi_dong as KD
+        rows = types.ModuleType("psycopg.rows")
+        rows.dict_row = object()
+        with patch.dict(sys.modules, {"psycopg.rows": rows}), patch.object(KD, "kiem_cap", return_value={"db": "kho_crm_demo"}):
+            for ten in ("kho_crm_demo", "kho_crm_demo_lt_l08d", "kho_test_pgd_0123456789ab"):
+                with self.subTest(ten=ten), self.assertRaises(ValueError):
+                    H03.dung_du_lieu("chu-gia", "app-gia", ten)
+        self.pg.connect.assert_not_called()
+
+    def test_03a_helper_kiem_lineage_va_owner_truoc_nhan_m2_dong_ket_noi(self):
+        from kho_tri_thuc.k2 import crm_khoi_dong as KD, hoa_don
+        from kho_tri_thuc.ha_tang import postgres as PG
+        rows = types.ModuleType("psycopg.rows")
+        rows.dict_row = object()
+        db = "kho_test_pgd_0123456789ab"
+        admin, app, chu = Mock(), Mock(), Mock()
+        self.pg.connect.side_effect = [contextlib.nullcontext(c) for c in (admin, app, chu)]
+        cap = {"db": db, "admin": {"conninfo": "chu-clone-gia"}, "app": {"conninfo": "app-clone-gia"}}
+        thu_tu = Mock()
+        with patch.dict(sys.modules, {"psycopg.rows": rows}), patch.object(KD, "kiem_cap", return_value=cap), \
+                patch.object(PG, "kiem_lineage_ung_dung") as lineage, patch.object(H03, "_seed_ke_toan") as seed, \
+                patch.object(KD, "kiem_ket_noi_chu") as owner, patch.object(hoa_don, "HoaDonK2") as service, \
+                patch.object(H03.tempfile, "mkdtemp", return_value=str(self.root)), \
+                patch.object(H03, "_nhan_hoa_don", return_value={"KHO_M4_03B_HOA_DON_ID": "hd-demo"}) as nhan:
+            for ten, fn in (("lineage", lineage), ("seed", seed), ("owner", owner), ("nhan", nhan)):
+                thu_tu.attach_mock(fn, ten)
+            self.assertEqual(H03.dung_du_lieu("chu-gia", "app-gia", db), {"KHO_M4_03B_HOA_DON_ID": "hd-demo"})
+            self.assertEqual([c[0] for c in thu_tu.mock_calls], ["lineage", "seed", "owner", "nhan"])
+            lineage.assert_called_once_with(admin)
+            owner.assert_called_once_with(chu, app)
+            service.assert_called_once_with(app, self.root, conn_chu=chu)
+            nhan.assert_called_once_with(admin, service.return_value)
+
+    def test_03a_seed_dung_ham_m4_ma_tran_rieng_khong_doi_module_san_pham(self):
+        from kho_tri_thuc.k2 import m4_demo
+        marker, actors = m4_demo.MARKER_DUYET, m4_demo.NGUOI_DUNG_DUYET
+        seed = types.SimpleNamespace(khoi_tao_duyet=Mock(return_value={"trang_thai": "DU"}))
+        admin = Mock()
+        with patch.object(m4_demo, "khoi_tao_duyet", return_value={"trang_thai": "DU"}) as duyet, \
+                patch.object(H03.importlib.util, "module_from_spec", return_value=seed), \
+                patch.object(H03.importlib.util, "spec_from_file_location", return_value=types.SimpleNamespace(loader=Mock())):
+            H03._seed_ke_toan(admin)
+        duyet.assert_called_once_with(admin)
+        seed.khoi_tao_duyet.assert_called_once_with(admin)
+        self.assertEqual(seed.NGUOI_DUNG_DUYET, H03.ACTOR)
+        self.assertNotEqual(seed.MARKER_DUYET, marker)
+        self.assertEqual((m4_demo.MARKER_DUYET, m4_demo.NGUOI_DUNG_DUYET), (marker, actors))
+        self.assertIn("M2", H03.ACTOR[0][2]["PN_DEMO_A"])
+        self.assertNotIn("M2", H03.ACTOR[1][2]["PN_DEMO_A"])  # c15: KT2 không có M2
+        self.assertTrue(all(a[3] == [("DA_XD_A1", "KE_TOAN")] for a in H03.ACTOR))
+
+    def test_03a_seed_thieu_duyet_dung_khong_tu_cap_lai(self):
+        from kho_tri_thuc.k2 import m4_demo
+        with patch.object(m4_demo, "khoi_tao_duyet", return_value={"trang_thai": "THIEU"}), \
+                patch.object(H03.importlib.util, "spec_from_file_location") as nap:
+            with self.assertRaisesRegex(ValueError, "không tự cấp lại"):
+                H03._seed_ke_toan(Mock())
+        nap.assert_not_called()
+
+    def test_03b_nhan_fixture_va_map_bang_service_that_khong_insert_gia(self):
+        from kho_tri_thuc.k2 import m2_demo
+        admin, svc = Mock(), Mock()
+        admin.execute.return_value.fetchone.side_effect = [("hd-demo",), ("dong-demo",)]
+        fact = next(f for f in m2_demo.doc_ung_vien_dong(m2_demo.doc_khai_bao())
+                    if f["source_artifact_relative_path"] == "inputs/G01-wrapped-positive.xml")
+        svc.chi_tiet.return_value = {"expected_graph": "graph-demo", "dong_nguon_hien_hanh": [
+            {"source_row_id": "row-demo", "source_ordinal": fact["source_ordinal"], "locator": fact["source_locator"]}]}
+        env = H03._nhan_hoa_don(admin, svc)
+        self.assertEqual(env, {"KHO_M4_03B_HOA_DON_ID": "hd-demo", "KHO_M4_03B_DONG_ID": "dong-demo"})
+        nhan = svc.nhan.call_args
+        self.assertEqual(nhan.args, (H03.INTAKE,))
+        self.assertEqual(nhan.kwargs["native"], m2_demo.mau("inputs/G01-wrapped-positive.xml")[1])
+        self.assertEqual(nhan.kwargs["source_instance"], fact["source_instance"])
+        svc.mapping_line.assert_called_once_with(H03.CFO, client_key="pg-demo-03a-map-g01", hoa_don_id="hd-demo",
+                                                expected_graph="graph-demo", source_row_id="row-demo",
+                                                logical_line_key=fact["logical_line_key"], evidence_ref=fact["mapping_ref"],
+                                                evidence_revision=fact["revision"], reason="CFO DEMO map dòng cho test 03B")
+        self.assertTrue(all(c.args[0].lstrip().startswith("SELECT ") for c in admin.execute.call_args_list))
+
+    def test_03b_khong_co_hoa_don_chinh_thuc_de_test_tu_skip(self):
+        admin, svc = Mock(), Mock()
+        admin.execute.return_value.fetchone.return_value = None
+        self.assertEqual(H03._nhan_hoa_don(admin, svc), {})
+        svc.mapping_line.assert_not_called()
+        svc.chi_tiet.assert_not_called()
 
     def test_mat_khau_traceback_stdout_khong_lo_o_bat_ky_bien_xuat(self):
         pw = "gia!MatKhau-123"
