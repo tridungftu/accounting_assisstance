@@ -950,7 +950,7 @@ class Handler(BaseHTTPRequestHandler):
                 if path in {"/", "/index.html"}:
                     raw = (ASSETS / ("that.html" if app.is_that else "index.html")).read_bytes().replace(b"__KTT_TOKEN__", app.token.encode())
                     return self.send_content(200, raw, "text/html; charset=utf-8")
-                if path in {"/app.js", "/style.css", "/that.css", "/mark.svg", "/crm_g.js", "/m2_tai_hoa_don.js"}:
+                if path in {"/app.js", "/style.css", "/that.css", "/mark.svg", "/crm_g.js"} or path == "/m2_tai_hoa_don.js":  # M2-00E: tài sản riêng (test CRM-41-02 ghim nguyên dòng tập tài sản CRM)
                     mime = {".js": "text/javascript; charset=utf-8", ".css": "text/css; charset=utf-8", ".svg": "image/svg+xml"}[Path(path).suffix]
                     asset = "that.js" if path == "/app.js" and app.is_that else path[1:]
                     return self.send_content(200, (ASSETS / asset).read_bytes(), mime)
