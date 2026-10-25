@@ -1,33 +1,24 @@
 # -*- coding: utf-8 -*-
 """
-cloud.py — Bước 8 (TUỲ CHỌN, mặc định TẮT): kiểm tra chéo một số ô trên cloud (Anthropic Claude / OpenAI).
-
-Chọn ô gửi:  ô VÀNG mức quan trọng 2–3 + ô OK lấy ngẫu nhiên (mức 3: x%, mức 2: x/2%; x = tỷ lệ cài đặt, mặc định 20).
-             KHÔNG gửi nhóm Thông tin chung, KHÔNG gửi Phần mở đầu; chỉ gửi các Khoản liên quan của ô đó.
-Che thông tin: tên các Bên, dự án, gói thầu, địa điểm, số HĐ, MST, số tài khoản, điện thoại, email, tên người, tên công ty
-             → [BEN_A], [DU_AN], [MST]… Số tiền và tỷ lệ GIỮ NGUYÊN. Che xong vẫn còn dấu vết định danh → KHÔNG gửi ô đó.
-Nhật ký:     mọi nội dung gửi đi + trả về ghi vào GUI_RA_NGOAI_<giờ>.txt (không ghi khoá API).
-Kết quả:     Python kiểm lại trích dẫn cloud trên văn bản gốc. Cột "Nguồn":
-             Local | Local – cloud xác nhận | Local – cloud xác nhận (theo trích dẫn của Claude) |
-             Local – cloud cùng: không quy định | Cloud sửa (local: …) | Local – cloud không xác nhận được
+cloud.py — Kiểm tra chéo engine #6 qua cổng AI dùng chung (TL 48).
+Giữ cách chọn ô và Python kiểm kết quả; Local trước, Cloud chỉ qua Mask v2.
+Cổng quản lý khóa, che/mở che và nhật ký metadata, không ghi văn bản ra tệp.
 """
-import datetime
 import json
-import os
 import random
 import re
-import urllib.error
-import urllib.request
 
-from .ai_local import SCHEMA_TRICH, SYSTEM, parse_json
-from .cau_hinh import CLOUD_MODEL_MAC_DINH, doc_khoa
+from kho_tri_thuc.tri_thuc.cong_ai import BoGhiBoNho, CongAI
+
+from .ai_local import SCHEMA_TRICH, AILoi
+from .cau_hinh import doc_cau_hinh
 from .cau_truc import nhan, than
 from .kiem_tra import check, gan_dieu_khoan, giong_nhau, la_khong_co, la_ok, norm
 
 GROUP_MAX = 8
-URL = {"anthropic": "https://api.anthropic.com/v1/messages", "openai": "https://api.openai.com/v1/chat/completions"}
-CHO_NOI_MASK_V2 = "CHO_NOI_MASK_V2"
-CLOUD_TAM_KHOA = CHO_NOI_MASK_V2 + ": Đường Cloud tạm khóa: chờ nối qua Mask file v2"
+# Giữ tên hằng để các module cũ import được; không còn đường Cloud trực tiếp.
+CHO_NOI_MASK_V2 = "CONG_AI_BAT_BUOC"
+CLOUD_TAM_KHOA = "Cloud phải đi qua cổng AI dùng chung (TL 48)."
 
 
 class CloudLoi(Exception):
@@ -106,7 +97,7 @@ def tim_cong_ty(text):
 
 
 class AnDanh:
-    """Che thông tin định danh nhất quán trong một hợp đồng; nhớ bảng tra để mở lại khi nhận kết quả."""
+    """Tương thích module/test cũ; không dùng cho Cloud. Mask v2 là bộ che duy nhất của cổng AI."""
 
     def __init__(self, thong_tin):
         # thong_tin: {nhãn: [chuỗi cần che]} — lấy từ kết quả local TC-01, TC-03…TC-07
@@ -186,53 +177,31 @@ def thong_tin_dinh_danh(ket_qua):
             "BEN_A": [g("TC-06")], "BEN_B": [g("TC-07")]}
 
 
-# ------------------------------------------------------------------ gọi API
-def goi_api(nha_cung_cap, model, khoa, prompt, timeout=180, system=None, max_tokens=4096):
-    # AI-0 25/10/2026 (TL 48): chặn cả lời gọi trực tiếp, không phụ thuộc cấu hình/env.
-    raise CloudLoi(CLOUD_TAM_KHOA)
+# ------------------------------------------------------------------ cổng AI dùng chung
+def tao_cong_ai(settings=None, bo_ghi=None):
+    """Cài đặt local_ai/cong_ai cùng dạng source-settings.settings; không đọc khóa.
 
-    ncc = nha_cung_cap.lower()
-    model = model or CLOUD_MODEL_MAC_DINH.get(ncc, "")
-    url = os.environ.get(f"HD_CLOUD_URL_{ncc.upper()}") or URL.get(ncc)
-    if not url:
-        raise CloudLoi(f"Nhà cung cấp không hỗ trợ: {nha_cung_cap}")
-    if ncc == "anthropic":
-        # Không gửi "temperature": các model Claude mới (Opus 5.5, Sonnet 5…) báo lỗi 400 "temperature is deprecated".
-        body = {"model": model, "max_tokens": max_tokens, "system": system or SYSTEM,
-                "messages": [{"role": "user", "content": prompt}]}
-        headers = {"x-api-key": khoa, "anthropic-version": "2023-06-01", "content-type": "application/json"}
-    else:
-        body = {"model": model, "temperature": 0, "response_format": {"type": "json_object"},
-                "messages": [{"role": "system", "content": system or SYSTEM}, {"role": "user", "content": prompt}]}
-        headers = {"Authorization": f"Bearer {khoa}", "Content-Type": "application/json"}
-    d = None
-    for lan in range(2):
-        req = urllib.request.Request(url, data=json.dumps(body).encode("utf-8"), headers=headers, method="POST")
-        try:
-            with urllib.request.urlopen(req, timeout=timeout) as r:
-                d = json.loads(r.read().decode("utf-8"))
-            break
-        except urllib.error.HTTPError as e:
-            try:
-                msg = e.read().decode("utf-8", "replace")[:300]
-            except Exception:  # noqa: BLE001
-                msg = ""
-            # model không nhận temperature / response_format → bỏ tham số đó, hỏi lại đúng 1 lần
-            bo = [k for k in ("temperature", "response_format") if k in body and k in msg]
-            if e.code == 400 and lan == 0 and bo:
-                for k in bo:
-                    body.pop(k)
-                continue
-            raise CloudLoi(f"{ncc} báo lỗi HTTP {e.code}: {msg}") from None
-        except (urllib.error.URLError, TimeoutError, OSError) as e:
-            raise CloudLoi(f"Không kết nối được {ncc}: {type(e).__name__}") from None
-    if ncc == "anthropic":
-        txt = "".join(c.get("text", "") for c in d.get("content", []) if c.get("type") == "text")
-        use = d.get("usage", {})
-        return txt, use.get("input_tokens", 0), use.get("output_tokens", 0), model
-    txt = ((d.get("choices") or [{}])[0].get("message") or {}).get("content", "")
-    use = d.get("usage", {})
-    return txt, use.get("prompt_tokens", 0), use.get("completion_tokens", 0), model
+    Chưa có factory cổng ở tầng host: bên gọi có thể tiêm cổng đã gắn BoGhiPostgres.
+    Mặc định đọc cấu hình nguồn không lấy biến HD_CLOUD; chỉ cong_ai.cloud_bat
+    mới điều khiển Cloud. Bộ ghi bộ nhớ dành cho engine chạy thử độc lập.
+    """
+    if settings is None:
+        settings = doc_cau_hinh(dung_env=False)
+    if isinstance(settings, dict) and isinstance(settings.get("settings"), dict):
+        settings = settings["settings"]
+    return CongAI(settings, bo_ghi=bo_ghi if bo_ghi is not None else BoGhiBoNho())
+
+
+def trang_thai_cloud(cong_ai, *, kiem_mask=False):
+    st = dict(cong_ai.trang_thai(kiem_mask=kiem_mask)["cloud"])
+    if st.get("ma") == "CLOUD_TAT":
+        st["thong_bao"] = "Cloud đang tắt; phần mềm dùng Local AI."
+    return st
+
+
+def goi_api(nha_cung_cap, model, khoa, prompt, timeout=180, system=None, max_tokens=4096):
+    """Tên cũ chỉ để tương thích import; mọi lượt phải đi qua cổng AI."""
+    raise CloudLoi(CLOUD_TAM_KHOA)
 
 
 def _prompt(params, blocks):
@@ -251,29 +220,26 @@ def _prompt(params, blocks):
 
 # ------------------------------------------------------------------ bước 8
 def kiem_tra_cloud(bang, params, ket_qua, sent, rows_by_id, full_norm, full_loose, out_dir, cfg, ghi_log=None,
-                   rng=None, dung=None, max_chars=14000, ung_vien=None):
+                   rng=None, dung=None, max_chars=14000, ung_vien=None, *, cong_ai=None):
     """bang: list dòng kết quả (sẽ được SỬA: gia_tri, trich_dan, kiem_tra, nguon…).
     sent: {mã: [rows đã gửi local AI]}; ung_vien: {mã: [rows ứng viên tìm được khi rà lại toàn HĐ]} — gửi kèm để
     Claude không phải đọc lại đúng chỗ local có thể đã đọc sai. cfg: {nha_cung_cap, model, ty_le}. Trả dict tóm tắt."""
-    # AI-0: bỏ qua bước 8 trước khi đọc khóa, che dữ liệu hoặc ghi nhật ký gửi ra ngoài.
-    if ghi_log is not None:
-        ghi_log("Bỏ qua kiểm tra chéo cloud: " + CLOUD_TAM_KHOA)
-    return {"bat": False, "nha_cung_cap": cfg.get("nha_cung_cap") or "anthropic", "model": cfg.get("model") or "",
-            "so_o_chon": 0, "so_o_gui": 0, "khong_gui": [], "xac_nhan": 0, "sua": 0, "cung_khong_quy_dinh": 0,
-            "khong_xac_nhan": 0, "ma_loi": CHO_NOI_MASK_V2, "loi": CLOUD_TAM_KHOA, "nhat_ky": "",
-            "token_vao": 0, "token_ra": 0}
+    from .ai_cloud import MayCloud
 
     ung_vien = ung_vien or {}
     ghi_log = ghi_log or (lambda m: None)
-    ncc = (cfg.get("nha_cung_cap") or "anthropic").lower()
-    khoa = doc_khoa(ncc)
-    tom = {"bat": True, "nha_cung_cap": ncc, "model": cfg.get("model") or CLOUD_MODEL_MAC_DINH.get(ncc, ""), "so_o_chon": 0,
+    cong_ai = cong_ai if cong_ai is not None else tao_cong_ai(cfg.get("settings"), cfg.get("bo_ghi"))
+    st = trang_thai_cloud(cong_ai)
+    ncc = cong_ai.cai_dat["nha_cung_cap"]
+    tom = {"bat": st["dung_duoc"], "nha_cung_cap": ncc, "model": cong_ai.cai_dat["model"], "so_o_chon": 0,
            "so_o_gui": 0, "khong_gui": [], "xac_nhan": 0, "sua": 0, "cung_khong_quy_dinh": 0, "khong_xac_nhan": 0,
            "loi": "", "nhat_ky": "", "token_vao": 0, "token_ra": 0}
-    if not khoa:
-        tom["loi"] = f"Chưa có API key {ncc} (Cài đặt → Kiểm tra chéo cloud)"
+    if not st["dung_duoc"]:
+        tom.update(ma_loi=st["ma"], loi=st["thong_bao"])
         ghi_log("Bỏ qua kiểm tra chéo cloud: " + tom["loi"])
         return tom
+    ai = MayCloud(cong_ai=cong_ai, dung=dung, ghi_log=ghi_log)
+    ai.dat_dinh_danh(thong_tin_dinh_danh(ket_qua))
     by_ma = {d["ma"]: d for d in bang}
     p_by = {p["ma"]: p for p in params}
     chon = chon_o(bang, float(cfg.get("ty_le", 20) or 0), rng, {p["ma"] for p in params if p.get("luon_cloud")})
@@ -281,10 +247,7 @@ def kiem_tra_cloud(bang, params, ket_qua, sent, rows_by_id, full_norm, full_loos
     if not chon:
         ghi_log("Kiểm tra chéo cloud: không có ô nào cần gửi")
         return tom
-    an = AnDanh(thong_tin_dinh_danh(ket_qua))
-    log_path = os.path.join(out_dir, f"GUI_RA_NGOAI_{datetime.datetime.now():%Y%m%d_%H%M%S}.txt")
-    tom["nhat_ky"] = log_path
-    gui = []                      # (param, [khối đã che])
+    gui = []                      # (param, [khối gốc], lý do chọn)
     for ma, ly_do in chon:
         rows, seen = [], set()
         for r in list(ung_vien.get(ma) or []) + list(sent.get(ma) or []):   # ứng viên rà lại trước, rồi vị trí dò
@@ -296,21 +259,12 @@ def kiem_tra_cloud(bang, params, ket_qua, sent, rows_by_id, full_norm, full_loos
             continue
         blocks, n = [], 0
         for r in rows:
-            b = an.che(f"[{nhan(r)}]\n{than(r)}")
+            b = f"[{nhan(r)}]\n{than(r)}"
             if blocks and n + len(b) > max_chars:
                 break
             blocks.append(b)
             n += len(b)
-        vet = an.dau_vet("\n".join(blocks))
-        if vet:
-            tom["khong_gui"].append(f"{ma}: còn thông tin định danh sau khi che ({'; '.join(vet[:3])})")
-            continue
         gui.append((p_by[ma], blocks, ly_do))
-    with open(log_path, "a", encoding="utf-8") as lf:
-        lf.write(f"NHẬT KÝ GỬI RA NGOÀI — {datetime.datetime.now():%d/%m/%Y %H:%M:%S}\nNhà cung cấp: {ncc} | model: "
-                 f"{cfg.get('model') or CLOUD_MODEL_MAC_DINH.get(ncc)}\nKhoá API: (không ghi)\n"
-                 f"Ô được chọn: {', '.join(f'{m} ({l})' for m, l in chon)}\n"
-                 + ("Không gửi: " + " | ".join(tom["khong_gui"]) + "\n" if tom["khong_gui"] else ""))
     nhom = []
     for p, blocks, ly in gui:     # gom ≤ 8 tham số / lần, gộp các khối trùng
         if not nhom or len(nhom[-1]) >= GROUP_MAX:
@@ -327,20 +281,21 @@ def kiem_tra_cloud(bang, params, ket_qua, sent, rows_by_id, full_norm, full_loos
         prompt = _prompt([p for p, _, _ in g], blocks)
         ghi_log(f"Kiểm tra chéo cloud ({ncc}) lần {gi}/{len(nhom)}: {', '.join(p['ma'] for p, _, _ in g)}")
         try:
-            txt, ti, to, model = goi_api(ncc, cfg.get("model"), khoa, prompt)
-        except CloudLoi as e:
+            items, ti, to = ai.hoi_trich(prompt, "kiểm tra chéo hợp đồng")
+        except AILoi as e:
             tom["loi"] = str(e)
-            ghi_log(f"LỖI cloud: {e}")
-            with open(log_path, "a", encoding="utf-8") as lf:
-                lf.write(f"\n===== LẦN {gi} — ĐÃ GỬI =====\n{prompt}\n===== LỖI =====\n{e}\n")
+            ghi_log("Cổng AI chưa có kết quả kiểm tra chéo: " + str(e))
             break
-        tom["token_vao"] += ti or 0
-        tom["token_ra"] += to or 0
-        tom["so_o_gui"] += len(g)
-        with open(log_path, "a", encoding="utf-8") as lf:
-            lf.write(f"\n===== LẦN {gi} — ĐÃ GỬI ({model}) =====\n{prompt}\n===== NHẬN VỀ =====\n{txt}\n")
-        data = parse_json(txt, "ket_qua") or {"ket_qua": []}
-        got = {str(x.get("ma", "")).strip(): x for x in data["ket_qua"] if isinstance(x, dict)}
+        # Cổng Local trước; không ghi nhầm kết quả Local thành Cloud xác nhận.
+        cloud = {t.ten for t in ai.ket_qua_cuoi.truong.values() if t.nguon == "CLOUD"}
+        if not cloud:
+            ghi_log("Cổng AI dùng kết quả Local; chưa có kết quả Cloud kiểm tra chéo.")
+            continue
+        model = ai.model
+        tom["token_vao"] += ti
+        tom["token_ra"] += to
+        got = {x["ma"]: x for x in items if x["ma"] in cloud}
+        tom["so_o_gui"] += len(got)
         for p, _, _ in g:
             d = by_ma[p["ma"]]
             c = got.get(p["ma"])
@@ -348,7 +303,7 @@ def kiem_tra_cloud(bang, params, ket_qua, sent, rows_by_id, full_norm, full_loos
                 d["nguon"] = "Local – cloud không trả lời"
                 tom["khong_xac_nhan"] += 1
                 continue
-            c = {k: an.mo(str(c.get(k) or "")) for k in ("gia_tri", "don_vi", "dieu_khoan", "trich_dan", "ghi_chu")}
+            c = {k: str(c.get(k) or "") for k in ("gia_tri", "don_vi", "dieu_khoan", "trich_dan", "ghi_chu")}
             gan_dieu_khoan(c, list(rows_by_id.values()))
             ck = check(c, full_norm, full_loose, None)
             d["cloud"] = {"gia_tri": c["gia_tri"], "trich_dan": c["trich_dan"], "kiem_tra": ck, "model": model}
@@ -397,34 +352,14 @@ def kiem_tra_cloud(bang, params, ket_qua, sent, rows_by_id, full_norm, full_loos
     return tom
 
 
-def thu_ket_noi(nha_cung_cap, model=None, timeout=60):
-    """Gọi thử API bằng một câu ngắn (KHÔNG có dữ liệu hợp đồng) → {ok, model, giay, tra_loi | loi}."""
-    # AI-0: nút thử kết nối cũng không được đọc khóa hoặc gọi nhà cung cấp.
-    return {"ok": False, "model": model or "", "giay": 0, "ma_loi": CHO_NOI_MASK_V2, "loi": CLOUD_TAM_KHOA}
-
-    import time
-    ncc = (nha_cung_cap or "anthropic").lower()
-    khoa = doc_khoa(ncc)
-    m = model or CLOUD_MODEL_MAC_DINH.get(ncc, "")
-    if not khoa:
-        return {"ok": False, "model": m, "loi": f"Chưa có API key {ncc} — dán key rồi bấm Lưu key."}
-    t0 = time.time()
-    try:
-        txt, ti, to, m = goi_api(ncc, m, khoa, 'Đây là lệnh kiểm tra kết nối. Trả về đúng JSON {"ket_qua": []}.',
-                                 timeout=timeout)
-    except CloudLoi as e:
-        msg = str(e)
-        goi_y = ""
-        if "401" in msg or "authentication" in msg.lower():
-            goi_y = " → API key sai hoặc đã bị thu hồi."
-        elif "404" in msg or "not_found" in msg:
-            goi_y = " → tên model không đúng hoặc tài khoản chưa được dùng model này."
-        elif "429" in msg or "rate" in msg.lower():
-            goi_y = " → vượt giới hạn gọi / hết hạn mức; thử lại sau."
-        elif "400" in msg and "credit" in msg.lower():
-            goi_y = " → tài khoản API hết tiền (credit balance)."
-        elif "Không kết nối" in msg:
-            goi_y = " → máy không ra được Internet tới api.anthropic.com (mạng / proxy / tường lửa)."
-        return {"ok": False, "model": m, "giay": round(time.time() - t0, 1), "loi": msg + goi_y}
-    return {"ok": True, "model": m, "giay": round(time.time() - t0, 1), "tra_loi": (txt or "")[:120],
-            "token_vao": ti, "token_ra": to}
+def thu_ket_noi(nha_cung_cap, model=None, timeout=60, *, cong_ai=None, settings=None, bo_ghi=None):
+    """Hỏi trạng thái cổng/Mask, không tạo yêu cầu model giả để thử khóa."""
+    cong_ai = cong_ai if cong_ai is not None else tao_cong_ai(settings, bo_ghi)
+    # Công tắc tắt: cổng không kiểm Mask, không đọc khóa Cloud.
+    st = trang_thai_cloud(cong_ai, kiem_mask=True)
+    kq = {"ok": st["dung_duoc"], "model": cong_ai.cai_dat["model"], "giay": 0}
+    if not kq["ok"]:
+        kq.update(ma_loi=st["ma"], loi=st["thong_bao"])
+    else:
+        kq["tra_loi"] = st["thong_bao"]
+    return kq
