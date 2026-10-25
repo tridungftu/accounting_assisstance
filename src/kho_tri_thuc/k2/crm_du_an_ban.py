@@ -101,8 +101,8 @@ def _so_nguyen(v, ten: str, truong: str = "$", *, bat_buoc: bool = True):
 
 
 def chuan_hoa_thong_tin(v, truong: str = "thong_tin", *, bat_ban: bool = False) -> dict:
-    """Ch? chu?n h?a tr??ng ???c g?i; b?t b?n m?i m?c ??nh thu? 10, ??t tr?/m? 0 (QD-20261025-20).
-    C?p nh?t gi? tr??ng v?ng m?t ?? SQL gh?p v?i phi?n b?n hi?n h?nh sau CAS r?i ki?m to?n b? n?i dung.
+    """Chỉ chuẩn hóa trường được gửi; bật bán mới mặc định thuế 10, đất trừ/m² 0 (QD-20261025-20).
+    Cập nhật giữ trường vắng mặt để SQL ghép với phiên bản hiện hành sau CAS rồi kiểm toàn bộ nội dung.
     """
     if not isinstance(v, dict):
         _loi("CRM_DA_YEU_CAU_SAI", "Thông tin dự án phải là object.", truong)
