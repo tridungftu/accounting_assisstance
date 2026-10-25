@@ -158,6 +158,36 @@ class S1HttpMock(HttpMixin, unittest.TestCase):
         st, r, _ = self.goi(sid="DEMO_NO_CRM")
         self.assertEqual((st, r["tong"], r["khong_quyen"]), (200, 0, True))
 
+    def test_xem_che_co_tien_va_loc_khong_lo_hop_dong(self):
+        raw = dong(gia_tri_minor=None, lich=[lich(han="2026-10-24"), lich(tien=None, dot=2)],
+                   thieu_gia_tri=True)
+        self.m.rows = [raw]
+        for co in ("QUA_HAN", "THIEU_CAN_CU"):
+            st, r, _ = self.goi("?co=" + co)
+            self.assertEqual((st, r["tong"]), (200, 1), r)
+            self.assertIn(co, r["hop_dong"][0]["co"])
+        self.m.rows = [{**raw, "xem_tien": False}]
+        self.m.danh_tinh.return_value.update(vai_tro="XEM", quyen={"DEMO-PN-A": {"module": ["CRM"]}})
+        st, r, _ = self.goi(sid="DEMO_XEM")
+        self.assertEqual((st, r["tong"]), (200, 1), r)
+        self.assertEqual(r["hop_dong"][0]["co"], [])
+        self.assertEqual(r["the_so"]["W2"]["so_luong"], 1)
+        for co in ("QUA_HAN", "THIEU_CAN_CU"):
+            st, r, _ = self.goi("?co=" + co, sid="DEMO_XEM")
+            self.assertEqual((st, r["tong"], r["hop_dong"]), (200, 0, []), r)
+            self.assertTrue(r["khong_quyen_xem_tien"])
+            self.assertIsNone(r["the_so"]["W5"]["so_luong"])
+            self.assertTrue(all(r["the_so"][w]["so_luong"] == 0 for w in ("W1", "W2", "W3", "W4")))
+
+    def test_ban_hang_co_tien_va_the_duong_qua_http(self):
+        self.m.rows = [dong(lich=[lich()])]
+        self.m.danh_tinh.return_value.update(vai_tro="BAN_HANG", quyen={"DEMO-PN-A": {"module": ["CRM"]}})
+        st, r, _ = self.goi(sid="DEMO_BH")
+        self.assertEqual((st, r["tong"]), (200, 1), r)
+        self.assertEqual(r["hop_dong"][0]["gia_tri_minor"], "9007199254740993")
+        self.assertEqual((r["the_so"]["W2"]["so_luong"], r["the_so"]["W5"]["so_luong"]), (1, 1))
+        self.assertFalse(r["khong_quyen_xem_tien"])
+
     def test_get_s1_json_lossless_va_khong_cache(self):
         st, r, h = self.goi()
         self.assertEqual(st, 200, r)
@@ -300,6 +330,16 @@ class S1HttpPg(HttpMixin, unittest.TestCase):
             cls.soan.append(soan)
         pc = cls.cap_phan_cong("MO_PHONG_BAN_HANG", cls.soan[0]["soan_id"])
         cls.cap_pham_vi(pc, cls.soan[0]["soan_id"])
+        # Fixture chủ DB cho projection: có tiền thật và thẻ chờ ký dương, không cần engine xuất.
+        cls.admin.execute("UPDATE master.crm_hd_soan SET trang_thai = 'CHO_KY' WHERE id = %s",
+                          (cls.soan[0]["soan_id"],))
+        cls.admin.execute("UPDATE master.hop_dong SET gia_tri_minor = 1000000000, "
+                          "crm_giao_ket = 'CHO_KY', trang_thai = 'CHO_KY' WHERE id = %s",
+                          (cls.soan[0]["hop_dong_id"],))
+        # Binding hợp lệ lúc cấp; HĐ đổi dự án làm binding cũ lệch, phải ẩn.
+        cls.cap_pham_vi(pc, cls.soan[1]["soan_id"])
+        cls.admin.execute("UPDATE master.hop_dong SET du_an_id = %s WHERE id = %s",
+                          (da, cls.soan[1]["hop_dong_id"]))
         # Khách sai digest: có phân công + dòng binding nhưng vẫn phải fail closed.
         cls.cap_pham_vi(pc, cls.soan[2]["soan_id"], "0" * 64)
 
@@ -320,14 +360,44 @@ class S1HttpPg(HttpMixin, unittest.TestCase):
         self.assertEqual((st, r["tong"]), (200, 1), r)
         self.assertEqual(r["hop_dong"][0]["id"], self.soan[0]["hop_dong_id"])
         self.assertFalse(r["hop_dong"][0]["khong_quyen_xem_tien"])
+        self.assertEqual(r["hop_dong"][0]["gia_tri_minor"], "1000000000")
         self.assertIsNotNone(r["hop_dong"][0]["thu_crm"])
         self.assertIsNone(r["hop_dong"][0]["nhan_tien"])
-        self.assertTrue(all(t["so_luong"] == 0 for t in r["the_so"].values()))  # chỉ SOAN_THAO, chưa có lịch hiệu lực
+        self.assertEqual(r["the_so"]["W2"]["so_luong"], 1)
         for query in ("?du_an=DA_DEMO_S1_KHAC", "?tim=KH%C3%81CH%20DEMO%20KH%C3%81C"):
             self.assertEqual(self.goi(query, sid="DEMO_BH")[1]["tong"], 0)
         st, r, _ = self.goi(sid="DEMO_BH2")
         self.assertEqual((st, r["tong"]), (200, 0), r)
         self.assertTrue(all(t["so_luong"] == 0 for t in r["the_so"].values()))
+
+    def test_ban_hang_binding_lech_du_an_an_hop_dong(self):
+        hd = self.soan[1]["hop_dong_id"]
+        self.assertTrue(self.q("""SELECT b.du_an_id IS DISTINCT FROM h.du_an_id
+            FROM master.crm_ky_pham_vi b JOIN master.hop_dong h ON h.id = b.hop_dong_id
+            WHERE h.id = %s AND b.thu_hoi_luc IS NULL""", (hd,)))
+        # KT vẫn thấy HĐ; BH có dòng binding nhưng lệch dự án nên không thấy.
+        for sid in ("DEMO_KT_A", "DEMO_BH"):
+            st, r, _ = self.goi(sid=sid)
+            self.assertEqual(st, 200, r)
+            self.assertEqual(str(hd) in {h["id"] for h in r["hop_dong"]}, sid == "DEMO_KT_A")
+
+    def test_xem_khong_co_va_khong_loc_duoc_co_tien(self):
+        st, kt, _ = self.goi("?co=THIEU_CAN_CU", sid="DEMO_KT_A")
+        self.assertEqual(st, 200, kt)
+        self.assertGreater(kt["tong"], 0)  # Đối chứng có cờ tiền trong dữ liệu cùng PN.
+        for sid in ("DEMO_XEM", "DEMO_KT_NO_M1"):
+            st, r, _ = self.goi(sid=sid)
+            self.assertEqual(st, 200, r)
+            self.assertGreater(r["tong"], 0)
+            self.assertTrue(r["khong_quyen_xem_tien"])
+            for h in r["hop_dong"]:
+                self.assertTrue({"QUA_HAN", "THIEU_CAN_CU"}.isdisjoint(h["co"]))
+            self.assertEqual(r["the_so"]["W2"]["so_luong"], 1)
+            for co in ("QUA_HAN", "THIEU_CAN_CU"):
+                st, r, _ = self.goi("?co=" + co, sid=sid)
+                self.assertEqual((st, r["tong"], r["hop_dong"]), (200, 0, []), r)
+                self.assertTrue(r["khong_quyen_xem_tien"])
+                self.assertIsNone(r["the_so"]["W5"]["so_luong"])
 
     def test_khong_module_rong_junsky_chua_co_so(self):
         st, r, _ = self.goi(sid="DEMO_NO_CRM")

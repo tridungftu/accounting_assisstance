@@ -141,8 +141,9 @@ LEFT JOIN master.hop_dong_phien_ban hh ON hh.id = h.hieu_luc_id
 # Chỉ boolean/count cho thẻ/cờ. Cùng điều kiện với crm_kiem_g5_xet(VAN_HANH)
 # nhưng không dựng graph/JSON bằng chứng; không nhận lech_mot_phan là LECH.
 _TOM_TAT = """
-       h.gia_tri_minor IS NULL AS thieu_gia_tri,
-       coalesce(lc.thieu, false) AS thieu_lich, coalesce(lc.qua_han, false) AS qua_han,
+       CASE WHEN h.xem_tien THEN h.gia_tri_minor IS NULL ELSE false END AS thieu_gia_tri,
+       CASE WHEN h.xem_tien THEN coalesce(lc.thieu, false) ELSE false END AS thieu_lich,
+       CASE WHEN h.xem_tien THEN coalesce(lc.qua_han, false) ELSE false END AS qua_han,
        CASE WHEN h.xem_tien THEN coalesce(lc.den_han, 0) ELSE 0 END AS den_han,
        EXISTS (SELECT 1 FROM jsonb_array_elements(gq.lech) e
                WHERE gd.nhan = 'VAN_HANH' AND gq.trang_thai = 'LECH'
@@ -253,7 +254,8 @@ def _ngay(v):
 
 def _dong(r: dict, hom_nay: date) -> dict:
     """Whitelist tóm tắt S1, không phản chiếu trường tùy ý từ DB/mock ra HTTP."""
-    lich = r.get("lich") or []
+    xem_tien = bool(r.get("xem_tien"))
+    lich = (r.get("lich") or []) if xem_tien else []
     co, so_tien, da_thu, con_lai, den_han, qua_han = [], {}, {}, {}, 0, False
     thieu_tien_te = set()
     for l in lich:
@@ -283,7 +285,6 @@ def _dong(r: dict, hom_nay: date) -> dict:
         co.append("TRA_LAI")
     if tt == "CHO_BO_SUNG" or r.get("bo_sung_mo"):
         co.append("CHO_BO_SUNG")
-    xem_tien = bool(r.get("xem_tien"))
     if xem_tien and r.get("gia_tri_minor") is None:
         co.append("THIEU_CAN_CU")
     ds_tien = [{"tien_te": t, "phai_thu_minor": None if t in thieu_tien_te else str(so_tien[t]),
@@ -333,9 +334,9 @@ def _tom_tat(r, ngay):
     """Dùng scalar rẻ cho lọc/thẻ, không đưa lịch, G5 hay sổ của toàn tập vào Python."""
     out = _dong(r, ngay)
     co = set(out["co"])
-    if r.get("thieu_gia_tri") or r.get("thieu_lich"):
+    if r.get("xem_tien") and (r.get("thieu_gia_tri") or r.get("thieu_lich")):
         co.add("THIEU_CAN_CU")
-    if r.get("qua_han"):
+    if r.get("xem_tien") and r.get("qua_han"):
         co.add("QUA_HAN")
     if r.get("lech"):
         co.add("LECH_BAN_KY")
@@ -351,8 +352,11 @@ def _khop(r, loc):
     for k in ("phap_nhan", "loai", "du_an", "trang_thai"):
         if k in loc and loc[k] != r.get(k):
             return False
-    if "co" in loc and loc["co"] not in r["co"]:
-        return False
+    if "co" in loc:
+        if r["khong_quyen_xem_tien"] and loc["co"] in ("QUA_HAN", "THIEU_CAN_CU"):
+            return False
+        if loc["co"] not in r["co"]:
+            return False
     if "tim" in loc and loc["tim"].casefold() not in " ".join(str(r.get(k) or "") for k in
                                                               ("so_hop_dong", "ma_noi_bo", "khach", "lo_can")).casefold():
         return False
@@ -386,12 +390,13 @@ class CrmDanhSachK2:
             trang = rows[dau:dau + loc["kich_thuoc_trang"]]
             chi_tiet = {str(r["id"]): _dong(dict(r), ngay) for r in
                         c.execute(*_sql(SQL_TRANG, loc, pns_tien, ngay, [r["id"] for r in trang]))} if trang else {}
-            # Cờ/thẻ và chi tiết cùng snapshot; summary giữ đủ cờ cả khi không trả tiền.
+            # Cờ/thẻ và chi tiết cùng snapshot, cùng điều kiện quyền xem tiền.
             trang = [{**chi_tiet[r["id"]], "co": r["co"], "viec": r["viec"]} for r in trang]
         the["W2"].update(trang_thai="MOT_PHAN", ly_do="Chỉ đếm HĐ chờ ký; chưa có ngưỡng n nhắc ký và nguồn báo giá sắp hết hạn.")
         the["W5"].update(trang_thai="MOT_PHAN", tien_chua_ro=None, ly_do="Đếm đợt còn phải thu có ngày từ hôm nay đến 7 ngày tới; chưa có nguồn tiền chưa rõ/thu thừa thiếu.")
         if not xem_tien:
             the["W5"].update(so_luong=None, trang_thai="KHONG_CO_QUYEN", khong_quyen=True, nhan="Không có quyền xem tiền")
         return {"hop_dong": trang, "tong": tong, "trang": loc["trang"], "khong_quyen": not bool(quyen.pham_vi(dt, "XEM")),
+                "khong_quyen_xem_tien": not xem_tien,
                 "kich_thuoc_trang": loc["kich_thuoc_trang"], "the_so": the, "bo_loc": loc,
                 "ngay_nghiep_vu": ngay.isoformat(), "thong_bao": None if tong else "Không có hợp đồng trong phạm vi của bạn"}
