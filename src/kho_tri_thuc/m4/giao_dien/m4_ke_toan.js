@@ -516,6 +516,13 @@
   const dcKey = r => JSON.stringify([r.kind, r.occurrence_id, r.part_id]);
   const dcCopy = x => JSON.parse(JSON.stringify(x));
   const dcNgay = v => typeof v === "string" && /^\d{4}-\d{2}-\d{2}/.test(v) ? v.slice(0, 10).split("-").reverse().join("/") : "Chưa có ngày";
+  function dcThoiDiem(v) {
+    const ms = typeof v === "string" ? Date.parse(v) : NaN;
+    if (!Number.isFinite(ms)) return "Chưa có ngày";
+    // UTC+7 cố định, không phụ thuộc múi giờ của trình duyệt.
+    const vn = new Date(ms + 7 * 60 * 60 * 1000), hai = n => String(n).padStart(2, "0");
+    return `${hai(vn.getUTCDate())}/${hai(vn.getUTCMonth() + 1)}/${vn.getUTCFullYear()} ${hai(vn.getUTCHours())}:${hai(vn.getUTCMinutes())}`;
+  }
   const dcTien = (v, tt) => {
     if (v === null || v === undefined) return "Chưa đọc được số tiền";
     const [nguyen, le] = String(v).split(".");
@@ -787,7 +794,7 @@
     for (const t of (s.hist && s.hist.kt.phan_khai_con_thieu) || []) card.append(nho("Phần khai còn thiếu của đợt: " + (t.ly_do ? "Cần kiểm lại phần khai" : dcTien(t.so_tien_con_thieu, t.tien_te))));
     if (s.hist) {
       card.append(el("h4", {text: "Lịch sử phiên bản đối chiếu"}));
-      s.hist.doi_chieu.phien_ban.forEach(p => card.append(el("details", {}, el("summary", {text: `Phiên bản ${p.revision} · ${DC_TT[p.trang_thai]} · ${dcNgay(p.tao_luc)}`}),
+      s.hist.doi_chieu.phien_ban.forEach(p => card.append(el("details", {}, el("summary", {text: `Phiên bản ${p.revision} · ${DC_TT[p.trang_thai]} · ${dcThoiDiem(p.tao_luc)}`}),
         nho(dcChu(p.ly_do)), (p.noi_dung.thanh_phan || []).map(t => nho(dcNhan(s, t.nguon) + " · " + (t.phan === "TOAN_PHAN" ? "Toàn bộ" : "Một phần · " + (t.ty_le_khai ? "Cần khai lại số tiền" : dcTien(t.so_tien_khai, t.tien_te))))),
         nho("Tệp căn cứ: " + (p.noi_dung.can_cu_tep.length ? p.noi_dung.can_cu_tep.map(t => (dto.nguon.tep_can_cu.find(f => f.id === t.id) || {}).ten || "Tệp của đợt trong nhóm").join("; ") : "Chưa đính kèm")))));
     }
@@ -828,7 +835,7 @@
     else s.append(bang(["Hồ sơ KT", "Đợt", "Phong bì mới nhất", "Revision KT", "Trạng thái", "Công nợ/AP", ""], ds.map(r => {
       const [tt, cls] = TT_DS[r.trang_thai], dang = r.kt_pending_id === pendingChon;  // FIX02: tập hộp chờ (cùng tập với kiemDs)
       return [h12(r.kt_pending_id), h12(r.dot_id), h12(r.phong_bi_id), r.revision === null ? "chưa có" : String(r.revision), pill(tt, cls),
-        "Chưa triển khai (M4-03B)", nut(dang ? "Đang mở" : "Mở", () => chon(r.kt_pending_id, null), dang ? "" : "m4-chinh")];
+        "Chưa ghi công nợ/AP", nut(dang ? "Đang mở" : "Mở", () => chon(r.kt_pending_id, null), dang ? "" : "m4-chinh")];
     })), nho("Danh sách chỉ để chọn — mọi lệnh dùng context/revision của hồ sơ chi tiết đọc lại từ máy chủ."));
     return s;
   }
@@ -873,7 +880,7 @@
     if (k && k.trang_thai === DA_XAC_NHAN) out.push(veDoiChieu());
 
     out.push(el("section", {class: "m4-card m4-kt-nhanh"}, el("h3", {text: "Nhánh sau xác nhận"}), bang(["Nhánh", "Trạng thái máy chủ", "Ghi chú"], [
-      ["Ghi công nợ/AP", pill("Chưa triển khai (M4-03B)", "m4-xam"), "Đã ghi công nợ: không. Xác nhận kế toán không đồng nghĩa ghi công nợ/hạch toán."],
+      ["Ghi công nợ/AP", pill("Chưa ghi công nợ/AP", "m4-xam"), "Đã ghi công nợ: không. Xác nhận kế toán không đồng nghĩa ghi công nợ/hạch toán."],
       ["Request thanh toán", pill("Chưa nối (M4-04)", "m4-xam"), "Không tạo/gửi Request từ màn này."]])));
 
     const lsS = el("section", {class: "m4-card m4-kt-lich-su"}, el("h3", {text: "Lịch sử phong bì nguồn"}));
@@ -958,7 +965,7 @@
       ct.append(...veHoSo());
     } else if (dto) ct.append(nho("Dữ liệu đang hiện có thể chưa mới nhất — bấm ↻ Làm mới."));
     ct.append(...veYDinh());
-    out.push(ct, nho("Gói M4-03A: chỉ xác nhận nguồn nghiệm thu cho kế toán. Chưa ghi công nợ/AP (M4-03B), chưa tạo/gửi Request (M4-04)."));
+    out.push(ct, nho("Gói M4-03A: chỉ xác nhận nguồn nghiệm thu cho kế toán. Chưa ghi công nợ/AP (gói sau), chưa tạo/gửi Request (M4-04)."));
     box.replaceChildren(...out);
   }
 
