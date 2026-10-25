@@ -11,7 +11,7 @@ Trạng thái lát: Đang code → Chờ kiểm → Chờ Anh (cổng A/B) → S
 | M4-5a | M4 · Nghiệm thu & chi phí dự án · 03B máy chủ: khai một phần bằng số tiền + gợi ý hóa đơn — **M0033** | Codex · review Claude | `lat/m4-5a` | 25/10 19:16 (vòng 3) | **XONG — đã gộp 834a53c** (M0033). **Nợ đã trả 25/10 21:05:** 21 ca PG `test_m4_03b_common_pg` (gồm SQL M0033) đạt thật trên bản sao 03a (nhờ L0-8d/8e/8f), c16 skip có chủ đích |
 | DA-3a | CRM · Báo giá nạp mặc định từ Dự án đang bán, ghi nhận khác tiêu chuẩn | Codex · review Claude | `lat/da-3a` (c077a83) | 25/10 | **XONG — đã gộp** (vòng 2 B1; kiem-nhanh Đạt; PG 29/29 + 16/16) |
 | T-MIG2 | Test PostgreSQL theo chuỗi migration mới | Codex | `lat/t-mig2` (26e9c35) | 25/10 | `t21` hết sau **L0-9b** (gốc: 8 fixture L11 bị L0-9 ép LF, lệch ghim SHA) — `test_crm_k2` chỉ còn lỗi có sẵn của nền; chờ chạy lại cả bộ PG → `kiem-nhanh` → `review-lat` → gộp |
-| UI-1 | Khung lưới icon dùng chung + áp CRM 6 phần (CD-002) | Claude Sonnet | `lat/ui-1` (= da-2 + hop-nhat) | 25/10 | DEMO 8798 (có L0-10) **chạy được**: lead thử 4 vai — thẻ/icon đúng TL 49 §2, thanh icon trái + đường dẫn đúng; **lỗi tìm thấy:** lần tải đầu báo 'Phiên CRM chưa có' (khung gọi trước /api/crm) → **UI-1b** (chờ suất trống); sau đó gửi phiếu cổng A |
+| UI-1 | Khung lưới icon dùng chung + áp CRM 6 phần (CD-002) | Claude Sonnet | `lat/ui-1` (= da-2 + hop-nhat) | 25/10 | **Chờ Anh — cổng A** (DEMO 8798; phiếu `PHIEU-CONG-A-TRANG-CHU-LUOI-ICON.md`); UI-1b sửa lỗi lần tải đầu xong; gộp sau cổng A + BG-1d |
 | UI-2 | Máy chủ `GET /api/khung/module/crm` (CD-002) | Codex | `lat/ui-2` | 25/10 19:16 | **XONG — đã gộp af7c389**: kiem-nhanh Đạt, review-lat Opus Đạt (3 Nên sửa → **UI-2b** chờ chỗ trống: số icon theo TL 42 §3, không trả tổng cắt); lead còn gọi thử `/api/khung/module/crm` 4 vai trên DEMO khi chuẩn bị cổng A |
 | L0-10 | **Bị chặn mở DEMO có CRM** từ 19:46 (sau khi cụm chạy dịch vụ Windows): `pg_ctl status` dưới tài khoản người dùng báo 3, không đọc được tiến trình dịch vụ → `pg_cum.bao_dam_cum` báo CUM_CONG_BI_CHIEM; ảnh hưởng `mo_demo_worktree.ps1` và `MỞ BẢN DEMO.cmd` | Codex | `lat/l0-10` | 25/10 20:38 | **XONG — đã gộp c199a05** (review Opus Đạt); điểm Nên sửa/Để sau → L0-10b đang code |
 | M2j-b | Sửa nóng `app.js`: bộ lọc "Lần tải" (M2j) làm vỡ 16 bộ test node (DOM giả không có phần tử cha) | Lead | `hop-nhat` | 25/10 19:08 | **Xong** — sửa 1 dòng; 16 → 7 bộ node không đạt, cả 7 cũng không đạt trên nền v4 (lỗi có sẵn) |
@@ -71,7 +71,7 @@ Quy tắc áp cho mọi lát từ 25/10 (CD-001 việc 3): không lát nào vi�
 | L0-8e v2 | Codex | gpt-6.1-sol · high | 21:02 | — | — | — |
 | AI-2a | Claude | Opus | 21:12 | — | — | — |
 | L0-10b | Codex | gpt-6.1-sol · high | 20:45 | gộp 21:00 | kiem-nhanh Đạt | Xanh — 52/52; kiểm thật dịch vụ khớp |
-| UI-1b | Codex | gpt-6.1-sol · high | 20:55 | — | — | — |
+| UI-1b | Codex | gpt-6.1-sol · high | 20:55 | 21:02 | lead thử DEMO | Xanh — node khung 16/16; DEMO 8798 lần tải đầu không còn lỗi phiên |
 | kiem-nhanh DA-3a v2 + AI-1b | Claude | Haiku | 20:12 | 20:15 | — | Đạt cả hai → gộp |
 | kiem-nhanh UI-2 + M4-5a v3 | Claude | Haiku | 19:51 | 19:55 | — | Đạt cả hai |
 | review-lat UI-2 | Claude | Opus | 19:56 | 20:02 | vòng 1 | Đạt — 3 Nên sửa → UI-2b |
