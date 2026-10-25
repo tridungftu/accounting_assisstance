@@ -1,0 +1,15 @@
+# E1-2 — E1-MUA · Quy tắc theo loại hợp đồng (E2) + phiên bản danh mục (E4) trong bản vá engine #6
+
+Bạn là worker Codex, chạy không tương tác. Anh đã chốt (20/10 thiết kế; 25/10 QD-20261025-11: **sửa trong bản vá trong repo**) qua lead: **làm ngay, không hỏi lại**. Đọc `AGENTS.md`, `CLAUDE.md`. UTF-8 không BOM. Worktree hiện tại, nhánh `lat/e1-2` (từ hop-nhat, đã có E1-1). Sandbox không ghi `.git`: **không commit**. Chạy Python: `& "$env:USERPROFILE\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe" -X utf8 tools/chay_test_theo_module.py . --module <tên>` (thiếu thư viện thì ghi rõ; lead chạy lại).
+
+**Căn cứ:** `docs/GIAO-CODE-E1-MUA-DANH-MUC-THAM-SO-THEO-LOAI.md` §2, §4 dòng `logic.py` và `quy_trinh.py / API` (đọc kỹ quy tắc E2: XD giữ nguyên; DV/MUA_HH/THUE_TS/NHAP_KHAU: tổng % lịch ≤ 100% (vì có giữ lại), cọc (TT-13) không nằm trong lịch, DV/THUE_TS phải có TT-80 trước khi coi lịch hợp lệ; TT-55 "mức phạt × ngày vượt 8% phần vi phạm → cần rà soát"); TL 44 `D:\Claude\Phan mem ho tro ke toan\44-bo-tham-so-hop-dong-mua-theo-loai.md` (ý nghĩa mã TT-13, TT-55, TT-80…). **Không mở `DAP_AN_DV_nhap_20261020.xlsx`** (giá trị thật).
+**Hiện trạng:** bản vá ở `tools/source6_g5_e5/trich_xuat/` có `danh_muc.py` (E1-1: `CATALOG_COMMON` 7 loại, `danh_muc_theo_loai`), `quy_trinh.py`; **chưa có `logic.py`**. Bản gốc `logic.py` của engine #6 đúng phiên bản đã ghim (SHA-256 `f7cfcf37…`, lead đã đối chiếu) có tại `src/kho_tri_thuc/m4/review_goc/trich_xuat/logic.py` — **không sửa bản đó** (bị ghim cho M4).
+**Việc cụ thể:**
+1. Chép `src/kho_tri_thuc/m4/review_goc/trich_xuat/logic.py` thành `tools/source6_g5_e5/trich_xuat/logic.py` (bản vá), giữ nguyên byte trước khi sửa (ghi SHA nguồn vào docstring đầu file).
+2. E2: tách các kiểm L2/L3/L5 thành **bảng quy tắc theo loại** (dữ liệu, không if rải rác): XD giữ y hệt hành vi cũ; DV/MUA_HH/THUE_TS/NHAP_KHAU theo đúng các quy tắc ở trên. Loại chưa có quy tắc → dùng quy tắc chung an toàn, ghi rõ (không im lặng coi như XD).
+3. E4: kết quả trích (`quy_trinh.py`/API trong bản vá) có thêm `loai_hop_dong` và `phien_ban_danh_muc` = SHA-256 tệp danh mục (từ `CATALOG_COMMON`).
+4. Test mới `tests/test_e1_mua_quy_tac.py` (thuần, dữ liệu giả): XD trước/sau cho cùng kết quả trên vài đầu vào giả (so hàm gốc review_goc với bản vá); mỗi quy tắc E2 có ca dương/âm; `phien_ban_danh_muc` đúng SHA.
+**File được sửa/tạo (≤ 4):** `tools/source6_g5_e5/trich_xuat/logic.py` (mới, từ bản gốc), `tools/source6_g5_e5/trich_xuat/quy_trinh.py`, `tests/test_e1_mua_quy_tac.py` (mới), `tools/source6_g5_e5/may_chu/dich_vu.py` chỉ nếu cần cho E4.
+**Không làm:** E3 bảng TT-05/TT-20, màn hình, áp vào #6 thật, sửa `src/kho_tri_thuc/m4/review_goc/*`, gọi AI/cloud, xóa file.
+**Test phải đạt:** `--module test_e1_mua_quy_tac --module test_e1_mua_danh_muc --module test_source6_g5_e5` — không mã lỗi mới so với `docs/46-chuyen-doi-dieu-phoi/nen-test-hop-nhat-v4.json`.
+**Báo cáo cuối (≤ 1 trang):** bảng quy tắc theo loại (loại · quy tắc · mã tham số) · XD giữ nguyên (bằng chứng) · test đạt/tổng · thông điệp commit `[E1-2] …` · điểm còn mơ hồ cần Anh (ghi `[CẦN ANH XÁC NHẬN]`).

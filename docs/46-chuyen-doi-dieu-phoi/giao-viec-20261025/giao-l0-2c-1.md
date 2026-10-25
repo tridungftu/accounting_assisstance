@@ -1,0 +1,15 @@
+# L0-2c-1 — M4 · Nghiệm thu & chi phí dự án: gộp backend duyệt/PDF (`luu/m4-02c-backend-20261022-01`)
+
+Bạn là worker Codex, chạy không tương tác (`codex exec`). Anh đã ra lệnh 24/10 qua lead: **làm ngay đến hết, không hỏi lại**. Đọc `AGENTS.md`, `CLAUDE.md`. UTF-8 không BOM (đọc bằng `git show`, `python -X utf8`; file có tiếng Việt, giữ nguyên dấu).
+**Thư mục:** worktree hiện tại, nhánh `lat/l0-2c` (từ `hop-nhat-20261023` 4e1f6bb). Sandbox không ghi được `.git`: **không commit** — lead commit. Có thể dùng `git show <ref>:<file>` và `git merge-file` (chỉ ghi vào file trong worktree).
+
+**Nguồn:** `luu/m4-02c-backend-20261022-01` = nền `chinh` 59b7d8e + ảnh chụp nguyên file của gói M4-02C backend (duyệt đợt, kết luận, chấp thuận, PDF hồ sơ đã duyệt). Trên hop-nhat các file này đã bị gói khác sửa sau đó (`m4-04b-ui-copy`, `m4-master-reuse`, `m4-backend-crm-three`, `m4-03a`…), nên **không được lấy nguyên file của nhánh luu đè lên**.
+Chênh lệch đo được (hop-nhat ↔ luu): `giao_dien/m4.py` HN hơn 89 dòng / luu hơn 6; `m4/duyet_dot.py` HN hơn 86 / luu hơn 10 (file mới ở luu — trên HN đến từ ui-copy); `kiem_chung/fixtures_m4.py` luu hơn 29 (có `KET_LUAN_VND` mà test cần); `k2/m4_demo.py` luu hơn 72; `k2/xay_dung.py` HN hơn 106 / luu hơn 1. `m4/sql_duyet.py` đã có trên HN (P0) — kiểm khớp byte với luu, khác thì báo, không sửa.
+
+**Cách gộp (từng file, đúng 5 file):** gộp 3 bên với nền 59b7d8e: `git merge-file -p <HN> <base 59b7d8e> <luu>` (với `duyet_dot.py` không có ở nền: dùng file rỗng làm base, rồi giải tay). Quy tắc xung đột: **giữ cả hai phía**; trùng hàm → giữ bản có thêm hành vi mới, không bỏ hành vi cũ; phần HN có mà luu không có là code mới hơn của gói sau → giữ. Không viết logic mới ngoài việc nối hai phía.
+**File được sửa (5):** `src/kho_tri_thuc/giao_dien/m4.py`, `src/kho_tri_thuc/m4/duyet_dot.py`, `src/kho_tri_thuc/kiem_chung/fixtures_m4.py`, `src/kho_tri_thuc/k2/m4_demo.py`, `src/kho_tri_thuc/k2/xay_dung.py`. Ba test `tests/test_m4_02c_{http,pg,tinh}.py`: nếu khác luu thì báo (không sửa). Cần file khác (`pg_migrations.py`, JS) → không sửa, ghi báo cáo.
+
+**Test (chạy trước và sau, so theo mã lỗi):** `python -X utf8 tools/chay_test_theo_module.py . --module "test_m4_02c*" --module "test_m4_03a*" --module "test_m4_request*" --module "test_m4_master_dung_chung*" --module test_m4_01c --module test_nghiem_thu_bridge --module test_m4_review_compute` (giới hạn 180 giây/module có sẵn). Nền tham chiếu: `docs/46-chuyen-doi-dieu-phoi/nen-test-hop-nhat-v2.json` (`ids_loi`). Mong đợi: `test_m4_02c_pg` nạp được; lỗi thiếu `KET_LUAN_VND` hết; **không** test nào vốn đạt bị hỏng. Test cần PostgreSQL skip/NOT_VERIFIED là bình thường.
+**Không làm:** đăng ký migration 26/27 (lượt L0-2c-2); sửa giao diện JS; xóa file; đọc `var/`, `.env`, `cau_hinh.*.toml`.
+
+**Báo cáo cuối (≤ 1 trang, tiếng Việt):** Đã làm · từng file: số xung đột, cách giải (1 dòng mỗi chỗ) · `sql_duyet.py` khớp/không · test trước/sau theo module + mã lỗi mới (nếu có) · thông điệp commit đề xuất `[L0-2c] …` · rủi ro.

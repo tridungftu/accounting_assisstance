@@ -1,0 +1,15 @@
+# DA-2a vòng 2 — sửa theo review Claude + hiển thị thuế mới (CRM · màn Dự án đang bán, phần xem)
+
+Bạn là worker Codex, chạy không tương tác. Lead giao: **làm ngay, không hỏi lại**. Đọc `AGENTS.md`, `CLAUDE.md`. UTF-8 không BOM. Worktree hiện tại, nhánh `lat/da-2` (đầu `236af85` = DA-2a `b339029` + máy chủ DA-1 vòng 2 + thuế DA-1c). Sandbox không ghi `.git`: **không commit**. Chạy: `node tests/crm_du_an_ban_async.cjs`, `node tests/crm_giao_ket_async.cjs`, Python `& "$env:USERPROFILE\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe" -X utf8 tools/chay_test_theo_module.py . --module test_crm_du_an_ban`.
+
+**Đầu vào — review vòng 1 (tóm tắt, số dòng trong `crm_g.js`):**
+1. **Chặn** — `napTong` (~510, 159, 353): đổi vai khi đang ở tab "Dự án đang bán" rồi bấm lại G1/G7 → không GET `/api/crm/mau`; G1 "Đang tải…" mãi. Sửa: `napTong` **luôn** gọi `napDs()`, rồi tùy tab gọi `napBc()` / `duAnBan.nap()`. Ca test: đổi vai ở tab Dự án đang bán rồi quay về G1/G7 → có GET danh sách mẫu, hiện đúng.
+2. **Nên sửa** — `loiDoc` (~389–395, 406) trả `""` ở nhánh 401/403 nên thông báo "Phiên hoặc quyền…" bị ghi đè; danh sách 403 hiện "Đang tải…" mãi. Sửa để luôn hiện thông báo tiếng Việt. Ca test 401/403 cho danh sách và chi tiết.
+3. **Nên sửa** — tiền đợt tiến độ G7 (~367–373 `giaTriDong`) hiện "1500000000 VND" (không nhóm nghìn, đuôi lệch "đ"). Sửa **ở máy chủ**: `k2/crm_du_an_ban.py` (`hien_thi_anh_chup`) thêm `gia_tri_hien_thi` cho từng dòng bộ chuẩn, dùng đúng hàm định dạng tiền máy chủ đang dùng cho phí/đơn giá; JS chỉ hiện. Sửa test nhóm 4.
+4. **Nên sửa** — diện tích trong lịch sử lô (~481, 454) tự định dạng ("1234,5 m²"). Sửa **ở máy chủ**: lịch sử lô có `dien_tich_hien_thi` (cùng định dạng chi tiết "1.234,5 m²"); JS chỉ hiện.
+5. **Nên sửa** — lịch sử bỏ `lich_su.tien_do` và sự kiện áp dụng tiến độ (`CRM_CHUAN_AP_DUNG`): thêm bảng **"Tiến độ tiêu chuẩn đã áp dụng"** (giai đoạn, hiệu lực từ dd/mm/yyyy, người áp dụng, căn cứ "Bán hàng áp dụng ngay — QD-20261025-07" hoặc "CFO duyệt (bản cũ)").
+6. **Thuế mới (QD-20261025-20, máy chủ DA-1c đã đổi):** bỏ mọi chỗ đọc `co_so_thue`/`vat_phan_tram` (~465 bảng map "Trường đã đổi"); hiện "Thuế suất" bằng nhãn danh mục (vd "10%", "Không chịu thuế"), dòng "Giá chưa gồm VAT", và "Giá đất được trừ: 24 USD/m²" (chuỗi hiển thị máy chủ; nếu máy chủ chưa trả chuỗi hiển thị cho `gia_dat_tru` thì thêm vào `hien_thi_anh_chup` cùng kiểu đơn giá). Sửa test nhóm 3.
+
+**File được sửa (chỉ):** `src/kho_tri_thuc/giao_dien/assets/crm_g.js` (chỉ khối Dự án đang bán + `napTong`), `src/kho_tri_thuc/k2/crm_du_an_ban.py` (chỉ hàm dựng chuỗi hiển thị), `tests/crm_du_an_ban_async.cjs`, `tests/test_crm_du_an_ban.py` (ca cho chuỗi hiển thị mới). Không sửa SQL/migration, `crm_g.py`, phần Báo giá; không xóa file.
+**Test phải đạt:** `node tests/crm_du_an_ban_async.cjs`, `node tests/crm_giao_ket_async.cjs` (23/23), `--module test_crm_du_an_ban` (PG skip).
+**Báo cáo cuối (≤ ½ trang):** từng điểm 1–6 sửa ở file:dòng, ca test · file đã sửa · thông điệp commit `[DA-2a] vòng 2: …`.
