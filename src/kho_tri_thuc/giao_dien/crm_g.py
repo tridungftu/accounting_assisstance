@@ -612,7 +612,10 @@ def dieu_huong(h, app, post: bool, path: str, query: dict):
             status = (403 if code in MA_403 or code in MA_403_GK or code in MA_403_KY or code in MA_403_KIEM else 404 if code in MA_404
                       else 409 if code in MA_409 or code in MA_409_GK or code in MA_409_KY or code in MA_409_KIEM or code in MA_409_DC else 413 if code in MA_413 or code in MA_413_KY
                       else 503 if code in MA_503 or code in MA_503_KY else 400)
-        return h.send_content(status, {"error": code, "message": str(exc)})
+        loi = {"error": code, "message": str(exc)}
+        if getattr(exc, "locator", "$") not in (None, "", "$"):  # BG-1c: lỗi theo trường (vd fx.ty_gia, gia.don_gia) để màn hình chỉ đúng ô
+            loi["truong"] = exc.locator
+        return h.send_content(status, loi)
     except (ValueError, TypeError, KeyError, RecursionError):
         return h.send_content(400, {"error": "INVALID_REQUEST", "message": "Thông tin gửi lên không hợp lệ; chưa xử lý."})
     except OSError:
