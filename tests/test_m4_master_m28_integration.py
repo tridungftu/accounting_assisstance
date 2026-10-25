@@ -31,7 +31,7 @@ SQL_PY = SRC / "m4" / "sql_master_dung_chung.py"
 # ghim (không tính lại từ code đang chạy)
 PREFIX_BYTES, PREFIX_SHA256 = 974_607, "9ceb58b21f73d553bc9cf317e6e720ebed6448358fab65195c1fd2a42ac2d491"  # toàn pg_migrations.py baseline 27
 M28_END, M28_PREFIX_SHA256 = 975_546, "f724ea0f6a25bed446949a1e029fcd57808a557ed7218984957b24d82c419795"  # toàn pg_migrations.py baseline 28
-SQL_SHA256 = "98d2b711193cfca2946dd041262d808c461059aac063cb347fbcdc03280c233c"  # m4/sql_master_dung_chung.py
+SQL_SHA256 = "cc2888a60590d09dec5f427f2a81b85eb07b6acc5f9aa09677789ad65060e65a"  # m4/sql_master_dung_chung.py, xuống dòng chuẩn hóa LF (gitattributes chưa ép eol cho file này)
 M28_JOINED_SHA256 = "f7d6df6763db487c11794fb63fa5b020212ff784e45ac30262a26dfc8c8a4800"  # _hash(câu 28) = sha256("\n".join)
 VERSION_DONG = b"PG_SCHEMA_VERSION = len(PG_MIGRATIONS)\n"
 DONG_NOI = ("from ..m4.sql_master_dung_chung import M4_MASTER_DUNG_CHUNG_SQL  # noqa: E402 — module chỉ hằng SQL, không import ha_tang",
@@ -93,7 +93,7 @@ class M28Prefix(unittest.TestCase):
         self.assertEqual(len(re.findall(r"^PG_MIGRATIONS = \(\*PG_MIGRATIONS, M0028_M4_MASTER_DUNG_CHUNG\)$", txt, re.M)), 1)
 
     def test_module_sql_master_nguyen_byte_khong_import_registry(self):
-        raw = SQL_PY.read_bytes()
+        raw = SQL_PY.read_bytes().replace(b"\r\n", b"\n")  # checkout autocrlf cho CRLF; checksum migration không phụ thuộc (Python chuẩn hóa xuống dòng trong chuỗi)
         self.assertEqual(hashlib.sha256(raw).hexdigest(), SQL_SHA256, "module hằng SQL master dùng chung bị sửa")
         src = raw.decode("utf-8")
         self.assertIsNone(re.search(r"^\s*(from|import)\s[^\n]*(pg_migrations|ha_tang|psycopg)", src, re.M))

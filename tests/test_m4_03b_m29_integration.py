@@ -33,7 +33,7 @@ SQL_PY = SRC / "k2" / "sql_ghi_nhan_chung.py"
 M27_END, M27_PREFIX_SHA256 = 974_607, "9ceb58b21f73d553bc9cf317e6e720ebed6448358fab65195c1fd2a42ac2d491"  # toàn pg_migrations.py baseline 27
 PREFIX_BYTES, PREFIX_SHA256 = 975_546, "f724ea0f6a25bed446949a1e029fcd57808a557ed7218984957b24d82c419795"  # toàn pg_migrations.py baseline 28
 M29_END, M29_PREFIX_SHA256 = 976_492, "7817b70da2b3457ac16add058fc894b7484aae12fc7c399e67b24ac0ef99fc07"  # toàn pg_migrations.py baseline 29
-SQL_SHA256 = "5e1758b8b38ebebb91d04680ee02bbe2aa1ef5c21432715a7f32b047cc5cf10a"  # k2/sql_ghi_nhan_chung.py
+SQL_SHA256 = "b67ef795467dec1958267195e9e14f9601e705b61bc52495b5598b2609e75b12"  # k2/sql_ghi_nhan_chung.py, xuống dòng chuẩn hóa LF (gitattributes chưa ép eol cho file này)
 M29_JOINED_SHA256 = "4544ab374806a52729b1602fbf3d95eae3401ada006da54a97312cd1bc8ae5eb"  # _hash(câu 29) = sha256("\n".join)
 VERSION_DONG = b"PG_SCHEMA_VERSION = len(PG_MIGRATIONS)\n"
 DONG_NOI = ("from ..k2.sql_ghi_nhan_chung import M4_03B_COMMON_SQL  # noqa: E402 — module chỉ hằng SQL, không import ha_tang",
@@ -96,7 +96,7 @@ class M29Prefix(unittest.TestCase):
         self.assertEqual(len(re.findall(r"^PG_MIGRATIONS = \(\*PG_MIGRATIONS, M0029_M4_GHI_NHAN_CHUNG\)$", txt, re.M)), 1)
 
     def test_module_sql_03b_nguyen_byte_khong_import_registry(self):
-        raw = SQL_PY.read_bytes()
+        raw = SQL_PY.read_bytes().replace(b"\r\n", b"\n")  # checkout autocrlf cho CRLF; checksum migration không phụ thuộc (Python chuẩn hóa xuống dòng trong chuỗi)
         self.assertEqual(hashlib.sha256(raw).hexdigest(), SQL_SHA256, "module hằng SQL 03B bị sửa")
         src = raw.decode("utf-8")
         self.assertIsNone(re.search(r"^\s*(from|import)\s[^\n]*(pg_migrations|ha_tang|psycopg)", src, re.M))
