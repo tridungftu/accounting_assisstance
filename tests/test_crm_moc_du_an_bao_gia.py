@@ -38,6 +38,7 @@ class _Mau(CrmMauK2):
         self.root = Path(__file__).parent
         self.hom_nay = lambda: date(2026, 10, 25)
         self.lenh, self.dang_tx, self.da_luu = [], False, []
+        self.nguoi_lap, self.ten_nguoi_lap = ME, None
         self.moc = {DA: [{"ma": MA, "ten": TEN}], KHAC: []}
         self.cu = G.chuan_hoa_bao_gia(du_lieu(MA + "_30"))
 
@@ -80,10 +81,13 @@ class _Mau(CrmMauK2):
         elif "FROM master.crm_bao_gia b JOIN" in sql:
             row = {"id": BG, "du_an_id": self.cu["du_an_id"], "du_lieu": self.cu, "g7": None,
                    "revision_hien_hanh": 1, "trang_thai": "NHAP", "loai_hinh_id": self.cu["loai_hinh_id"],
-                   "khach_ten": None, "so_bao_gia": "BG-DEMO", "ngay": "2026-10-25", "tao_boi": ME,
+                   "khach_ten": None, "so_bao_gia": "BG-DEMO", "ngay": "2026-10-25", "tao_boi": self.nguoi_lap,
                    "du_lieu_sha256": "0" * 64}
         elif "FROM master.crm_bao_gia_dieu_khoan" in sql:
             return [{"noi_dung": "Điều khoản DEMO"}]
+        elif "SELECT ten FROM master.nguoi_dung" in sql:
+            assert params == (self.nguoi_lap,), "Must read creator name rather than printer name"
+            row = {"ten": self.ten_nguoi_lap} if self.ten_nguoi_lap is not None else None
         elif "SELECT ten FROM master.du_an" in sql:
             row = {"ten": "Dự án DEMO"}
         else:
@@ -192,6 +196,30 @@ class LuuMocDuAn(unittest.TestCase):
 
 
 class NhanVaBanIn(unittest.TestCase):
+    def test_nguoi_lap_dung_ten_hien_thi_hoac_nhan_an_toan_trong_docx(self):
+        for login, ten, mong_doi in (
+                (ME, None, "Người dùng mô phỏng"),
+                ("DEMO_BAN_HANG", "  ", "Người dùng mô phỏng"),
+                (ME, " Nguyễn Văn An ", "Nguyễn Văn An"),
+                ("ban_hang_a", "Trần Thị Bình", "Trần Thị Bình"),
+                ("ban_hang_a", None, "Người lập báo giá"),
+                ("ban_hang_a", "", "Người lập báo giá")):
+            with self.subTest(login=login, ten=ten):
+                m = _Mau()
+                m.nguoi_lap, m.ten_nguoi_lap = login, ten
+                s = G.CrmGiaoKetK2(m)
+                with patch.object(s, "_dat_lan", side_effect=lambda dt, kh: kh):
+                    kh = s.chuan_bi_in("nguoi_in_khac", bao_gia_id=BG, expected_revision=1, khoa="in-bg-e7s")
+                self.assertEqual(kh["nd"]["nguoi_lap"], mong_doi)
+                self.assertIn((mong_doi, 1), kh["mong_doi"])
+                self.assertEqual(sum("FROM master.nguoi_dung" in sql for sql, _ in m.lenh), 1)
+                self.assertNotIn(login, json.dumps(kh["nd"], ensure_ascii=False))
+                with zipfile.ZipFile(io.BytesIO(G.R.tao_docx_bao_gia(kh["nd"]))) as z:
+                    xml = z.read("word/document.xml").decode("utf-8")
+                self.assertIn(mong_doi, xml)
+                self.assertNotIn(login, xml)
+                self.assertNotIn("MO_PHONG_", xml)
+
     def test_nhan_moc_rieng_tham_so_thieu_bang_va_ma_la(self):
         bang = {"DAM-x": TEN}
         for ma, nhan in (("DAM-x", TEN), ("DAM-x_30", TEN + " + 30 ngày"),
