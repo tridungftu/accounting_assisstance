@@ -63,7 +63,7 @@ Quy tắc áp cho mọi lát từ 25/10 (CD-001 việc 3): không lát nào vi�
 | UI-2b | Codex | gpt-6.1-sol · high | 20:07 | gộp 20:17 | kiem-nhanh Đạt | Xanh — khung 20/20 |
 | T-M4a | Codex | gpt-6.1-sol · high | 20:16 | gộp 20:31 | kiem-nhanh Đạt | Xanh — 01b 12/12, 01c 8/8, review_k2 14/14, 0 skip (đủ tệp ghim) |
 | UI-1 | Claude | Sonnet | 19:21 | 20:15 | kiem-nhanh Đạt có điều kiện (giấy phép icon → lead sửa) | node 12/12 ca mới; 8 bộ node lỗi có sẵn |
-| L0-8e | Codex | gpt-6.1-sol · high | 20:28 | 20:38 | review-lat Opus đang chạy | Xanh — test_trich6_host 22/22 (hết 4 lỗi nền), 03A PG 13/13 |
+| L0-8e | Codex | gpt-6.1-sol · high | 20:28 | 20:38 | review-lat Opus **Không đạt** (2 Chặn: guard nuốt DROP CSDL tạm mà sổ ghi đã xóa; 3 mã lỗi test bộ chạy dưới runtime thật) → vòng 2 chờ suất | test_trich6_host 22/22, 03A PG 13/13 (kết quả test vẫn giá trị); CSDL kho_test_* 323 → 326 |
 | MASK-2 | Claude | Opus | 20:31 | — | — | — |
 | L0-10 | Codex | gpt-6.1-sol · high | 20:38 | gộp 20:51 | review-lat Opus Đạt | Xanh — 46/46; DEMO 8798 chuẩn bị CRM chế độ DICH_VU |
 | L0-8f | Codex | gpt-6.1-sol · high | 20:47 | 20:44 (v1 dừng đúng: gốc ở helper test) | — | — |
