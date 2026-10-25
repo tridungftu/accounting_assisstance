@@ -1,0 +1,4 @@
+- Sửa `src/kho_tri_thuc/giao_dien/assets/app.js:1142`: nhãn “Kế toán M2 (mô phỏng)”.
+- Thêm ca tại `tests/m2_tai_tat_ca.cjs:10`; chạy đạt 7/7 ca.
+- Test `m4_01c_async.cjs` lỗi sẵn trước sửa: DOM giả thiếu `parentNode`.
+- Không commit. Thông điệp đề xuất: `[M2s-b] Việt hóa nhãn kế toán M2 trong danh sách đổi vai`.
