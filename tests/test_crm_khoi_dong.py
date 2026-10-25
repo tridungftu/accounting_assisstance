@@ -485,6 +485,70 @@ class ToolTests(unittest.TestCase):
             self.assertEqual((code, st["trang_thai"], st["cum"]["ket_qua"]), (0, "SAN_SANG", ket_qua))
         self.assertEqual([(k["db"], conninfo_to_dict(k["admin_dsn"])["hostaddr"]) for k in goi], [(DB, "127.0.0.1")] * 2)
 
+    # ---- L0-7: bổ sung duyệt viên M4 (m4_demo.khoi_tao_duyet) vào bước seed DEMO của tool — chỉ DB DEMO, idempotent do marker của khoi_tao_duyet
+    def _psycopg_gia(self, ghi):
+        class _Conn:
+            def close(self_):
+                ghi.append(("dong",))
+        return SimpleNamespace(connect=lambda ci, **kw: ghi.append(("ket_noi", conninfo_to_dict(ci), kw)) or _Conn())
+
+    def test_duyet_vien_m4_goi_khoi_tao_duyet_tren_ket_noi_quan_tri_demo(self):
+        ghi = []
+        kq_gia = {"trang_thai": "DU", "ly_do": None, "dem": {"actor": 1, "phan_quyen": 1, "quyen_du_an": 1}, "mo_lai_khong_them": False, "actor": ["x"]}
+        with patch.object(self.tool, "nap_driver", lambda: self._psycopg_gia(ghi)),                 patch("kho_tri_thuc.k2.m4_demo.khoi_tao_duyet", lambda c: ghi.append(("duyet",)) or kq_gia):
+            kq = self.tool.bo_sung_duyet_vien_m4({"admin_dsn": ADMIN})
+        self.assertEqual([g[0] for g in ghi], ["ket_noi", "duyet", "dong"])             # kết nối → khoi_tao_duyet → đóng
+        self.assertEqual((ghi[0][1]["dbname"], ghi[0][1]["hostaddr"], ghi[0][2]), (DB, "127.0.0.1", {"autocommit": True}))
+        self.assertEqual(kq, {"trang_thai": "DU", "ly_do": None, "dem": kq_gia["dem"], "mo_lai_khong_them": False})   # không rò danh sách actor
+
+    def test_duyet_vien_m4_tu_choi_db_khong_demo_va_khong_local(self):
+        for dsn, ma in (("host=127.0.0.1 port=5432 dbname=kho_that user=demo_admin", "KET_NOI_DB_KHONG_DEMO"),
+                        (f"host=10.0.0.1 port=5432 dbname={DB} user=demo_admin", "KET_NOI_KHONG_LOCAL")):
+            ghi = []
+            with patch.object(self.tool, "nap_driver", lambda: self._psycopg_gia(ghi)),                     patch("kho_tri_thuc.k2.m4_demo.khoi_tao_duyet", lambda c: ghi.append(("duyet",)) or {}):
+                kq = self.tool.bo_sung_duyet_vien_m4({"admin_dsn": dsn})
+            self.assertEqual((kq["trang_thai"], kq["ma"], ghi), ("LOI", ma, []), dsn)       # không kết nối, không seed
+
+    def test_duyet_vien_m4_khong_co_ket_noi_quan_tri_hoac_loi_khong_nem(self):
+        ghi = []
+        with patch.object(self.tool, "nap_driver", lambda: self._psycopg_gia(ghi)):
+            self.assertEqual(self.tool.bo_sung_duyet_vien_m4({"admin_dsn": None})["trang_thai"], "BO_QUA")
+            self.assertEqual(ghi, [])
+
+            def hong(c):
+                raise RuntimeError("nội dung dòng nhạy cảm")
+            with patch("kho_tri_thuc.k2.m4_demo.khoi_tao_duyet", hong):
+                kq = self.tool.bo_sung_duyet_vien_m4({"admin_dsn": ADMIN})
+        self.assertEqual((kq["trang_thai"], kq["kieu"]), ("LOI", "RuntimeError"))
+        self.assertNotIn("nhạy cảm", json.dumps(kq, ensure_ascii=False))                    # lỗi đã làm sạch
+        self.assertEqual([g[0] for g in ghi], ["ket_noi", "dong"])                          # vẫn đóng kết nối
+
+    def test_chay_mac_dinh_seed_roi_bo_sung_duyet_vien_va_khong_chay_o_kho_that(self):
+        self._cfg()
+        cum = pg_cum.doc_cum(self.root, ROOT)
+        thu_tu = []
+        with patch.object(self.tool, "chuan_bi", lambda kn: thu_tu.append("chuan_bi") or {"trang_thai": "SAN_SANG", "db": kn["db"]}),                 patch.object(self.tool, "bo_sung_duyet_vien_m4", lambda kn: thu_tu.append("duyet") or {"trang_thai": "DU"}):
+            code, st = self._chay(hdh=StubHDH(cum))
+            self.assertEqual((code, st["trang_thai"], st["m4_duyet_seed"]), (0, "SAN_SANG", {"trang_thai": "DU"}))
+            self.assertEqual(thu_tu, ["chuan_bi", "duyet"])
+            thu_tu.clear()
+            code, st = self._chay(hdh=StubHDH(cum), bootstrap=lambda kn: {"trang_thai": "SAN_SANG"})   # bootstrap tường minh: không thêm bước nào
+            self.assertEqual((code, "m4_duyet_seed" in st, thu_tu), (0, False, []))
+            with patch.object(self.tool.Config, "load", lambda p: SimpleNamespace(environment="that")):
+                self.assertEqual(self.tool.chay(ROOT / "cau_hinh.toml", self.root), (0, {"trang_thai": "BO_QUA_KHO_THAT"}))   # kho thật: bỏ qua hoàn toàn
+            self.assertEqual(thu_tu, [])
+
+    def test_chuan_bi_loi_thi_khong_bo_sung_duyet_vien(self):
+        self._cfg()
+        cum = pg_cum.doc_cum(self.root, ROOT)
+
+        def hong(kn):
+            raise DataError("PG_KHONG_KET_NOI", "x")
+        goi = []
+        with patch.object(self.tool, "chuan_bi", hong), patch.object(self.tool, "bo_sung_duyet_vien_m4", lambda kn: goi.append(1) or {}):
+            code, st = self._chay(hdh=StubHDH(cum))
+        self.assertEqual((code, st["ma"], goi), (3, "PG_KHONG_KET_NOI", []))
+
 
 class _KetNoiGiaDict(_KetNoiGia):
     """Như _KetNoiGia nhưng trả dict_row (như server) và có `adapters` cho CrmK2."""

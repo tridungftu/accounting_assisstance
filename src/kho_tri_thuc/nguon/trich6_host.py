@@ -543,6 +543,31 @@ def lop_handler_so_huu(Goc, dv, token: str):
     return HandlerSoHuu
 
 
+# L0-7: thư viện nặng mà luồng worker (`chay` → `tc_theo_quy_tac` → `import master_hd` → `import openpyxl`) sẽ import LƯỜI. openpyxl tự import
+# numpy nếu máy có; lần import numpy ĐẦU TIÊN ở luồng phụ khi luồng chính đang `serve_forever` bị kẹt ở `create_module` của
+# `numpy._core._multiarray_umath` (client timeout → TRICH6_KHONG_KET_NOI). Nạp sẵn ở LUỒNG CHÍNH trước khi phục vụ thì lệnh trích đầu tiên chạy bình thường.
+# Không bắt buộc có từng mô-đun: thiếu/lỗi → ghi log ngắn (tên mô-đun + loại lỗi, không đường dẫn) rồi đi tiếp.
+THU_VIEN_NAP_SAN = ("numpy", "openpyxl", "openpyxl.styles", "openpyxl.utils", "openpyxl.worksheet.datavalidation", "docx")
+
+
+def nap_san_thu_vien(ds=THU_VIEN_NAP_SAN, ghi_log=None) -> dict:
+    """Nạp sẵn các mô-đun trong `ds` (gọi ở luồng chính của tiến trình con, TRƯỚC khi phục vụ). Không bao giờ ném lỗi; trả {tên: "ok"|"khong_co"|"loi"}."""
+    import importlib
+    ghi_log = ghi_log or (lambda m: print(m, file=sys.stderr, flush=True))
+    kq = {}
+    for ten in ds:
+        try:
+            importlib.import_module(ten)
+            kq[ten] = "ok"
+        except ImportError as e:
+            kq[ten] = "khong_co"
+            ghi_log(f"trich6_host: nap san {ten} khong duoc ({type(e).__name__}) - bo qua")
+        except Exception as e:  # noqa: BLE001 — nạp sẵn chỉ là tối ưu an toàn, lỗi gì cũng không được chặn khởi động
+            kq[ten] = "loi"
+            ghi_log(f"trich6_host: nap san {ten} loi {type(e).__name__} - bo qua")
+    return kq
+
+
 def _con(stdin=None, kenh=None) -> int:
     """Entry tiến trình con. Đọc cấu hình rồi KIỂM GUARD A517 (chứng cứ thật trong tiến trình) TRƯỚC mọi mkdir/HD_*/import nguồn — thiếu/sai →
     báo mã ngắn và thoát, không mở nguồn. Kênh bắt tay `kenh` (text) do entry `__main__` tạo từ bản sao fd stdout."""
@@ -575,6 +600,7 @@ def _con(stdin=None, kenh=None) -> int:
             os.environ.pop(k, None)
         os.environ.update(HD_DU_LIEU=str(dl), HD_OUT_DIR=str(dl / "ket_qua"), HD_DANH_MUC_HD=str(dl / "danh_muc_hd"),
                           HD_CSDL=str(dl / "hop_dong.db"), HD_THU_MUC_KHOA=str(goc / "khoa"))   # TRƯỚC import nguồn
+        nap_san_thu_vien()                         # L0-7: nạp numpy/openpyxl/docx ở LUỒNG CHÍNH trước khi phục vụ (luồng worker import lười sẽ kẹt)
         sys.path.insert(0, cfg["nguon"])
         from may_chu import dich_vu as dv          # noqa: E402 — chỉ sau khi đặt HD_*
         from may_chu import server as sv           # noqa: E402
