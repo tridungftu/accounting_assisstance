@@ -13,6 +13,7 @@ import http.client
 import json
 import re
 import secrets
+import sys
 import tempfile
 import threading
 import unittest
@@ -20,10 +21,16 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
 
-import test_m2_00_nhan_tinh as nhan_test
-from test_m2_00_manifest_tinh import tao_run_demo
-from test_m2_00b_tinh import (CAP, CTY_A, CTY_B, INST, MA_A, MA_B, PAYLOAD, PN_A, PN_B, SCOPE, SID_KT, SID_KT2, SID_XA, AppGia, KetNoiGia, NodeGia,
-                              TienTrinhGia, tao_cau_hinh)
+# Import qua gói `tests` (gốc repo) — chạy được cả khi chỉ có PYTHONPATH=src: tự thêm gốc repo + thư mục tests (các test cũ import nhau theo tên trần).
+_TESTS = Path(__file__).resolve().parent
+for _p in (_TESTS.parent, _TESTS):
+    if str(_p) not in sys.path:
+        sys.path.insert(0, str(_p))
+
+from tests import test_m2_00_nhan_tinh as nhan_test  # noqa: E402
+from tests.test_m2_00_manifest_tinh import tao_run_demo  # noqa: E402
+from tests.test_m2_00b_tinh import (CAP, CTY_A, CTY_B, INST, MA_A, MA_B, PAYLOAD, PN_A, PN_B, SCOPE, SID_KT, SID_KT2, SID_XA, AppGia, KetNoiGia,  # noqa: E402
+                                    NodeGia, TienTrinhGia, tao_cau_hinh)
 
 from kho_tri_thuc.giao_dien import m2_tai_hoa_don as mod
 from kho_tri_thuc.giao_dien.server import LocalServer
