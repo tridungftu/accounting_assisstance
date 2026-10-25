@@ -31,9 +31,13 @@ class PostgresSchemaTest(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        cls.db_name = "kho_test_" + uuid.uuid4().hex[:8]
-        with _admin() as a:
-            a.execute(f'CREATE DATABASE "{cls.db_name}" ENCODING \'UTF8\' TEMPLATE template0')
+        cls.runner_cap = bool(os.environ.get("KHO_PG_DEMO_SO"))
+        cls.db_name = os.environ.get("KHO_PG_DEMO_DB") if cls.runner_cap else "kho_test_" + uuid.uuid4().hex[:8]
+        if not cls.db_name:
+            raise unittest.SkipTest("--pg-demo chưa cấp CSDL có sổ sở hữu cho test_pg_schema")
+        if not cls.runner_cap:
+            with _admin() as a:
+                a.execute(psycopg.sql.SQL("CREATE DATABASE {} ENCODING 'UTF8' TEMPLATE template0").format(psycopg.sql.Identifier(cls.db_name)))
         cls.dsn = ADMIN_DSN.rsplit("/", 1)[0] + "/" + cls.db_name
         cls.conn = pg.connect(cls.dsn, autocommit=True)
         c = cls.conn
@@ -60,8 +64,10 @@ class PostgresSchemaTest(unittest.TestCase):
     @classmethod
     def tearDownClass(cls):
         cls.conn.close()
+        if cls.runner_cap:
+            return  # runner DROP qua sổ sở hữu sau khi module kết thúc
         with _admin() as a:
-            a.execute(f'DROP DATABASE "{cls.db_name}" WITH (FORCE)')
+            a.execute(psycopg.sql.SQL("DROP DATABASE {}").format(psycopg.sql.Identifier(cls.db_name)))
 
     # ---- tiện ích
     def _dong(self, offset, no_co, acct, amt, obj=None):
@@ -192,9 +198,11 @@ class PostgresSchemaTest(unittest.TestCase):
 
     def test_t15_vai_tro_ke_toan_khong_thay_bao_mat(self):
         """Tạo vai trò DEMO tạm (mật khẩu ngẫu nhiên) kế thừa app_ke_toan; kiểm quyền thật (review N8)."""
+        if os.environ.get("KHO_PG_DEMO_SO"):
+            self.skipTest("--pg-demo chỉ quản lý CSDL; ca tạo/xóa vai trò cấp cụm chưa đi qua sổ sở hữu")
         if self.conn.execute("SELECT 1 FROM pg_roles WHERE rolname='app_ke_toan'").fetchone() is None:
             self.skipTest("chưa có vai trò app_ke_toan (CÀI POSTGRESQL.cmd tạo)")
-        role = "rv_demo_kt_" + uuid.uuid4().hex[:8]; pw = uuid.uuid4().hex
+        role = "ktt_test_" + uuid.uuid4().hex; pw = uuid.uuid4().hex
         self.conn.execute(f"CREATE ROLE {role} LOGIN PASSWORD '{pw}' IN ROLE app_ke_toan")
         self.conn.execute(f'GRANT CONNECT ON DATABASE "{self.db_name}" TO {role}')
         try:
