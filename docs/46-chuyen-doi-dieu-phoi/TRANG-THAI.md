@@ -6,7 +6,7 @@ Trạng thái lát: Đang code → Chờ kiểm → Chờ Anh (cổng A/B) → S
 
 | Lát | Việc | Worker | Nhánh · worktree | Giao lúc | Trạng thái |
 |---|---|---|---|---|---|
-| BG-1d | CRM · Báo giá màn hình 2 bước (BG-1b + BG-1d) | Claude Sonnet · review Codex | `lat/bg-1d` · DEMO 8791 | 25/10 | Chờ Anh — cổng A xem lại (`PHIEU-CONG-A-BAO-GIA-XEM-LAI.md`) |
+| BG-1d | CRM · Báo giá màn hình 2 bước (BG-1b + BG-1d) | Claude Sonnet · review Codex | `lat/bg-1d` · DEMO 8791 | 25/10 | **Cổng A lần 1 chưa đạt** (Anh 21:55, CD-005: 7 điểm BG-18…24) → sửa trên dòng `lat/ui-1`: BG-e1 (BG-20/19), BG-e4 (BG-22) đang code; BG-e2 (BG-21), BG-e3 (BG-18/24/23) tuần tự sau → phiếu cổng A lần 2 |
 | DA-2 | CRM · màn Dự án đang bán (xem + thêm/sửa; ẩn luồng CFO) | Codex · review Claude | `lat/da-2` (= bg-1d + da-1) | 25/10 | Xong code đến DA-2c (33a2e29); review Đạt; chờ BG-1d qua cổng A để gộp |
 | M4-5a | M4 · Nghiệm thu & chi phí dự án · 03B máy chủ: khai một phần bằng số tiền + gợi ý hóa đơn — **M0033** | Codex · review Claude | `lat/m4-5a` | 25/10 19:16 (vòng 3) | **XONG — đã gộp 834a53c** (M0033). **Nợ đã trả 25/10 21:05:** 21 ca PG `test_m4_03b_common_pg` (gồm SQL M0033) đạt thật trên bản sao 03a (nhờ L0-8d/8e/8f), c16 skip có chủ đích |
 | DA-3a | CRM · Báo giá nạp mặc định từ Dự án đang bán, ghi nhận khác tiêu chuẩn | Codex · review Claude | `lat/da-3a` (c077a83) | 25/10 | **XONG — đã gộp** (vòng 2 B1; kiem-nhanh Đạt; PG 29/29 + 16/16) |
@@ -76,8 +76,10 @@ Quy tắc áp cho mọi lát từ 25/10 (CD-001 việc 3): không lát nào vi�
 | AI-2a (gộp) | Claude | Opus | 21:12 | gộp 21:30 (1cf32eb) | review-lat Opus độc lập Đạt | 78/78; Cloud mặc định tắt |
 | T-PDF + PDF-1 | Codex | gpt-6.1-sol · high | 21:35 | 21:53 (PDF-1: công tắc Word→PDF mặc định tắt, QD-26) | chờ PG (sau đo nền) → kiem-nhanh | thuần 2/2; **phát hiện: sản phẩm chưa có công tắc tắt Word COM** (`nguon/crm_docx.py` ~:374, :530, :933) — CLAUDE.md §2 'không Word COM' → hỏi Anh |
 | Nền PG v2 (lead) | Lead | — | 21:46 | 22:05 | — | 126 module 2327/21/66/67, 0 treo; 12 mã mới đã phân loại → T-NEN-a/b/c |
-| T-NEN-a, T-NEN-b, T-NEN-c | Codex | gpt-6.1-sol · high | 22:08 | — | — | — |
-| AI-2b | Codex | gpt-6.1-sol · high | 21:35 | 21:43 | review-lat Opus đang chạy | Xanh — PG: nhật ký 10/10, 0 mã lỗi mới so nền PG v2 |
+| T-NEN-a, T-NEN-b, T-NEN-c | Codex | gpt-6.1-sol · high | 21:55 | 22:04 | lead chạy PG → kiem-nhanh | (T-NEN-b: mã sản phẩm `tools/source6_g5_e5/trich_xuat/danh_muc.py:280` có lệnh xóa tệp rollback; T-NEN-c: `tools/source6_lazy_excel/master_hd.py` thiếu trong git) |
+| AI-2b | Codex | gpt-6.1-sol · high | 21:35 | gộp 22:08 (295caef) | review-lat Opus Đạt | Xanh — PG: nhật ký 10/10, 0 mã lỗi mới; chuỗi migration 34 |
+| BG-e1 (BG-20, BG-19) | Codex | gpt-6.1-sol · high | 22:09 | — | — | — |
+| BG-e4 (BG-22) | Codex | gpt-6.1-sol · medium | 22:09 | — | — | — |
 | PDF-1 v2 | Codex | gpt-6.1-sol · medium | 22:02 | 22:03 | review-lat Opus (T-PDF + PDF-1) đang chạy | Xanh — PG: giao_ket 62/62, ky_ket 38/38, g02 hết lỗi; 0 mã lỗi mới |
 | AI-2a | Claude | Opus | 21:12 | 21:30 | review-lat Opus độc lập đang chạy | Xanh — 78/78 (test_cong_ai 30); Cloud mặc định tắt |
 | L0-10b | Codex | gpt-6.1-sol · high | 20:45 | gộp 21:00 | kiem-nhanh Đạt | Xanh — 52/52; kiểm thật dịch vụ khớp |
