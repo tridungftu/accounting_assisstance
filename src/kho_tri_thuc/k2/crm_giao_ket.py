@@ -76,11 +76,19 @@ KHOA_BG = {"loai_hinh_id", "du_an_id", "giai_doan_g7", "nguon_lich", "don_vi", "
 TRAM = Fraction(100)
 HAN_PDF_GIAY = 180.0
 MOC_CHUAN = (("KY_HD", "Ký"), ("BAN_GIAO", "Bàn giao"), ("SO", "Sổ"))
+RE_MOC_DU_AN = re.compile(r"^(DAM-[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})(?:_([1-9][0-9]{0,3}))?$")
+MOC_DU_AN_NGAY_TOI_DA = 3650
 
 
-def nhan_moc_su_kien(ma: str | None) -> str:
+def nhan_moc_su_kien(ma: str | None, moc_du_an: dict[str, str] | None = None) -> str:
     if not ma:
         return "Sự kiện: chưa xác định"
+    if ma.startswith("DAM-"):
+        goc, dau, ngay = ma.partition("_")
+        ten = (moc_du_an or {}).get(goc)
+        if ten and (not dau or (ngay.isascii() and ngay.isdecimal() and 1 <= int(ngay) <= 3650)):
+            return ten + (f" + {int(ngay)} ngày" if dau else "")
+        return "Mốc riêng của dự án (đã ngừng dùng)"
     nhan = dict(MOC_CHUAN).get(ma)
     if nhan:
         return nhan
@@ -729,12 +737,12 @@ def _gia_tri_lich(r: dict, x: dict, tt: str | None) -> str:
     return ""
 
 
-def _moc(r: dict) -> str:
+def _moc(r: dict, moc_du_an: dict[str, str] | None = None) -> str:
     """Diễn đạt mốc TRUNG THỰC — mốc trống in là chưa xác định (không TypeError, không tự gán ngày/hạn)."""
     if r.get("moc_loai") == "NGAY":
         return "Ngày " + R.ngay_hien_thi(r["moc_ngay"], "dd/MM/yyyy") if r.get("moc_ngay") else "Ngày: chưa xác định"
     if r.get("moc_loai") == "SU_KIEN":
-        return nhan_moc_su_kien(r.get("moc_su_kien"))
+        return nhan_moc_su_kien(r.get("moc_su_kien"), moc_du_an)
     return "Chưa xác định"
 
 
@@ -795,6 +803,25 @@ class CrmGiaoKetK2:
                                   AND (r.du_lieu -> 'bao_gia' ->> 'du_an_id') IS NOT DISTINCT FROM %s AND s.id IS DISTINCT FROM %s::uuid""",
                           (pn, d["don_vi"]["ma"], d["du_an_id"], tru_soan))["n"]
         return [{"ma": "LO_CAN_DA_CO_BAN_SOAN", "thong_bao": f"Lô/căn {d['don_vi']['ma']} đã có {n} bản soạn hợp đồng khác (chỉ cảnh báo)."}] if n else []
+
+    def _nhan_moc_du_an(self, c, d: dict) -> dict[str, str]:
+        """Chỉ đọc một lần trong giao dịch của báo giá; SQL lọc đúng dự án và mốc đang dùng theo ngày máy chủ."""
+        if not d.get("du_an_id") or not any((r.get("moc_su_kien") or "").startswith("DAM-") for r in d["lich"]):
+            return {}
+        rows = c.execute("SELECT master.crm_da_moc_doc(%s::uuid, %s::date) AS r",
+                         (d["du_an_id"], self.mau.hom_nay().isoformat())).fetchone()["r"]
+        return {r["ma"]: r["ten"] for r in rows}
+
+    def _kiem_moc_du_an(self, c, d: dict) -> None:
+        nhan = self._nhan_moc_du_an(c, d)
+        for i, r in enumerate(d["lich"]):
+            ma = r.get("moc_su_kien") or ""
+            if not ma.startswith("DAM-"):
+                continue
+            m = RE_MOC_DU_AN.fullmatch(ma)
+            if m is None or (m[2] is not None and int(m[2]) > MOC_DU_AN_NGAY_TOI_DA) or m[1] not in nhan:
+                _loi("CRM_GK_LICH_SAI", f"Dòng {i + 1}: mốc không thuộc dự án đã chọn hoặc đã ngừng dùng — chọn lại mốc.",
+                     f"lich.{i}.moc_su_kien")
 
     # ------------------------------------------------------------------ BG-1c tỷ giá USD/VND mặc định (cấu hình chung master.cau_hinh)
     @staticmethod
@@ -1069,6 +1096,7 @@ class CrmGiaoKetK2:
             # vào báo giá (đổi cấu hình sau không đổi báo giá đã lưu)
             d = chuan_hoa_bao_gia(du_lieu, fx_mac_dinh=self._fx_mac_dinh(c, truoc) if self._can_fx_mac_dinh(d0) else None,
                                   hom_nay=m.hom_nay().isoformat())
+            self._kiem_moc_du_an(c, d)
             self._gan_tieu_chuan(c, d, m.hom_nay().isoformat(),
                                  cho_ngung_ban=truoc is not None and truoc.get("du_an_id") == d["du_an_id"] and not d.get("lo_id"))
             for r in d["lich"]:  # row ID logic giữ qua revision/chuyển; dòng mới nhận ID máy chủ
@@ -1287,6 +1315,7 @@ class CrmGiaoKetK2:
                     moi = chuan_hoa_bao_gia(vao, fx_mac_dinh=self._fx_mac_dinh(c, bg), hom_nay=m.hom_nay().isoformat())
                 else:
                     moi = chuan_hoa_bao_gia(vao, hom_nay=m.hom_nay().isoformat())
+                self._kiem_moc_du_an(c, moi)
                 for r in moi["lich"]:
                     r["dong_id"] = r["dong_id"] or str(uuid.uuid4())
                 if moi["fx"]:
@@ -1320,6 +1349,7 @@ class CrmGiaoKetK2:
             dk = [r["noi_dung"] for r in m._nhieu(c, "SELECT noi_dung FROM master.crm_bao_gia_dieu_khoan WHERE loai_hinh_id = %s ORDER BY ma",
                                                    (b["loai_hinh_id"],))]
             da = m._mot(c, "SELECT ten FROM master.du_an WHERE id = %s", (b["du_an_id"],)) if b["du_an_id"] else None
+            moc_du_an = self._nhan_moc_du_an(c, b["du_lieu"])
         d = b["du_lieu"]
         # BG-1c: cổng In tính lại từ dữ liệu đã chụp theo luật hiện hành (In sơ bộ không đòi khách/phí — QD-20261025-03), không dùng kết quả cũ
         t = tinh_bao_gia(d, b.get("g7"))
@@ -1329,7 +1359,7 @@ class CrmGiaoKetK2:
         tc, tt = t["tien_te"], d["gia"]["tien_te"]
         moi = la_tien_chinh_vnd(d)
         ten_khach = b["khach_ten"] or ((d["khach"].get("du_thao") or {}).get("ten"))
-        lich = [(r["lan"], _gia_tri_lich(r, x, tc), _moc(r), r["ghi_chu"] or "") for r, x in zip(d["lich"], t["dong"])]
+        lich = [(r["lan"], _gia_tri_lich(r, x, tc), _moc(r, moc_du_an), r["ghi_chu"] or "") for r, x in zip(d["lich"], t["dong"])]
         thong_tin = [("Dự án", da["ten"])] if da else []
         thong_tin += [("Lô/căn", " — ".join(x for x in (d["don_vi"]["ma"], d["don_vi"]["mo_ta"]) if x))]
         if not ten_khach:

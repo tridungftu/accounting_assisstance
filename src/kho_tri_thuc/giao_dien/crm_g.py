@@ -38,6 +38,10 @@ DA-1 CRM · Dự án đang bán (QD-20261025-05…09; M0031; khối riêng cuố
   GET  /api/crm/du-an-ban[?dang_ban=1] · /api/crm/du-an-ban/anh-chup?du_an_id=&ngay= · /api/crm/du-an-ban/{da_ban_id}[?phien_ban=&ngay=]
        · /api/crm/du-an-ban/{da_ban_id}/lich-su
   POST /api/crm/du-an-ban/{bat-ban, cap-nhat, phi, lo, ngung-ban, mo-ban-lai, tien-do}   (lệnh ngắn dưới mutation lock; tham số truy vấn lạ → 400)
+MDA-1b (CD-006, CD-007):
+  GET /api/crm/du-an-ban/moc?du_an_id= · /api/crm/du-an-ban/moc/{moc_id}/lich-su
+  POST /api/crm/du-an-ban/moc {da_ban_id, moc, ly_do, khoa} (dưới mutation lock)
+  GET /api/crm/bao-gia/moc-chuan[?du_an_id=] (mốc cơ bản + mốc riêng đang dùng của dự án)
 """
 
 from __future__ import annotations
@@ -517,11 +521,13 @@ def dieu_huong(h, app, post: bool, path: str, query: dict):
                     _, me, _ = app.crm_phien(h.crm_sid())
                     return h.send_content(200, app._crm_db(dich_vu_gk(app).mac_dinh_bao_gia, me, _q(query, "du_an_id"), _q(query, "ngay")))
             if path == "/api/crm/bao-gia/moc-chuan":
-                _khong_query(h, query)
+                _chi_query(h, query, {"du_an_id"})
                 with app.mutation_lock:
-                    app.crm_phien(h.crm_sid())
-                    from ..k2.crm_giao_ket import danh_muc_moc_chuan
-                    return h.send_content(200, danh_muc_moc_chuan())
+                    _, me, _ = app.crm_phien(h.crm_sid())
+                    if _q(query, "du_an_id") is None:
+                        from ..k2.crm_du_an_ban import CrmDuAnBanK2
+                        return h.send_content(200, CrmDuAnBanK2(None).danh_muc_moc(me))
+                    return h.send_content(200, app._crm_db(dich_vu_da(app).danh_muc_moc, me, _q(query, "du_an_id")))
             if path == "/api/crm/bao-gia/ty-gia-mac-dinh":  # BG-1c: tỷ giá USD/VND mặc định chung (đọc; quyền hiện hành trong giao dịch)
                 _khong_query(h, query)
                 with app.mutation_lock:
@@ -692,12 +698,13 @@ TRUONG_DA = {
     "du-an-ban/cap-nhat": {"da_ban_id", "expected_phien_ban", "thong_tin", "phi", "ly_do", "khoa"},
     "du-an-ban/phi": {"da_ban_id", "expected_phien_ban", "phi", "ly_do", "khoa"},
     "du-an-ban/lo": {"da_ban_id", "lo", "ly_do", "khoa"},
+    "du-an-ban/moc": {"da_ban_id", "moc", "ly_do", "khoa"},
     "du-an-ban/ngung-ban": {"da_ban_id", "expected_phien_ban", "ly_do", "khoa"},
     "du-an-ban/mo-ban-lai": {"da_ban_id", "expected_phien_ban", "ly_do", "khoa"},
     "du-an-ban/tien-do": {"du_an_id", "expected_version", "giai_doan", "dong", "khoa"},  # G7 áp dụng ngay (bỏ CFO, QD-20261025-07)
 }
 MA_409_DA = frozenset({"CRM_DA_DA_CO", "CRM_DA_PHIEN_BAN_CU", "CRM_DA_LO_LAN_CU", "CRM_DA_TRANG_THAI", "CRM_DA_CHUA_BAT_BAN", "CRM_DA_NGAY_LUI",
-                       "CRM_DA_DU_AN_DONG"})
+                       "CRM_DA_DU_AN_DONG", "CRM_DA_MOC_LAN_CU"})
 
 
 def _la_route_da(path: str) -> bool:
@@ -748,6 +755,8 @@ def _lenh_da(da, me, ten: str, p: dict):
         return da.sua_phi(me, da_ban_id=g("da_ban_id"), expected_phien_ban=g("expected_phien_ban"), phi=g("phi"), ly_do=g("ly_do"), khoa=g("khoa"))
     if ten == "du-an-ban/lo":
         return da.ghi_lo(me, da_ban_id=g("da_ban_id"), lo=g("lo"), ly_do=g("ly_do"), khoa=g("khoa"))
+    if ten == "du-an-ban/moc":
+        return da.moc_ghi(me, da_ban_id=g("da_ban_id"), moc=g("moc"), ly_do=g("ly_do"), khoa=g("khoa"))
     if ten == "du-an-ban/ngung-ban":
         return da.ngung_ban(me, da_ban_id=g("da_ban_id"), expected_phien_ban=g("expected_phien_ban"), ly_do=g("ly_do"), khoa=g("khoa"))
     if ten == "du-an-ban/mo-ban-lai":
@@ -768,6 +777,17 @@ def _dieu_huong_da(h, app, post: bool, path: str, query: dict):
     """Route dự án đang bán. Lỗi có mã: 403 quyền / 404 không thấy / 409 phiên bản cũ-trạng thái-idempotency / 503 cấu hình / 400 nhập (kèm `truong`)."""
     try:
         if not post:
+            if path == "/api/crm/du-an-ban/moc":
+                _chi_query(h, query, {"du_an_id"})
+                with app.mutation_lock:
+                    _, me, _ = app.crm_phien(h.crm_sid())
+                    return h.send_content(200, app._crm_db(dich_vu_da(app).moc_ds, me, _q(query, "du_an_id")))
+            m = re.fullmatch(r"/api/crm/du-an-ban/moc/(" + _UUID + ")/lich-su", path)
+            if m:
+                _chi_query(h, query, set())
+                with app.mutation_lock:
+                    _, me, _ = app.crm_phien(h.crm_sid())
+                    return h.send_content(200, app._crm_db(dich_vu_da(app).moc_lich_su, me, m.group(1)))
             if path == "/api/crm/du-an-ban":
                 _chi_query(h, query, {"dang_ban"})
                 dang_ban = _q(query, "dang_ban")
@@ -815,6 +835,10 @@ def _dieu_huong_da(h, app, post: bool, path: str, query: dict):
         loi = {"error": exc.code, "message": str(exc)}
         if getattr(exc, "locator", "$") not in (None, "", "$"):  # lỗi theo trường (vd thong_tin.don_gia_niem_yet, phi.0.muc, lo.2.dien_tich)
             loi["truong"] = exc.locator
+        elif exc.code.startswith("CRM_DA_MOC_"):
+            loi["truong"] = {"CRM_DA_MOC_CAN_LY_DO": "ly_do", "CRM_DA_MOC_TRUNG": "moc.ten",
+                             "CRM_DA_MOC_LAN_CU": "moc.expected_lan", "CRM_DA_MOC_NGAY_SAI": "moc.ngay_thuc_te",
+                             "CRM_DA_MOC_SAI": "moc"}.get(exc.code, "moc")
         return h.send_content(_ma_http_da(exc.code), loi)
     except (ValueError, TypeError, KeyError, RecursionError):
         return h.send_content(400, {"error": "INVALID_REQUEST", "message": "Thông tin gửi lên không hợp lệ; chưa xử lý."})

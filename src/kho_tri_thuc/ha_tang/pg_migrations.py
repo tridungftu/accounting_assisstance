@@ -11939,3 +11939,13 @@ M0034_CONG_AI_NHAT_KY = (
 
 PG_MIGRATIONS = (*PG_MIGRATIONS, M0034_CONG_AI_NHAT_KY)
 PG_SCHEMA_VERSION = len(PG_MIGRATIONS)
+
+# ---------------------------------------------------------------------------
+# 0035 — MDA-1a: mốc thanh toán riêng của dự án (CD-006, CD-007).
+# APPEND sau M0034; không đổi migration cũ. Bảng gốc + lịch sử, lệnh và hàm đọc.
+# ---------------------------------------------------------------------------
+from ..k2.sql_crm_du_an_moc import CRM_DU_AN_MOC_SQL  # noqa: E402 — chỉ hằng SQL
+
+M0035_CRM_DU_AN_MOC = CRM_DU_AN_MOC_SQL
+PG_MIGRATIONS = (*PG_MIGRATIONS, M0035_CRM_DU_AN_MOC)
+PG_SCHEMA_VERSION = len(PG_MIGRATIONS)

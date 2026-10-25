@@ -6,6 +6,9 @@ Thẻ tính sau bộ lọc thông thường, trước lọc thẻ và phân tran
 Không cộng cột Junsky giữa các HĐ (số dư cấp khách).
 Scope BH dùng binding CRM_KY_KET hiện hành, không suy quyền từ người tạo. HĐ
 luồng B chưa có binding này sẽ ẩn với BH; KT/CFO/XEM đọc theo PN + module CRM.
+Mốc riêng dự án đang dùng: hạn = ngày thực tế + n; chưa có thực tế chỉ trả
+dot_ke_tiep.han_du_kien và trạng thái MOC_DU_KIEN, không đếm QUA_HAN/W5.
+Hai bổ sung API này giữ nguyên nghĩa các trường cũ; mốc chuẩn không đổi.
 """
 
 from __future__ import annotations
@@ -15,6 +18,7 @@ from datetime import date, timedelta
 
 from ..ha_tang.primitives import DataError
 from . import quyen
+from .crm_giao_ket import MOC_DU_AN_NGAY_TOI_DA, RE_MOC_DU_AN
 
 TRANG_THAI = {
     "SOAN_THAO": "Soạn thảo", "CHO_KY": "Chờ ký", "DA_KY": "Đã ký — chờ kế toán kiểm",
@@ -25,6 +29,7 @@ TRANG_THAI = {
 CO = {"THIEU_CAN_CU", "LECH_BAN_KY", "QUA_HAN", "TRA_LAI", "CHO_BO_SUNG"}
 THAM_SO = {"trang", "kich_thuoc_trang", "phap_nhan", "loai", "du_an", "trang_thai", "co", "nguoi_phu_trach",
            "ngay_ky_tu", "ngay_ky_den", "ngay_hieu_luc_tu", "ngay_hieu_luc_den", "tim", "the"}
+_MOC_DU_AN_RE = RE_MOC_DU_AN.pattern.replace("^", "^SU_KIEN:", 1)
 
 
 def bo_loc(query: dict) -> dict:
@@ -151,6 +156,24 @@ _TOM_TAT = """
                                  WHERE x.ky_id = k.id AND x.loai = 'G5_LECH'
                                    AND x.muc_tieu_id = gq.id AND x.ma_lech = e->>'ma')) AS lech
 """
+# Dùng chung ở truy vấn đếm và chi tiết, trong snapshot RR của S1. Chỉ đọc
+# mốc cùng dự án/pháp nhân, dòng đang mở và đã hiệu lực tại ngày máy chủ.
+_NOI_MOC_DU_AN = """
+    LEFT JOIN LATERAL (
+        SELECT s.ngay_du_kien, s.ngay_thuc_te, ma.so_ngay
+        FROM (
+            SELECT phan[1] AS ma,
+                   CASE WHEN phan IS NOT NULL THEN coalesce(phan[2], '0')::integer END AS so_ngay
+            FROM (SELECT regexp_match(l.moc, '""" + _MOC_DU_AN_RE + """') AS phan) khop
+        ) ma
+        JOIN master.crm_da_moc m ON m.ma = ma.ma AND m.phap_nhan_id = h.phap_nhan_id
+        JOIN master.crm_da_ban d ON d.id = m.da_ban_id AND d.phap_nhan_id = h.phap_nhan_id
+        JOIN master.crm_da_moc_ls s ON s.moc_id = m.id AND s.phap_nhan_id = h.phap_nhan_id
+        WHERE l.han IS NULL AND h.xem_tien AND d.du_an_id = h.du_an_id
+          AND ma.so_ngay <= """ + str(MOC_DU_AN_NGAY_TOI_DA) + """
+          AND s.dang_dung AND s.hieu_luc_den IS NULL AND s.hieu_luc_tu <= %(ngay)s
+    ) dm ON true
+"""
 _THU = """
 , thu_nghia_vu AS MATERIALIZED (
     SELECT v.hop_dong_id, x.khoa_nghia_vu, sum(lk.so_tien_khop_minor) AS thu
@@ -160,12 +183,14 @@ _THU = """
     GROUP BY v.hop_dong_id, x.khoa_nghia_vu
 ), lich_dem AS MATERIALIZED (
     SELECT h.id, bool_or(l.so_tien_minor IS NULL) AS thieu,
-           bool_or(l.han < %(ngay)s AND l.so_tien_minor > coalesce(t.thu, 0)) AS qua_han,
-           count(*) FILTER (WHERE l.han BETWEEN %(ngay)s AND %(ngay)s + 7
+           bool_or(coalesce(l.han, dm.ngay_thuc_te + dm.so_ngay) < %(ngay)s
+                   AND l.so_tien_minor > coalesce(t.thu, 0)) AS qua_han,
+           count(*) FILTER (WHERE coalesce(l.han, dm.ngay_thuc_te + dm.so_ngay)
+                                  BETWEEN %(ngay)s AND %(ngay)s + 7
                             AND l.so_tien_minor > coalesce(t.thu, 0)) AS den_han
     FROM scoped h JOIN master.lich_thu l ON l.phien_ban_id = h.hieu_luc_id AND l.trang_thai <> 'HUY'
     LEFT JOIN thu_nghia_vu t ON t.hop_dong_id = h.id AND t.khoa_nghia_vu = l.khoa_nghia_vu
-    GROUP BY h.id
+""" + _NOI_MOC_DU_AN + """    GROUP BY h.id
 )
 """
 _NOI_TOM_TAT = """
@@ -214,9 +239,11 @@ _JUNSKY = """
 """
 _CHI_TIET = """
        coalesce((SELECT jsonb_agg(jsonb_build_object('id', l.id, 'dot', l.dot, 'han', l.han, 'moc', l.moc,
+                      'moc_ngay_du_kien', dm.ngay_du_kien, 'moc_ngay_thuc_te', dm.ngay_thuc_te,
                       'so_tien_minor', l.so_tien_minor::text, 'tien_te', l.tien_te,
                       'da_thu_minor', master.crm_da_lien_ket(h.id, l.khoa_nghia_vu)::text) ORDER BY l.dot, l.id)
-                 FROM master.lich_thu l WHERE h.xem_tien AND l.phien_ban_id = h.hieu_luc_id
+                 FROM master.lich_thu l
+""" + _NOI_MOC_DU_AN + """                 WHERE h.xem_tien AND l.phien_ban_id = h.hieu_luc_id
                    AND l.trang_thai <> 'HUY'), '[]'::jsonb) AS lich,
        CASE WHEN k.id IS NOT NULL THEN master.crm_kiem_g5_xet(k.id, 'VAN_HANH') END AS g5,
        coalesce((SELECT jsonb_agg(jsonb_build_object('muc_tieu_id', x.muc_tieu_id, 'ma_lech', x.ma_lech))
@@ -255,7 +282,15 @@ def _ngay(v):
 def _dong(r: dict, hom_nay: date) -> dict:
     """Whitelist tóm tắt S1, không phản chiếu trường tùy ý từ DB/mock ra HTTP."""
     xem_tien = bool(r.get("xem_tien"))
-    lich = (r.get("lich") or []) if xem_tien else []
+    lich = [dict(l) for l in r.get("lich") or []] if xem_tien else []
+    for l in lich:
+        moc = re.fullmatch(_MOC_DU_AN_RE, l.get("moc") or "")
+        if not l.get("han") and moc and int(moc[2] or 0) <= MOC_DU_AN_NGAY_TOI_DA:
+            n = timedelta(days=int(moc[2] or 0))
+            if l.get("moc_ngay_thuc_te"):
+                l["han"] = (date.fromisoformat(_ngay(l["moc_ngay_thuc_te"])) + n).isoformat()
+            elif l.get("moc_ngay_du_kien"):
+                l["han_du_kien"] = (date.fromisoformat(_ngay(l["moc_ngay_du_kien"])) + n).isoformat()
     co, so_tien, da_thu, con_lai, den_han, qua_han = [], {}, {}, {}, 0, False
     thieu_tien_te = set()
     for l in lich:
@@ -317,7 +352,9 @@ def _dong(r: dict, hom_nay: date) -> dict:
         "cong_no_junsky": {"nhan": "Công nợ ghi sổ Junsky", "trang_thai": "CO_SO" if junsky else "CHUA_CO_SO",
                            "hien_thi": "Có sổ" if junsky else "chưa có sổ", "grain": "KHACH_TK_NGAY_CURRENCY", "so_du": junsky},
         "dot_ke_tiep": None if dot is None else {"dot": dot["dot"], "han": _ngay(dot.get("han")), "moc": dot.get("moc"),
-                                                   "trang_thai": "CO_NGAY" if dot.get("han") else "MOC_CHUA_CO_NGAY"},
+                                                   "han_du_kien": _ngay(dot.get("han_du_kien")),
+                                                   "trang_thai": "CO_NGAY" if dot.get("han") else
+                                                   "MOC_DU_KIEN" if dot.get("han_du_kien") else "MOC_CHUA_CO_NGAY"},
         "chenh_crm_junsky": {"trang_thai": "KHONG_SO_SANH", "ly_do": "Khác grain: CRM theo hợp đồng, Junsky theo khách/TK/ngày sổ/tiền tệ."},
         "co": sorted(set(co)), "viec": viec,
     }
