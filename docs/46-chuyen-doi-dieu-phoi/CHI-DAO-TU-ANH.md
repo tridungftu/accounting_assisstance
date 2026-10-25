@@ -61,7 +61,7 @@
 5. BG-22: khung vai mô phỏng bỏ mã kỹ thuật, ngày dd/mm/yyyy. BG-23: báo lỗi mốc bỏ "(thay n bằng số)", hiện danh sách mốc bấm chọn. BG-24: đơn vị thống nhất "VND".
 6. Lát nhỏ ≤ 3 file theo CD-004; review `kiem-nhanh` → `review-lat`; tiêu chí đạt theo bảng TL 45 §8. Phối hợp khóa `crm_g.js`/`style.css` với UI-1.
 **Báo Anh khi:** phiếu cổng A lần 2 sẵn sàng (ca thử: 26.500.000.000 VND, nhập nhanh 10/30/40/10%).
-**Trạng thái:** XONG phần lập trình 26/10 00:58 — BG-e1…e7 (BG-18…24) trên dòng giao diện `lat/ui-dem`, review-lat Đạt; **phiếu cổng A lần 2 sẵn**: `docs&-chuyen-doi-dieu-phoi\PHIEU-CONG-A-BAO-GIA-LAN-2.md`, DEMO cổng 8798. Chờ Anh thử.
+**Trạng thái:** XONG phần lập trình 26/10 00:58 — BG-e1…e7 (BG-18…24) trên dòng giao diện `lat/ui-dem`, review-lat Đạt; **phiếu cổng A lần 2 sẵn**: `docs\46-chuyen-doi-dieu-phoi\PHIEU-CONG-A-BAO-GIA-LAN-2.md`, DEMO cổng 8798. Chờ Anh thử.
 
 ## CD-006 · 25/10/2026 22:15 · Gộp BG-1d + DA-2 ngay; mốc thanh toán do từng dự án tự khai
 **Căn cứ:** Anh chốt 25/10 22:10 qua bảng lựa chọn (Anh nhận xét "chưa thấy phần danh mục dự án bán hàng" trên DEMO; mốc "Xong CNDT" = **Xong chứng nhận đầu tư**); TL 45 §7 mục 4 và §8 BG-23 (cập nhật 22:15); `THIET-KE-DU-AN-DANG-BAN.md`.
