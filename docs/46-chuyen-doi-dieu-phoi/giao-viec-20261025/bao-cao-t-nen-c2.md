@@ -1,0 +1,7 @@
+Anh, **không tìm thấy candidate lazy Excel để khôi phục; tôi không sửa file, không commit.**
+
+- **Nguồn:** lịch sử `--all`, các nhánh `luu/*`, `main`, `chinh` không có `tools/source6_lazy_excel/master_hd.py`. Chỉ có baseline tại `59b7d8e:docs/CRM-41-01-SOURCE-PATCH/master_hd.py`, trùng bản `D:\Claude\Ho tro review ho so xay dung\review_xaydung\master_hd.py`: 71.366 byte, SHA-256 `2a63289f5daa73a2500fff59c547395a56d823da7f0fdadd02ecfe8506429648`. Bản này import Excel ngay khi nạp, không phải candidate.
+- **Bố cục:** điều kiện `files` xuất hiện từ `f1e973d`, nhằm kiểm gói đóng băng `F/files` + `F/input-extra`; không phù hợp worktree hiện tại. Tài liệu `GIAO-CODE-SOURCE6-LAZY-EXCEL.md` được dẫn cũng không có trong Git.
+- **Đề xuất:** khai báo đường dẫn baseline tường minh cho repo, giữ nguyên kiểm byte/SHA-256 và guard, không tự tìm nguồn thay thế hoặc skip. Chưa sửa vì thiếu tài liệu xác nhận việc chuyển bố cục.
+- **Test trước/sau:** dùng Python cục bộ 3.14.7 vì `python` thiếu trên PATH; cả hai lần **0 test thực thi, 3 ERROR tại `setUpClass`**: sai bố cục, thiếu baseline và thiếu guard khởi động. Không phát sinh thay đổi.
+- **Báo lead:** cần cung cấp artifact candidate đã duyệt. Thông điệp dự kiến khi khôi phục được: `[T-NEN-c2] Khôi phục candidate Source6 lazy Excel từ nguồn đã duyệt`.

@@ -228,3 +228,23 @@ H3 phân loại 36 đầu việc: 19 gói đã nhập `hop-nhat`, 13 xung đột
 - 23:55 **KY-DOCX DỪNG (CD-008: không đạt 2 lần)** — PG: v1 k10 lệch trạng thái (`CHO_CAU_HINH` vs `CHO`, sửa test ở v2 9121660); v2 k10 lệch lý do `crm_g5_nhan` (`KHONG_DEN_HAN` vs `G5_BAN_SINH_CHI_DOCX`) → nghi M0035 kiểm "chưa đến hạn" trước "bản chỉ DOCX". Giữ `lat/t-pdf`, không gộp; review-lat Opus vòng 1 đang chạy làm căn cứ sửa sáng 26/10.
 - 23:40 gộp `lat/da-2` + T-DA2 vào hợp nhất (6998a79; PG cả bộ: 0 mã mới sau T-DA2) — **CD-006 mục 1 xong phần gộp**. 23:45 gộp AI-3 (30d5478).
 - Dòng giao diện DEMO sáng 26/10: `lat/ui-dem` = DA-4b (lưới 7 phần) + hợp nhất mới + MDA (1a/1b/3s/4a) + BG-e6s/u + MDA-4b; MDA-2 (mục mốc trong Dự án đang bán) và UI-3a (trang chủ hệ thống, máy chủ) đang code.
+
+### Nhật ký lát đêm — cập nhật 00:25
+
+| Lát | Worker · model | Giao → xong | Nhánh · commit | Kiểm / review | Test | Gộp |
+|---|---|---|---|---|---|---|
+| T-DA2 | Codex | 23:35 → 23:38 | kiem/gop-da-2 | — | node ky_ket 14/14; 41_02 29/29 | **hợp nhất 6998a79** (cùng da-2) |
+| AI-3 v3 | Codex | 23:32 → 23:36 | lat/ai-3 46ee853 | review-lat Đạt | 236 ok, FAIL có sẵn | **hợp nhất 30d5478** |
+| KY-DOCX v2 | Codex | 23:51 → 23:54 | lat/t-pdf 9121660 | review-lat Đạt (k10 = test đua) | PG k10 còn đỏ (lần 2) | **DỪNG** (CD-008) |
+| BG-e6s / BG-e6u | Codex | 23:44 → 23:52 | lat/bg-e6s, lat/bg-e6u | review dòng giao diện: đang chạy | 27/33 (5 PG skip); node 41 | ui-dem |
+| MDA-4b | Codex | 23:44 → 23:52 | lat/mda-4b | như trên | khung 26/26 | ui-dem |
+| UI-3a / UI-3b | Codex | 23:55 → 23:59; 00:00 → 00:15 | lat/ui-3a, lat/ui-3b | như trên | 41/41; khung 30/30 | ui-dem |
+| MDA-2 / MDA-3u | Codex | 23:52 → 00:03; 00:03 → 00:19 | lat/mda-2, lat/mda-3u | như trên | node dự án 39; giao kết 4/4 bộ | ui-dem |
+| DA-5s | Codex | 00:06 → 00:09 | lat/da-5s | như trên | 58/60 (2 skip) | ui-dem |
+| MDA cụm máy chủ (1a v2, 1b, 3s, 4a) | Codex | — | lat/mda-gom 39175d8 | review-lat **Đạt** (3 Nên sửa → MDA-5a/5b) | PG 233 ok, 0 mã mới | chờ PG 5a/5b |
+| MDA-5a / MDA-5b | Codex | 00:13 → 00:19; 00:19 → 00:20 | lat/mda-5a, lat/mda-5b | — | 68/89 (21 skip); 19/37 (18 skip) | PG đang chạy |
+| M4-5b, MDA-4c | Codex | 00:10 →, 00:20 → | lat/m4-5b, lat/mda-4c | — | — | — |
+| T-NEN-c2 | Codex | 00:22 → 00:24 | — | **bị chặn**: không có bản `master_hd.py` lazy Excel đã duyệt trong git; tài liệu giao gốc thiếu | 0 test chạy (3 lỗi setUp) | Cần Anh |
+
+- Thử DEMO 8799 (`lat/ui-dem`, CSDL riêng p8799): lưới CRM 7 phần, Dự án đang bán mở thẳng; mục Mốc thanh toán chạy (2 mốc seed, 1 việc chờ, chỉnh dự kiến có lý do → hết việc chờ); nhãn vai có tên pháp nhân. Danh sách vai mô phỏng rất dài (~44 dòng gồm vai M2/M4/M5) — ghi "Cần Anh".
+- Quyết định lead (đêm): MDA giữ **M0035** (đã chạy DEMO p8799); KY-DOCX đổi sang **M0036** khi sửa sáng 26/10 (sửa test ghi cứng 35).

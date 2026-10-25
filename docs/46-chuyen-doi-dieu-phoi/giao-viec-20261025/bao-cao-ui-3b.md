@@ -1,0 +1,6 @@
+Đã hoàn thành UI-3b, Anh: mặc định mở `#trang-chu`, dùng lại khung UI-1; tìm không dấu + Enter, thanh cố định 4 mục, số việc và làm mới định kỳ. M9 hiện mờ, nhãn **“Tạm dừng”**, không điều hướng.
+
+- **File:dòng:** [app.js:1746](<D:/Claude/Phan mem ho tro ke toan/Phần mềm kho tri thức/.claude/worktrees/lat-ui-3b/src/kho_tri_thuc/giao_dien/assets/app.js:1746>), [index.html:40](<D:/Claude/Phan mem ho tro ke toan/Phần mềm kho tri thức/.claude/worktrees/lat-ui-3b/src/kho_tri_thuc/giao_dien/assets/index.html:40>), [style.css:107](<D:/Claude/Phan mem ho tro ke toan/Phần mềm kho tri thức/.claude/worktrees/lat-ui-3b/src/kho_tri_thuc/giao_dien/assets/style.css:107>), [khung_luoi_async.cjs:783](<D:/Claude/Phan mem ho tro ke toan/Phần mềm kho tri thức/.claude/worktrees/lat-ui-3b/tests/khung_luoi_async.cjs:783>).
+- **Node trước → sau:** khung **22/22 → 30/30**; CRM giao kết và Dự án đều đạt. Toàn bộ **20 bộ: 13 đạt, 7 lỗi nền ở cả hai lượt; không thêm lỗi mới**.
+- **Tự kiểm:** DOM/API/timer giả, phục hồi phiên, lỗi API/JSON, đổi vai; cú pháp và `git diff --check` đạt. UTF-8 không BOM. Chưa kiểm trình duyệt; không mở server.
+- **Cần Anh:** không. Không commit theo chỉ dẫn. Thông điệp đề xuất: `[UI-3b] Thêm trang chủ lưới module, tìm nhanh và thanh cố định`.

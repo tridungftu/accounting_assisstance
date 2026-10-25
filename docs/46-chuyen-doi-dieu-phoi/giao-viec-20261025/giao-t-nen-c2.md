@@ -1,0 +1,10 @@
+# T-NEN-c2 — test_source6_lazy_excel: tìm nguyên nhân ngoài test (thư mục gốc phải tên `files`, `tools/source6_lazy_excel/master_hd.py` không có trong git)
+
+Bạn là worker Codex, chạy không tương tác. Bối cảnh: lát T-NEN-c (`lat/t-nen-c` 514b256, `docs\46-chuyen-doi-dieu-phoi\giao-viec-20261025\giao-t-nen-c.md`) đổi 3 FAIL của `tests/test_source6_lazy_excel.py` thành lỗi `setUpClass: SETUP NOT_VERIFIED (baseline/bố cục): thư mục chứa tests/tools phải là 'files' của bố…`; kiểm nhanh ghi 2 nguyên nhân ngoài test: (1) test đòi thư mục gốc tên `files` (dòng ~45), (2) `tools/source6_lazy_excel/master_hd.py` không có trong git. **Làm ngay, không hỏi lại.** UTF-8 không BOM. Worktree hiện tại, nhánh `lat/t-nen-c2` (từ hợp nhất). Sandbox không ghi `.git`: **không commit**. Không xóa file. Tuân CLAUDE.md §2 (không đọc kho thật, không đọc tệp bí mật).
+
+**Việc:**
+1. Tìm `master_hd.py` của source6 lazy excel: `git log --all --oneline -- '*source6_lazy_excel*master_hd.py'`, `git show <commit>:<đường dẫn>` trên các nhánh `luu/*`, `main`, `chinh`; và thư mục dự án gốc "Review hồ sơ thanh toán xây dựng" `D:\Claude\Ho tro review ho so xay dung\review_xaydung` (chỉ đọc) nếu test/README trỏ tới. Có bản trong git → **khôi phục** đúng nội dung vào `tools/source6_lazy_excel/master_hd.py` (ghi rõ commit nguồn + sha256). Không có → không tự viết, báo lead.
+2. Đọc `tests/test_source6_lazy_excel.py` (~:36–60) và tài liệu bố cục nó dẫn: điều kiện "thư mục chứa tests/tools phải là 'files'" là giả định bố cục gói gốc (bản giao nộp) hay lỗi? Đề xuất cách sửa **trong test** để chạy được ở repo này mà **không** nới kiểm an toàn — chỉ sửa nếu chắc, kèm lý do; không chắc → chỉ báo cáo.
+3. Chạy `python -X utf8 -m unittest tests.test_source6_lazy_excel` trước/sau.
+**File (≤ 2):** `tools/source6_lazy_excel/master_hd.py` (khôi phục), `tests/test_source6_lazy_excel.py` (chỉ khi chắc). Không sửa mã sản phẩm khác.
+**Báo cáo (≤ ⅓ trang):** nguồn tìm thấy (commit/đường dẫn, sha256) · nguyên nhân bố cục · sửa gì/không sửa · số test trước/sau · thông điệp commit `[T-NEN-c2] …`.
