@@ -20,3 +20,5 @@
 # manifest.json được ghim SHA trên bản CRLF gốc → giữ nguyên byte, không chuyển xuống dòng
 /tests/fixtures/m2_invoice_xml/manifest.json -text
 /src/kho_tri_thuc/m4/sql_request_nhap.py text eol=lf
+/src/kho_tri_thuc/m4/sql_master_dung_chung.py text eol=lf
+/src/kho_tri_thuc/k2/sql_ghi_nhan_chung.py text eol=lf
