@@ -39,12 +39,14 @@ from __future__ import annotations
 import argparse
 import contextlib
 import fnmatch
+import io
 import json
 import os
 import re
 import subprocess
 import sys
 import tempfile
+import threading
 import time
 import unittest
 import uuid
@@ -395,10 +397,12 @@ def _bat_bao_ve_pth():
     # Python thường chỉ in lỗi .pth rồi tiếp tục: ở đây phải dừng trước khi test chạy.
     try:
         _bat_bao_ve_con()
-    except Exception:
-        sys.stderr.write("Không khởi tạo được bảo vệ sổ PostgreSQL DEMO; dừng tiến trình con.\n")
-        sys.stderr.flush()
-        os._exit(2)
+    except BaseException:
+        try:
+            sys.stderr.write("Không khởi tạo được bảo vệ sổ PostgreSQL DEMO; dừng tiến trình con.\n")
+            sys.stderr.flush()
+        finally:
+            os._exit(2)
 
 # Họ "bản sao DEMO sở hữu" (biến *_CLONE_*): biến DSN chủ / DSN ứng dụng, biến tên CSDL (nếu có) và mẫu nhận ra module cần họ.
 # Mỗi module một bản sao MỚI: nhiều ca cuối bộ thu hồi quyền không đảo ngược ("clone sau đó không dùng lại").
@@ -678,8 +682,19 @@ class _PgDemo:
         if not thu_muc.is_relative_to(self.nhat_ky) or thu_muc == self.nhat_ky:
             raise RuntimeError("User site nằm ngoài thư mục nhật ký lần chạy; không ghi .pth.")
         thu_muc.mkdir(parents=True, exist_ok=True)
-        dong = [str(p) for p in self.phu_thuoc] + [str(Path(__file__).resolve().parent.parent),
-                "import os; os.environ.get('KHO_PG_DEMO_SO') and __import__('tools.chay_test_theo_module', fromlist=['_bat_bao_ve_pth'])._bat_bao_ve_pth()"]
+        # Bọc cả bước nạp tệp: lỗi import trong .pth thường chỉ được Python in rồi bỏ qua.
+        # Đường dẫn tuyệt đối giữ đúng phiên bản bảo vệ khi repo được đo là worktree cũ.
+        nap = ("try:\n"
+               " import importlib.util, sys\n"
+               f" s = importlib.util.spec_from_file_location('_ktt_pg_demo_bao_ve', {str(Path(__file__).resolve())!r})\n"
+               " m = importlib.util.module_from_spec(s)\n"
+               " sys.modules[s.name] = m\n"
+               " s.loader.exec_module(m)\n"
+               " m._bat_bao_ve_pth()\n"
+               "except BaseException:\n"
+               " os._exit(2)\n")
+        dong = [str(p) for p in self.phu_thuoc] + [
+                f"import os; os.environ.get('KHO_PG_DEMO_SO') and exec({nap!r})"]
         (thu_muc / "ktt-phu-thuoc.pth").write_text(_LOC.text("\n".join(dong) + "\n"), encoding="utf-8")
         return str(co_so)
 
@@ -791,10 +806,32 @@ class _PgDemo:
 
 
 # --------------------------------------------------------------------------- tiến trình cha
+def _gan_job_windows(proc: subprocess.Popen):
+    """Giữ handle Job riêng cho đúng cây con; sandbox có thể cấm taskkill."""
+    if os.name != "nt" or not isinstance(proc._handle, int):
+        return None
+    import ctypes
+    from ctypes import wintypes as W
+    k = ctypes.WinDLL("kernel32", use_last_error=True)
+    k.CreateJobObjectW.argtypes, k.CreateJobObjectW.restype = (ctypes.c_void_p, W.LPCWSTR), W.HANDLE
+    k.AssignProcessToJobObject.argtypes, k.AssignProcessToJobObject.restype = (W.HANDLE, W.HANDLE), W.BOOL
+    k.TerminateJobObject.argtypes, k.TerminateJobObject.restype = (W.HANDLE, W.UINT), W.BOOL
+    k.CloseHandle.argtypes, k.CloseHandle.restype = (W.HANDLE,), W.BOOL
+    job = k.CreateJobObjectW(None, None)
+    if not job:
+        return None
+    if not k.AssignProcessToJobObject(job, int(proc._handle)):
+        k.CloseHandle(job)
+        return None  # taskkill vẫn là đường dự phòng nếu Windows cấm Job lồng nhau.
+    return k, job
+
+
 def _giet_cay(proc: subprocess.Popen):
     try:
         if os.name == "nt":
-            subprocess.run(["taskkill", "/PID", str(proc.pid), "/T", "/F"], capture_output=True, timeout=30)
+            job = proc.__dict__.get("_job_windows")
+            if not job or not job[0].TerminateJobObject(job[1], 1):
+                subprocess.run(["taskkill", "/PID", str(proc.pid), "/T", "/F"], capture_output=True, timeout=3)
         else:
             import signal
             os.killpg(proc.pid, signal.SIGKILL)
@@ -804,6 +841,28 @@ def _giet_cay(proc: subprocess.Popen):
         proc.kill()
     except Exception:
         pass
+
+
+def _doc_log_con(ong, tep_log: Path, dung: threading.Event, loc: _LocBiMat):
+    """Chỉ luồng nền chờ EOF; luồng điều phối luôn có thể bỏ luồng này sau hạn.
+
+    Luồng giữ riêng bộ đệm và tệp log; mọi lần ghi đều kiểm tra tín hiệu dừng.
+    """
+    # Khi ghi theo dòng, bí mật chứa xuống dòng phải che cả các phần riêng lẻ.
+    manh = sorted({p for m in loc.mau if "\n" in m or "\r" in m for p in m.splitlines() if p},
+                  key=len, reverse=True)
+    try:
+        with io.BufferedReader(ong) as doc, tep_log.open("w", encoding="utf-8") as log:
+            for dong in doc:
+                if dung.is_set():
+                    break
+                sach = loc.text(dong.decode("utf-8", errors="replace"))
+                for p in manh:
+                    sach = sach.replace(p, "[DA_AN]")
+                log.write(sach)
+                log.flush()
+    except (OSError, ValueError):
+        pass  # Ống bị đóng khi hết hạn; không in dữ liệu chưa lọc ra stderr.
 
 
 def _doc_runtime(tep: Path) -> tuple[str, tuple[Path, ...]]:
@@ -858,28 +917,35 @@ def _chay_mot_module(repo: Path, module: str, gioi_han: int, thu_muc_nhat_ky: Pa
     treo = False
     ma_ra = None
     bat_dau = time.monotonic()
-    with open(tep_log, "wb") as log:
-        loc = bool((them_env or {}).get("KHO_PG_DEMO_SO"))
-        proc = subprocess.Popen(lenh, cwd=str(repo), env=_moi_truong(repo, thu_muc_tam, phu_thuoc, them_env), stdin=subprocess.DEVNULL,
-                                stdout=subprocess.PIPE if loc else log, stderr=subprocess.STDOUT, **kwargs)
+    tep_log.write_text("", encoding="utf-8")
+    proc = subprocess.Popen(lenh, cwd=str(repo), env=_moi_truong(repo, thu_muc_tam, phu_thuoc, them_env), stdin=subprocess.DEVNULL,
+                            stdout=subprocess.PIPE, stderr=subprocess.STDOUT, bufsize=0, **kwargs)
+    proc._job_windows = _gan_job_windows(proc)
+    dung = threading.Event()
+    doc = threading.Thread(target=_doc_log_con, args=(proc.stdout, tep_log, dung, _LOC), daemon=True)
+    doc.start()
+    try:
+        ma_ra = proc.wait(timeout=gioi_han)
+    except subprocess.TimeoutExpired:
+        treo = True
+        _giet_cay(proc)
         try:
-            if loc:
-                out, _ = proc.communicate(timeout=gioi_han)
-                ma_ra = proc.returncode
-            else:
-                ma_ra = proc.wait(timeout=gioi_han)
+            ma_ra = proc.wait(timeout=2)
         except subprocess.TimeoutExpired:
-            treo = True
-            _giet_cay(proc)
-            try:
-                if loc:
-                    out, _ = proc.communicate(timeout=30)
-                else:
-                    proc.wait(timeout=30)
-            except subprocess.TimeoutExpired:
-                out = b""
-        if loc:
-            log.write(_LOC.text(out.decode("utf-8", errors="replace")).encode("utf-8"))
+            pass
+    finally:
+        # Kể cả con đã thoát, cháu có thể còn giữ stdout. Không chờ EOF vô hạn.
+        doc.join(timeout=2)
+        dung.set()
+        if doc.is_alive():
+            # Windows CRT có thể khóa cả FileIO.close khi read đang chờ trên pipe.
+            # Yêu cầu đóng bằng luồng daemon riêng, không kéo dài hạn của module.
+            threading.Thread(target=proc.stdout.close, daemon=True).start()
+        else:
+            proc.stdout.close()
+        if proc._job_windows:
+            proc._job_windows[0].CloseHandle(proc._job_windows[1])
+            proc._job_windows = None
     giay = round(time.monotonic() - bat_dau, 1)
 
     dem = Counter()
