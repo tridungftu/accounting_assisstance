@@ -1,0 +1,6 @@
+- Đã đổi câu trung tính tại `src/kho_tri_thuc/m4/giao_dien/m4_ke_toan.js:723`.
+- Thêm assertion DOM không chứa “Cần Anh” tại `tests/m4_03b_async.cjs:62–63`.
+- Khớp `da_gan_o[].doi_chieu_id`: UI `m4_ke_toan.js:541`; SQL `k2/sql_ghi_nhan_so_tien.py:118,194`; DTO giữ nguyên tại `k2/ghi_nhan_chung.py:402`.
+- Test: Node **12/12**, HTTP **11/11**; không lỗi mới.
+- Chỉ đổi 2 tệp, UTF-8 không BOM; `git diff --check` đạt. Không commit.
+- Thông điệp commit: `[M4-5b] vòng 2: sửa hướng dẫn tệp căn cứ và kiểm tra DOM`

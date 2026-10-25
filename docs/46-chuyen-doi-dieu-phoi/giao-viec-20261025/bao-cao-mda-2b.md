@@ -1,0 +1,5 @@
+- [crm_g.js:744](src/kho_tri_thuc/giao_dien/assets/crm_g.js:744): bỏ cảnh báo lặp, giữ nhãn máy chủ và dòng nổi bật.
+- [crm_du_an_ban_async.cjs:372](tests/crm_du_an_ban_async.cjs:372): assert chuỗi xuất hiện đúng 1 lần; đã xác nhận bắt lỗi trước sửa.
+- Test: Dự án bán **39/39**, Giao kết **46/46** nhóm đạt; không lỗi mới.
+- Hai tệp UTF-8 không BOM; `git diff --check` đạt; không commit.
+- Thông điệp commit: `[MDA-2b] Bỏ trạng thái lặp ở mốc thanh toán quá dự kiến`
