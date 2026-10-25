@@ -751,6 +751,9 @@ def _dieu_huong_da(h, app, post: bool, path: str, query: dict):
                 if not isinstance(body, dict):
                     raise DataError("CRM_G_YEU_CAU_SAI", "Thân yêu cầu phải là object.")
                 payload = _than(body, TRUONG_DA[ten])
+                if "thong_tin" in payload and payload["thong_tin"] is not None:
+                    from ..k2.crm_du_an_ban import chuan_hoa_thong_tin
+                    payload["thong_tin"] = chuan_hoa_thong_tin(payload["thong_tin"])
                 with app.mutation_lock:
                     _, me, _ = app.crm_phien(h.crm_sid())
                     return h.send_content(200, app._crm_db(_lenh_da, dich_vu_da(app), me, ten, payload))

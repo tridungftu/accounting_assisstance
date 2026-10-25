@@ -25,11 +25,12 @@ from .crm_mau import GIAI_DOAN_RE, CrmMauK2, _h, _khoa, _ngay, _uuid, _v
 from .sql_crm_du_an_ban import CAN_CU_G7
 
 KIEU_ANH_CHUP = "CRM_DA_ANH_CHUP_V1"
-TRUONG_TT = ("vi_tri", "mo_ta", "don_gia_niem_yet", "tien_te", "loai_hinh_id", "co_so_thue", "vat_phan_tram", "giai_doan_g7")
+TRUONG_TT = ("vi_tri", "mo_ta", "don_gia_niem_yet", "tien_te", "loai_hinh_id", "thue_suat", "gia_dat_tru", "giai_doan_g7")
 TRUONG_PHI = ("ten", "loai", "muc", "don_vi_tinh", "tien_te", "co_so_tinh")
 TRUONG_LO = ("ma", "dien_tich", "trang_thai", "ghi_chu", "expected_lan")
 TIEN_TE = {"VND": "đ", "USD": "USD"}
-CO_SO_THUE = {"NET": "Giá chưa gồm thuế", "GROSS": "Giá đã gồm thuế"}
+THUE_SUAT = {"10": "Thuế suất 10%", "8": "Thuế suất 8%", "5": "Thuế suất 5%", "0": "Thuế suất 0%",
+             "KCT": "Không chịu thuế", "KKKNT": "Không kê khai, nộp thuế"}
 LOAI_PHI = {"BAO_TRI": "Phí bảo trì", "SU_DUNG": "Phí sử dụng", "KHAC": "Phí khác"}
 DON_VI_TINH = {"M2_THANG": "m²/tháng", "M2_NAM": "m²/năm", "LAN": "lần"}
 TRANG_THAI_LO = {"CON_TRONG": "Còn trống", "GIU_CHO": "Đang giữ chỗ", "DA_BAN": "Đã bán/cho thuê", "KHONG_BAN": "Tạm không bán"}
@@ -100,12 +101,12 @@ def _so_nguyen(v, ten: str, truong: str = "$", *, bat_buoc: bool = True):
 
 
 def chuan_hoa_thong_tin(v, truong: str = "thong_tin") -> dict:
-    """Thông tin bán hàng của MỘT phiên bản (đủ 8 khóa; thiếu = null). Loại hình + tiền tệ bắt buộc; các trường khác có thể bổ sung sau."""
+    """Thông tin MỘT phiên bản: giá/phí chưa VAT, thuế chung mặc định 10, đất trừ/m² mặc định 0 (QD-20261025-20)."""
     if not isinstance(v, dict):
         _loi("CRM_DA_YEU_CAU_SAI", "Thông tin dự án phải là object.", truong)
     la = sorted(set(v) - set(TRUONG_TT))
     if la:
-        _loi("CRM_DA_YEU_CAU_SAI", "Thông tin dự án có trường ngoài phạm vi: " + ", ".join(la[:5]), truong)
+        _loi("CRM_DA_YEU_CAU_SAI", "Thông tin dự án có trường ngoài phạm vi: " + ", ".join(la[:5]), f"{truong}.{la[0]}")
     def o(k: str) -> str:
         return f"{truong}.{k}"
     gd = v.get("giai_doan_g7")
@@ -116,9 +117,13 @@ def chuan_hoa_thong_tin(v, truong: str = "thong_tin") -> dict:
           "don_gia_niem_yet": _so(v.get("don_gia_niem_yet"), "Đơn giá niêm yết", o("don_gia_niem_yet")),
           "tien_te": _chon(v.get("tien_te"), "tiền tệ", tuple(TIEN_TE), o("tien_te")),
           "loai_hinh_id": None if v.get("loai_hinh_id") in (None, "") else _uuid_t(v.get("loai_hinh_id"), "loai_hinh_id", o("loai_hinh_id")),
-          "co_so_thue": _chon(v.get("co_so_thue"), "cơ sở thuế", tuple(CO_SO_THUE), o("co_so_thue")),
-          "vat_phan_tram": _so(v.get("vat_phan_tram"), "Thuế VAT (%)", o("vat_phan_tram"), toi_da=100),
+          "thue_suat": _chon(v.get("thue_suat", "10"), "thuế suất", tuple(THUE_SUAT), o("thue_suat")),
+          "gia_dat_tru": _so(v.get("gia_dat_tru", "0"), "Giá đất được trừ/m²", o("gia_dat_tru")),
           "giai_doan_g7": gd or None}
+    if tt["thue_suat"] is None:
+        _loi("CRM_DA_YEU_CAU_SAI", "Cần chọn thuế suất trong danh mục.", o("thue_suat"))
+    if tt["gia_dat_tru"] is None or Decimal(tt["gia_dat_tru"]) > Decimal(tt["don_gia_niem_yet"] or "0"):
+        _loi("CRM_DA_SO_SAI", "Giá đất được trừ/m² phải không âm và không vượt đơn giá niêm yết.", o("gia_dat_tru"))
     if tt["loai_hinh_id"] is None:
         _loi("CRM_DA_THIEU_LOAI_HINH", "Cần chọn loại hình của dự án.", o("loai_hinh_id"))
     if tt["tien_te"] is None:
@@ -189,7 +194,7 @@ def danh_muc() -> dict:
     """Danh mục chọn có nhãn tiếng Việt cho màn hình (DA-2/DA-3) — mã chỉ để gửi lại máy chủ, không hiển thị."""
     def ds(m):
         return [{"ma": k, "nhan": n} for k, n in m.items()]
-    return {"tien_te": ds({"VND": "VND (đ)", "USD": "USD"}), "co_so_thue": ds(CO_SO_THUE), "loai_phi": ds(LOAI_PHI), "don_vi_tinh": ds(DON_VI_TINH),
+    return {"tien_te": ds({"VND": "VND (đ)", "USD": "USD"}), "thue_suat": ds(THUE_SUAT), "loai_phi": ds(LOAI_PHI), "don_vi_tinh": ds(DON_VI_TINH),
             "trang_thai_lo": ds(TRANG_THAI_LO), "trang_thai_du_an": ds({"DANG_BAN": "Đang bán", "NGUNG_BAN": "Ngừng bán"})}
 
 
@@ -209,12 +214,12 @@ def hien_thi_anh_chup(s: dict) -> dict:
     if not pb:
         return out
     thue = s.get("thue") or {}
-    vat = thue.get("vat_phan_tram")
     bc = s.get("bo_chuan") or None
     out.update({
         "phien_ban": f"Phiên bản {pb['so']} — hiệu lực từ {_ngay_vn(pb['hieu_luc_tu'])}" + (f" đến trước {_ngay_vn(pb['hieu_luc_den'])}" if pb.get("hieu_luc_den") else ""),
         "don_gia": _tien_don_vi(s.get("don_gia"), s.get("tien_te"), "m²"),
-        "thue": " · ".join(x for x in (CO_SO_THUE.get(thue.get("co_so_thue")), None if vat is None else f"VAT {_so_vn(vat)}%") if x) or None,
+        "thue": "Giá chưa gồm VAT · " + THUE_SUAT.get(thue.get("thue_suat"), ""),
+        "gia_dat_tru": _tien_don_vi(s.get("gia_dat_tru"), s.get("tien_te"), "m²"),
         "loai_hinh": ((s.get("loai_hinh") or {}).get("ten") or "") + ("" if (s.get("loai_hinh") or {}).get("con_hieu_luc", True)
                                                                       else " (loại hình đã có phiên bản mới — cần chọn lại)"),
         "phi": [{"ten": f["ten"], "loai": LOAI_PHI.get(f["loai"]), "muc": _tien_don_vi(f["muc"], f["tien_te"], DON_VI_TINH.get(f["don_vi_tinh"], "")),
@@ -249,7 +254,7 @@ class CrmDuAnBanK2:
         return _v(dict(c.execute("SELECT master.crm_da_anh_chup(%s::uuid, %s::date) AS r", (du_an_id, ngay)).fetchone()))["r"]
 
     def anh_chup_mac_dinh(self, dang_nhap: str, du_an_id, ngay=None) -> dict:
-        """(dự án, ngày) → {kieu, trang_thai, phien_ban, don_gia, tien_te, loai_hinh, thue, giai_doan_g7, phi[], lo[], bo_chuan, giai_doan_co_chuan,
+        """(dự án, ngày) → {kieu, trang_thai, phien_ban, don_gia, tien_te, gia_dat_tru, loai_hinh, thue, giai_doan_g7, phi[], lo[], bo_chuan, giai_doan_co_chuan,
         anh_chup_sha256} theo phiên bản hiệu lực vào ngày đó (mặc định hôm nay) + `hien_thi`. Dự án chưa bật bán → trang_thai CHUA_BAT_BAN."""
         m, dt = self.mau, self.mau.danh_tinh(dang_nhap)
         da = _uuid(du_an_id, "du_an_id")
@@ -265,7 +270,8 @@ class CrmDuAnBanK2:
         with m._tx(dt, rr=True) as c:
             ds = m._nhieu(c, """SELECT d.id AS da_ban_id, d.du_an_id, a.ma_junsky AS du_an_ma, a.ten AS du_an_ten, p.ma AS phap_nhan, p.ten AS phap_nhan_ten,
                                        v.id AS phien_ban_id, v.phien_ban, v.hieu_luc_tu, v.dang_ban, v.vi_tri, v.don_gia_niem_yet, v.tien_te,
-                                       v.loai_hinh_id, l.ten AS loai_hinh_ten, l.valid_to IS NULL AS loai_hinh_con_hieu_luc, v.co_so_thue, v.vat_phan_tram,
+                                       v.loai_hinh_id, l.ten AS loai_hinh_ten, l.valid_to IS NULL AS loai_hinh_con_hieu_luc, v.thue_suat,
+                                       trim_scale(v.gia_dat_tru)::text AS gia_dat_tru,
                                        v.giai_doan_g7, v.so_phi, (SELECT count(*) FROM master.crm_da_ban_lo o WHERE o.da_ban_id = d.id) AS so_lo,
                                        master.crm_da_duoc_ghi(d.phap_nhan_id) AS duoc_sua
                                 FROM master.crm_da_ban d JOIN master.du_an a ON a.id = d.du_an_id JOIN master.phap_nhan p ON p.id = d.phap_nhan_id
@@ -441,7 +447,7 @@ _G7_DEMO = ("lan", "gia_tri_loai", "gia_tri_thap_phan", "moc_loai", "moc_su_kien
 SEED_DU_AN = (
     {"phap_nhan": "PN_DEMO_A", "du_an": "DA_KCN_DEMO", "loai_hinh": "DT-KCN-THUE-DAT-DEMO",
      "thong_tin": {"vi_tri": "KCN DEMO — khu A, đường trục chính (DEMO)", "mo_ta": "Đất công nghiệp cho thuê có hạ tầng — dữ liệu DEMO, không phải chính sách giá thật.",
-                   "don_gia_niem_yet": "120", "tien_te": "USD", "co_so_thue": "NET", "vat_phan_tram": "10", "giai_doan_g7": "GD1"},
+                   "don_gia_niem_yet": "120", "tien_te": "USD", "thue_suat": "10", "gia_dat_tru": "24", "giai_doan_g7": "GD1"},
      "phi": [{"ten": "Phí bảo trì hạ tầng DEMO", "loai": "BAO_TRI", "muc": "0.5", "don_vi_tinh": "M2_NAM", "tien_te": "USD", "co_so_tinh": "Diện tích đất thuê"},
              {"ten": "Phí sử dụng hạ tầng DEMO", "loai": "SU_DUNG", "muc": "0.05", "don_vi_tinh": "M2_THANG", "tien_te": "USD", "co_so_tinh": "Diện tích đất thuê"},
              {"ten": "Phí đấu nối DEMO", "loai": "KHAC", "muc": "5000000", "don_vi_tinh": "LAN", "tien_te": "VND", "co_so_tinh": "Mỗi điểm đấu nối"}],
@@ -451,7 +457,7 @@ SEED_DU_AN = (
             ("3", "PERCENT", "30", "SU_KIEN", "BAN_GIAO", None)]},
     {"phap_nhan": "PN_DEMO_B", "du_an": "DA_NHA_DEMO", "loai_hinh": "DT-NHA-O-DEMO",
      "thong_tin": {"vi_tri": "Khu nhà ở DEMO — tòa A (DEMO)", "mo_ta": "Căn hộ để bán — dữ liệu DEMO, không phải chính sách giá thật.",
-                   "don_gia_niem_yet": "35000000", "tien_te": "VND", "co_so_thue": "GROSS", "vat_phan_tram": "10", "giai_doan_g7": "GD1"},
+                   "don_gia_niem_yet": "35000000", "tien_te": "VND", "thue_suat": "10", "gia_dat_tru": "0", "giai_doan_g7": "GD1"},
      "phi": [{"ten": "Phí quản lý vận hành DEMO", "loai": "SU_DUNG", "muc": "15000", "don_vi_tinh": "M2_THANG", "tien_te": "VND", "co_so_tinh": "Diện tích thông thủy"},
              {"ten": "Kinh phí bảo trì DEMO", "loai": "BAO_TRI", "muc": "1500000", "don_vi_tinh": "LAN", "tien_te": "VND", "co_so_tinh": "Mỗi căn, nộp khi bàn giao"}],
      "lo": [{"ma": "CAN-A0101-DEMO", "dien_tich": "75.5", "trang_thai": "CON_TRONG"}, {"ma": "CAN-A0102-DEMO", "dien_tich": "82", "trang_thai": "CON_TRONG"},

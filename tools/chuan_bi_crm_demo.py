@@ -57,7 +57,8 @@ def bo_sung_duyet_vien_m4(kn: dict) -> dict:
 
 
 def bo_sung_du_an_ban(kn: dict) -> dict:
-    """DA-1: seed DEMO dự án đang bán (`crm_du_an_ban.khoi_tao_demo`: 2 dự án DEMO, phí khác đơn vị tính, lô/căn, tiến độ tiêu chuẩn áp dụng ngay)
+    """DA-1: seed DEMO dự án đang bán (`crm_du_an_ban.khoi_tao_demo`: 2 dự án DEMO, phí khác đơn vị tính, lô/căn, tiến độ tiêu chuẩn áp dụng ngay).
+    QD-20261025-20: giá/phí chưa VAT, thuế suất 10; KCN trừ đất 24/120 USD/m², nhà ở trừ đất 0 VND/m².
     QUA CHÍNH hàm lệnh M0031 dưới danh tính bán hàng DEMO, khóa idempotent cố định (mở lại → replay, không thêm phiên bản). CHỈ DB DEMO: DSN quản
     trị kiểm lại là loopback + tiền tố DEMO (`chuan_hoa_dsn`) trước khi kết nối. Không bao giờ ném lỗi: thất bại chỉ ghi trạng thái."""
     from kho_tri_thuc.k2 import crm_du_an_ban

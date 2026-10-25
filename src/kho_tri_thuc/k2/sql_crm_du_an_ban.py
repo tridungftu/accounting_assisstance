@@ -19,6 +19,8 @@ Mới:
     tạo ngày hiệu lực sau phiên bản trước nên không bao giờ sinh khoảng rỗng). Mọi chỗ đọc "bộ chuẩn hiệu lực" (crm_g_chuan_doc, crm_kiem_g7,
     lệnh lưu báo giá) đọc theo `trang_thai = 'HIEU_LUC'` + khoảng ngày → đọc được phiên bản áp dụng ngay, không cần sửa.
   - Ảnh chụp mặc định `master.crm_da_anh_chup(du_an, ngày)` cho báo giá (DA-3), có `anh_chup_sha256` để so lại trong lệnh lưu.
+  - QD-20261025-20: đơn giá/phí luôn chưa VAT; một thuế suất chung 10/8/5/0/KCT/KKKNT. Giá đất được trừ/m² không chịu VAT;
+    DA-3 tính VAT giá chính trên (đơn giá − giá đất được trừ) × diện tích; lát này chỉ lưu và trả ảnh chụp.
 Quyền: đọc = phiên có module CRM trên pháp nhân; ghi = bán hàng/kế toán/kế toán trưởng có module CRM trên đúng pháp nhân dự án. Mọi lệnh
 ghi là hàm INVOKER chỉ chạy trên kết nối CHỦ BẢNG của máy chủ, kiểm quyền HIỆN HÀNH của phiên (GUC) TRƯỚC tra biên nhận.
 """
@@ -40,7 +42,7 @@ _REPLAY = """
 _KET = """
             PERFORM master.crm_g_bn_ghi({pn}, {a}, p_khoa, p_h, kq);
             RETURN jsonb_build_object('lap_lai', false, 'ket_qua', kq);"""
-_TT_KHOA = "ARRAY['vi_tri','mo_ta','don_gia_niem_yet','tien_te','loai_hinh_id','co_so_thue','vat_phan_tram','giai_doan_g7']"
+_TT_KHOA = "ARRAY['vi_tri','mo_ta','don_gia_niem_yet','tien_te','loai_hinh_id','thue_suat','gia_dat_tru','giai_doan_g7']"
 _PHI_KHOA = "ARRAY['ten','loai','muc','don_vi_tinh','tien_te','co_so_tinh']"
 _LO_KHOA = "ARRAY['ma','dien_tich','trang_thai','ghi_chu','expected_lan']"
 _BANG = ("crm_da_ban", "crm_da_ban_phien_ban", "crm_da_ban_phi", "crm_da_ban_lo", "crm_da_ban_lo_ls", "crm_bo_chuan_ap_dung")
@@ -101,8 +103,10 @@ CRM_DU_AN_BAN_SQL = (
         don_gia_niem_yet text CHECK (don_gia_niem_yet IS NULL OR don_gia_niem_yet ~ """ + _RE_SO + """),
         tien_te text NOT NULL CHECK (tien_te IN ('VND','USD')),
         loai_hinh_id uuid NOT NULL,
-        co_so_thue text CHECK (co_so_thue IN ('NET','GROSS')),
-        vat_phan_tram text CHECK (vat_phan_tram IS NULL OR CASE WHEN vat_phan_tram ~ """ + _RE_SO + """ THEN vat_phan_tram::numeric <= 100 ELSE false END),
+        thue_suat text NOT NULL DEFAULT '10' CHECK (thue_suat IN ('10','8','5','0','KCT','KKKNT')),
+        gia_dat_tru numeric NOT NULL DEFAULT 0 CHECK (gia_dat_tru >= 0 AND gia_dat_tru::text ~ """ + _RE_SO + """ AND
+            CASE WHEN don_gia_niem_yet IS NULL THEN gia_dat_tru = 0
+                 WHEN don_gia_niem_yet ~ """ + _RE_SO + """ THEN gia_dat_tru <= don_gia_niem_yet::numeric ELSE false END),
         giai_doan_g7 text CHECK (giai_doan_g7 IS NULL OR giai_doan_g7 ~ """ + _GD_RE + """),
         so_phi integer NOT NULL CHECK (so_phi BETWEEN 0 AND 50),
         noi_dung_sha256 text NOT NULL CHECK (noi_dung_sha256 ~ '^[0-9a-f]{64}$'),
@@ -210,15 +214,18 @@ CRM_DU_AN_BAN_SQL = (
     # ======================================================================= nội dung chuẩn hóa của một phiên bản (so "không đổi" + sha)
     """CREATE OR REPLACE FUNCTION master.crm_da_tt_chuan(p_tt jsonb) RETURNS jsonb
         LANGUAGE sql IMMUTABLE SET search_path = master, pg_temp AS $$
-        SELECT CASE WHEN coalesce(p_tt ->> 'loai_hinh_id', '') ~ """ + _UUID_RE + """
-                    THEN p_tt || jsonb_build_object('loai_hinh_id', (p_tt ->> 'loai_hinh_id')::uuid::text) ELSE p_tt END
+        SELECT jsonb_build_object('thue_suat', '10', 'gia_dat_tru', '0') || p_tt ||
+               CASE WHEN coalesce(p_tt ->> 'loai_hinh_id', '') ~ """ + _UUID_RE + """
+                    THEN jsonb_build_object('loai_hinh_id', (p_tt ->> 'loai_hinh_id')::uuid::text) ELSE '{}'::jsonb END ||
+               CASE WHEN jsonb_typeof(p_tt -> 'gia_dat_tru') = 'string' AND (p_tt ->> 'gia_dat_tru') ~ """ + _RE_SO + """
+                    THEN jsonb_build_object('gia_dat_tru', trim_scale((p_tt ->> 'gia_dat_tru')::numeric)::text) ELSE '{}'::jsonb END
         $$""",
     """CREATE OR REPLACE FUNCTION master.crm_da_noi_dung_tu(p_dang_ban boolean, p_tt jsonb, p_phi jsonb) RETURNS jsonb
         LANGUAGE sql IMMUTABLE SET search_path = master, pg_temp AS $$
         SELECT jsonb_build_object('dang_ban', p_dang_ban,
             'thong_tin', jsonb_build_object('vi_tri', p_tt ->> 'vi_tri', 'mo_ta', p_tt ->> 'mo_ta', 'don_gia_niem_yet', p_tt ->> 'don_gia_niem_yet',
-                                            'tien_te', p_tt ->> 'tien_te', 'loai_hinh_id', p_tt ->> 'loai_hinh_id', 'co_so_thue', p_tt ->> 'co_so_thue',
-                                            'vat_phan_tram', p_tt ->> 'vat_phan_tram', 'giai_doan_g7', p_tt ->> 'giai_doan_g7'),
+                                            'tien_te', p_tt ->> 'tien_te', 'loai_hinh_id', p_tt ->> 'loai_hinh_id', 'thue_suat', p_tt ->> 'thue_suat',
+                                            'gia_dat_tru', p_tt ->> 'gia_dat_tru', 'giai_doan_g7', p_tt ->> 'giai_doan_g7'),
             'phi', coalesce((SELECT jsonb_agg(jsonb_build_object('ten', e ->> 'ten', 'loai', e ->> 'loai', 'muc', e ->> 'muc',
                                                                  'don_vi_tinh', e ->> 'don_vi_tinh', 'tien_te', e ->> 'tien_te',
                                                                  'co_so_tinh', e ->> 'co_so_tinh') ORDER BY o)
@@ -228,7 +235,7 @@ CRM_DU_AN_BAN_SQL = (
         LANGUAGE sql STABLE SET search_path = master, pg_temp AS $$
         SELECT master.crm_da_noi_dung_tu(v.dang_ban,
             jsonb_build_object('vi_tri', v.vi_tri, 'mo_ta', v.mo_ta, 'don_gia_niem_yet', v.don_gia_niem_yet, 'tien_te', v.tien_te,
-                               'loai_hinh_id', v.loai_hinh_id::text, 'co_so_thue', v.co_so_thue, 'vat_phan_tram', v.vat_phan_tram,
+                               'loai_hinh_id', v.loai_hinh_id::text, 'thue_suat', v.thue_suat, 'gia_dat_tru', trim_scale(v.gia_dat_tru)::text,
                                'giai_doan_g7', v.giai_doan_g7),
             (SELECT coalesce(jsonb_agg(jsonb_build_object('ten', f.ten, 'loai', f.loai, 'muc', f.muc, 'don_vi_tinh', f.don_vi_tinh,
                                                           'tien_te', f.tien_te, 'co_so_tinh', f.co_so_tinh) ORDER BY f.thu_tu), '[]'::jsonb)
@@ -256,11 +263,14 @@ CRM_DU_AN_BAN_SQL = (
             IF v_tt IS NULL OR v_tt NOT IN ('VND','USD') OR NOT (ds ? v_tt) THEN
                 RAISE EXCEPTION 'CRM_DA_TIEN_TE_SAI: tiền tệ của dự án không hợp lệ với loại hình (nhận %)', ds USING ERRCODE = 'P0001';
             END IF;
-            IF coalesce(p_tt ->> 'don_gia_niem_yet', '0') !~ """ + _RE_SO + """ OR coalesce(p_tt ->> 'vat_phan_tram', '0') !~ """ + _RE_SO + """ THEN
-                RAISE EXCEPTION 'CRM_DA_SO_SAI: đơn giá/thuế phải là số thập phân không âm (chữ số 0–9, dấu chấm thập phân)' USING ERRCODE = 'P0001';
+            IF coalesce(p_tt ->> 'don_gia_niem_yet', '0') !~ """ + _RE_SO + """ OR coalesce(p_tt ->> 'gia_dat_tru', '') !~ """ + _RE_SO + """ THEN
+                RAISE EXCEPTION 'CRM_DA_SO_SAI: đơn giá/giá đất được trừ phải là số thập phân không âm (chữ số 0–9, dấu chấm thập phân)' USING ERRCODE = 'P0001';
             END IF;
-            IF (p_tt ->> 'vat_phan_tram') IS NOT NULL AND (p_tt ->> 'vat_phan_tram')::numeric > 100 THEN
-                RAISE EXCEPTION 'CRM_DA_SO_SAI: thuế VAT tối đa 100%%' USING ERRCODE = 'P0001';
+            IF (p_tt ->> 'gia_dat_tru')::numeric > coalesce((p_tt ->> 'don_gia_niem_yet')::numeric, 0) THEN
+                RAISE EXCEPTION 'CRM_DA_SO_SAI: giá đất được trừ/m² không được vượt đơn giá niêm yết' USING ERRCODE = 'P0001';
+            END IF;
+            IF coalesce(p_tt ->> 'thue_suat', '') NOT IN ('10','8','5','0','KCT','KKKNT') THEN
+                RAISE EXCEPTION 'CRM_DA_YEU_CAU_SAI: thuế suất phải thuộc danh mục 10/8/5/0/KCT/KKKNT' USING ERRCODE = 'P0001';
             END IF;
             IF coalesce(p_tt ->> 'giai_doan_g7', 'X') !~ """ + _GD_RE + """ THEN
                 RAISE EXCEPTION 'CRM_DA_YEU_CAU_SAI: giai đoạn tiến độ chỉ gồm chữ/số/_ . - (1–80)' USING ERRCODE = 'P0001';
@@ -292,9 +302,9 @@ CRM_DU_AN_BAN_SQL = (
             END IF;
             nd := master.crm_da_noi_dung_tu(p_dang_ban, tt, p_phi);
             INSERT INTO master.crm_da_ban_phien_ban (da_ban_id, phap_nhan_id, phien_ban, hieu_luc_tu, dang_ban, vi_tri, mo_ta, don_gia_niem_yet, tien_te,
-                                                     loai_hinh_id, co_so_thue, vat_phan_tram, giai_doan_g7, so_phi, noi_dung_sha256, ly_do, lap_boi)
+                                                     loai_hinh_id, thue_suat, gia_dat_tru, giai_doan_g7, so_phi, noi_dung_sha256, ly_do, lap_boi)
                 VALUES (p_da, p_pn, p_n, p_ngay, p_dang_ban, tt ->> 'vi_tri', tt ->> 'mo_ta', tt ->> 'don_gia_niem_yet', tt ->> 'tien_te',
-                        (tt ->> 'loai_hinh_id')::uuid, tt ->> 'co_so_thue', tt ->> 'vat_phan_tram', tt ->> 'giai_doan_g7', jsonb_array_length(p_phi),
+                        (tt ->> 'loai_hinh_id')::uuid, tt ->> 'thue_suat', (tt ->> 'gia_dat_tru')::numeric, tt ->> 'giai_doan_g7', jsonb_array_length(p_phi),
                         encode(sha256(convert_to(nd::text, 'UTF8')), 'hex'), nullif(btrim(p_ly_do), ''), p_ai)
                 RETURNING id INTO pb;
             FOR r IN SELECT e, o FROM jsonb_array_elements(p_phi) WITH ORDINALITY AS x(e, o) LOOP
@@ -588,9 +598,12 @@ CRM_DU_AN_BAN_SQL = (
                 'phien_ban', jsonb_build_object('id', v.id, 'so', v.phien_ban, 'hieu_luc_tu', v.hieu_luc_tu, 'hieu_luc_den', v.hieu_luc_den,
                                                 'dang_ban', v.dang_ban, 'lap_boi', v.lap_boi, 'noi_dung_sha256', v.noi_dung_sha256),
                 'thong_tin', jsonb_build_object('vi_tri', v.vi_tri, 'mo_ta', v.mo_ta),
-                'don_gia', v.don_gia_niem_yet, 'tien_te', v.tien_te,
+                'don_gia', v.don_gia_niem_yet, 'tien_te', v.tien_te, 'gia_dat_tru', trim_scale(v.gia_dat_tru)::text,
                 'loai_hinh', jsonb_build_object('id', l.id, 'ma', l.ma, 'ten', l.ten, 'phien_ban', l.phien_ban, 'con_hieu_luc', l.valid_to IS NULL),
-                'thue', jsonb_build_object('co_so_thue', v.co_so_thue, 'vat_phan_tram', v.vat_phan_tram),
+                'thue', jsonb_build_object('thue_suat', v.thue_suat,
+                    'nhan', CASE v.thue_suat WHEN 'KCT' THEN 'Không chịu thuế' WHEN 'KKKNT' THEN 'Không kê khai, nộp thuế'
+                                           ELSE 'Thuế suất ' || v.thue_suat || '%' END,
+                    'gia_chua_gom_vat', true),
                 'giai_doan_g7', v.giai_doan_g7,
                 'phi', (SELECT coalesce(jsonb_agg(jsonb_build_object('thu_tu', f.thu_tu, 'ten', f.ten, 'loai', f.loai, 'muc', f.muc,
                                                                      'don_vi_tinh', f.don_vi_tinh, 'tien_te', f.tien_te, 'co_so_tinh', f.co_so_tinh)

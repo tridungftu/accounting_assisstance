@@ -5,13 +5,14 @@ tools/mo_demo_worktree.ps1 -CsdlRieng tạo và đã chạy bước chuẩn bị
 Dữ liệu: mỗi lần chạy tạo một dự án kế toán DEMO MỚI (mã DA_DEMO_KT_<run>) rồi đi hết luồng bằng service thật (kết nối chủ bảng + login ứng
 dụng, đúng như máy chủ) — giữ lại làm bằng chứng, không xóa. Kiểm bất biến bằng lệnh trực tiếp trong giao dịch bị CSDL từ chối (không để lại gì).
 
-Luồng (t01…t12): bật bán + idempotent + quyền; sửa → phiên bản mới (CAS, không đổi); phí; lô/căn (lịch sử, CAS lần); G7 áp dụng ngay (bỏ CFO,
+Luồng (t01…t13): bật bán + idempotent + quyền; sửa → phiên bản mới (CAS, không đổi); phí; lô/căn (lịch sử, CAS lần); G7 áp dụng ngay (bỏ CFO,
 QD-20261025-07) và MỌI chỗ đọc bộ chuẩn hiệu lực đọc được (crm_g_chuan_doc, tính báo giá, truy vấn G6A crm_kiem_g7); phiên bản G7 CFO đã duyệt
 cũ giữ nguyên nghĩa; ảnh chụp mặc định cho báo giá; ngừng/mở bán; lịch sử; bất biến + vai ứng dụng không đọc bảng mới; seed DEMO idempotent.
 """
 
 from __future__ import annotations
 
+import json
 import os
 import tempfile
 import unittest
@@ -100,7 +101,7 @@ class DuAnBanPostgres(unittest.TestCase):
 
     def tt(self, **sua):
         return {"vi_tri": "Khu kiểm thử DEMO", "mo_ta": "Dự án kiểm thử DA-1 — DEMO", "don_gia_niem_yet": "120", "tien_te": "USD", "loai_hinh_id": self.lh,
-                "co_so_thue": "NET", "vat_phan_tram": "10", "giai_doan_g7": self.gd, **sua}
+                "thue_suat": "10", "gia_dat_tru": "0", "giai_doan_g7": self.gd, **sua}
 
     def chuan_doc(self, gd, ngay):
         """`master.crm_g_chuan_doc` qua service G7 (danh tính phiên bán hàng trong giao dịch RR — đúng đường của báo giá)."""
@@ -288,7 +289,8 @@ class DuAnBanPostgres(unittest.TestCase):
         self.can("da", "g7")
         a = self.db(lambda: self.dv.anh_chup_mac_dinh(BH, self.du_an))
         self.assertEqual((a["kieu"], a["trang_thai"], a["phien_ban"]["so"], a["don_gia"], a["tien_te"], a["thue"], a["giai_doan_g7"]),
-                         ("CRM_DA_ANH_CHUP_V1", "DANG_BAN", 3, "125.5", "USD", {"co_so_thue": "NET", "vat_phan_tram": "10"}, self.gd))
+                         ("CRM_DA_ANH_CHUP_V1", "DANG_BAN", 3, "125.5", "USD", {"thue_suat": "10", "nhan": "Thuế suất 10%", "gia_chua_gom_vat": True}, self.gd))
+        self.assertEqual(a["gia_dat_tru"], "0")
         self.assertEqual((a["loai_hinh"]["id"], a["loai_hinh"]["con_hieu_luc"], len(a["phi"]), len(a["lo"])), (self.lh, True, 3, 2))
         self.assertEqual((a["bo_chuan"]["version"]["id"], a["bo_chuan"]["nguon"], len(a["bo_chuan"]["rows"])), (self.s["g7"], "AP_DUNG_NGAY", 3))
         self.assertIn(self.gd, a["giai_doan_co_chuan"])
@@ -366,6 +368,8 @@ class DuAnBanPostgres(unittest.TestCase):
                 a = self.db(lambda: self.dv.anh_chup_mac_dinh(BH, da["du_an_id"]))
                 self.assertEqual(a["trang_thai"], "DANG_BAN")
                 self.assertIn("DEMO", a["du_an"]["ma"])
+                self.assertEqual(a["thue"], {"thue_suat": "10", "nhan": "Thuế suất 10%", "gia_chua_gom_vat": True})
+                self.assertEqual(a["gia_dat_tru"], "24" if ma == "DA_KCN_DEMO" else "0")
                 self.assertGreaterEqual(len({p["don_vi_tinh"] for p in a["phi"]}), 2)
                 self.assertGreaterEqual(len(a["lo"]), 2)
                 self.assertEqual((a["bo_chuan"]["trang_thai"], a["bo_chuan"]["nguon"]), ("HIEU_LUC", "AP_DUNG_NGAY"))
@@ -373,6 +377,46 @@ class DuAnBanPostgres(unittest.TestCase):
         kq = D.khoi_tao_demo(self.admin_t)
         self.assertEqual((kq["trang_thai"], [x["trang_thai"] for x in kq["du_an"]]), ("DU", ["DU", "DU"]))
         self.assertEqual(dem(), truoc)  # mở lại không thêm phiên bản/dòng
+
+    def test_t13_thue_va_gia_dat_tru_phien_ban_moi(self):
+        tt = self.tt()
+        tt.pop("thue_suat")
+        tt.pop("gia_dat_tru")
+        r = self.db(lambda: self.dv.bat_ban(BH, du_an_id=self.du_an_2, thong_tin=tt, khoa=self.K("thue0")))
+        a0 = self.db(lambda: self.dv.anh_chup_mac_dinh(BH, self.du_an_2))
+        self.assertEqual((a0["thue"]["thue_suat"], a0["gia_dat_tru"]), ("10", "0"))
+        for sua, ma in (({"thue_suat": "7"}, "CRM_DA_YEU_CAU_SAI"), ({"gia_dat_tru": "121"}, "CRM_DA_SO_SAI"),
+                        ({"gia_dat_tru": "٢٤"}, "CRM_DA_SO_SAI"), ({"co_so_thue": "NET"}, "CRM_DA_YEU_CAU_SAI"),
+                        ({"vat_phan_tram": "10"}, "CRM_DA_YEU_CAU_SAI")):
+            with self.subTest(sua=sua):
+                self.assertEqual(self.ma(self.dv.cap_nhat, BH, da_ban_id=r["da_ban_id"], expected_phien_ban=1,
+                                         thong_tin=self.tt(**sua), khoa=self.K("thue_sai")), ma)
+        # Gọi thẳng SQL để kiểm miền độc lập với bộ kiểm Python.
+        for sua, ma in (({"thue_suat": "7"}, "CRM_DA_YEU_CAU_SAI"), ({"thue_suat": None}, "CRM_DA_YEU_CAU_SAI"),
+                        ({"gia_dat_tru": "121"}, "CRM_DA_SO_SAI"), ({"gia_dat_tru": "-1"}, "CRM_DA_SO_SAI"),
+                        ({"gia_dat_tru": "٢٤"}, "CRM_DA_SO_SAI"), ({"gia_dat_tru": 24}, "CRM_DA_YEU_CAU_SAI"),
+                        ({"co_so_thue": "NET"}, "CRM_DA_YEU_CAU_SAI")):
+            with self.subTest(sql=sua), self.assertRaises(self.psycopg.Error) as cm:
+                with self.admin.transaction():
+                    self.admin.execute("SELECT master.crm_da_kiem(%s::uuid, master.crm_da_tt_chuan(%s::jsonb), '[]'::jsonb)",
+                                       (self.pn, json.dumps(self.tt(**sua), ensure_ascii=False)))
+            self.assertEqual(_ma_pg(cm.exception), ma)
+        r2 = self.db(lambda: self.dv.cap_nhat(BH, da_ban_id=r["da_ban_id"], expected_phien_ban=1,
+                                             thong_tin=self.tt(thue_suat="8", gia_dat_tru="24.00"), khoa=self.K("thue1")))
+        self.assertEqual((r2["phien_ban"], r2["khac"]), (2, ["gia_dat_tru", "thue_suat"]))
+        a1 = self.db(lambda: self.dv.anh_chup_mac_dinh(BH, self.du_an_2))
+        self.assertEqual((a1["thue"], a1["gia_dat_tru"]), ({"thue_suat": "8", "nhan": "Thuế suất 8%", "gia_chua_gom_vat": True}, "24"))
+        self.assertNotEqual(a0["anh_chup_sha256"], a1["anh_chup_sha256"])
+        a_ngay_khac = self.db(lambda: self.dv.anh_chup_mac_dinh(BH, self.du_an_2, (self.hom_nay + timedelta(days=1)).isoformat()))
+        self.assertEqual(a1["anh_chup_sha256"], a_ngay_khac["anh_chup_sha256"])
+        r3 = self.db(lambda: self.dv.cap_nhat(BH, da_ban_id=r["da_ban_id"], expected_phien_ban=2,
+                                             thong_tin=self.tt(thue_suat="KCT", gia_dat_tru="24"), khoa=self.K("thue2")))
+        self.assertEqual((r3["phien_ban"], r3["khac"]), (3, ["thue_suat"]))
+        cu = self.db(lambda: self.dv.chi_tiet(BH, r["da_ban_id"], phien_ban="2"))["anh_chup"]
+        self.assertEqual((cu["thue"]["thue_suat"], cu["gia_dat_tru"]), ("8", "24"))
+        moi = self.db(lambda: self.dv.anh_chup_mac_dinh(BH, self.du_an_2))
+        self.assertEqual(moi["thue"], {"thue_suat": "KCT", "nhan": "Không chịu thuế", "gia_chua_gom_vat": True})
+        self.assertNotEqual(moi["anh_chup_sha256"], a1["anh_chup_sha256"])
 
 
 if __name__ == "__main__":

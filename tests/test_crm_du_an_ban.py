@@ -47,8 +47,8 @@ ME = "MO_PHONG_BAN_HANG"
 
 
 def tt(**sua):
-    return {"vi_tri": "KCN DEMO", "mo_ta": "Mô tả DEMO", "don_gia_niem_yet": "120", "tien_te": "USD", "loai_hinh_id": LH, "co_so_thue": "NET",
-            "vat_phan_tram": "10", "giai_doan_g7": "GD1", **sua}
+    return {"vi_tri": "KCN DEMO", "mo_ta": "Mô tả DEMO", "don_gia_niem_yet": "120", "tien_te": "USD", "loai_hinh_id": LH, "thue_suat": "10",
+            "gia_dat_tru": "0", "giai_doan_g7": "GD1", **sua}
 
 
 PHI = [{"ten": "Phí bảo trì DEMO", "loai": "BAO_TRI", "muc": "0.5", "don_vi_tinh": "M2_NAM", "tien_te": "USD", "co_so_tinh": "Diện tích"},
@@ -218,9 +218,13 @@ class M31SqlTinh(unittest.TestCase):
         self.assertNotIn("duyet_boi", f)  # không giả là CFO đã duyệt
 
     def test_mien_so_sql_khop_python(self):
-        for cot in ("don_gia_niem_yet ~ ", "muc ~ ", "vat_phan_tram ~ ", "dien_tich ~ "):
+        for cot in ("don_gia_niem_yet ~ ", "muc ~ ", "gia_dat_tru::text ~ ", "dien_tich ~ "):
             self.assertIn(cot + B._RE_SO, SQL_TXT)
-        self.assertIn("vat_phan_tram::numeric <= 100", SQL_TXT)
+        self.assertIn("thue_suat text NOT NULL DEFAULT '10' CHECK (thue_suat IN ('10','8','5','0','KCT','KKKNT'))", SQL_TXT)
+        self.assertIn("gia_dat_tru numeric NOT NULL DEFAULT 0 CHECK (gia_dat_tru >= 0", SQL_TXT)
+        self.assertIn("gia_dat_tru <= don_gia_niem_yet::numeric", SQL_TXT)
+        self.assertNotIn("co_so_thue", SQL_TXT)
+        self.assertNotIn("vat_phan_tram", SQL_TXT)
         self.assertIn("dien_tich::numeric > 0", SQL_TXT)
         self.assertIn("tien_te IN ('VND','USD')", SQL_TXT)
         self.assertIn("don_vi_tinh IN ('M2_THANG','M2_NAM','LAN')", SQL_TXT)
@@ -240,19 +244,19 @@ class ChuanHoa(unittest.TestCase):
     def test_thong_tin_hop_le_va_gon(self):
         x = D.chuan_hoa_thong_tin(tt(don_gia_niem_yet="0120.50", vi_tri="  KCN DEMO  ", mo_ta="", giai_doan_g7=""))
         self.assertEqual(x, {"vi_tri": "KCN DEMO", "mo_ta": None, "don_gia_niem_yet": "120.5", "tien_te": "USD", "loai_hinh_id": LH,
-                             "co_so_thue": "NET", "vat_phan_tram": "10", "giai_doan_g7": None})
+                             "thue_suat": "10", "gia_dat_tru": "0", "giai_doan_g7": None})
         self.assertEqual(tuple(x), D.TRUONG_TT)
         self.assertEqual(D.chuan_hoa_thong_tin({"tien_te": "VND", "loai_hinh_id": LH.upper()})["loai_hinh_id"], LH)
 
     def test_thong_tin_loi_theo_truong(self):
-        ca = ((tt(la="x"), ("CRM_DA_YEU_CAU_SAI", "thong_tin")),
+        ca = ((tt(la="x"), ("CRM_DA_YEU_CAU_SAI", "thong_tin.la")),
               (tt(don_gia_niem_yet="٢٥٩٩٩.٥"), ("CRM_DA_SO_SAI", "thong_tin.don_gia_niem_yet")),
               (tt(don_gia_niem_yet="１２０"), ("CRM_DA_SO_SAI", "thong_tin.don_gia_niem_yet")),
               (tt(don_gia_niem_yet="1,5"), ("CRM_DA_SO_SAI", "thong_tin.don_gia_niem_yet")),
               (tt(don_gia_niem_yet="-1"), ("CRM_DA_SO_SAI", "thong_tin.don_gia_niem_yet")),
               (tt(don_gia_niem_yet=120), ("CRM_DA_SO_SAI", "thong_tin.don_gia_niem_yet")),
               (tt(don_gia_niem_yet="1" * 25), ("CRM_DA_SO_SAI", "thong_tin.don_gia_niem_yet")),
-              (tt(vat_phan_tram="100.5"), ("CRM_DA_SO_SAI", "thong_tin.vat_phan_tram")),
+              (tt(vat_phan_tram="100.5"), ("CRM_DA_YEU_CAU_SAI", "thong_tin.vat_phan_tram")),
               (tt(tien_te="EUR"), ("CRM_DA_YEU_CAU_SAI", "thong_tin.tien_te")),
               (tt(tien_te=None), ("CRM_DA_TIEN_TE_SAI", "thong_tin.tien_te")),
               (tt(loai_hinh_id=None), ("CRM_DA_THIEU_LOAI_HINH", "thong_tin.loai_hinh_id")),
@@ -266,8 +270,22 @@ class ChuanHoa(unittest.TestCase):
         for v, mong in ca:
             with self.subTest(v=v):
                 self.assertEqual(_ma(D.chuan_hoa_thong_tin, v), mong)
-        self.assertEqual(D.chuan_hoa_thong_tin(tt(vat_phan_tram="100"))["vat_phan_tram"], "100")
         self.assertEqual(D.chuan_hoa_thong_tin(tt(mo_ta="dòng 1\ndòng 2"))["mo_ta"], "dòng 1\ndòng 2")  # mô tả nhiều dòng
+
+    def test_thue_danh_muc_va_gia_dat_tru(self):
+        x = D.chuan_hoa_thong_tin({"tien_te": "USD", "loai_hinh_id": LH})
+        self.assertEqual((x["thue_suat"], x["gia_dat_tru"]), ("10", "0"))
+        for ma in ("10", "8", "5", "0", "KCT", "KKKNT"):
+            self.assertEqual(D.chuan_hoa_thong_tin(tt(thue_suat=ma))["thue_suat"], ma)
+        for v in ("7", "100", "10.0", "１０", "kct", " 8", "", None, 10, True, [], {}):
+            with self.subTest(thue=v):
+                self.assertEqual(_ma(D.chuan_hoa_thong_tin, tt(thue_suat=v)), ("CRM_DA_YEU_CAU_SAI", "thong_tin.thue_suat"))
+        for v in ("120.000000000001", "-1", "1e1", "1,5", "٢٤", "２４", " 24", "1" * 25, "0." + "1" * 13, "", None, 24, True):
+            with self.subTest(dat=v):
+                self.assertEqual(_ma(D.chuan_hoa_thong_tin, tt(gia_dat_tru=v)), ("CRM_DA_SO_SAI", "thong_tin.gia_dat_tru"))
+        for v in ("0", "24.50", "120"):
+            self.assertEqual(D.chuan_hoa_thong_tin(tt(gia_dat_tru=v))["gia_dat_tru"], {"24.50": "24.5"}.get(v, v))
+        self.assertEqual(_ma(D.chuan_hoa_thong_tin, tt(don_gia_niem_yet=None, gia_dat_tru="1")), ("CRM_DA_SO_SAI", "thong_tin.gia_dat_tru"))
 
     def test_phi(self):
         x = D.chuan_hoa_phi(PHI)
@@ -416,7 +434,8 @@ class Service(unittest.TestCase):
     def test_anh_chup_mac_dinh_va_trong(self):
         anh = {"kieu": D.KIEU_ANH_CHUP, "trang_thai": "DANG_BAN", "ngay": "2026-10-25",
                "phien_ban": {"so": 2, "hieu_luc_tu": "2026-10-25", "hieu_luc_den": None}, "don_gia": "120.5", "tien_te": "USD",
-               "loai_hinh": {"ten": "KCN DEMO", "con_hieu_luc": False}, "thue": {"co_so_thue": "NET", "vat_phan_tram": "10"},
+               "loai_hinh": {"ten": "KCN DEMO", "con_hieu_luc": False}, "thue": {"thue_suat": "10", "nhan": "Thuế suất 10%", "gia_chua_gom_vat": True},
+               "gia_dat_tru": "24",
                "phi": [{"ten": "Phí bảo trì DEMO", "loai": "BAO_TRI", "muc": "0.5", "don_vi_tinh": "M2_NAM", "tien_te": "USD", "co_so_tinh": None}],
                "lo": [{"ma": "CN-A01", "dien_tich": "15000.5", "trang_thai": "GIU_CHO"}],
                "bo_chuan": {"trang_thai": "HIEU_LUC", "giai_doan": "GD1", "nguon": "AP_DUNG_NGAY", "version": {"phien_ban": 3, "valid_from": "2026-10-25"}}}
@@ -428,7 +447,8 @@ class Service(unittest.TestCase):
                          ("120,5 USD/m²", "0,5 USD/m²/năm", "15.000,5 m²", "Đang giữ chỗ", "25/10/2026"))
         self.assertIn("cần chọn lại", ht["loai_hinh"])
         self.assertIn("QD-20261025-07", ht["bo_chuan"])
-        self.assertEqual(ht["thue"], "Giá chưa gồm thuế · VAT 10%")
+        self.assertEqual(ht["thue"], "Giá chưa gồm VAT · Thuế suất 10%")
+        self.assertEqual((r["thue"], r["gia_dat_tru"], ht["gia_dat_tru"]), (anh["thue"], "24", "24 USD/m²"))
         D.CrmDuAnBanK2(m).anh_chup_mac_dinh(ME, DA, "2026-09-30")
         self.assertEqual(m.c.goi[-1][1], (DA, "2026-09-30"))
         self.assertEqual(_ma(D.CrmDuAnBanK2(m).anh_chup_mac_dinh, ME, DA, "30/09/2026")[0], "CRM_G_YEU_CAU_SAI")
@@ -437,6 +457,9 @@ class Service(unittest.TestCase):
 
     def test_danh_muc_nhan_viet(self):
         dm = D.danh_muc()
+        self.assertEqual(dm["thue_suat"], [{"ma": k, "nhan": v} for k, v in D.THUE_SUAT.items()])
+        self.assertEqual([x["ma"] for x in dm["thue_suat"]], ["10", "8", "5", "0", "KCT", "KKKNT"])
+        self.assertNotIn("co_so_thue", dm)
         self.assertEqual([x["nhan"] for x in dm["don_vi_tinh"]], ["m²/tháng", "m²/năm", "lần"])
         for k, ds in dm.items():
             for x in ds:
@@ -546,6 +569,17 @@ class Http(unittest.TestCase):
         h, _ = self.goi(True, "/api/crm/du-an-ban/xoa", {"da_ban_id": DB})
         self.assertEqual(h.st, 404)
 
+    def test_thue_va_dat_loi_400_theo_truong(self):
+        for endpoint, id_ in (("bat-ban", {"du_an_id": DA}), ("cap-nhat", {"da_ban_id": DB, "expected_phien_ban": 1})):
+            for sua, truong in (({"thue_suat": "7"}, "thue_suat"), ({"thue_suat": 10}, "thue_suat"),
+                                ({"gia_dat_tru": "121"}, "gia_dat_tru"), ({"gia_dat_tru": "٢٤"}, "gia_dat_tru"),
+                                ({"co_so_thue": "NET"}, "co_so_thue"), ({"vat_phan_tram": "10"}, "vat_phan_tram")):
+                with self.subTest(endpoint=endpoint, sua=sua):
+                    h, da = self.goi(True, "/api/crm/du-an-ban/" + endpoint, {**id_, "thong_tin": tt(**sua), "khoa": "k"})
+                    self.assertEqual((h.st, h.data["truong"], da.goi), (400, "thong_tin." + truong, []))
+        h, da = self.goi(True, "/api/crm/du-an-ban/bat-ban", {"du_an_id": DA, "thong_tin": {"loai_hinh_id": LH, "tien_te": "USD"}, "khoa": "k"})
+        self.assertEqual((h.st, da.goi[0][2]["thong_tin"]["thue_suat"], da.goi[0][2]["thong_tin"]["gia_dat_tru"]), (200, "10", "0"))
+
     def test_query_tho_lap_rong_va_gioi_han(self):
         from urllib.parse import parse_qs
 
@@ -643,6 +677,8 @@ class SeedDemo(unittest.TestCase):
                 self.assertIn("DEMO", x["thong_tin"]["mo_ta"])
                 tt_ = D.chuan_hoa_thong_tin({**x["thong_tin"], "loai_hinh_id": LH})
                 self.assertIsNotNone(tt_["don_gia_niem_yet"])
+                self.assertEqual(tt_["thue_suat"], "10")
+                self.assertEqual(tt_["gia_dat_tru"], "24" if x["du_an"] == "DA_KCN_DEMO" else "0")
                 ph = D.chuan_hoa_phi(x["phi"])
                 self.assertGreaterEqual(len(ph), 2)
                 self.assertGreaterEqual(len({p["don_vi_tinh"] for p in ph}), 2)  # ≥ 2 phí khác đơn vị tính
