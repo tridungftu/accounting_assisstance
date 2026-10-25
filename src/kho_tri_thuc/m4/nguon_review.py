@@ -42,10 +42,10 @@ PIN = {
     "trich_xuat/__init__.py": "f200159d6de51d346ea40d0abc2efe3132ac679dc0c31e778c10aa266490be8b",
     "trich_xuat/ai_local.py": "5ee214ea442fc924bc60a871e1f4328cfc4ae74b859160904089430fdd7dba77",
     # AI-0 25/10/2026: tạm khóa Cloud (TL 48)
-    "trich_xuat/ai_cloud.py": "e1d6d0892022a798bb8997d8c354b8f37f17e6a63a10ec481876d0031c08d769",  # AI-3 26/10/2026: Cloud qua cổng AI dùng chung (TL 48)
+    "trich_xuat/ai_cloud.py": "4bd6857437a9fa72867ae427650e84314d80aa8710745df5bd6d4136a9a6617f",  # AI-3 26/10/2026: Cloud qua cổng AI dùng chung (TL 48)
     "trich_xuat/cau_hinh.py": "53defa8fc52859c2e14cc9a00701fbc055e8eb47e0bb69156ccd8cdcacc58d93",
     "trich_xuat/cau_truc.py": "2817a46ec2fc967d1e64eae1dd68e35047e687a7b654a9c8ce03f106b9aad5c6",
-    "trich_xuat/cloud.py": "a27f77397ab8c279c2b728f3f1553d909353475278d9c2dead91e28d28b2f55e",  # AI-3 26/10/2026: Cloud qua cổng AI dùng chung (TL 48)
+    "trich_xuat/cloud.py": "d084d961c99d852ecda58e46564504013fc082a2753fbe7cb56e40160d3727a3",  # AI-3 26/10/2026: Cloud qua cổng AI dùng chung (TL 48)
     "trich_xuat/danh_muc.py": "f0796984f7b18a4d0d3389b557a6324f3ad59ca488c29ad3284e11ca97ca2ff2",
     "trich_xuat/doc_hop_dong.py": "bbe8d9579ad9cce2c4b50e77fa734e7fc9826cd7933abe1aad2e5bf8b3d8a98b",
     "trich_xuat/kiem_tra.py": "47ee35567cb7b864a6b3d6825bc90f93a7a26c0c6872a326e99ead9160467f12",

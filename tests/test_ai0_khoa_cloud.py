@@ -286,6 +286,20 @@ class KhoaCloudTests(unittest.TestCase):
         self.assertFalse(ai.cong_ai.cai_dat["cloud_bat"])
         self.assertIn("BOC_TACH_HOP_DONG", ca.LOAI_VIEC)
 
+    def test_cau_hinh_engine_thieu_cong_ai_khong_lay_model_local_cho_cloud(self):
+        settings = {"model": "qwen-DEMO-local", "nha_cung_cap": "openai", "cloud_bat": True,
+                    "local_ai": {"model": "qwen-DEMO-local"}, "cloud": {"bat": True}}
+        for cfg in (settings, {"settings": settings}):
+            with self.subTest(long_settings="settings" in cfg):
+                cong = self.cloud.tao_cong_ai(cfg)
+                self.assertEqual(cong.cai_dat, ca.cong_ai_settings({"cong_ai": {}}))
+                self.assertNotEqual(cong.cai_dat["model"], settings["model"])
+                self.assertEqual(cong.local_ai, settings["local_ai"])
+                self.assertFalse(cong.cai_dat["cloud_bat"])
+        cong = self.cloud.tao_cong_ai({"cong_ai": None, "local_ai": None, "model": "Local-DEMO"})
+        self.assertEqual(cong.cai_dat, ca.cong_ai_settings({"cong_ai": {}}))
+        self.assertEqual(cong.local_ai, {})
+
     def test_thu_ket_noi_dung_trang_thai_mask_khong_goi_model(self):
         cong, mask, provider, _ = self.cong_gia()
         self.assertTrue(self.cloud.thu_ket_noi("anthropic", cong_ai=cong)["ok"])
@@ -351,7 +365,69 @@ class KhoaCloudTests(unittest.TestCase):
         mask._goi.assert_not_called()
         provider.tra_loi.assert_not_called()
 
+    def test_buoc8_nhom_dau_loi_van_hoi_nhom_sau(self):
+        kt = importlib.import_module(GOI + "kiem_tra")
+        text = "Giá trị hợp đồng: 1.250.000.000 đồng."
+        row = {"id": "r01", "dieu": "1", "khoan": "", "tieu_de_khoan": "",
+               "tieu_de_dieu": "Giá hợp đồng", "noi_dung": text}
+        for loi in ("AILoi", "Mask còn sót", "Cloud trả không hợp lệ"):
+            with self.subTest(loi=loi):
+                cong, mask, provider, ghi = self.cong_gia()
+                ai = self.ai_cloud.MayCloud(cong_ai=cong)
+                goi_that = cong.goi
+                lan_goi = []
+
+                def goi(req):
+                    lan_goi.append(req.truong)
+                    if len(lan_goi) == 1 and loi == "AILoi":
+                        raise self.ai_local.AILoi("Lỗi cổng DEMO")
+                    return goi_that(req)
+
+                cong.goi = Mock(side_effect=goi)
+                mask_goi_that = mask._goi.side_effect
+
+                def mask_goi(path, body):
+                    if path == "/api/v1/che" and len(lan_goi) == 1 and loi == "Mask còn sót":
+                        gia = MaskGia(con_sot=[{"cum": "DEMO", "so_lan": 1}])
+                        return gia.xu_ly("POST", path, {"Authorization": "Bearer " + KHOA_MASK}, body)[1]
+                    return mask_goi_that(path, body)
+
+                mask._goi.side_effect = mask_goi
+
+                def tra_loi(system, user, **kw):
+                    data = ("không phải JSON" if len(lan_goi) == 1 else
+                            json.dumps({"truong": [{"ten": "TT-03", "gia_tri": "1.250.000.000 đồng",
+                                                    "trich_dan": text}], "do_tin_cay": 0.95}))
+                    return ca.PhanHoiCloud(data, kw["model"], 1, 1)
+
+                provider.tra_loi.side_effect = tra_loi
+                bang = [{"ma": ma, "gia_tri": "1.250.000.000 đồng", "nguon": "Local", "muc": 3,
+                         "kiem_tra": "KIỂM TRA", "kiem_tra_tu": "KIỂM TRA"} for ma in ("TT-02", "TT-03")]
+                truoc = copy.deepcopy(bang)
+                params = [{"ma": d["ma"], "mo_ta": "Giá trị hợp đồng", "luon_cloud": True} for d in bang]
+                log = []
+                with patch.object(self.cloud, "GROUP_MAX", 1), patch.object(self.ai_cloud, "MayCloud", return_value=ai):
+                    kq = self.cloud.kiem_tra_cloud(
+                        bang, params, {}, {d["ma"]: [row] for d in bang}, {"r01": row},
+                        kt.norm(text), kt.loose(text), "khong-ghi-van-ban", {"ty_le": 100},
+                        cong_ai=cong, ghi_log=log.append)
+                self.assertEqual(lan_goi, [("TT-02",), ("TT-03",)])
+                self.assertEqual(bang[0], truoc[0])
+                self.assertEqual(bang[1]["nguon"], "Local – cloud xác nhận")
+                self.assertEqual((kq["so_o_chon"], kq["so_o_gui"], kq["xac_nhan"]), (2, 1, 1))
+                self.assertEqual(len(kq["khong_gui"]), 1)
+                self.assertTrue(kq["khong_gui"][0].startswith("TT-02: bỏ nhóm vì cổng AI chưa có kết quả:"))
+                self.assertTrue(log[-1].endswith("không gửi 1"))
+                self.assertEqual(ai.so_khong_gui, int(loi == "Mask còn sót"))
+                self.assertEqual(provider.tra_loi.call_count, 2 if loi == "Cloud trả không hợp lệ" else 1)
+                if loi == "Cloud trả không hợp lệ":
+                    cloud_logs = [b for b in ghi.ban_ghi if b.duong == "CLOUD"]
+                    self.assertTrue(all(b.da_gui for b in cloud_logs))
+
     def test_may_cloud_da_ghim_goi_duoc_cong_o_ngoai_review(self):
+        thieu = [rel for rel in NR.PIN if not (NR.GOC / rel).is_file()]
+        if thieu:
+            self.skipTest("NOT_RUN: thiếu tệp lõi nguồn: " + ", ".join(thieu))
         NR.nap()
         cong, _, _, _ = self.cong_gia()
         ai = NR._m("trich_xuat.ai_cloud").MayCloud(cong_ai=cong)

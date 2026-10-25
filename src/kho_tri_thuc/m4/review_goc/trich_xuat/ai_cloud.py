@@ -83,8 +83,15 @@ class MayCloud:
             raise AILoi("Cổng AI chưa xử lý được yêu cầu.") from None
         self.so_lan_goi += 1
         self.ket_qua_cuoi = kq["ok"]
-        if not self.ket_qua_cuoi.truong:
+        # Chỉ các mã chặn TRƯỚC nhà cung cấp mới là không gửi; phản hồi sai
+        # hoặc mở che thất bại đều đã gửi Cloud, dù không còn trường hợp lệ.
+        chan_truoc_gui = {"CLOUD_TAT", "LOAI_VIEC_KHONG_DUNG_CLOUD", "CAI_DAT_CLOUD_LOI",
+                          "CHUA_CO_KHOA_API", "CHUA_CO_KHOA_MASK", "XML_HOA_DON_THO",
+                          "QUA_NHIEU_DINH_DANH", "CON_SOT_DINH_DANH"}
+        if any(ma in chan_truoc_gui or (ma.startswith("MASK_") and ma != "MASK_MO_CHE_LOI")
+               for ma in self.ket_qua_cuoi.ly_do):
             self.so_khong_gui += 1
+        if not self.ket_qua_cuoi.truong:
             raise AILoi(self.ket_qua_cuoi.thong_bao)
         return self.ket_qua_cuoi
 

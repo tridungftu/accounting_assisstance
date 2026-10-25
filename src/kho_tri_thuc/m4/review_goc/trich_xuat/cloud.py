@@ -189,7 +189,9 @@ def tao_cong_ai(settings=None, bo_ghi=None):
         settings = doc_cau_hinh(dung_env=False)
     if isinstance(settings, dict) and isinstance(settings.get("settings"), dict):
         settings = settings["settings"]
-    return CongAI(settings, bo_ghi=bo_ghi if bo_ghi is not None else BoGhiBoNho())
+    settings = settings if isinstance(settings, dict) else {}
+    return CongAI({"cong_ai": settings.get("cong_ai") or {}, "local_ai": settings.get("local_ai") or {}},
+                  bo_ghi=bo_ghi if bo_ghi is not None else BoGhiBoNho())
 
 
 def trang_thai_cloud(cong_ai, *, kiem_mask=False):
@@ -284,11 +286,14 @@ def kiem_tra_cloud(bang, params, ket_qua, sent, rows_by_id, full_norm, full_loos
             items, ti, to = ai.hoi_trich(prompt, "kiểm tra chéo hợp đồng")
         except AILoi as e:
             tom["loi"] = str(e)
+            tom["khong_gui"].extend(f"{p['ma']}: bỏ nhóm vì cổng AI chưa có kết quả: {e}" for p, _, _ in g)
             ghi_log("Cổng AI chưa có kết quả kiểm tra chéo: " + str(e))
-            break
+            continue
         # Cổng Local trước; không ghi nhầm kết quả Local thành Cloud xác nhận.
         cloud = {t.ten for t in ai.ket_qua_cuoi.truong.values() if t.nguon == "CLOUD"}
         if not cloud:
+            tom["khong_gui"].extend(f"{p['ma']}: cổng AI dùng kết quả Local, chưa có kết quả Cloud"
+                                   for p, _, _ in g)
             ghi_log("Cổng AI dùng kết quả Local; chưa có kết quả Cloud kiểm tra chéo.")
             continue
         model = ai.model
