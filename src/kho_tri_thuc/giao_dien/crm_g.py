@@ -12,6 +12,7 @@ CRM-41-03 (G2 Báo giá → G3 Soạn; cùng phiên/token/factory, không router
   GET  /api/crm/bao-gia · /api/crm/bao-gia/moc-chuan · /api/crm/bao-gia/{id} · /api/crm/soan/{id} · /api/crm/giao-ket/tep/{xuat_id}/{docx|pdf}
   POST /api/crm/bao-gia/{luu, huy, chuyen} · /api/crm/soan/luu   (lệnh ngắn dưới mutation lock)
   POST /api/crm/bao-gia/in · /api/crm/soan/xuat   (ba pha: chụp dưới khóa → render NGOÀI khóa/giao dịch → công bố dưới khóa + CAS)
+  BG-1c: GET /api/crm/bao-gia/ty-gia-mac-dinh · POST /api/crm/bao-gia/ty-gia-mac-dinh {ty_gia, ly_do} (kế toán; master.cau_hinh + nhật ký)
 
 CRM-41-04A (G4 ký lần đầu; cùng prefix giao-ket đã route, cùng phiên/token/factory):
   GET  /api/crm/giao-ket/ky/{soan_id}   (điều kiện + căn cứ dialog + bản ký/lịch sử theo quyền hiện hành)
@@ -66,6 +67,7 @@ TRUONG_GK = {
     "bao-gia/chuyen": {"bao_gia_id", "expected_revision", "mau_phien_ban_id", "khoa"},
     "soan/luu": {"soan_id", "expected_revision", "gia_tri_truong", "bao_gia", "doi_mau_phien_ban_id", "ly_do", "khoa"},
     "bao-gia/xem-truoc": {"du_lieu"},  # FIX01 #4: tính thử chỉ đọc (không khóa, không ghi)
+    "bao-gia/ty-gia-mac-dinh": {"ty_gia", "ly_do"},  # BG-1c: kế toán sửa tỷ giá USD/VND mặc định chung (cấu hình + nhật ký)
 }
 TRUONG_GK_DAI = {"bao-gia/in": {"bao_gia_id", "expected_revision", "khoa"}, "soan/xuat": {"soan_id", "expected_revision", "khoa"}}
 MA_409_GK = frozenset({"CRM_GK_DANG_XU_LY", "CRM_GK_LAN_KHONG_KHOP", "CRM_GK_REVISION_CU", "CRM_GK_TRANG_THAI", "CRM_GK_DA_CHUYEN", "CRM_GK_G7_DOI", "CRM_GK_CHAN_IN", "CRM_GK_CHAN_XUAT", "CRM_GK_CHAN_CHUYEN",
@@ -352,6 +354,8 @@ def _lenh_gk(gk, me, ten: str, p: dict):
         return gk.chuyen(me, bao_gia_id=g("bao_gia_id"), expected_revision=g("expected_revision"), mau_phien_ban_id=g("mau_phien_ban_id"), khoa=g("khoa"))
     if ten == "bao-gia/xem-truoc":
         return gk.xem_truoc(me, du_lieu=g("du_lieu"))
+    if ten == "bao-gia/ty-gia-mac-dinh":
+        return gk.sua_ty_gia_mac_dinh(me, ty_gia=g("ty_gia"), ly_do=g("ly_do"))
     if ten == "soan/luu":
         return gk.luu_soan(me, soan_id=g("soan_id"), expected_revision=g("expected_revision"), gia_tri_truong=g("gia_tri_truong"), bao_gia=g("bao_gia"),
                            doi_mau_phien_ban_id=g("doi_mau_phien_ban_id"), ly_do=g("ly_do"), khoa=g("khoa"))
@@ -456,6 +460,11 @@ def dieu_huong(h, app, post: bool, path: str, query: dict):
                     app.crm_phien(h.crm_sid())
                     from ..k2.crm_giao_ket import danh_muc_moc_chuan
                     return h.send_content(200, danh_muc_moc_chuan())
+            if path == "/api/crm/bao-gia/ty-gia-mac-dinh":  # BG-1c: tỷ giá USD/VND mặc định chung (đọc; quyền hiện hành trong giao dịch)
+                _khong_query(h, query)
+                with app.mutation_lock:
+                    _, me, _ = app.crm_phien(h.crm_sid())
+                    return h.send_content(200, app._crm_db(dich_vu_gk(app).ty_gia_mac_dinh, me))
             if path == "/api/crm/bao-gia":
                 with app.mutation_lock:
                     _, me, _ = app.crm_phien(h.crm_sid())
