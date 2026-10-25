@@ -278,3 +278,6 @@ Các giả định trên không phải phê duyệt dữ liệu, mapping Junsky 
 | QD-20261025-07 | **Bán hàng tự sửa** dự án đang bán và thông số tiêu chuẩn — hiệu lực ngay, có phiên bản + nhật ký (bảng chọn). **Kể cả tiến độ thanh toán tiêu chuẩn: bỏ bước CFO duyệt** của bộ chuẩn G7 (bảng chọn). | Phải sửa luồng duyệt bộ chuẩn G7 hiện có (migration mới). |
 | QD-20261025-08 | Thông số dự án lưu sẵn để báo giá tự nạp: **đơn giá niêm yết + tiền tệ**, **loại hình + thuế mặc định**, **danh mục lô/căn** (diện tích, trạng thái — thay BG-09), cùng tiến độ và các loại phí (bảng chọn). Không lưu hạn hiệu lực báo giá theo dự án. | BG-09 nhập vào lát DA. |
 | QD-20261025-09 | Báo giá đã nạp thông số tiêu chuẩn **được sửa riêng**, màn hình báo **"khác tiêu chuẩn"** và ghi nhật ký (bảng chọn). | |
+| QD-20261025-10 | **Bật test PostgreSQL** (bảng chọn): bộ chạy tạo CSDL tạm tiền tố `kho_test_` trên cụm PostgreSQL DEMO rồi xóa sau khi chạy; không đụng CSDL DEMO của Anh hay kho thật. | Lát L0-8. |
+| QD-20261025-11 | **E1-MUA bước 2–3 sửa trong bản vá trong repo** (`tools\source6_*`, có git + review); áp vào engine #6 thật một lần khi Anh cho phép (bảng chọn). | Lát E1-2, E1-3. |
+| QD-20261025-12 | **Màn M4 03B**: lead soạn checklist màn hình, Anh duyệt bằng bảng chọn trước khi code (bảng chọn). | |
