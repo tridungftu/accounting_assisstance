@@ -76,6 +76,22 @@ class _Luong(threading.Thread):
             self.loi = exc
 
 
+class ChuoiMigrationLichSu(unittest.TestCase):
+    def test_tien_to_da_review_giu_nguyen_dinh_nghia(self):
+        for chuoi in (PG_MIGRATIONS[:10], PG_MIGRATIONS[:9] + (M0010_V1_BAN_GIAO_DAU,)):
+            with self.subTest(checksum=H(chuoi[9])):
+                for i in range(9):
+                    self.assertIs(chuoi[i], PG_MIGRATIONS[i])
+                self.assertTrue(chuoi[9] is PG_MIGRATIONS[9] or chuoi[9] is M0010_V1_BAN_GIAO_DAU)
+                pg.kiem_chuoi_lich_su(chuoi)
+
+    def test_m0010_them_sql_bi_chan_truoc_khi_cham_csdl(self):
+        chuoi_sai = PG_MIGRATIONS[:9] + (M0010_V1_BAN_GIAO_DAU + ("SELECT 1",),)
+        with self.assertRaises(DataError) as ctx:
+            pg.migrate(None, migrations=chuoi_sai)
+        self.assertEqual(ctx.exception.code, "MIGRATION_TUY_CHINH")
+
+
 @unittest.skipUnless(psycopg is not None and ADMIN_DSN, "Không có psycopg hoặc KHO_PG_DSN_TEST — không chạy được test PostgreSQL CRM (không tính đạt)")
 class CrmK2Test(unittest.TestCase):
     ngay = date(2026, 10, 19)  # đồng hồ nghiệp vụ của test (không phụ thuộc ngày máy)
@@ -230,7 +246,9 @@ class CrmK2Test(unittest.TestCase):
                                     "m0012": H(PG_MIGRATIONS[11])}
         db2, dsn2 = self._db("kho_test_crm_sai_")
         with psycopg.connect(dsn2, autocommit=True) as c:
-            pg.migrate(c, migrations=PG_MIGRATIONS[:9] + (M0010_V1_BAN_GIAO_DAU + ("SELECT 1",),))
+            # Dựng đúng lịch sử đã review; giả checksum sai trong DB, không đưa SQL lạ qua cổng chuỗi tùy chỉnh.
+            pg.migrate(c, migrations=PG_MIGRATIONS[:10])
+            c.execute("UPDATE master.schema_migrations SET checksum = %s WHERE version = 10", (H(M0010_V1_BAN_GIAO_DAU + ("SELECT 1",)),))
             self.raises("MIGRATION_CHANGED", lambda: pg.migrate(c))  # chỉ hash liệt kê chính xác mới được chấp nhận
 
     def test_t01c_db_dung_schema11_co_lich_su_da_duyet_len_12(self):

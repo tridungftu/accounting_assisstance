@@ -21,6 +21,7 @@ import unittest
 import uuid
 from contextlib import contextmanager
 from pathlib import Path
+from unittest.mock import patch
 
 try:
     import psycopg
@@ -131,6 +132,26 @@ def cong_clone(*, can_ghi: bool) -> tuple[dict | None, str | None]:
 
 
 # ---------------------------------------------------------------------------------------------------------------- 1. thuần
+class ChonHoBanSao(unittest.TestCase):
+    def test_bon_module_g6a_duoc_nhan_ho_va_cap_bien(self):
+        from tools import chay_test_theo_module as runner
+
+        # Dùng nguyên regex và đường cấp biến của bộ chạy; chỉ giả bước dựng clone để không nối CSDL.
+        pg = runner._PgDemo.__new__(runner._PgDemo)
+        pg.env_chung, pg.chua_ho_tro = {}, set()
+        env_clone = {ENV_OWNER: "owner-gia", ENV_APP: "app-gia", ENV_PROV: "provenance-gia", ENV_GHI: "1"}
+        for module in ("test_crm_kiem_hd", "test_crm_kiem_hd_http", "test_crm_doi_chieu_pg", "test_crm_g6a_m25_integration"):
+            with self.subTest(module=module):
+                noi_dung = (ROOT / "tests" / f"{module}.py").read_text(encoding="utf-8")
+                self.assertRegex(noi_dung, runner.HO_CLONE["g6a"]["mau"])
+                self.assertEqual(pg.ho_cua(noi_dung), ["g6a"])
+                with patch.object(pg, "dung_clone", return_value={"env": env_clone}) as dung_clone:
+                    env, thong_tin = runner._chuan_bi_pg_module(pg, ROOT, module)
+                dung_clone.assert_called_once_with("g6a")
+                self.assertEqual(thong_tin, {"ho": ["g6a"]})
+                self.assertEqual(env, env_clone)
+
+
 def _loi(test, ma, fn, *a, **kw):
     with test.assertRaises(DataError) as cm:
         fn(*a, **kw)
