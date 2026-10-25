@@ -625,7 +625,7 @@ class CrmKyKetHttp(unittest.TestCase):
         def su_kien():
             return self.q("""SELECT count(*) FROM master.crm_g5_su_kien WHERE viec_id = %s AND loai = 'CHO_CAU_HINH'
                              AND chi_tiet ->> 'ly_do' = 'G5_BAN_SINH_CHI_DOCX'""", (viec,))
-        self.assertEqual(dong()[0], "CHO")
+        self.assertEqual(dong()[0], "CHO_CAU_HINH")
         self.assertEqual(self.q("SELECT master.crm_g5_nhan(%s::uuid, %s, %s)", (viec, "test-kydocx", 60)),
                          {"nhan": False, "ly_do": "G5_BAN_SINH_CHI_DOCX", "trang_thai": "CHO_CAU_HINH"})
         self.assertEqual(dong(), ("CHO_CAU_HINH", "G5_BAN_SINH_CHI_DOCX", None, None))
