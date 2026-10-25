@@ -28,6 +28,15 @@ Trạng thái lát: Đang code → Chờ kiểm → Chờ Anh (cổng A/B) → S
 
 Quy tắc áp cho mọi lát từ 25/10 (CD-001 việc 3): không lát nào viết code gọi thẳng `api.anthropic.com`/`api.openai.com` hoặc thêm bộ che riêng — lead kiểm bằng grep ở cổng kiểm soát.
 
+## Trang chủ lưới icon (CD-002, TL 49 — Anh chốt 25/10, phương án B; ưu tiên sau AI-0, trước lát CRM mới)
+
+| Lát | Việc | Worker | Phụ thuộc | Trạng thái |
+|---|---|---|---|---|
+| UI-1 | Khung dùng chung: trang chủ module (thẻ tổng quan + lưới icon), thanh icon trái thay menu chữ; áp CRM 6 phần (màn bên trong giữ nguyên) | Claude | — (dựng trên `lat/da-2` vì khóa `crm_g.js`/`style.css`) | Giao việc đã soạn; chờ chỗ trống (đang quá 3 worker) |
+| UI-2 | Máy chủ `GET /api/khung/module/crm` đã lọc quyền + đếm việc chờ (nguồn sẵn có) — hợp đồng dữ liệu `HOP-DONG-DU-LIEU-KHUNG-LUOI.md` | Codex | — (song song UI-1) | Giao việc đã soạn; chờ chỗ trống |
+| UI-3 | Trang chủ hệ thống: icon module, tìm nhanh, thanh cố định 4 mục, M9 "Tạm dừng" | Claude | UI-1 | Chờ |
+| UI-4 | Áp khung cho M2, M4, Duyệt chung K5 | Claude/Codex | Cổng A của UI-1 | Chờ |
+
 ## Lát đã xong (24/10)
 
 | Lát | Kết quả | Gộp vào hop-nhat |

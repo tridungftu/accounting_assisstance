@@ -27,5 +27,5 @@
 4. Xong UI-1 + UI-2: gửi Anh phiếu cổng A theo TL 49 §4 (6 bước thử, 4 vai DEMO).
 **Ưu tiên:** sau AI-0 (CD-001); trước các lát mới chưa bắt đầu của CRM.
 **Báo Anh khi:** phiếu cổng A của UI-1 sẵn sàng; cần quyết thêm về thẻ tổng quan.
-**Trạng thái:** MỚI
+**Trạng thái:** ĐÃ NHẬN 18:46 25/10 — xếp UI-1…UI-4 vào kế hoạch + TRANG-THAI; UI-1 bắt đầu khi có chỗ trống (sau AI-0)
 

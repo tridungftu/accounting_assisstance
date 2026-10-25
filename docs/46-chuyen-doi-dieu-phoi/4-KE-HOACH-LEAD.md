@@ -227,3 +227,7 @@ Căn cứ: `D:\Claude\Phan mem ho tro ke toan\48-cong-ai-local-luon-co-cloud-qua
 | AI-4 | Mở Cloud theo TL 48 §1.5 (Local không chạy / Local không chắc / kiểm xác suất); đo độ chính xác Local theo loại việc, > 90% thì giảm dần tỷ lệ kiểm (§1.6); bí danh đối tác = mã Junsky; cụm mới chờ Anh duyệt | Claude | AI-3 qua review | Chờ |
 - 25/10: `test_web.LocalHttpTests` chập chờn khi chạy cả bộ (mã lỗi khác nhau giữa hai lần; lần lại khớp nền) — không tính là hồi quy, như `test_trich6_host.HandlerSoHuuTests`.
 - 25/10: M0032 = G5 (lead cấp; gói G5-B ghi rõ chờ owner cấp ordinal), M0033 = M4-5a. Codex DA-1d từng ghi chữ Việt thành `?` → cổng kiểm soát lead thêm bước grep mã hóa.
+- 25/10 (CD-002): thêm UI-1 (Claude), UI-2 (Codex), UI-3, UI-4 — lead chốt hợp đồng dữ liệu `HOP-DONG-DU-LIEU-KHUNG-LUOI.md`; UI-1 dựng trên `lat/da-2` để không sửa chồng `crm_g.js`/`style.css` với Báo giá.
+- 25/10: thư mục chính có 6 tệp `eol=lf` nằm CRLF trên đĩa (blob LF) → test ghim byte M26/M27 lệch; lead chuẩn hóa LF tại chỗ, `git diff` trống, 0 mã lỗi mới.
+- 25/10: lỡ để 5 worker lập trình chạy cùng lúc (2 Claude AI-0a/MASK-1 + 3 Codex AI-1/C3c/M2s-b) — vượt mức 3; không giao thêm tới khi về ≤ 3.
+- 25/10: T-MIG2 vòng 2 còn 1 mã lỗi mới (`test_crm_k2.test_t21…`) và họ bản sao G6A vẫn không dựng (`ho=-`) — chưa gộp; lead cần xem nhật ký dựng bản sao trước khi giao vòng 3.
