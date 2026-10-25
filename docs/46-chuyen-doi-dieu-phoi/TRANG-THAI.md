@@ -9,7 +9,7 @@ Trạng thái lát: Đang code → Chờ kiểm → Chờ Anh (cổng A/B) → S
 | BG-1b | CRM · Báo giá gói 1 màn hình (BG-01…05) | Claude Sonnet | `lat/bg-1b` (86d5b5b) · DEMO http://127.0.0.1:8784 | 24/10 | **Chờ Anh cổng A** — phiếu `PHIEU-CONG-A-BAO-GIA-GOI-1.md`; lead đã tự thử (lịch 4 cột, dòng tổng, Σ 90% chặn In/Chuyển); ô/dòng 9→3, nút tính 1→0 |
 | M4-4/7 | M4 · đăng ký M0028 (master dùng chung) + M0029 (03B ghi nhận chung), chỉ append; chứng minh migrate 0→29 trên CSDL DEMO riêng | Claude Sonnet | `lat/m4-47` · DEMO 8789 | 25/10 | Đang code |
 | M2e | M2-00 · nút "Tải từ cổng thuế" trong M2: route mỏng + giao diện, nối `dieu_phoi`/`khach`/`nhan`; tự thử với bộ tải giả | Claude Sonnet | `lat/m2e` · DEMO 8787 | 24/10 | Đang code — bị ngắt 1 lần, đã nối lại (đã có route mỏng, đăng ký server, cấu hình; còn giao diện, test) |
-| L0-7 | Sửa trong sản phẩm: engine #6 nạp sẵn openpyxl/numpy ở luồng chính tiến trình con; `.gitattributes` cho review_goc; seed duyệt viên DEMO | Claude Sonnet | `lat/l0-7` · DEMO 8788 | 24–25/10 | Đang code — bị ngắt 1 lần (đứng 600 giây), đã nối lại |
+| L0-7 | Sửa trong sản phẩm: engine #6 nạp sẵn openpyxl/numpy ở luồng chính tiến trình con; `.gitattributes` cho review_goc; seed duyệt viên DEMO | Claude Sonnet | `lat/l0-7` · DEMO 8788 | 24–25/10 | Chờ kiểm — 3 commit; A/B: có sửa trích 3 lần 1,8 s, gỡ dòng nạp sẵn → treo; 0 mã lỗi mới, +37 ok; review Codex vòng 1 đang chạy |
 
 ## Lát đã xong (24/10)
 
