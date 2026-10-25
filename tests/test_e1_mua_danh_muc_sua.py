@@ -89,6 +89,7 @@ class E1SuaDanhMucTests(unittest.TestCase):
         self.assertEqual(backups[0].read_bytes(), self.raw)
         self.assertFalse(self.journal.read_bytes().startswith(b"\xef\xbb\xbf"))
         self.assertEqual(D.danh_muc_theo_loai("DV"), self.path)
+        self.assertEqual(list(self.tmp.glob("*.tmp")), [])
 
     def test_hai_lan_sua_va_nap_lai_tien_trinh(self):
         self.assertEqual(self.edit()[0], 0)
@@ -96,6 +97,7 @@ class E1SuaDanhMucTests(unittest.TestCase):
         events = [json.loads(x) for x in self.journal.read_text(encoding="utf-8").splitlines()]
         self.assertEqual(len(events), 2)
         self.assertEqual(events[0]["phien_ban_moi"], events[1]["phien_ban_cu"])
+        self.assertEqual(list(self.tmp.glob("*.tmp")), [])
         # Registry vẫn ghim SHA gốc; subprocess mới chỉ dùng dependency thuần của repo.
         code = """
 import importlib.machinery, runpy, sys, types
@@ -132,6 +134,19 @@ runpy.run_module('trich_xuat', run_name='__main__')
                 self.assertEqual(self.path.read_bytes(), self.raw)
                 self.assertEqual(sorted(p.name for p in self.tmp.iterdir()), before)
 
+    def test_luu_thanh_cong_chi_don_tep_tam_cua_lan_luu(self):
+        other = self.tmp / (self.path.name + ".giu_lai.tmp")
+        other.write_bytes(b"DEMO chan doan cu")
+        for journal in (False, True):
+            with self.subTest(journal=journal):
+                if journal:
+                    self.assertEqual(self.edit()[0], 0)
+                else:
+                    D.save_catalog(D.read_catalog(self.path), self.path)
+                    self.reg["DV"]["sha256"] = hashlib.sha256(self.path.read_bytes()).hexdigest()
+                self.assertEqual(list(self.tmp.glob("*.tmp")), [other])
+                self.assertEqual(other.read_bytes(), b"DEMO chan doan cu")
+
     def test_gia_tri_khong_hop_le_khong_ghi(self):
         for field, value in (("muc", "4"), ("muc", "hai"), ("dung", "sai"),
                              ("luon_cloud", "sai"), ("mo_ta", ""), ("mo_ta", "Mô tả DEMO")):
@@ -153,6 +168,7 @@ runpy.run_module('trich_xuat', run_name='__main__')
             self.assertNotEqual(self.edit()[0], 0)
         self.assertEqual(self.path.read_bytes(), self.raw)
         self.assertFalse(self.journal.exists())
+        self.assertTrue(list(self.tmp.glob("*.tmp")))
 
     def test_loi_doi_ten_catalog_hoac_nhat_ky_rollback(self):
         real = os.replace

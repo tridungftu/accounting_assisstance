@@ -274,6 +274,10 @@ def save_catalog(rows, path=None, *, su_kien=None):
             if rollback is not None:
                 os.replace(rollback, target)
             raise
+    # Chỉ dọn bản hoàn tác của giao dịch đã hoàn tất; lỗi phía trên giữ tệp chẩn đoán.
+    if (rollback is not None and rollback.parent == target.absolute().parent
+            and rollback.name.startswith(target.name + ".") and rollback.suffix == ".tmp"):
+        rollback.unlink()
     return bak
 
 
