@@ -624,6 +624,9 @@
   let tinhBg = null, tinhCho = false, tinhLoi = "", tinhSeq = 0, tinhGen = 0, tinhHen = null, tinhBay = null, tinhLai = 0, tinhLaiHen = null, tinhDungLuu = true;
   let mocChuan = null, mocChuanCho = false, bangMocDem = null;  // danh mục mốc chuẩn từ máy chủ (GET /api/crm/bao-gia/moc-chuan)
   let dsMoBg = [], dsLoiMocBg = [], dsNutBg = [], oTongBg = null, oGoiYTong = null, oLuuYTong = null, oKiemBg = null, oTinhLoi = null, oNguCanh = null, oTongNhap = null;
+  // BG-1d: editor 2 bước. `buoc2Mo` = null (tự: mở khi đã có khách/phí) | true | false (người dùng gấp/mở); `oFx*` = ô tỷ giá + nhãn nguồn + lỗi theo trường;
+  // `oTongLon` = khối Tổng giá trị cỡ lớn (chỉ hiển thị kết quả của máy chủ).
+  let buoc2Mo = null, oFx = null, oFxNguon = null, oFxLoi = null, oTongLon = null;
   // CRM-41-04A G4: `kyCt` = điều kiện/căn cứ/bản ký của bản soạn đang mở (GET mới nhất theo `genKy`); `kyMo` = căn cứ dialog chụp lúc mở
   // ({soan, revision, xuat_id}); `kyTep` = File đã chọn. `kyYD` = ý định ký theo (vai, bản soạn, căn cứ, File, khai báo) — giữ ĐÚNG File + header +
   // khóa tới kết quả thật; chưa rõ → nút gửi lại y nguyên trong khối G4 của ĐÚNG bản soạn (không dùng nút gửi lại chung), đổi vai/HĐ không xóa.
@@ -929,7 +932,7 @@
     if (m === "bao_gia" && bgChon) await napBgCt(fs);
     if (m === "soan" && soChon) await napSoCt(fs);
   }
-  function boChon() { bgChon = null; bgCt = null; soChon = null; soCt = null; genForm += 1; genBg += 1; genSo += 1; dongBo = soSua; resetTinh(); nhapMoi = null;
+  function boChon() { bgChon = null; bgCt = null; soChon = null; soCt = null; genForm += 1; genBg += 1; genSo += 1; dongBo = soSua; resetTinh(); nhapMoi = null; buoc2Mo = null;
     kyCt = null; kyMo = null; kyTep = null; genKy += 1; }  // G4: điều kiện/dialog/tệp của HĐ cũ hết hiệu lực (ý định chưa rõ vẫn giữ trong kyYD)
   function xoa() { ep += 1; ds = null; boChon(); khoaMap.clear(); nhapGt.clear(); revDaLuu.clear(); soDongBg = 1; soDongSo = 0; if (oGuiLai) oGuiLai.replaceChildren(); ve(); trangThai("");
     Promise.resolve().then(() => napDs()); }
@@ -953,7 +956,8 @@
     set("tt", q.gia.tien_te); set("dg", hienSo(q.gia.don_gia)); set("dt", hienSo(q.gia.dien_tich));
     set("tong", q.tong_gia_tri_ghi_de != null ? chuanSo(q.tong_gia_tri_ghi_de) : hienSo(q.gia.tong));  // ghi đè lưu NGUYÊN chuỗi người gõ (kiểu Việt); tổng khai kiểu cũ là thập phân chuẩn
     set("thue", q.gia.co_so_thue); set("vat", hienSo(q.gia.vat_phan_tram));
-    set("fx", hienSo(q.fx && q.fx.ty_gia)); set("fx-ngay", hienNgay(q.fx && q.fx.ngay)); set("pbt", hienSo(q.phi_bao_tri && q.phi_bao_tri.gia_tri));
+    const fxMd = !!(q.fx && q.fx.nguon === "MAC_DINH");  // BG-1d: tỷ giá mặc định đã lưu → ô trống (nhãn "mặc định"); số đã nhập tay → hiện số
+    set("fx", fxMd ? "" : hienSo(q.fx && q.fx.ty_gia)); set("fx-ngay", fxMd ? "" : hienNgay(q.fx && q.fx.ngay)); set("pbt", hienSo(q.phi_bao_tri && q.phi_bao_tri.gia_tri));
     set("pbt-tt", q.phi_bao_tri && q.phi_bao_tri.tien_te); set("pbt-cs", q.phi_bao_tri && q.phi_bao_tri.co_so); set("het", hienNgay(q.het_han)); set("gc", q.ghi_chu);
     const canh = ghiLichBg(q.lich, q.gia.tien_te); soDongBg = Math.max(1, q.lich.length);
     dongBo = soSua; resetTinh(); revDaLuu.delete(d.bao_gia.id);  // form = đúng revision máy chủ
@@ -961,12 +965,19 @@
   }
   // Dữ liệu gửi máy chủ + danh sách lỗi dạng nhập phát hiện ở trình duyệt (số/ngày sai dạng: trường đó bỏ khỏi yêu cầu, Lưu bị chặn kèm câu rõ).
   // Giá trị lịch gửi NGUYÊN chuỗi người gõ (`gia_tri_nhap`); tổng ghi đè gửi nguyên chuỗi người gõ; các số còn lại đổi sang chuỗi thập phân chuẩn.
-  function docBaoGiaKem() {
+  // `choTinh` = dùng cho yêu cầu xem-truoc: báo giá USD ĐÃ LƯU với tỷ giá mặc định mà người dùng chưa sửa → gửi ĐÚNG tỷ giá đã lưu để số tính khớp bản đã lưu
+  // (Lưu vẫn gửi null: máy chủ giữ tỷ giá đã lưu + nhãn mặc định, không lấy mặc định mới).
+  function fxMacDinhDaLuu() {
+    const q = bgCt && bgChon && bgChon !== "MOI" ? bgCt.du_lieu : null;
+    return q && q.gia && q.gia.tien_te === "USD" && q.fx && q.fx.nguon === "MAC_DINH" && q.fx.ty_gia ? q.fx : null;
+  }
+  function docBaoGiaKem(choTinh) {
     const loi = [], g = k => s0(gt("bg-" + k)), dt = g("khach-dt");
     const so = (k, ten) => { const v = g(k); if (v === null) return null; const d = docSo(v); if (d === null) loi.push(`${ten}: nhập số kiểu 15.000 hoặc 1.500,50.`); return d; };
     const ngay = (k, ten) => { const v = g(k); if (v === null) return null; const d = docNgay(v); if (d === null) loi.push(`${ten}: nhập ngày dạng dd/mm/yyyy.`); return d; };
     const tongV = g("tong");  // máy chủ đọc kiểu Việt và báo lỗi theo trường (chan_in.truong = tong_gia_tri_ghi_de)
-    const fxv = so("fx", "Tỷ giá"), fxn = ngay("fx-ngay", "Ngày tỷ giá"), pbv = so("pbt", "Phí bảo trì"), het = ngay("het", "Hết hạn");
+    const usd = g("tt") === "USD";  // VND: tỷ giá cố định 1 (ô khóa) → không gửi tỷ giá
+    const fxv = usd ? so("fx", "Tỷ giá") : null, fxn = usd ? ngay("fx-ngay", "Ngày tỷ giá") : null, pbv = so("pbt", "Phí bảo trì"), het = ngay("het", "Hết hạn");
     const du = {loai_hinh_id: g("loai"), du_an_id: g("du-an"), giai_doan_g7: g("g7"), nguon_lich: g("nguon") || "KHACH",
       don_vi: {ma: g("lo"), mo_ta: g("lo-mt")}, khach: {doi_tac_id: g("khach"), du_thao: dt ? {ten: dt, lien_he: g("khach-lh")} : null},
       gia: {tien_te: g("tt"), don_gia: so("dg", "Đơn giá"), dien_tich: so("dt", "Diện tích"), tong: null, co_so_thue: g("thue"), vat_phan_tram: so("vat", "VAT")},
@@ -974,6 +985,7 @@
       phi_bao_tri: pbv !== null ? {gia_tri: pbv, tien_te: g("pbt-tt"), co_so: g("pbt-cs")} : null,
       lich: docLichBg(soDongBg, loi), het_han: het, ghi_chu: g("gc")};
     if (tongV !== null) du.tong_gia_tri_ghi_de = tongV;
+    if (choTinh && usd && !du.fx) { const lu = fxMacDinhDaLuu(); if (lu) du.fx = {cap: "USD/VND", ty_gia: lu.ty_gia, ngay: lu.ngay || null}; }
     return {du, loi};
   }
   const docBaoGia = () => docBaoGiaKem().du;
@@ -999,7 +1011,7 @@
   async function chayTinh() {
     if (cheDo !== "bao_gia" || !bgChon || K.vaiDangChan("crm_gk")) { tinhCho = false; return; }
     if (bgChon !== "MOI" && !(bgCt && bgCt.bao_gia.id === bgChon && bgCt.bao_gia.trang_thai === "NHAP")) { tinhCho = false; apDungTinh(); return; }
-    const {du} = docBaoGiaKem(), khoa = JSON.stringify(du);
+    const {du} = docBaoGiaKem(true), khoa = JSON.stringify(du);
     if (tinhBg && tinhBg.khoa === khoa) { tinhCho = false; tinhLoi = ""; apDungTinh(); return; }  // form đúng như lần máy chủ đã trả
     if (tinhBay && tinhBay.khoa === khoa && tinhBay.gen === tinhGen) return;  // đã có yêu cầu y hệt (cùng thế hệ sửa) đang bay
     const seq = ++tinhSeq, gen = tinhGen, id = bgChon, nm = nhapMoi, f = fence(() => bgChon === id && cheDo === "bao_gia" && (id !== "MOI" || nhapMoi === nm));
@@ -1019,20 +1031,24 @@
     }
   }
   function lyChanBg(loai) { const t = tinhHienTai(); return t ? String((loai === "in" ? t.ly_do_chan_in : t.ly_do_chan_chuyen) || "") : ""; }
-  function capNhatNutBg() {  // In/Chuyển: mờ khi còn thay đổi chưa lưu HOẶC máy chủ báo chặn; rê chuột thấy lý do
+  function capNhatNutBg() {  // In/Chuyển: mờ khi còn thay đổi chưa lưu HOẶC máy chủ báo chặn; lý do HIỆN cạnh nút (BG-1d) và khi rê chuột
     for (const b of dsNutBg) {
       const chua = chuaLuu(), ly = lyChanBg(b.dataset.chanBg);
-      const khac = b.dataset.lyKhac || "";  // lý do riêng của nút (vd chưa có mẫu hợp đồng hiệu lực) — luôn mờ
+      const khac = b.dataset.lyKhac || "";  // lý do riêng của nút (vd chưa có mẫu hợp đồng hiệu lực, chưa lưu nháp mới) — luôn mờ
       b.disabled = chua || !!ly || !!khac; b.title = [chua ? LY_CHUA_LUU : "", ly, khac].filter(Boolean).join("\n"); b.dataset.lyChan = ly;
+      if (b._lyNut) b._lyNut.textContent = [ly.split("\n").join(" · "), khac].filter(Boolean).join(" · ");
     }
   }
-  function nutLuuTruocBg(loai, text, fn, cls) {
+  function nutLuuTruocBg(loai, text, fn, cls, lyKhac) {  // trả khối (nút + dòng lý do hiện sẵn)
     const b = nut(text, async bt => {
       if (chuaLuu()) { trangThai(LY_CHUA_LUU, true); return; }
       const ly = lyChanBg(loai); if (ly) { trangThai(ly.split("\n").join(" · "), true); return; }
       await fn(bt);
     }, cls);
-    b.dataset.chanBg = loai; dsNutBg.push(b); capNhatNutBg(); return b;
+    b.dataset.chanBg = loai; if (lyKhac) b.dataset.lyKhac = lyKhac;
+    b._lyNut = node("span", "", "gk-ly-nut"); b._lyNut.setAttribute("role", "note");
+    dsNutBg.push(b); capNhatNutBg();
+    const w = node("span", undefined, "gk-nut-ly"); w.append(b, b._lyNut); return w;
   }
   function trieuVn(dec) {  // dự phòng khi máy chủ chưa trả chuỗi VND của tổng: dời dấu thập phân 6 chữ số trên CHUỖI (không float), chỉ để hiện
     const m = /^(\d+)(?:\.(\d+))?$/.exec(String(dec ?? "")); if (!m) return "";
@@ -1074,11 +1090,33 @@
       let text, cls = "gk-goi-y";
       if (sai) { text = sai.thong_bao; cls += " gk-loi"; }
       else if (lech) { text = lech.thong_bao; cls += " gk-canh"; }
-      else if (t && t.tong_hien_thi) text = (ghiDe || t.tong_tinh_minor == null ? "Tổng giá trị: " : "Tổng giá trị tự tính (đơn giá × diện tích): ") + t.tong_hien_thi;
-      else text = cho ? "…" : "Để trống: máy tự tính từ đơn giá × diện tích.";
-      oGoiYTong.textContent = cho && text !== "…" ? text + " …" : text; oGoiYTong.className = cls + (cho ? " gk-cho" : "");
+      else text = "";  // BG-1d: tổng tự tính hiện ở khối Tổng giá trị lớn; ở đây chỉ còn cảnh báo/lỗi của ô ghi đè
+      oGoiYTong.textContent = cho && text ? text + " …" : text; oGoiYTong.className = cls + (cho ? " gk-cho" : "");
     }
     if (oLuuYTong) oLuuYTong.textContent = ghiDe && t && t.tong_tinh_minor != null ? "Tổng ghi đè sẽ được kiểm lại khi ký hợp đồng" : "";
+    if (oTongLon) {  // BG-1d: Tổng giá trị (tiền chính) cỡ lớn + phép tính + bằng chữ + USD tham chiếu — toàn bộ do MÁY CHỦ trả, trình duyệt chỉ hiện
+      const tc = (t && t.tien_te) || "VND", kids = [node("div", `Tổng giá trị (${tc})`, "gk-tong-nhan")];
+      if (t && t.tong_hien_thi) {
+        kids.push(node("div", t.tong_hien_thi, "gk-tong-so"));
+        if (t.phep_tinh) kids.push(node("p", t.phep_tinh, "gk-phep-tinh"));
+        if (t.tong_bang_chu) kids.push(node("p", "Bằng chữ: " + t.tong_bang_chu, "gk-bang-chu"));
+        if (t.usd_tham_chieu && t.usd_tham_chieu.tong_hien_thi) kids.push(node("p", "Tham chiếu: " + t.usd_tham_chieu.tong_hien_thi, "gk-tham-chieu"));
+      } else kids.push(node("div", cho ? "…" : "—", "gk-tong-so gk-trong"), node("p", "Nhập đơn giá và diện tích (kèm tỷ giá nếu báo giá USD); máy tự tính Tổng giá trị.", "gk-phep-tinh"));
+      oTongLon.replaceChildren(...kids); oTongLon.className = "gk-tong-lon" + (cho ? " gk-cho" : "");
+    }
+    if (oFx) {  // tỷ giá: VND = "1" khóa; USD = số đã sửa, hoặc tỷ giá mặc định của máy chủ (hiện sẵn, trống trong dữ liệu gửi đi)
+      const tt = s0(gt("bg-tt")), daNhap = s0(gt("bg-fx")) !== null, ty = t && t.ty_gia && !t.ty_gia.khoa ? t.ty_gia : null;
+      let hien;
+      if (tt === "VND") { hien = "1"; oFx.disabled = true; oFx.title = "Báo giá VND: tỷ giá cố định bằng 1."; }
+      else { hien = daNhap ? gt("bg-fx") : (ty ? ty.hien_thi : ""); oFx.disabled = false; oFx.title = ""; }
+      if (oFx.value !== hien && !(document.activeElement === oFx && tt !== "VND")) oFx.value = hien;
+      oFx.placeholder = tt === "USD" && !daNhap && !ty ? "đang lấy tỷ giá mặc định…" : "";
+      if (oFxNguon) {
+        oFxNguon.textContent = tt === "VND" ? "cố định = 1" : tt === "USD" ? (daNhap ? "đã sửa" : "mặc định" + (ty && ty.ngay_hien_thi ? " · " + ty.ngay_hien_thi : "")) : "";
+        oFxNguon.dataset.nguon = tt === "VND" ? "co_dinh" : daNhap ? "da_sua" : "mac_dinh";
+      }
+      if (oFxLoi) { const e = t && (t.chan_in || []).find(x => x.truong === "fx.ty_gia" && x.thong_bao); oFxLoi.textContent = e ? e.thong_bao : ""; }
+    }
     if (oKiemBg) { oKiemBg.replaceChildren(); doKiem(oKiemBg, t, null, true); }
     if (oTinhLoi) oTinhLoi.textContent = tinhLoi;
     if (oNguCanh) { const n = tinhBg && tinhBg.nhan; oNguCanh.textContent = n ? [n.phap_nhan && n.phap_nhan.ten, n.loai_hinh && n.loai_hinh.ten, n.du_an && n.du_an.ten].filter(Boolean).join(" · ") : ""; }
@@ -1162,6 +1200,7 @@
   // `song` = báo giá (BG-03): cập nhật tại chỗ theo kết quả tự động của máy chủ, không nhãn "revision đã lưu"; Soạn dùng revision đã lưu như cũ.
   const NHAN_MA = {THIEU_TIEN_TE: "Chưa chọn tiền tệ báo giá.", THIEU_TONG_GIA_TRI: "Chưa có tổng giá trị báo giá.", THIEU_KHACH: "Chưa nhập khách hàng.",
     THIEU_LICH: "Chưa nhập lịch thanh toán.", THIEU_CO_SO_THUE: "Chưa chọn cơ sở thuế.", THIEU_LO_CAN: "Chưa nhập lô/căn."};
+  const BUOC2_MA = new Set(["THIEU_KHACH", "KHACH_CHUA_MA", "THIEU_PHI_QUAN_LY_BAO_TRI"]);  // mã thuộc bước 2 (khách, phí quản lý/bảo trì)
   function doKiem(w, t, them, song) {
     if (!t) { w.append(node("p", song ? "Chưa có kết quả kiểm." : "Chưa có kết quả kiểm — lưu nháp để máy chủ tính.")); return; }
     const muc = (tieuDe, arr, cls) => { if (!arr || !arr.length) return; w.append(node("h4", tieuDe)); const ul = node("ul", undefined, cls);
@@ -1172,7 +1211,9 @@
         + (t.vnd_tham_chieu ? ` · VND tham chiếu: ${t.vnd_tham_chieu.tong ?? "—"}` : ""));
       tong.dataset.kiemTong = "1"; dsKiemTong.push(tong); w.append(tong);
     }
-    muc(song ? "Cần xử lý trước khi in / chuyển" : "Chặn In/Xuất", t.chan_in || t.chan_xuat, "gk-chan"); muc("Thiếu (vẫn lưu được)", t.thieu, ""); muc("Cảnh báo", t.canh_bao, "gk-canh-bao");
+    // BG-1d: bước 1 (báo giá sơ bộ) KHÔNG nhắc khách/phí — việc của bước 2, hiện bên nút "Chuyển sang soạn hợp đồng"
+    const loc = arr => song ? (arr || []).filter(x => !BUOC2_MA.has(x.ma)) : arr;
+    muc(song ? "Cần xử lý trước khi in sơ bộ" : "Chặn In/Xuất", loc(t.chan_in || t.chan_xuat), "gk-chan"); muc("Thiếu (vẫn lưu được)", loc(t.thieu), ""); muc("Cảnh báo", loc(t.canh_bao), "gk-canh-bao");
   }
   function veKiem(t, them) {  // danh sách thiếu/cảnh báo/chặn do MÁY CHỦ tính trên revision đã lưu
     const w = node("div", undefined, "gk-kiem"); doKiem(w, t, them, false); return w;
@@ -1182,7 +1223,7 @@
   function ve() {
     if (!oNoiDung) dungKhung();
     dsCanLuu = []; dsLyDo = []; dsTuTinh = []; dsKiemTong = [];
-    dsMoBg = []; dsLoiMocBg = []; dsNutBg = []; oTongBg = oGoiYTong = oLuuYTong = oKiemBg = oTinhLoi = oNguCanh = oTongNhap = null;
+    dsMoBg = []; dsLoiMocBg = []; dsNutBg = []; oTongBg = oGoiYTong = oLuuYTong = oKiemBg = oTinhLoi = oNguCanh = oTongNhap = oFx = oFxNguon = oFxLoi = oTongLon = null;
     $("gk-vai").textContent = ds ? `Vai hiện hành: ${ds.nguoi.dang_nhap} (${VAI_VN[ds.nguoi.vai_tro] || ds.nguoi.vai_tro})` : "Đang tải…";
     oNoiDung.replaceChildren(...(cheDo === "bao_gia" ? veBg() : veSo()));
   }
@@ -1209,42 +1250,37 @@
     if (bgChon) out.push(...veBgEditor());
     return out;
   }
+  // BG-1d (QD-20261025-01…04, nhận xét cổng A): editor báo giá 2 BƯỚC.
+  //  Bước 1 "Giá và lịch thanh toán" (khối to, đặt đầu, mở sẵn): pháp nhân/dự án/lô, tiền tệ, đơn giá, diện tích, tỷ giá (USD: mặc định của máy chủ + nguồn; VND: 1 khóa),
+  //    Tổng giá trị VND cỡ lớn + phép tính + bằng chữ + USD tham chiếu, lịch thanh toán (VND). Nút "In báo giá sơ bộ" chỉ chịu `ly_do_chan_in` (không đòi khách/phí).
+  //  Bước 2 "Sau khi khách đồng ý" (gấp/mở, đặt sau): khách hàng, liên hệ, phí quản lý/bảo trì, hạn, ghi chú. Nút "Chuyển sang soạn hợp đồng" chịu `ly_do_chan_chuyen`.
+  // Trình duyệt KHÔNG tính tiền: mọi số/chữ ở khối Tổng giá trị là kết quả của máy chủ (xem-truoc); chỉ đổi chỗ hiển thị.
   function veBgEditor() {
     if (!mocChuan) { napMocChuan(); return [node("p", "Đang tải…")]; }
     if (bgChon !== "MOI" && (!bgCt || bgCt.bao_gia.id !== bgChon)) return [node("p", "Đang tải báo giá…")];
     const b = bgCt && bgChon !== "MOI" ? bgCt.bao_gia : null, sua = !b || b.trang_thai === "NHAP";
     const nm0 = b ? null : nhapMoi;  // FIX03 R1: nháp mới nào đang vẽ (MOI → MOI sau "+ Báo giá mới" là nháp KHÁC → fence cũ sai)
     const f = fence(() => bgChon === (b ? b.id : "MOI") && cheDo === "bao_gia" && (!!b || nhapMoi === nm0));
-    const trai = node("div", undefined, "gk-cot"), phai = node("div", undefined, "gk-cot");
     // BG-05: pháp nhân/loại hình/dự án/khách hiện TÊN (không mã kỹ thuật); số kiểu Việt (dấu chấm hàng nghìn); ngày dd/mm/yyyy
     const loai = ds.loai_hinh.map(l => [l.id, `${l.phap_nhan_ten || l.phap_nhan} · ${l.ten || l.ma}`]);
+    // ô có nhãn trên đầu (lưới gọn); `forId` = ô thật mà nhãn trỏ tới khi `el` là khối bọc
+    const oc = (label, el, bat, forId) => { const w = node("div", undefined, "gk-oc"), l = node("label", label + (bat ? " *" : "")); l.htmlFor = forId || el.id; w.append(l, el); return w; };
+    const ngayIn = (id, md) => { const e = nhap(id, md, "text", null, chuanNgay); e.placeholder = "dd/mm/yyyy"; return e; };
     oNguCanh = node("p", "", "gk-ngu-canh");
     oTongNhap = nhap("bg-tong", "", "text", null, chuanSo); oTongNhap.placeholder = "Để trống: máy tự tính";
     oGoiYTong = node("small", "", "gk-goi-y"); oLuuYTong = node("small", "", "gk-luu-y");
     const cTong = node("div", undefined, "gk-tong-khoi"); cTong.append(oTongNhap, oGoiYTong, oLuuYTong);
-    const tTong = truong("Tổng giá trị", cTong); tTong.children[0].htmlFor = oTongNhap.id;
-    const ngayIn = (id, md) => { const e = nhap(id, md, "text", null, chuanNgay); e.placeholder = "dd/mm/yyyy"; return e; };
-    trai.append(node("h4", b ? `${b.so_bao_gia} · bản ${b.revision_hien_hanh} · ${TT_BG[b.trang_thai]}` : "Báo giá mới"), oNguCanh,
-      truong("Pháp nhân · loại hình", chon("bg-loai", loai, loai.length ? loai[0][0] : "", undefined), true),
-      truong("Dự án", chon("bg-du-an", ds.du_an.map(a => [a.id, a.ten || a.ma_junsky]), "", "— chưa chọn —")),
-      truong("Nguồn lịch", chon("bg-nguon", [["KHACH", "Theo khách (nhập tay)"], ["DU_AN", "Theo bộ chuẩn của dự án"]], "KHACH", undefined, () => ve())),  // hiện/ẩn nút nạp bộ chuẩn
-      truong("Giai đoạn bộ chuẩn", nhap("bg-g7", "")),
-      truong("Khách hàng (đã có mã)", chon("bg-khach", ds.khach.map(k => [k.id, k.ten]), "", "— khách dự thảo —")),
-      truong("Tên khách dự thảo (chưa mã)", nhap("bg-khach-dt", "")), truong("Liên hệ", nhap("bg-khach-lh", "")),
-      truong("Lô/căn", nhap("bg-lo", ""), true), truong("Mô tả lô/căn", nhap("bg-lo-mt", "")),
-      truong("Tiền tệ", chon("bg-tt", [["VND", "VND"], ["USD", "USD"]], "VND"), true), truong("Đơn giá", nhap("bg-dg", "", "text", null, chuanSo)),
-      truong("Diện tích", nhap("bg-dt", "", "text", null, chuanSo)), tTong,
-      truong("Cơ sở thuế", chon("bg-thue", [["NET", "Chưa gồm VAT"], ["GROSS", "Đã gồm VAT"]], "", "— chưa chọn —"), true),
-      truong("VAT %", nhap("bg-vat", "", "text", null, chuanSo)), truong("Tỷ giá USD/VND (nhập tay)", nhap("bg-fx", "", "text", null, chuanSo)),
-      truong("Ngày tỷ giá", ngayIn("bg-fx-ngay", "")),
-      truong("Phí bảo trì", nhap("bg-pbt", "", "text", null, chuanSo)), truong("Tiền tệ phí bảo trì", chon("bg-pbt-tt", [["VND", "VND"], ["USD", "USD"]], "", "—")),
-      truong("Cơ sở phí bảo trì", nhap("bg-pbt-cs", "")), truong("Hết hạn (nếu khai)", ngayIn("bg-het", "")), truong("Ghi chú", nhap("bg-gc", "")));
+    // tỷ giá: USD = ô sửa được (trống = dùng tỷ giá mặc định của máy chủ, hiện sẵn + nguồn); VND = "1" khóa. Người sửa → state mới; ngày tỷ giá cũ bỏ (máy chủ ghi ngày nhập).
+    oFx = nhap("bg-fx", "", "text", () => nhapGt.set("gk-bg-fx-ngay", ""), chuanSo);
+    oFxNguon = node("small", "", "gk-fx-nguon"); oFxLoi = node("small", "", "gk-loi");
+    const cFx = node("div", undefined, "gk-fx-hop"); cFx.append(oFx, oFxNguon, oFxLoi);
+    oTongLon = node("div", undefined, "gk-tong-lon"); oTongLon.setAttribute("aria-live", "polite");
     oTongBg = node("div", undefined, "gk-tong-dong"); oTinhLoi = node("p", "", "gk-tinh-loi"); oTinhLoi.setAttribute("aria-live", "polite"); oKiemBg = node("div", undefined, "gk-kiem");
-    phai.append(node("h4", "Lịch thanh toán"), ...veLich("bg-", soDongBg), oTongBg, oTinhLoi);
-    if (s0(gt("bg-nguon")) === "DU_AN") phai.append(nut("Nạp bộ chuẩn dự án vào lịch", () => napG7(f), "button secondary"));
-    phai.append(oKiemBg);
-    const hd = node("div", undefined, "demo-actions");
-    if (sua) hd.append(nut("Lưu nháp", async () => {
+    const cu = bgCt && bgChon !== "MOI" && bgCt.quy_uoc && bgCt.quy_uoc.ma !== "VND_CHINH" ? bgCt : null;  // báo giá lưu theo quy ước cũ (tiền chính = tiền tệ báo giá)
+    const g7Duan = s0(gt("bg-nguon")) === "DU_AN";
+
+    // ---- lệnh Lưu (dùng chung ở hai bước)
+    const luuNhap = async () => {
       // BG-05: số/ngày sai dạng phát hiện ở trình duyệt → không gửi, nói rõ ô nào (máy không tự sửa hộ)
       const kem = docBaoGiaKem();
       if (kem.loi.length) { trangThai(kem.loi[0] + (kem.loi.length > 1 ? ` (và ${kem.loi.length - 1} chỗ khác)` : ""), true); return; }
@@ -1270,20 +1306,58 @@
       };
       if (nm && !id) nm.choTao = sau;  // `sau.lai` do gui đặt khi kết quả chưa rõ
       await gui("bao-gia/luu", body, "Đã lưu nháp", f, sau, null, nm ? nm.so : null);
-    }, "button primary"));
-    // FIX01 #3 + BG-02: In/Chuyển dùng REVISION ĐÃ LƯU — mờ khi còn thay đổi chưa lưu HOẶC máy chủ báo chặn (Σ% ≠ 100, thiếu tỷ giá…); rê chuột thấy lý do
-    const ly = chuaLuu() ? LY_CHUA_LUU : "";
-    if (b && b.trang_thai !== "HUY") hd.append(oLyDo(ly));
-    if (b && b.trang_thai !== "HUY") hd.append(nutLuuTruocBg("in", "In báo giá (PDF)", async () => {
+    };
+    const nutLuu = () => nut("Lưu nháp", luuNhap, "button primary");
+    const LY_LUU_TRUOC = "Lưu nháp trước — In và Chuyển dùng bản đã lưu.";
+
+    // ---- BƯỚC 1 · Giá và lịch thanh toán
+    const b1 = node("section", undefined, "gk-buoc gk-buoc1"), dau = node("div", undefined, "gk-buoc-dau");
+    dau.append(node("h4", "Bước 1 · Giá và lịch thanh toán"), node("span", b ? `${b.so_bao_gia} · bản ${b.revision_hien_hanh} · ${TT_BG[b.trang_thai]}` : "Báo giá mới", "gk-buoc-so"));
+    b1.append(dau, oNguCanh);
+    if (cu) b1.append(node("p", cu.quy_uoc.ghi_chu, "gk-quy-uoc"));
+    const l1 = node("div", undefined, "gk-luoi"), l2 = node("div", undefined, "gk-luoi gk-luoi-gia"), l3 = node("div", undefined, "gk-luoi");
+    l1.append(oc("Pháp nhân · loại hình", chon("bg-loai", loai, loai.length ? loai[0][0] : "", undefined), true),
+      oc("Dự án", chon("bg-du-an", ds.du_an.map(a => [a.id, a.ten || a.ma_junsky]), "", "— chưa chọn —")), oc("Lô/căn", nhap("bg-lo", ""), true));
+    l2.append(oc("Tiền tệ", chon("bg-tt", [["VND", "VND"], ["USD", "USD"]], "VND"), true), oc("Đơn giá (/m²)", nhap("bg-dg", "", "text", null, chuanSo)),
+      oc("Diện tích (m²)", nhap("bg-dt", "", "text", null, chuanSo)), oc("Tỷ giá USD → VND", cFx, false, oFx.id));
+    l3.append(oc("Cơ sở thuế", chon("bg-thue", [["NET", "Chưa gồm VAT"], ["GROSS", "Đã gồm VAT"]], "", "— chưa chọn —"), true), oc("VAT %", nhap("bg-vat", "", "text", null, chuanSo)),
+      oc("Ghi đè Tổng giá trị (VND, không bắt buộc)", cTong, false, oTongNhap.id));
+    b1.append(l1, l2, oTongLon, l3);
+    const lichDau = node("div", undefined, "gk-lich-dau");
+    lichDau.append(node("h4", `Lịch thanh toán (${cu ? (cu.du_lieu.gia.tien_te || "tiền tệ báo giá") : "VND"})`), oc("Nguồn lịch", chon("bg-nguon", [["KHACH", "Theo khách (nhập tay)"], ["DU_AN", "Theo bộ chuẩn của dự án"]], "KHACH", undefined, () => ve())));  // hiện/ẩn nút nạp bộ chuẩn
+    if (g7Duan) lichDau.append(oc("Giai đoạn bộ chuẩn", nhap("bg-g7", "")), nut("Nạp bộ chuẩn dự án vào lịch", () => napG7(f), "button secondary"));
+    b1.append(lichDau, ...veLich("bg-", soDongBg), oTongBg, oTinhLoi, oKiemBg);
+    const hd1 = node("div", undefined, "demo-actions gk-hanh-dong");
+    if (sua) hd1.append(nutLuu());
+    // FIX01 #3 + BG-02: In/Chuyển dùng REVISION ĐÃ LƯU — mờ khi còn thay đổi chưa lưu HOẶC máy chủ báo chặn; lý do HIỆN cạnh nút (và khi rê chuột)
+    if (b && b.trang_thai !== "HUY") hd1.append(oLyDo(chuaLuu() ? LY_CHUA_LUU : ""));
+    if (!b || b.trang_thai !== "HUY") hd1.append(nutLuuTruocBg("in", "In báo giá sơ bộ (PDF)", async () => {
       await gui("bao-gia/in", {bao_gia_id: b.id, expected_revision: b.revision_hien_hanh}, "", f, async (r, fv) => {
         if (!fv()) return;
         trangThai(`In: ${TT_XUAT[r.trang_thai] || r.trang_thai}${r.lap_lai ? " (biên nhận cũ)" : ""}`, r.trang_thai !== "PDF_DAT");
         await napBgCt(fv);
       });
-    }, "button secondary"));
-    if (b && b.trang_thai === "NHAP") {
-      const mau = (bgCt.mau_hieu_luc || []).map(m => [m.mau_phien_ban_id, `${m.ma_mau} v${m.phien_ban} (hiệu lực ${hienNgay(m.valid_from) || m.valid_from})`]);
-      if (mau.length) hd.append(truong("Mẫu hợp đồng hiệu lực", chon(`bg-mau-${b.id}`, mau, mau[0][0])), nutLuuTruocBg("chuyen", "Chuyển sang Soạn", async () => {
+    }, "button secondary", b ? "" : LY_LUU_TRUOC));
+    b1.append(hd1);
+
+    // ---- BƯỚC 2 · Sau khi khách đồng ý
+    const b2 = node("details", undefined, "gk-buoc gk-buoc2");
+    const coDuLieuB2 = !!(s0(gt("bg-khach")) || s0(gt("bg-khach-dt")) || s0(gt("bg-pbt")));
+    b2.open = buoc2Mo === null ? coDuLieuB2 : buoc2Mo;
+    b2.addEventListener("toggle", () => { buoc2Mo = !!b2.open; });
+    b2.append(node("summary", "Bước 2 · Sau khi khách đồng ý — khách hàng, phí quản lý/bảo trì, chuyển sang soạn hợp đồng"),
+      node("p", "Điền sau khi khách đồng ý giá. In báo giá sơ bộ (bước 1) không cần các thông tin này; Chuyển sang soạn hợp đồng cần.", "gk-ghi-chu"));
+    const l4 = node("div", undefined, "gk-luoi");
+    l4.append(oc("Khách hàng (đã có mã)", chon("bg-khach", ds.khach.map(k => [k.id, k.ten]), "", "— khách dự thảo —")), oc("Tên khách dự thảo (chưa mã)", nhap("bg-khach-dt", "")),
+      oc("Liên hệ", nhap("bg-khach-lh", "")), oc("Phí quản lý/bảo trì", nhap("bg-pbt", "", "text", null, chuanSo)),
+      oc("Tiền tệ phí", chon("bg-pbt-tt", [["VND", "VND"], ["USD", "USD"]], "", "—")), oc("Cơ sở phí", nhap("bg-pbt-cs", "")),
+      oc("Hết hạn (nếu khai)", ngayIn("bg-het", "")), oc("Mô tả lô/căn", nhap("bg-lo-mt", "")), oc("Ghi chú", nhap("bg-gc", "")));
+    b2.append(l4);
+    const hd2 = node("div", undefined, "demo-actions gk-hanh-dong");
+    if (sua) hd2.append(nutLuu());
+    if (!b || b.trang_thai === "NHAP") {
+      const mau = b ? (bgCt.mau_hieu_luc || []).map(m => [m.mau_phien_ban_id, `${m.ma_mau} v${m.phien_ban} (hiệu lực ${hienNgay(m.valid_from) || m.valid_from})`]) : [];
+      const chuyenFn = async () => {
         await gui("bao-gia/chuyen", {bao_gia_id: b.id, expected_revision: b.revision_hien_hanh, mau_phien_ban_id: gt(`bg-mau-${b.id}`, mau[0][0])}, "Đã chuyển sang Soạn", f,
           async (r, fv) => {
             // FIX02 #2: người dùng đã gõ trên cùng báo giá trong lúc Chuyển còn chờ → KHÔNG đổi chế độ/lựa chọn, không GET đè nháp, không thông báo cũ
@@ -1292,20 +1366,21 @@
             const f2 = fenceForm(fence(() => soChon === r.soan_id && cheDo === "soan"));  // chụp NGAY sau chuyển trạng thái do chính lệnh này
             if (await napDs(f2) && f2()) await napSoCt(f2);
           });
-      }, "button primary"));
-      else {  // vẫn hiện nút (mờ kèm lý do) để người dùng thấy bước tiếp theo và vì sao chưa làm được
-        const bt = nutLuuTruocBg("chuyen", "Chuyển sang Soạn", async () => {}, "button primary");
-        bt.dataset.lyKhac = "Chưa có mẫu hợp đồng hiệu lực cho loại hình này — chưa chuyển được."; capNhatNutBg(); hd.append(bt);
-      }
-      hd.append(truong("Lý do hủy", nhap(`bg-huy-${b.id}`, "")), nut("Hủy nháp", async () => {
-        const ly = s0(gt(`bg-huy-${b.id}`)); if (!ly) { trangThai("Hủy cần lý do.", true); return; }
-        await gui("bao-gia/huy", {bao_gia_id: b.id, expected_revision: b.revision_hien_hanh, ly_do: ly}, "Đã hủy nháp (lịch sử giữ)", f,
-          async (r, fv) => { if (fv()) await napLai(fv); });
-      }, "button secondary"));
+      };
+      if (b && mau.length) hd2.append(oc("Mẫu hợp đồng hiệu lực", chon(`bg-mau-${b.id}`, mau, mau[0][0])), nutLuuTruocBg("chuyen", "Chuyển sang soạn hợp đồng", chuyenFn, "button primary"));
+      else  // vẫn hiện nút (mờ kèm lý do) để người dùng thấy bước tiếp theo và vì sao chưa làm được
+        hd2.append(nutLuuTruocBg("chuyen", "Chuyển sang soạn hợp đồng", async () => {}, "button primary",
+          b ? "Chưa có mẫu hợp đồng hiệu lực cho loại hình này — chưa chuyển được." : LY_LUU_TRUOC));
     }
-    if (b && b.trang_thai === "DA_CHUYEN" && bgCt.soan_id) hd.append(nut("Mở bản soạn", () => { cheDo = "soan"; const s = bgCt.soan_id; boChon(); soChon = s; ve(); napSoCt(); }, "button secondary"));
-    const khung = node("div", undefined, "gk-2cot"); khung.append(trai, phai);
-    const out = [khung, hd];
+    if (b && b.trang_thai === "NHAP") hd2.append(oc("Lý do hủy", nhap(`bg-huy-${b.id}`, "")), nut("Hủy nháp", async () => {
+      const ly = s0(gt(`bg-huy-${b.id}`)); if (!ly) { trangThai("Hủy cần lý do.", true); return; }
+      await gui("bao-gia/huy", {bao_gia_id: b.id, expected_revision: b.revision_hien_hanh, ly_do: ly}, "Đã hủy nháp (lịch sử giữ)", f,
+        async (r, fv) => { if (fv()) await napLai(fv); });
+    }, "button secondary"));
+    if (b && b.trang_thai === "DA_CHUYEN" && bgCt.soan_id) hd2.append(nut("Mở bản soạn", () => { cheDo = "soan"; const s = bgCt.soan_id; boChon(); soChon = s; ve(); napSoCt(); }, "button secondary"));
+    b2.append(hd2);
+
+    const out = [b1, b2];
     if (bgCt && bgChon !== "MOI" && bgCt.xuat.length) out.push(node("h4", "Lần in"), bang(["Bản", "Trạng thái", "Lý do", "Lúc", "", ""], bgCt.xuat.map(x => [x.revision,
       TT_XUAT[x.trang_thai] || x.trang_thai, x.ly_do || "", K.date(x.tao_luc), nut("DOCX ↓", () => taiTep(x.id, "docx"), "link-button"),
       x.trang_thai === "PDF_DAT" ? nut("PDF ↓", () => taiTep(x.id, "pdf"), "link-button") : ""])));

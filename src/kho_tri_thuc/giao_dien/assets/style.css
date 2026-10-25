@@ -25,3 +25,23 @@
 .gk-tinh-loi{margin:4px 0;color:#8a4b12;font-size:.9em}.gk-tinh-loi:empty{display:none}.gk-ngu-canh{margin:0 0 6px;color:#77817e;font-size:.9em}.gk-ngu-canh:empty{display:none}
 .gk-lich table{table-layout:fixed;width:100%}.gk-lich th:first-child{width:44px}.gk-lich th:nth-child(2){width:31%}.gk-lich th:nth-child(3){width:28%}.gk-lich th:last-child{width:88px}.gk-hanh .link-button{padding:0 3px}.gk-lich td input[type=text]{min-width:0}.gk-lich td{vertical-align:top}
 .gk-tong-khoi{display:flex;flex-direction:column;gap:2px;min-width:0}.gk-tong-khoi input{width:100%}
+
+/* BG-1d (QD-20261025-01…04): editor báo giá 2 bước — Bước 1 "Giá và lịch thanh toán" to, đặt trước; Bước 2 "Sau khi khách đồng ý" gấp/mở, đặt sau. */
+.gk-buoc{background:#fff;border:1px solid #dfe5d6;border-radius:10px;padding:14px 18px;margin:12px 0}
+.gk-buoc1{border:2px solid #b9cfa6}.gk-buoc2{background:#fbfbf8}.gk-buoc2>summary{cursor:pointer;font-weight:600;font-size:15px;color:#315c4d}.gk-buoc2[open]>summary{margin-bottom:6px}
+.gk-buoc-dau{display:flex;flex-wrap:wrap;align-items:baseline;gap:2px 14px}.gk-buoc-dau h4{font-size:19px;margin:0;color:#204436}.gk-buoc-so{color:#77817e;font-size:13px}
+.gk-ghi-chu{margin:2px 0 8px;color:#77817e;font-size:.9em}.gk-quy-uoc{margin:6px 0;padding:8px 10px;border:1px solid #e1c98f;border-radius:8px;background:#fcf6e4;color:#6b4d12;font-size:.92em}
+.gk-luoi{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:10px 16px;margin:10px 0}
+.gk-oc{display:flex;flex-direction:column;gap:3px;min-width:0}.gk-oc>label{font-size:12px;color:#4a5a43;font-weight:600}
+.gk-oc input,.gk-oc select{width:100%;min-height:38px;font-size:15px}.gk-oc input:disabled{background:#eef1ea;color:#4a5a43}
+.gk-luoi-gia input{font-variant-numeric:tabular-nums}
+.gk-fx-hop{display:flex;flex-direction:column;gap:2px;min-width:0}.gk-fx-nguon{color:#5f6b57;font-size:.88em}.gk-fx-nguon[data-nguon=da_sua]{color:#8a4b12}
+.gk-tong-lon{margin:12px 0;padding:14px 20px;border:2px solid #315c4d;border-radius:12px;background:#f2f8ea}
+.gk-tong-nhan{font-size:12px;font-weight:600;color:#4a5a43;letter-spacing:.2px}
+.gk-tong-so{font-size:36px;font-weight:700;line-height:1.15;color:#204436;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}.gk-tong-so.gk-trong{color:#9aa496}
+.gk-phep-tinh{margin:4px 0 0;font-size:14px;color:#3b4d3f;font-variant-numeric:tabular-nums}.gk-bang-chu{margin:3px 0 0;font-size:16px;font-weight:600;color:#1e3030}
+.gk-tham-chieu{margin:3px 0 0;font-size:13px;color:#77817e;font-variant-numeric:tabular-nums}
+.gk-lich-dau{display:flex;flex-wrap:wrap;align-items:flex-end;gap:8px 18px;margin:14px 0 4px}.gk-lich-dau h4{font-size:17px;margin:0;color:#204436}.gk-lich-dau .gk-oc{min-width:220px}
+.gk-buoc1 .gk-lich td input[type=text]{font-size:15px;min-height:36px}.gk-buoc1 .gk-lan{font-size:16px}.gk-buoc .table-wrap td input[type=text]{width:100%}
+.gk-hanh-dong{display:flex;flex-wrap:wrap;align-items:flex-start;gap:8px 16px;margin-top:10px}.gk-hanh-dong .gk-oc{min-width:200px}
+.gk-nut-ly{display:inline-flex;flex-direction:column;gap:3px;max-width:440px}.gk-ly-nut{color:#8a4b12;font-size:.86em}.gk-ly-nut:empty{display:none}
