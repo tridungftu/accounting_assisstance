@@ -8,6 +8,9 @@ Route (cùng token X-KTT-Token, cookie phiên HttpOnly do máy chủ cấp như 
   GET  /api/m2/tai-hoa-don                                   → trạng thái bộ tải + pháp nhân/profile ĐƯỢC PHÉP (không bí mật). Chưa cấu hình → 200 cau_hinh:false
   POST /api/m2/tai-hoa-don/khoi-dong   {}                    → mở bộ tải ngầm (idempotent); cần ít nhất một pháp nhân được phép
   POST /api/m2/tai-hoa-don/bat-dau     {9 trường, khoa}      → một lựa chọn = một lần tải (Node #7 một job tại một thời điểm)
+  POST /api/m2/tai-hoa-don/tai-tat-ca  {kỳ, chiều, định dạng} → hàng đợi các pháp nhân có quyền và profile sẵn sàng
+  GET  /api/m2/tai-hoa-don/hang-doi                          → tiến độ hàng đợi của phiên hiện hành, lọc lại quyền
+  POST /api/m2/tai-hoa-don/huy-hang-doi {}                   → chủ hàng đợi dừng job và hủy các dòng chờ
   GET  /api/m2/tai-hoa-don/trang-thai?run=…                  → trạng thái run (RUNNING / REPLAY + biên nhận / UNKNOWN)
   GET  /api/m2/tai-hoa-don/su-kien?run=…&cursor=n            → SSE đã lọc (log/phase/month/progress/manifest/error/done)
   POST /api/m2/tai-hoa-don/doi-soat    {run}                 → đối soát run chưa rõ
@@ -24,13 +27,15 @@ from __future__ import annotations
 
 import json
 import re
+import secrets
 import threading
+import time
 from pathlib import Path
 
 from ..ha_tang.primitives import DataError
 from ..m2.tai_hoa_don import CauHinhTaiHoaDon, DieuPhoiTaiHoaDon, TepPin, TienTrinhNode
 from ..m2.tai_hoa_don.cau_hinh import kiem_khong_reparse
-from ..m2.tai_hoa_don.dieu_phoi import RE_RUN_REL
+from ..m2.tai_hoa_don.dieu_phoi import RE_RUN_REL, kiem_lua_chon
 from ..m2.tai_hoa_don.manifest import doc_manifest
 from ..m2.tai_hoa_don.nhan import lap_ke_hoach_nhan, nhan_vao_k2
 
@@ -82,6 +87,7 @@ GOI_Y_TIEN_TO = (
 HTTP_403 = frozenset({"M2_CLIENT_AUTHORITY", "DANH_TINH", "NGUON_PROFILE", "NGUON_PHAM_VI", "NGUON_PROFILE_DIGEST", "THAT_UI"})
 HTTP_404 = frozenset({"M2_00B_RUN_KHONG_CO", "NOT_FOUND"})
 HTTP_409 = frozenset({"M2_00B_KHOA_DA_DUNG", "M2_00B_NGU_CANH_DOI", "M2_00B_CAN_DOI_SOAT", "M2_00B_PHIEN_DOI", "M2_00B_JOB_BUSY", "M2_00B_BINDING_HONG",
+                      "M2_00H_DANG_CO_HANG_DOI",
                       "M2_00B_CONTEXT_MISMATCH", "M2_00B_DANH_TINH_DOI", "M2_00B_PN_KHONG_KHOP", "M2_00B_MA_PN_KHONG_DUNG_DUOC", "M2_00B_PN_MAPPING_ABSENT",
                       "M2_00B_PN_MAPPING_CONFLICT", "M2_00E_DANG_CHAY", "M2_00E_CHUA_CO_KET_QUA"})
 HTTP_503 = frozenset({"TAI_HOA_DON_CHUA_CAU_HINH", "TAI_HOA_DON_CAU_HINH_SAI", "M2_00B_CHUA_CAU_HINH", "M2_00B_KET_NOI_KHAC", "M2_00B_NHAT_KY_LOI",
@@ -141,8 +147,179 @@ class DieuPhoiApp(DieuPhoiTaiHoaDon):
         super().__init__(app, cau_hinh, tien_trinh=tien_trinh)
         self._khoa = _KhoaChung(app.mutation_lock)
         self.tien_trinh = tien_trinh
+        self._khoa_hang_doi = threading.RLock()
+        self._hang_doi = None
+        self._dung_hang_doi = threading.Event()
         # M2d: gốc tin cậy cho manifest HOI_CUU (tệp để tại chỗ). Luôn gồm thư mục tải + gốc dữ liệu cũ ghi trong cấu hình; KHÔNG lấy gốc do manifest tự khai báo.
         self.goc_hoi_cuu_tin_cay = tuple(dict.fromkeys([str(cau_hinh.goc_tai), *(str(x) for x in goc_hoi_cuu_tin_cay)]))
+
+    def _kiem_hang_doi(self):
+        if self._hang_doi and self._hang_doi["dang_chay"]:
+            raise DataError("M2_00H_DANG_CO_HANG_DOI", "Đang có hàng đợi tải tất cả công ty. Đợi hàng đợi kết thúc rồi tải tiếp.")
+
+    def start(self, sid, selection):
+        # Cùng khóa với thao tác tạo hàng đợi: tải lẻ không chen giữa hai job.
+        with self._khoa_hang_doi:
+            self._kiem_hang_doi()
+            return super().start(sid, selection)
+
+    def _ten_phap_nhan(self, sid, m):
+        _, login = self._phien(sid)
+        with self._khoa:
+            with self._guard(login) as (m2, _crm, conn, dt):
+                f = self._quyet_dinh(m2, conn, dt, m["source_instance"], m["scope_ref"], m["company_key"])
+                r = conn.execute("SELECT ten FROM master.phap_nhan WHERE id = %s", (f["phap_nhan"]["uuid"],)).fetchone()
+                return an_toan(r["ten"] if isinstance(r, dict) else r[0], 200) if r else "Pháp nhân chưa có tên"
+
+    def tai_tat_ca(self, sid, body):
+        keys = {"mode", "year", "month", "types", "formats"}
+        b = _than_lenh(body, keys)
+        if set(b) != keys:
+            raise DataError("M2_YEU_CAU_SAI", "Chọn đủ kỳ, chiều và định dạng cần tải.")
+        # Dùng validator của M2e trước mọi IO; nguồn/công ty/khóa do máy chủ chọn.
+        kiem_lua_chon({**b, "source_instance": "kiem", "scope_ref": "kiem", "company_key": "kiem", "client_key": "kiem-0001"})
+        with self._khoa_hang_doi:
+            self._kiem_hang_doi()
+            if self._dang_chay:
+                # Tab tải lẻ có thể đã đóng: xác nhận bộ tải thật trước khi giữ cờ bận.
+                if self._khach().config()["running"]:
+                    raise DataError("M2_00B_JOB_BUSY", "Bộ tải đang chạy một lần tải khác. Đợi xong rồi tải tất cả.")
+                with self._khoa:
+                    self._dang_chay = None
+            chu = self._phien(sid)
+            muc, da_co = [], set()
+            for m in self.profiles(sid)["muc"]:  # Chính hàm kiểm quyền M2e, cả trước/sau IO.
+                if not m["san_sang"] or m["phap_nhan_ma"] in da_co:
+                    continue
+                ten = self._ten_phap_nhan(sid, m)
+                da_co.add(m["phap_nhan_ma"])
+                muc.append({"chon": {**b, **{k: m[k] for k in ("source_instance", "scope_ref", "company_key")},
+                                      "client_key": "m2h-" + secrets.token_hex(16)},
+                            "phap_nhan_ma": m["phap_nhan_ma"], "phap_nhan_ten": ten, "trang_thai": "Chờ", "ly_do": None, "run_handle": None})
+            if not muc or len(muc) > self.cau_hinh.gioi_han.hang_doi_toi_da:
+                raise DataError("M2_00B_HANG_DOI_SAI", "Không có pháp nhân có quyền và hồ sơ sẵn sàng, hoặc vượt giới hạn hàng đợi.")
+            self._hang_doi = q = {"chu": chu, "dang_chay": True, "muc": muc,
+                                  "dung": threading.Event(), "khoa_job": threading.RLock()}
+            if self._phien(sid) != chu:
+                self._hang_doi = None
+                raise DataError("M2_00B_PHIEN_DOI", "Phiên đã đổi — chọn lại trước khi tải.")
+            threading.Thread(target=self._chay_tat_ca, args=(sid, q), daemon=True, name="m2-tai-tat-ca").start()
+        return self.trang_thai_hang_doi(sid)
+
+    def trang_thai_hang_doi(self, sid, profiles=None):
+        chu = self._phien(sid)
+        with self._khoa_hang_doi:
+            q = self._hang_doi
+            if not q or q["chu"] != chu:
+                return {"dang_chay": False, "dang_co_hang_doi": bool(q and q["dang_chay"]), "muc": []}
+            dang_chay, muc = q["dang_chay"], [dict(m) for m in q["muc"]]
+        # DB/RPC có thể chậm: chỉ chụp dữ liệu dưới khóa, kiểm quyền ngoài khóa.
+        profiles = self.profiles(sid)["muc"] if profiles is None else profiles
+        duoc = {(m["source_instance"], m["scope_ref"], m["company_key"]) for m in profiles}
+        if self._phien(sid) != chu:
+            raise DataError("M2_00B_PHIEN_DOI", "Phiên đã đổi — đọc lại tiến độ.")
+        return {"dang_chay": dang_chay, "dang_co_hang_doi": dang_chay, "muc": [
+            {k: m[k] for k in ("phap_nhan_ten", "trang_thai", "ly_do", "run_handle")}
+            for m in muc if tuple(m["chon"][k] for k in ("source_instance", "scope_ref", "company_key")) in duoc]}
+
+    def huy_hang_doi(self, sid):
+        chu = self._phien(sid)
+        with self._khoa_hang_doi:
+            q = self._hang_doi
+            if not q or q["chu"] != chu:
+                raise DataError("KHONG_CO_QUYEN_HUY_HANG_DOI", "Chỉ phiên đã tạo hàng đợi được hủy.")
+        # Cùng khóa với start/finally: không dừng nhầm job mới hoặc start sau khi hủy.
+        with q["khoa_job"]:
+            with self._khoa_hang_doi:
+                if self._phien(sid) != q["chu"]:
+                    raise DataError("KHONG_CO_QUYEN_HUY_HANG_DOI", "Phiên đã đổi — không được hủy hàng đợi cũ.")
+                if self._hang_doi is not q or not q["dang_chay"]:
+                    return {"da_huy": False}
+                q["dung"].set()
+                for m in q["muc"]:
+                    if m["trang_thai"] in {"Chờ", "Đang tải"}:
+                        m.update(trang_thai="Đã hủy", ly_do=None)
+            self.stop()
+        return {"da_huy": True}
+
+    def _cap_hang_doi(self, m, **kw):
+        with self._khoa_hang_doi:
+            if m["trang_thai"] != "Đã hủy":
+                m.update(kw)
+
+    def _chay_tat_ca(self, sid, q):
+        mo_lai = False
+        try:
+            for m in q["muc"]:
+                try:
+                    with q["khoa_job"]:
+                        if q["dung"].is_set() or self._dung_hang_doi.is_set():
+                            return
+                        self._cap_hang_doi(m, trang_thai="Đang tải")
+                        if self._phien(sid) != q["chu"]:
+                            raise DataError("M2_00B_PHIEN_DOI", "Phiên đã đổi; chưa tải pháp nhân này.")
+                        if mo_lai:
+                            self.khoi_dong_neu_can()
+                            mo_lai = False
+                        han = time.monotonic() + self.cau_hinh.gioi_han.cho_moi_job_s
+                        r = super().start(sid, m["chon"])  # Kiểm lại quyền + binding trước mỗi job.
+                        self._cap_hang_doi(m, run_handle=r.get("run_handle"))
+                    while r["trang_thai"] != "REPLAY":
+                        if q["dung"].is_set() or self._dung_hang_doi.is_set():
+                            return
+                        con = han - time.monotonic()
+                        if con <= 0:
+                            self._cap_hang_doi(m, trang_thai="Lỗi", ly_do="Quá hạn chờ")
+                            with q["khoa_job"]:
+                                if q["dung"].is_set():
+                                    return
+                                if self.stop().get("trang_thai") != "DA_DUNG":
+                                    return  # Chưa xác nhận dừng: mở khóa nhưng không xếp chồng job.
+                            mo_lai = True
+                            break
+                        if r["trang_thai"] == "NOT_FOUND":
+                            raise DataError("NOT_FOUND", "Bộ tải xác nhận chưa nhận lần tải này.")
+                        if not r.get("run_handle"):
+                            raise DataError("M2_00B_CAN_DOI_SOAT", "Chưa xác nhận được lần tải; cần đối soát.")
+                        if q["dung"].wait(min(con, max(0.01, self.cau_hinh.gioi_han.nhip_poll_s))):
+                            return
+                        if self._dung_hang_doi.is_set():
+                            return
+                        try:
+                            # UNKNOWN/mất kết nối: đối soát trong hạn, chưa chạy job kế tiếp.
+                            r = self.reconcile(sid, r["run_handle"]) if r["trang_thai"] == "UNKNOWN" else self.status(sid, r["run_handle"])
+                            self._cap_hang_doi(m, ly_do=None)
+                        except DataError:
+                            if not self.tien_trinh.dang_chay():
+                                raise
+                            self._cap_hang_doi(m, ly_do="Chưa xác nhận tải đã kết thúc; đang kiểm tra lại, chưa chạy công ty tiếp theo.")
+                    if mo_lai:
+                        continue
+                    kq = r.get("ket_qua") or {}
+                    ok = kq.get("trang_thai") in {"COMPLETE", "HOAN_TAT"}
+                    ly_do = "Lần tải đã kết thúc nhưng có lỗi hoặc đã hủy. Kiểm tra kết quả tải của pháp nhân này."
+                    for run in kq.get("runs", []):
+                        for loi in run.get("loi") or []:
+                            sach = loi_sach(loi)
+                            if sach.get("goi_y"):
+                                ly_do = sach["goi_y"]
+                    self._cap_hang_doi(m, trang_thai="Xong" if ok else "Lỗi", ly_do=None if ok else ly_do)
+                except DataError as exc:
+                    ma = exc.code.removeprefix("M2_00B_")
+                    self._cap_hang_doi(m, trang_thai="Lỗi", ly_do=LY_DO_PROFILE.get(ma) or goi_y_ma(exc.code) or an_toan(str(exc)))
+                except Exception:
+                    self._cap_hang_doi(m, trang_thai="Lỗi", ly_do="Không xác nhận được bộ tải đã dừng. Cần kiểm tra bộ tải trước khi tải tiếp.")
+                    with q["khoa_job"]:
+                        if not q["dung"].is_set():
+                            self.stop()
+                    return
+        finally:
+            with q["khoa_job"]:
+                with self._khoa_hang_doi:
+                    q["dang_chay"] = False
+                    for m in q["muc"]:
+                        if m["trang_thai"] in {"Chờ", "Đang tải"}:
+                            m.update(trang_thai="Đã hủy", ly_do=None)
 
     def khoi_dong_neu_can(self) -> dict:
         with _KHOI_DONG:
@@ -205,6 +382,10 @@ def dung(app):
     """Gọi khi máy chủ dừng: dừng bộ tải sở hữu (nếu đã mở). Không lỗi nếu chưa dùng tính năng này."""
     dv = app.__dict__.get("_tai_hoa_don_dv")
     if dv is not None:
+        dv._dung_hang_doi.set()
+        with dv._khoa_hang_doi:
+            if dv._hang_doi:
+                dv._hang_doi["dung"].set()
         try:
             dv.stop()
         except Exception:  # noqa: BLE001 — dừng máy chủ không được kẹt vì bộ tải; Windows Job KILL_ON_JOB_CLOSE dọn nốt
@@ -526,7 +707,7 @@ def _trang_thai(h, app, query):
             raise
         return _gui(h, 200, {"phien_ban": PHIEN_BAN, "cau_hinh": False, "ma": exc.code, "ly_do": str(exc), "goi_y": goi_y_ma(exc.code),
                              "bo_tai": {"san_sang": False, "trang_thai": None}, "muc": []}, cookie)
-    return _gui(h, 200, {"phien_ban": PHIEN_BAN, "cau_hinh": True, "bo_tai": _bo_tai(dv), "muc": [
+    return _gui(h, 200, {"phien_ban": PHIEN_BAN, "cau_hinh": True, "bo_tai": _bo_tai(dv), "hang_doi": dv.trang_thai_hang_doi(sid, profiles=muc), "muc": [
         {"source_instance": m["source_instance"], "scope_ref": m["scope_ref"], "company_key": m["company_key"], "phap_nhan_ma": m["phap_nhan_ma"],
          "san_sang": m["san_sang"] is True, "ly_do": m["ly_do"], "ly_do_vi": ly_do_profile(m["ly_do"])} for m in muc]}, cookie)
 
@@ -637,6 +818,9 @@ def dieu_huong(h, app, post: bool, path: str, query: dict):
             if ten == "trang-thai":
                 run = _run(_q(query, ("run",), ("run",))["run"])
                 return _gui(h, 200, lam_sach_run(dich_vu(app).status(h.crm_sid(), run)))
+            if ten == "hang-doi":
+                _q(query, ())
+                return _gui(h, 200, dich_vu(app).trang_thai_hang_doi(h.crm_sid()))
             if ten == "su-kien":
                 return _su_kien(h, app, query)
             if ten == "manifest":
@@ -646,6 +830,11 @@ def dieu_huong(h, app, post: bool, path: str, query: dict):
                 return _khoi_dong(h, app)
             if ten == "bat-dau":
                 return _bat_dau(h, app)
+            if ten == "tai-tat-ca":
+                return _gui(h, 200, dich_vu(app).tai_tat_ca(h.crm_sid(), h.json_body(4096)))
+            if ten == "huy-hang-doi":
+                _than_lenh(h.json_body(4096), ())
+                return _gui(h, 200, dich_vu(app).huy_hang_doi(h.crm_sid()))
             if ten == "nhan":
                 return _nhan(h, app)
             if ten in ("doi-soat", "mo-thu-muc"):
