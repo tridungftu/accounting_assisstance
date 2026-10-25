@@ -6,10 +6,11 @@ Trạng thái lát: Đang code → Chờ kiểm → Chờ Anh (cổng A/B) → S
 
 | Lát | Việc | Worker | Nhánh · worktree | Giao lúc | Trạng thái |
 |---|---|---|---|---|---|
-| BG-1d | CRM · Báo giá màn hình 2 bước: bước 1 to/đầu (giá, tỷ giá, Tổng VND + bằng chữ, lịch VND, In sơ bộ); bước 2 sau khi khách đồng ý (khách, phí, Chuyển) | Claude Sonnet · review Codex | `lat/bg-1d` (đã gộp BG-1b + BG-1c vòng 2) · DEMO 8791 | 25/10 | Sửa vòng 2 — review Codex: 3 Chặn (Chuyển ở báo giá cũ thiếu điều kiện; nạp G7 so sai tiền tệ; xóa tỷ giá làm xem trước ≠ lưu) + 2 Nên sửa; lead tự kiểm DEMO thêm: ô tỷ giá mặc định cho kế toán, thông báo phiên cũ không tắt |
+| BG-1d | CRM · Báo giá màn hình 2 bước: bước 1 to/đầu (giá, tỷ giá, Tổng VND + bằng chữ, lịch VND, In sơ bộ); bước 2 sau khi khách đồng ý (khách, phí, Chuyển) | Claude Sonnet · review Codex | `lat/bg-1d` (đã gộp BG-1b + BG-1c vòng 2) · DEMO 8791 | 25/10 | Chờ kiểm — vòng 2 xong (f904fcc): 23/23 nhóm ca màn hình, 0 mã lỗi mới; lead kiểm lại DEMO đạt; review Codex vòng 2/2 đang chạy |
 | L0-8 | Bật test PostgreSQL trên cụm DEMO (CSDL tạm `kho_test_*`, xóa sau khi chạy) — QD-20261025-10 | Claude Sonnet | `lat/l0-8` | 25/10 | Đang code |
-| C3 | CRM 42 · read-model danh sách hợp đồng S1 `GET /api/crm/hop-dong` (phạm vi theo vai, thẻ W1–W5, ô Junsky "chưa có sổ") | Codex · review Claude | `lat/c3` | 25/10 | Chờ slot sửa vòng 2 — review Claude: 0 Chặn, 5 Nên sửa (quyền xem tiền theo QD-20261025-15, tải, test dương bán hàng, lỗi 503); chạy PostgreSQL sau L0-8 |
-| DA-1 | CRM · Dự án đang bán — máy chủ + CSDL (M0031): thông tin bán hàng có phiên bản, đơn giá niêm yết + tiền tệ, loại hình + thuế, phí tiêu chuẩn, lô/căn, tiến độ G7 bán hàng áp dụng ngay, quyền, nhật ký, ảnh chụp mặc định cho báo giá | Claude Opus | `lat/da-1` · DEMO 8793 (CSDL riêng p8793) | 25/10 | Đang code |
+| C3 | CRM 42 · read-model danh sách hợp đồng S1 `GET /api/crm/hop-dong` (phạm vi theo vai, thẻ W1–W5, ô Junsky "chưa có sổ") | Codex · review Claude | `lat/c3` | 25/10 | Sửa vòng 2 (Codex đang code) |
+| DA-1 | CRM · Dự án đang bán — máy chủ + CSDL (M0031): thông tin bán hàng có phiên bản, đơn giá niêm yết + tiền tệ, loại hình + thuế, phí tiêu chuẩn, lô/căn, tiến độ G7 bán hàng áp dụng ngay, quyền, nhật ký, ảnh chụp mặc định cho báo giá | Claude Opus | `lat/da-1` · DEMO 8793 (CSDL riêng p8793) | 25/10 | Chờ kiểm — 95f1169, bc48ac2, b9adfe7: test thuần 29/29, PostgreSQL 12/12 trên CSDL riêng, CRM 350 đạt, 0 mã lỗi mới; M0031 chạy thật 30 → 31; review Codex chờ lượt |
+| M4-6 | M4 · Nghiệm thu & chi phí dự án · 04 Request nháp: nối `server.py` (`gan_request_nhap`/`go_request_nhap`, chuyển 3 route `/api/m4-request…`), giữ CHUA_CAU_HINH, không gọi Request thật | Claude Sonnet | `lat/m4-6` | 25/10 | Đang code |
 
 ## Lát đã xong (24/10)
 
@@ -50,7 +51,7 @@ Worktree đo nền: `.claude/worktrees/nen-chinh-59b7d8e` (chinh) · `.claude/wo
 
 | File | Lát giữ |
 |---|---|
-| `src\kho_tri_thuc\giao_dien\server.py` | — |
+| `src\kho_tri_thuc\giao_dien\server.py` | M4-6 |
 | `giao_dien\m4.py` | — |
 | `nguon\trich6_host.py`, `tools\chuan_bi_crm_demo.py`, `.gitattributes` | — |
 | `giao_dien\assets\app.js`, `index.html`, `ha_tang\config.py` | — |
