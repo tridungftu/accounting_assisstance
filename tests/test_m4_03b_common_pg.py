@@ -38,7 +38,7 @@ import unittest
 import uuid
 
 from tests import test_m4_03a_pg as P
-from tests.test_m4_02c_pg import _q1
+from tests.test_m4_02c_pg import _q1, dung_ho_so
 
 from kho_tri_thuc.k2 import ghi_nhan_chung as GN
 from kho_tri_thuc.ha_tang.primitives import DataError
@@ -50,6 +50,7 @@ _G = vars(P.M4KeToanPG)
 ENV_DA_AP_DUNG = "KHO_M4_03B_DA_AP_DUNG"
 ENV_HOA_DON = "KHO_M4_03B_HOA_DON_ID"
 ENV_DONG = "KHO_M4_03B_DONG_ID"
+ENV_DOI_TAC = "KHO_M4_03B_DOI_TAC"
 ENV_CFO, ENV_XEM = "KHO_M4_03B_CFO", "KHO_M4_03B_XEM"
 CO_ENV_03B = P.CO_ENV and os.environ.get(ENV_DA_AP_DUNG) == "1"
 LY_DO_SKIP_03B = ("NOT_VERIFIED: chưa có clone 03A + M4_03B_COMMON_SQL (M0029) do Root migrate (KHO_M4_03A_* + KHO_M4_03B_DA_AP_DUNG=1) — "
@@ -72,6 +73,8 @@ class M4DoiChieuCanCuPG(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
+        if not os.environ.get(ENV_DOI_TAC):
+            raise unittest.SkipTest(f"NOT_VERIFIED: thiếu {ENV_DOI_TAC} (đối tác DEMO có mapping hiện hành cùng PN) — KHÔNG tính đạt")
         _G["setUpClass"].__func__(cls)
         if _q1(cls.admin, "SELECT m4._kt_phien_chu()") is not True:
             raise P.LoiThietLap("SETUP_FAILURE: DSN chủ bảng không phải ĐÚNG chủ m4.kt_xac_nhan theo session_user — không ghim được chứng thực")
@@ -97,10 +100,28 @@ class M4DoiChieuCanCuPG(unittest.TestCase):
     _svc_moi = _G["_svc_moi"]
     K, q, ma, loi, can, song_song = _G["K"], _G["q"], _G["ma"], _G["loi"], _G["can"], _G["song_song"]
     dem_tat_ca = _G["dem_tat_ca"]
-    chap_thuan, ket_luan, pdf, ho_so_seal = _G["chap_thuan"], _G["ket_luan"], _G["pdf"], _G["ho_so_seal"]
+    chap_thuan, ket_luan, pdf = _G["chap_thuan"], _G["ket_luan"], _G["pdf"]
     xem, than_luu, than_xn, du_day = _G["xem"], _G["than_luu"], _G["than_xn"], _G["du_day"]
 
     # ------------------------------------------------------------------ helpers riêng
+    def ho_so_seal(self, nhan) -> dict:
+        """Producer 03B như 03A, thêm đối tác DEMO qua lệnh M4 trước nộp; không đổi helper của 03A."""
+        doi_tac = os.environ.get(ENV_DOI_TAC)
+        if not doi_tac:
+            self.skipTest(f"NOT_VERIFIED: thiếu {ENV_DOI_TAC} — không dựng hồ sơ 03B thiếu đối tác")
+        h = dung_ho_so(self.svc, self.admin, self.K, nhan, self.run_id, gan_doi_tac=doi_tac)
+        dot = str(h["dot"])
+        self.ket_luan(dot, f"{nhan}-kl")
+        self.assertEqual(self.chap_thuan(dot, f"{nhan}-ct")["trang_thai"], "CHO_PDF")
+        self.assertEqual(self.q("SELECT count(*) FROM m4.duyet_kt_cho WHERE dot_id = %s", (dot,)), 0)
+        self.assertNotIn(dot, [r["dot_id"] for r in self.kt.danh_sach(self.KT1)["items"]])
+        raw = P.F.ho_so_dot_duyet_pdf(f"KT-{self.run_id}-{nhan}-1")
+        ten = f"ho_so_da_duyet_{nhan}.pdf"
+        p = self.pdf(dot, raw, f"{nhan}-pdf", ten)
+        self.assertEqual(p["trang_thai"], "DA_SEAL", p)
+        v1 = self.svc.duyet_xem(P.A1, dot_id=dot, version_id=None)["context"]["version_id"]
+        return {**h, "dot": dot, "cho": str(p["kt_pending_id"]), "pdf_id": str(p["pdf_id"]), "raw": raw, "ten_pdf": ten, "v1": v1}
+
     def doi_dc(self, truoc: dict, **mong):
         """Delta thực tế ĐÚNG bằng mong ('schema__bang' → số hàng); mọi bảng khác (tài chính/M24/AP/Request/M2) 0 delta."""
         sau = self.dem_tat_ca()
@@ -838,6 +859,74 @@ class M4DoiChieuCanCuPG(unittest.TestCase):
                 self.svc._r1(c, "SELECT kho._dc_kiem_hd_da_gan(%s::jsonb,NULL::uuid) AS r", (json.dumps([self.s["rh"]]),))
         self.assertEqual(self.ma(cm.exception), "DC_GIAO_DICH_SAI")
         self.doi_dc(truoc)
+
+
+class DoiTacDemo03BThuanTests(unittest.TestCase):
+    """Kiểm wiring/seed bằng mock + SQLite memory, tuyệt đối không nối PostgreSQL."""
+
+    def test_thieu_bien_skip_truoc_setup_03a_va_truoc_dung_ho_so(self):
+        from unittest.mock import Mock, patch
+        with patch.dict(os.environ, {}, clear=True), patch.object(P.M4KeToanPG, "setUpClass") as setup:
+            with self.assertRaisesRegex(unittest.SkipTest, "NOT_VERIFIED.*" + ENV_DOI_TAC):
+                M4DoiChieuCanCuPG.setUpClass()
+            setup.assert_not_called()
+            with patch(__name__ + ".dung_ho_so") as dung:
+                with self.assertRaisesRegex(unittest.SkipTest, "NOT_VERIFIED.*" + ENV_DOI_TAC):
+                    M4DoiChieuCanCuPG.ho_so_seal(self, "DC1")
+                dung.assert_not_called()
+
+    def test_ho_so_seal_truyen_doi_tac_va_giu_thu_tu_duyet_pdf(self):
+        from unittest.mock import Mock, patch
+        x = Mock()
+        x.assertEqual, x.assertNotIn = self.assertEqual, self.assertNotIn
+        x.svc.duyet_xem.return_value = {"context": {"version_id": "v1"}}
+        x.q.return_value = 0
+        x.kt.danh_sach.return_value = {"items": []}
+        x.chap_thuan.return_value = {"trang_thai": "CHO_PDF"}
+        x.pdf.return_value = {"trang_thai": "DA_SEAL", "kt_pending_id": "cho", "pdf_id": "pdf"}
+        with patch.dict(os.environ, {ENV_DOI_TAC: "dt-demo"}), \
+                patch(__name__ + ".dung_ho_so", return_value={"dot": "dot-demo"}) as dung, \
+                patch.object(P.F, "ho_so_dot_duyet_pdf", return_value=b"pdf-demo"):
+            h = M4DoiChieuCanCuPG.ho_so_seal(x, "DC1")
+        dung.assert_called_once_with(x.svc, x.admin, x.K, "DC1", x.run_id, gan_doi_tac="dt-demo")
+        ten = [c[0] for c in x.mock_calls]
+        self.assertLess(ten.index("ket_luan"), ten.index("chap_thuan"))
+        self.assertLess(ten.index("chap_thuan"), ten.index("pdf"))
+        self.assertEqual((h["cho"], h["v1"]), ("cho", "v1"))
+
+    def test_seed_qua_bo_nhap_danh_muc_mst_va_mapping_pn_demo(self):
+        from contextlib import nullcontext
+        from unittest.mock import Mock, patch
+        from tools import pg_demo_ho_03a as H
+        admin, cur = Mock(), Mock()
+        admin.execute.return_value.fetchone.side_effect = [("pn-demo",), ("dt-demo",)]
+        admin.transaction.return_value = nullcontext()
+        admin.cursor.return_value = nullcontext(cur)
+        facts = []
+
+        def nhap(src, cursor, pn, kq):
+            facts.extend(dict(r) for r in src.execute("SELECT * FROM documents"))
+            self.assertIs(cursor, cur)
+            self.assertEqual(pn, "pn-demo")
+
+        with patch("tools.chuyen_sqlite_sang_pg._doi_tac", side_effect=nhap) as chuyen:
+            self.assertEqual(H._seed_doi_tac(admin), {ENV_DOI_TAC: "dt-demo"})
+        chuyen.assert_called_once()
+        core = json.loads(facts[0]["core_json"])
+        self.assertEqual((facts[0]["kind"], core["tax_id"], core["code"]),
+                         ("COUNTERPARTY", "DEMO_M2_SUPPLIER", "331.DEMO_M2_SUPPLIER"))
+        self.assertEqual(admin.execute.call_args_list[0].args[1], ("PN_DEMO_A",))
+        self.assertTrue(all(c.args[0].lstrip().startswith("SELECT ") for c in admin.execute.call_args_list))
+
+    def test_seed_thieu_pn_khong_nhap_hay_cap_bien(self):
+        from unittest.mock import Mock, patch
+        from tools import pg_demo_ho_03a as H
+        admin = Mock()
+        admin.execute.return_value.fetchone.return_value = None
+        with patch("tools.chuyen_sqlite_sang_pg._doi_tac") as chuyen:
+            with self.assertRaisesRegex(ValueError, "thiếu PN_DEMO_A"):
+                H._seed_doi_tac(admin)
+            chuyen.assert_not_called()
 
 
 if __name__ == "__main__":
