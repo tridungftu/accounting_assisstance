@@ -61,4 +61,4 @@
 5. BG-22: khung vai mô phỏng bỏ mã kỹ thuật, ngày dd/mm/yyyy. BG-23: báo lỗi mốc bỏ "(thay n bằng số)", hiện danh sách mốc bấm chọn. BG-24: đơn vị thống nhất "VND".
 6. Lát nhỏ ≤ 3 file theo CD-004; review `kiem-nhanh` → `review-lat`; tiêu chí đạt theo bảng TL 45 §8. Phối hợp khóa `crm_g.js`/`style.css` với UI-1.
 **Báo Anh khi:** phiếu cổng A lần 2 sẵn sàng (ca thử: 26.500.000.000 VND, nhập nhanh 10/30/40/10%).
-**Trạng thái:** MỚI
+**Trạng thái:** ĐÃ NHẬN 22:06 25/10 — chia lát BG-e1…BG-e4 theo thứ tự TL 45 §8 (BG-20, BG-21, BG-19 → BG-18, BG-24 → BG-22, BG-23), làm trên dòng giao diện CRM `lat/ui-1` (= BG-1d + DA-2 + UI-1/UI-2) để không sửa chồng `crm_g.js`/`style.css`; các lát chạm `crm_g.js` làm tuần tự
