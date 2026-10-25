@@ -600,7 +600,11 @@ class GuardCsdlThat(unittest.TestCase):
         self.assertIn(ma, str(cm.exception))
 
     def test_version_23_va_bang(self):
-        self.assertEqual(self.version, 23)
+        self.assertEqual(self.version, PM.PG_SCHEMA_VERSION)
+        self.assertGreaterEqual(self.version, 23)
+        self.assertEqual([i + 1 for i, m in enumerate(PM.PG_MIGRATIONS) if tuple(m) == tuple(PM.M0023_CRM_KY)], [23])
+        prefix = self.q("SELECT version, checksum FROM master.schema_migrations WHERE version <= 23 ORDER BY version")
+        self.assertEqual([tuple(r) for r in prefix], [(i + 1, PM._hash(m)) for i, m in enumerate(PM.PG_MIGRATIONS[:23])])
         for t in KY_BANG:
             self.assertEqual(self.q("SELECT count(*) FROM pg_class WHERE oid = %s::regclass", f"master.{t}")[0][0], 1)
             self.assertTrue(self.q("SELECT relrowsecurity FROM pg_class WHERE oid = %s::regclass", f"master.{t}")[0][0])

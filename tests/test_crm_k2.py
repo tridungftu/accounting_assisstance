@@ -29,7 +29,7 @@ except ImportError:  # pragma: no cover
 
 from kho_tri_thuc.ha_tang import postgres as pg
 from kho_tri_thuc.ha_tang.config import Config
-from kho_tri_thuc.ha_tang.pg_migrations import M0010, M0010_V1_BAN_GIAO_DAU, PG_MIGRATIONS, PG_SCHEMA_VERSION
+from kho_tri_thuc.ha_tang.pg_migrations import M0010, M0010_V1_BAN_GIAO_DAU, M0013_COMMON, PG_MIGRATIONS, PG_SCHEMA_VERSION
 from kho_tri_thuc.ha_tang.primitives import DataError, canonical_json, sha256
 from kho_tri_thuc.k2 import crm_demo, m1_demo
 from kho_tri_thuc.k2.crm import CrmK2
@@ -74,6 +74,22 @@ class _Luong(threading.Thread):
             self.ket_qua = self.fn()
         except Exception as exc:  # noqa: BLE001 — trả lỗi về luồng test
             self.loi = exc
+
+
+class ChuoiMigrationLichSu(unittest.TestCase):
+    def test_tien_to_da_review_giu_nguyen_dinh_nghia(self):
+        for chuoi in (PG_MIGRATIONS[:10], PG_MIGRATIONS[:9] + (M0010_V1_BAN_GIAO_DAU,)):
+            with self.subTest(checksum=H(chuoi[9])):
+                for i in range(9):
+                    self.assertIs(chuoi[i], PG_MIGRATIONS[i])
+                self.assertTrue(chuoi[9] is PG_MIGRATIONS[9] or chuoi[9] is M0010_V1_BAN_GIAO_DAU)
+                pg.kiem_chuoi_lich_su(chuoi)
+
+    def test_m0010_them_sql_bi_chan_truoc_khi_cham_csdl(self):
+        chuoi_sai = PG_MIGRATIONS[:9] + (M0010_V1_BAN_GIAO_DAU + ("SELECT 1",),)
+        with self.assertRaises(DataError) as ctx:
+            pg.migrate(None, migrations=chuoi_sai)
+        self.assertEqual(ctx.exception.code, "MIGRATION_TUY_CHINH")
 
 
 @unittest.skipUnless(psycopg is not None and ADMIN_DSN, "Không có psycopg hoặc KHO_PG_DSN_TEST — không chạy được test PostgreSQL CRM (không tính đạt)")
@@ -191,7 +207,11 @@ class CrmK2Test(unittest.TestCase):
 
     # ------------------------------------------------------------------ nâng cấp
     def test_t01_nang_cap_v9_giu_du_lieu_va_link_huy_lich_su(self):
-        self.assertEqual((self.version_sau, self.version_lan_2, PG_SCHEMA_VERSION), (13, 13, 13))  # M0013 = M9/common (sau CRM 12)
+        self.assertEqual((self.version_sau, self.version_lan_2), (PG_SCHEMA_VERSION, PG_SCHEMA_VERSION))
+        self.assertGreaterEqual(PG_SCHEMA_VERSION, 13)
+        self.assertEqual([i + 1 for i, m in enumerate(PG_MIGRATIONS) if tuple(m) == tuple(M0013_COMMON)], [13])
+        prefix = self.admin.execute("SELECT version, checksum FROM master.schema_migrations WHERE version <= 13 ORDER BY version").fetchall()
+        self.assertEqual([tuple(r) for r in prefix], [(i + 1, H(m)) for i, m in enumerate(PG_MIGRATIONS[:13])])
         after = self.counts()
         for t in ("kho.chung_tu", "kho.lien_ket_chung_tu", "master.lich_thu"):
             self.assertGreaterEqual(after[t], self.truoc_nang_cap[t])
@@ -226,7 +246,9 @@ class CrmK2Test(unittest.TestCase):
                                     "m0012": H(PG_MIGRATIONS[11])}
         db2, dsn2 = self._db("kho_test_crm_sai_")
         with psycopg.connect(dsn2, autocommit=True) as c:
-            pg.migrate(c, migrations=PG_MIGRATIONS[:9] + (M0010_V1_BAN_GIAO_DAU + ("SELECT 1",),))
+            # Dựng đúng lịch sử đã review; giả checksum sai trong DB, không đưa SQL lạ qua cổng chuỗi tùy chỉnh.
+            pg.migrate(c, migrations=PG_MIGRATIONS[:10])
+            c.execute("UPDATE master.schema_migrations SET checksum = %s WHERE version = 10", (H(M0010_V1_BAN_GIAO_DAU + ("SELECT 1",)),))
             self.raises("MIGRATION_CHANGED", lambda: pg.migrate(c))  # chỉ hash liệt kê chính xác mới được chấp nhận
 
     def test_t01c_db_dung_schema11_co_lich_su_da_duyet_len_12(self):

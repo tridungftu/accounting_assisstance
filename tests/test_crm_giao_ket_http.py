@@ -287,19 +287,27 @@ class CrmGiaoKetHttp(unittest.TestCase):
             self.loi(BH, "bao-gia/luu", {"bao_gia_id": None, "expected_revision": None, "du_lieu": self.bao_gia(gia={"tien_te": "VND", "tong": xau}),
                                          "khoa": self.K("so-" + str(len(xau)))}, 400, "CRM_GK_SO_SAI")
 
-    # ------------------------------------------------------------------ g04 (c2): USD + FX tay; đổi FX chỉ đổi VND tham chiếu; G7 lệch/thiếu
+    # ------------------------------------------------------------------ g04 (c2): BG-1c — USD tham chiếu, FX mặc định/tay đổi tổng VND; G7 lệch/thiếu
     def test_g04_usd_fx_g7(self):
-        g = {"tien_te": "USD", "tong": "1234.56", "co_so_thue": "GROSS"}
+        # QD-20261025-01…04: Tổng VND = đơn giá USD × tỷ giá × diện tích, làm tròn đến đồng.
+        g = {"tien_te": "USD", "don_gia": "1234.56", "dien_tich": "1", "co_so_thue": "GROSS"}
         r = self.ok(BH, "bao-gia/luu", {"bao_gia_id": None, "expected_revision": None, "du_lieu": self.bao_gia(gia=g), "khoa": self.K("usd")})
-        self.loi(BH, "bao-gia/in", {"bao_gia_id": r["bao_gia_id"], "expected_revision": 1, "khoa": self.K("usd-in")}, 409, "CRM_GK_CHAN_IN")
+        mac_dinh = self.get(BH, "bao-gia/" + r["bao_gia_id"])
+        self.assertEqual((mac_dinh["du_lieu"]["fx"]["ty_gia"], mac_dinh["du_lieu"]["fx"]["nguon"],
+                          mac_dinh["tinh"]["tien_te"], mac_dinh["tinh"]["tong_minor"], mac_dinh["tinh"]["chan_in"]),
+                         ("26000", "MAC_DINH", "VND", "32098560", []))
         fx1 = {"cap": "USD/VND", "ty_gia": "25000", "ngay": ngay(-1)}
         r = self.ok(BH, "bao-gia/luu", {"bao_gia_id": r["bao_gia_id"], "expected_revision": 1, "du_lieu": self.bao_gia(gia=g, fx=fx1), "khoa": self.K("usd2")})
         a = self.get(BH, "bao-gia/" + r["bao_gia_id"])
-        self.assertEqual((a["tinh"]["tong_minor"], a["tinh"]["vnd_tham_chieu"]["tong"], a["du_lieu"]["fx"]["nguoi_nhap"]), ("123456", "30864000", BH))
+        self.assertEqual((a["tinh"]["tien_te"], a["tinh"]["tong_minor"], a["tinh"]["usd_tham_chieu"]["tong_minor"],
+                          a["du_lieu"]["fx"]["nguoi_nhap"]), ("VND", "30864000", "123456", BH))
+        self.assertIsNone(a["tinh"]["vnd_tham_chieu"])
+        self.assertEqual([x["so_tien_minor"] for x in a["tinh"]["dong"]], ["12345600", "18518400"])
         r = self.ok(BH, "bao-gia/luu", {"bao_gia_id": r["bao_gia_id"], "expected_revision": 2,
                                         "du_lieu": self.bao_gia(gia=g, fx={**fx1, "ty_gia": "25100.5"}), "khoa": self.K("usd3")})
         b = self.get(BH, "bao-gia/" + r["bao_gia_id"])
-        self.assertEqual((b["tinh"]["tong_minor"], b["tinh"]["vnd_tham_chieu"]["tong"]), ("123456", "30988073.28"))
+        self.assertEqual((b["tinh"]["tien_te"], b["tinh"]["tong_minor"], b["tinh"]["usd_tham_chieu"]["tong_minor"],
+                          b["tinh"]["tong_lam_tron"], b["du_lieu"]["fx"]["nguoi_nhap"]), ("VND", "30988073", "123456", True, BH))
         r = self.ok(BH, "bao-gia/luu", {"bao_gia_id": None, "expected_revision": None, "khoa": self.K("g7"),
                                         "du_lieu": self.bao_gia(nguon_lich="DU_AN", giai_doan_g7="GK_STAGE",
                                                                 lich=[{"lan": "1", "loai": "PERCENT", "ty_le": "30", "moc_loai": "SU_KIEN", "moc_su_kien": "KY_HD"},

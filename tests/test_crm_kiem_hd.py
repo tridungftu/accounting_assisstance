@@ -21,6 +21,7 @@ import unittest
 import uuid
 from contextlib import contextmanager
 from pathlib import Path
+from unittest.mock import patch
 
 try:
     import psycopg
@@ -106,8 +107,9 @@ def cong_clone(*, can_ghi: bool) -> tuple[dict | None, str | None]:
         if loi is None:
             v = ca.execute("""SELECT r.rolsuper, r.rolbypassrls, session_user = current_user AS khong_set_role,
                                      pg_has_role(current_user, (SELECT relowner FROM pg_class WHERE oid = 'master.crm_kiem_ho_so'::regclass), 'USAGE') AS la_chu,
-                                     (SELECT array_agg(a) FROM unnest(%s::text[]) a WHERE EXISTS (SELECT 1 FROM pg_roles WHERE rolname = a)
-                                                                                       AND pg_has_role(current_user, a, 'MEMBER')) AS vai
+                                     (SELECT array_agg(a) FROM unnest(%s::text[]) a
+                                      WHERE CASE WHEN EXISTS (SELECT 1 FROM pg_roles WHERE rolname = a)
+                                                 THEN pg_has_role(current_user, a, 'MEMBER') ELSE false END) AS vai
                               FROM pg_roles r WHERE r.rolname = current_user""", (list(VAI_UNG_DUNG),)).fetchone()
             if v["rolsuper"] or v["rolbypassrls"] or not v["khong_set_role"] or v["la_chu"] or not v["vai"]:
                 loi = "DSN ứng dụng phải là login thường NOSUPERUSER/NOBYPASSRLS, không phải chủ bảng, thuộc vai ứng dụng có sẵn, không SET ROLE"
@@ -130,6 +132,26 @@ def cong_clone(*, can_ghi: bool) -> tuple[dict | None, str | None]:
 
 
 # ---------------------------------------------------------------------------------------------------------------- 1. thuần
+class ChonHoBanSao(unittest.TestCase):
+    def test_bon_module_g6a_duoc_nhan_ho_va_cap_bien(self):
+        from tools import chay_test_theo_module as runner
+
+        # Dùng nguyên regex và đường cấp biến của bộ chạy; chỉ giả bước dựng clone để không nối CSDL.
+        pg = runner._PgDemo.__new__(runner._PgDemo)
+        pg.env_chung, pg.chua_ho_tro = {}, set()
+        env_clone = {ENV_OWNER: "owner-gia", ENV_APP: "app-gia", ENV_PROV: "provenance-gia", ENV_GHI: "1"}
+        for module in ("test_crm_kiem_hd", "test_crm_kiem_hd_http", "test_crm_doi_chieu_pg", "test_crm_g6a_m25_integration"):
+            with self.subTest(module=module):
+                noi_dung = (ROOT / "tests" / f"{module}.py").read_text(encoding="utf-8")
+                self.assertRegex(noi_dung, runner.HO_CLONE["g6a"]["mau"])
+                self.assertEqual(pg.ho_cua(noi_dung), ["g6a"])
+                with patch.object(pg, "dung_clone", return_value={"env": env_clone}) as dung_clone:
+                    env, thong_tin = runner._chuan_bi_pg_module(pg, ROOT, module)
+                dung_clone.assert_called_once_with("g6a")
+                self.assertEqual(thong_tin, {"ho": ["g6a"]})
+                self.assertEqual(env, env_clone)
+
+
 def _loi(test, ma, fn, *a, **kw):
     with test.assertRaises(DataError) as cm:
         fn(*a, **kw)
