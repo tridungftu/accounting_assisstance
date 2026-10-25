@@ -6,8 +6,9 @@ Trạng thái lát: Đang code → Chờ kiểm → Chờ Anh (cổng A/B) → S
 
 | Lát | Việc | Worker | Nhánh · worktree | Giao lúc | Trạng thái |
 |---|---|---|---|---|---|
-| BG-1b | CRM · Báo giá gói 1 màn hình (BG-01…05) | Claude Sonnet | `lat/bg-1b` (86d5b5b) · DEMO http://127.0.0.1:8784 | 24/10 | **Chờ Anh cổng A** — phiếu `PHIEU-CONG-A-BAO-GIA-GOI-1.md`; lead đã tự thử (lịch 4 cột, dòng tổng, Σ 90% chặn In/Chuyển); ô/dòng 9→3, nút tính 1→0 |
-| M2e | M2-00 · nút "Tải từ cổng thuế" trong M2: route mỏng + giao diện, nối `dieu_phoi`/`khach`/`nhan`; tự thử với bộ tải giả | Claude Sonnet | `lat/m2e` · DEMO 8787 | 24/10 | Chờ kiểm — 7 tệp; 32 test HTTP + giao diện S0–S6 đạt; luồng §3 đủ trên DEMO với bộ tải giả (không gọi cổng thật); review Codex vòng 1 đang chạy |
+| BG-1b | CRM · Báo giá gói 1 màn hình (BG-01…05) | Claude Sonnet | `lat/bg-1b` (86d5b5b) · DEMO http://127.0.0.1:8784 | 24/10 | **Anh kiểm cổng A 25/10: Sửa rồi xem lại** (4 nhận xét, ghi ở phiếu §5) → BG-1c, BG-1d |
+| BG-1c | CRM · Báo giá sửa theo cổng A — máy chủ: Tổng VND = đơn giá × tỷ giá × diện tích + bằng chữ; tỷ giá mặc định 26.000 trong tham số chung; In sơ bộ không cần khách; Chuyển cần khách + phí; M0030 sửa bước kiểm Ký theo công thức mới | Claude Opus | `lat/bg-1c` · DEMO 8791 | 25/10 | Đang code |
+| M2e | M2-00 · nút "Tải từ cổng thuế" trong M2: route mỏng + giao diện, nối `dieu_phoi`/`khach`/`nhan`; tự thử với bộ tải giả | Claude Sonnet | `lat/m2e` · DEMO 8787 | 24/10 | Sửa vòng 2 — review Codex: 3 Chặn (che log/SSE còn lọt mật khẩu có nháy/khoảng trắng, nonce, đường dẫn profile; nhận dưới vai cũ nếu đổi vai giữa chừng; gốc tin cậy mất ở lần đọc lại) + 2 Nên sửa |
 
 ## Lát đã xong (24/10)
 
@@ -48,8 +49,8 @@ Worktree đo nền: `.claude/worktrees/nen-chinh-59b7d8e` (chinh) · `.claude/wo
 | `giao_dien\m4.py` | — |
 | `nguon\trich6_host.py`, `tools\chuan_bi_crm_demo.py`, `.gitattributes` | — |
 | `giao_dien\assets\app.js`, `index.html`, `ha_tang\config.py` | M2e |
-| `ha_tang\pg_migrations.py` | — |
-| `giao_dien\crm_g.py`, `k2\crm_giao_ket.py` | — |
+| `ha_tang\pg_migrations.py` | BG-1c (chỉ append M0030) |
+| `giao_dien\crm_g.py`, `k2\crm_giao_ket.py` | BG-1c |
 | `giao_dien\assets\crm_g.js`, `style.css` | BG-1b |
 | `m4\*` dùng chung | — |
 | `tests\` (chỉ test lỗi thời N5) | — |
@@ -60,7 +61,7 @@ Worktree đo nền: `.claude/worktrees/nen-chinh-59b7d8e` (chinh) · `.claude/wo
 
 | Màn | Trạng thái |
 |---|---|
-| CRM · Báo giá (#42, TL 45) | **Chờ Anh cổng A gói 1** (24/10) — phiếu `PHIEU-CONG-A-BAO-GIA-GOI-1.md` |
+| CRM · Báo giá (#42, TL 45) | Cổng A gói 1: **Sửa rồi xem lại** (25/10) — đang sửa BG-1c (máy chủ) → BG-1d (màn hình 2 bước) → phiếu xem lại |
 
 ## Việc phụ (lead làm, ghi để Anh biết)
 

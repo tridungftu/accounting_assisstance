@@ -44,3 +44,14 @@ Kết luận cổng A: **Đi tiếp** (sang gói 2) / **Sửa rồi xem lại** 
 
 - Ô nhập mỗi dòng lịch: 9 → **3** (đích ≤ 4).
 - Nút tính: 1 → **0**.
+
+## 5. Nhận xét Anh đã ghi (25/10/2026) — kết luận: **Sửa rồi xem lại**
+
+| # | Nhận xét | Mức | Việc |
+|---|---|---|---|
+| NX1 | Đơn giá × tỷ giá × diện tích phải tự tính ra Tổng giá trị và ghi giá trị bằng chữ | P | BG-1c (máy chủ) |
+| NX2 | USD: cho nhập tỷ giá, mặc định 26.000, sửa được; VND: tỷ giá = 1 | P | BG-1c + BG-1d |
+| NX3 | Phần tính giá trị và lịch thanh toán để to và đặt trước | P | BG-1d (màn hình) |
+| NX4 | Thông tin khách hàng và phí quản lý/bảo trì điền sau khi khách đồng ý | P | BG-1c (chặn Chuyển) + BG-1d (bước 2) |
+
+Anh chốt thêm qua bảng chọn: VND là tiền chính với báo giá USD (USD tham chiếu); được In báo giá sơ bộ trước khi có thông tin khách; tỷ giá mặc định trong cấu hình chung, kế toán sửa được (QD-20261025-01…04).

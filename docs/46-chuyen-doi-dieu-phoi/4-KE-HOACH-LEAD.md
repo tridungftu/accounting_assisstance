@@ -57,9 +57,11 @@ Căn cứ: lệnh của Anh 24/10 (mọi module đã chốt thiết kế; M9 d�
 |---|---|---|---|---|---|
 | P0 | Nền · khôi phục file chưa vào git (theo L0-2i; L0-2d đã liệt kê 11 file G6A/G5-B + `m4\sql_duyet.py` + `crm_g.js` bản 27a0d3db — phải vào TRƯỚC BG-1) + gộp `m4-02c-backend`, `m4-04c-request-m27` (= L0-2c) + chuỗi migration import được: 24 duyệt · 25 G6A · 26 KT · 27 Request nháp · rồi master-reuse, 03B | Claude Opus | L0-2d, L0-2i | `crm_g.js`, `m4\*` (chỉ thêm file) | Xong 24/10 — gộp 1c5c67a; module lỗi nạp 29 → 1 |
 | BG-1a | CRM · Báo giá gói 1 phía máy chủ: parse ô thông minh (`%`, dấu chấm/phẩy VN), BG-04 ghi đè + nhật ký, nhãn tên thay mã, mốc chuẩn | Codex | P0 | `crm_g.py` | Xong 24/10 — gộp 5a8042a (review Đạt, vòng 2 sửa 4 điểm) |
-| BG-1b | CRM · Báo giá gói 1 màn hình: BG-01…05, đo số ô trước/sau → **cổng A** | Claude | BG-1a | `crm_g.js` | Chờ Anh cổng A (24/10) |
+| BG-1b | CRM · Báo giá gói 1 màn hình: BG-01…05, đo số ô trước/sau → **cổng A** | Claude | BG-1a | `crm_g.js` | Cổng A 25/10: Sửa rồi xem lại |
+| BG-1c | CRM · Báo giá — sửa theo cổng A, máy chủ (VND chính, tỷ giá mặc định 26.000 tham số chung, bằng chữ, In sơ bộ, Chuyển cần khách + phí, M0030 bước kiểm Ký) | Claude Opus | BG-1b | `crm_g.py`, `crm_giao_ket.py`, `pg_migrations.py` | Đang code (25/10) |
+| BG-1d | CRM · Báo giá — sửa theo cổng A, màn hình: bước 1 to và trước (giá, tỷ giá, Tổng VND + bằng chữ, USD tham chiếu, lịch VND), bước 2 sau khi khách đồng ý (khách, liên hệ, phí quản lý/bảo trì) → phiếu xem lại | Claude | BG-1c | `crm_g.js`, `style.css` | Chờ |
 | BG-2a | CRM · Báo giá gói 2 máy chủ: profile loại hình v3 (BG-06/11), tìm khách (BG-08) | Codex | BG-1a | `crm_g.py` | Chờ |
-| BG-2b | CRM · Báo giá gói 2 màn hình: BG-06, 07, 08, 10, 11, 12 | Claude | cổng A gói 1, BG-2a | `crm_g.js` | Chờ |
+| BG-2b | CRM · Báo giá gói 2 màn hình: BG-06, 07, 08, 10, 11, 12 — **gom vào bố cục 2 bước của BG-1d** (khách/phí ở bước 2) | Claude | cổng A gói 1, BG-2a | `crm_g.js` | Chờ |
 | BG-2c | CRM · Báo giá BG-09 lô/căn từ danh mục | Codex + Claude | **Anh chọn nguồn danh mục** (hỏi sau cổng A gói 1) | `pg_migrations.py` | Chờ Anh |
 | BG-3 | CRM · Báo giá gói 3: BG-13 thanh nút, BG-14 ngăn kiểm, số đo CHANGELOG → **cổng B** | Claude | BG-2b | `crm_g.js` | Chờ |
 | C1 | CRM 41 · G6A/G5 dịch vụ (`crm_kiem_hd`, `crm_doi_chieu`) chạy test thuần + PG DEMO | Codex | P0 | — | Chờ |
@@ -73,7 +75,7 @@ Căn cứ: lệnh của Anh 24/10 (mọi module đã chốt thiết kế; M9 d�
 | M2b | M2-00 · `manifest.py`, `chinh_sach_tien_te.py` (POLICY-TIENTE-01) + ca M2-00-06/10 | Codex | — | — | Xong 24/10 — gộp 4e1f6bb (review Đạt, vòng 2 sửa 2 điểm) |
 | M2c | M2-00 · `nhan.py` nhận theo manifest (identity, revision/xung đột, KHONG_XML_GOC → bảng kê) nối `k2\hoa_don.py` | Codex | M2b | (migration nếu cần → khóa) | Xong 24/10 — gộp b190569 |
 | M2d | M2-00 · `hoi_cuu.py` manifest hồi cứu 33 tháng, fixture giả | Codex | M2b | — | Xong 25/10 — gộp da3d666 |
-| M2e | M2-00 · nút "Tải từ cổng thuế" + route + cấu hình | Claude | M2a, M2c | `server.py`, `app.js`, `index.html` | Chờ kiểm (review Codex vòng 1) |
+| M2e | M2-00 · nút "Tải từ cổng thuế" + route + cấu hình | Claude | M2a, M2c | `server.py`, `app.js`, `index.html` | Sửa vòng 2 (3 Chặn an toàn) |
 | M2f | M2-00 · ca -03/-07/-09 trên cổng thật, áp bản vá vào #7 thật | Anh | M2e | — | Chờ Anh (cần lệnh riêng: gọi cổng thuế thật) |
 | E1-1 | E1-MUA · đăng ký 5 loại + DV trong `CATALOG_COMMON`, `danh_muc_theo_loai`, từ chối loại lạ; test XD nguyên trạng | Codex | L0-2f | — | Xong 24/10 — gộp d5fe3cc |
 | E1-2 | E1-MUA · quy tắc theo loại + `phien_ban_danh_muc` | Codex | E1-1 | — | Chờ |
