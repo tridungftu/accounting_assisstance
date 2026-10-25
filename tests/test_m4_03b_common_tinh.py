@@ -698,10 +698,12 @@ class KiemDauVao(unittest.TestCase):
 
     def test_phan_va_ty_le_tho(self):
         self.assertEqual(_ma(GN.yeu_cau_luu, _luu(thanh_phan=[_tp(_ref(), "TOAN_PHAN", "50%")])), "DC_PHAN_SAI")
-        self.assertIsNone(_ma(GN.yeu_cau_luu, _luu(thanh_phan=[_tp(_ref(), "MOT_PHAN", "50%")])))
-        self.assertIsNone(_ma(GN.yeu_cau_luu, _luu(thanh_phan=[_tp(_ref(), "MOT_PHAN", None)])))
-        self.assertEqual(_ma(GN.yeu_cau_luu, _luu(thanh_phan=[_tp(_ref(), "MOT_PHAN", "x" * 101)])), "DC_YEU_CAU_SAI")
+        self.assertEqual(_ma(GN.yeu_cau_luu, _luu(thanh_phan=[_tp(_ref(), "MOT_PHAN", "50%")])), "DC_PHAN_SAI")
+        self.assertEqual(_ma(GN.yeu_cau_luu, _luu(thanh_phan=[_tp(_ref(), "MOT_PHAN", None)])), "DC_PHAN_SAI")
+        self.assertIsNone(_ma(GN.yeu_cau_luu, _luu(thanh_phan=[{"nguon": _ref(), "phan": "MOT_PHAN"}])))
+        self.assertEqual(_ma(GN.yeu_cau_luu, _luu(thanh_phan=[_tp(_ref(), "MOT_PHAN", "x" * 101)])), "DC_PHAN_SAI")
         self.assertEqual(_ma(GN.yeu_cau_luu, _luu(thanh_phan=[_tp(_ref(), "NUA", None)])), "DC_THAM_SO_SAI")
+        self.assertNotIn("PHAN_KHAI_THIEU", GN.thieu(_g(_nt(), _hd()), [_tp(_ref(), "MOT_PHAN", "50%")]))
 
     def test_cas_va_revision(self):
         self.assertEqual(_ma(GN.yeu_cau_luu, _luu(expected_graph="A" * 64)), "DC_THAM_SO_SAI")

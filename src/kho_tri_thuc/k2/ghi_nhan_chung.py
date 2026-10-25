@@ -1,7 +1,7 @@
 """M4-03B-01 — dịch vụ DÙNG CHUNG identity nguồn kinh tế M2–M4 + đối chiếu căn cứ (nghiệm thu đợt ↔ hóa đơn mua đã có) do kế toán xác nhận.
 
 KHÔNG phải financial owner / claim / proposal / công nợ / AP / capacity: mọi kết quả `ghi_nhan.trang_thai = CHO_CAN_CU_GHI_NHAN`, `financial_owner = None`,
-mọi bộ đếm claim/proposal/source_use/obligation/ap = 0; tiền M2 vẫn UNPROVEN_NO_MINOR, không đọc số tiền. Request luôn CHUA_NOI_M4_04.
+mọi bộ đếm claim/proposal/source_use/obligation/ap = 0; tiền M2 vẫn UNPROVEN_NO_MINOR. Request luôn CHUA_NOI_M4_04.
 
 Luồng (mọi quyết định ở SQL `k2/sql_ghi_nhan_chung.py`, service chỉ kiểm hình thức + chuyển):
 - kiểm sớm trên login thường: NT → adapter (m4.kt_kiem XEM); hóa đơn → kho.dc_doc_hoa_don (M2_READ). Không lộ tồn tại khi thiếu quyền.
@@ -9,7 +9,8 @@ Luồng (mọi quyết định ở SQL `k2/sql_ghi_nhan_chung.py`, service chỉ
   cho TỪNG NT (kho._dc_nt_ghi) → kho.dc_luu / kho.dc_xac_nhan / kho._dc_xem / kho._dc_lich_su (quyền → khóa hóa đơn → gốc → biên nhận → CAS → ghi thêm;
   trigger deferred dựng lại đồ thị lúc commit).
 - Không matching: trình duyệt CHỈ gửi ref nguồn tường minh {kind, occurrence_id, source_version_id, part_id}; tên/ngày/tiền/"khớp"/điểm gợi ý là
-  KHÔNG_NHAN. Phần "một phần" chỉ là khai báo thô (ty_le_khai, chưa scale) — thiếu thì PHAN_KHAI_THIEU, không suy.
+  KHÔNG_NHAN. Phần "một phần" mới khai so_tien_khai + tien_te; tỷ lệ cũ chỉ đọc, không suy tiền.
+  Dữ liệu gợi ý đọc riêng ngoài đồ thị, chỉ tín hiệu kỳ/đối tác/tiền, không kết luận khớp.
 - FIX01: thêm/bớt nguồn, đổi phần = revision mới của CÙNG gốc (doi_chieu_id ổn định). Closure = refs revision mới nhất ∪ refs yêu cầu: adapter khóa +
   ghim producer cho mọi NT của union (adapter không đổi), SQL kiểm quyền ghi + khóa hóa đơn trên union, rồi alias tập → gốc → revision (CAS). Tập đã
   thuộc gốc khác → 409 DC_TAP_THUOC_GOC_KHAC. Namespace biên nhận = module gốc lúc tạo (máy chủ ghi, trình duyệt không chọn).
@@ -20,6 +21,9 @@ from __future__ import annotations
 import json
 import re
 import uuid
+from contextlib import contextmanager
+from datetime import date
+from decimal import Decimal, localcontext
 
 from ..ha_tang.primitives import DataError
 from .sql_ghi_nhan_chung import (CONTRACT_DO_THI, GHI_NHAN_TT, LOAI_NGUON, PHAN, THIEU, TOI_DA_TEP, TOI_DA_THANH_PHAN, TT_CAN_KIEM_LAI,
@@ -31,7 +35,7 @@ REQUEST = {"trang_thai": "CHUA_NOI_M4_04"}
 TRANG_THAI = (TT_NHAP, TT_XAC_NHAN, TT_CAN_KIEM_LAI)
 
 REF_KEYS = ("kind", "occurrence_id", "source_version_id", "part_id")
-THANH_PHAN_KEYS = ("nguon", "phan", "ty_le_khai")
+THANH_PHAN_KEYS = ("nguon", "phan", "so_tien_khai", "tien_te")
 TRUONG_LUU = ("doi_chieu_id", "thanh_phan", "can_cu_tep", "expected_graph", "expected_revision", "ly_do", "khoa")
 TRUONG_XAC_NHAN = ("doi_chieu_id", "phien_ban_id", "expected_revision", "expected_graph", "khoa")
 TRUONG_XEM = ("nguon",)
@@ -51,6 +55,23 @@ HEX_RE = re.compile(r"[0-9a-f]{64}")
 VAN_BAN_TOI_DA = 2000
 TY_LE_TOI_DA = 100
 REVISION_TOI_DA = 10 ** 6
+SO_TIEN_RE = re.compile(r"(?:0|[1-9][0-9]{0,17})(?:\.[0-9]{1,2})?")
+TIEN_TE = ("VND", "USD")
+
+
+def parse_so_tien(v, tien_te: str, *, cho_phep_khong=False) -> Decimal:
+    """Khai: chuỗi ASCII > 0, < 10^18; VND nguyên, USD ≤2 số lẻ; không làm tròn/đổi tiền.
+
+    Đọc tín hiệu nguồn có thể cho phép giá trị 0 (khác chưa đọc được); đầu vào khai luôn dùng mặc định.
+    """
+    if tien_te not in TIEN_TE:
+        raise DataError("DC_PHAN_SAI", "tien_te phải là VND hoặc USD.")
+    if not isinstance(v, str) or SO_TIEN_RE.fullmatch(v) is None or (tien_te == "VND" and "." in v):
+        raise DataError("DC_PHAN_SAI", "so_tien_khai phải là chuỗi số ASCII dương, dưới 10^18; VND nguyên, USD tối đa 2 số lẻ.")
+    so = Decimal(v)
+    if so == 0 and not cho_phep_khong:
+        raise DataError("DC_PHAN_SAI", "so_tien_khai phải lớn hơn 0.")
+    return so
 
 # gợi ý HTTP cho integration owner (không sửa bảng mã giao diện/route trong gói này)
 MA_HTTP = {
@@ -58,10 +79,44 @@ MA_HTTP = {
     "DC_KHAC_PN": 422,
     "DC_PHAM_VI": 403, "M4_KT_PHAM_VI": 403, "DC_KHONG_THAY": 404, "M4_KT_KHONG_THAY": 404, "DC_DANH_TINH": 401,
     "DC_NGUON_CU": 409, "DC_DO_THI_DOI": 409, "DC_CAN_KIEM_LAI": 409, "DC_REVISION_CU": 409, "DC_DA_CO_GOC": 409, "DC_CHO_BO_SUNG": 409,
-    "DC_XAC_NHAN_KHAC_NHAP": 409, "DC_IDEMPOTENCY_KHAC": 409, "DC_TAP_THUOC_GOC_KHAC": 409,
+    "DC_XAC_NHAN_KHAC_NHAP": 409, "DC_IDEMPOTENCY_KHAC": 409, "DC_TAP_THUOC_GOC_KHAC": 409, "DC_HOA_DON_DA_GAN": 409,
     "M4_KET_QUA_CHUA_RO": 503,
     "DC_SAI_DTO": 500, "DC_CHI_MAY_CHU": 500, "DC_TOAN_VEN": 500, "DC_THANH_PHAN_SAI": 500, "DC_BAT_BIEN": 500, "DC_CHI_CHU": 500,
+    "DC_GIAO_DICH_SAI": 500,
 }
+
+
+@contextmanager
+def _loi_gan_trung(refs, *, khi_luu: bool):
+    """Chuyển đúng lỗi guard M0033 sau rollback, kể cả lỗi deferred lúc commit.
+
+    Chỉ dùng message_primary đã che phạm vi tại SQL; không trả context/query/DETAIL
+    của psycopg. DETAIL chỉ giúp định vị hóa đơn trong nguồn đã được kiểm quyền.
+    Khi lưu, refs theo thứ tự body; xác nhận dùng refs gộp nên lỗi thuộc toàn yêu cầu.
+    """
+    try:
+        yield
+    except Exception as exc:
+        if isinstance(exc, DataError):
+            raise
+        diag = getattr(exc, "diag", None)
+        ma, _, msg = (getattr(diag, "message_primary", "") or "").partition(":")
+        if ma not in ("DC_HOA_DON_DA_GAN", "DC_GIAO_DICH_SAI"):
+            raise
+        truong = "thanh_phan"
+        if ma == "DC_HOA_DON_DA_GAN":
+            if khi_luu:
+                try:
+                    hd = json.loads(getattr(diag, "message_detail", "") or "{}").get("hoa_don_id")
+                except (ValueError, AttributeError):
+                    hd = None
+                for i, r in enumerate(refs):
+                    if r["kind"] == "HOA_DON" and r["occurrence_id"] == hd:
+                        truong = f"thanh_phan.{i}.nguon"
+                        break
+            else:
+                truong = "$"
+        raise DataError(ma, msg.strip(), truong) from None
 
 
 # ================================================================================================== kiểm đầu vào (chặt, không đoán)
@@ -169,16 +224,25 @@ def _kiem_tap(refs: list) -> None:
 
 
 def kiem_thanh_phan(t) -> dict:
+    if isinstance(t, dict):
+        # TOAN_PHAN null của client cũ không khai tỷ lệ; MOT_PHAN dùng hoàn toàn contract mới.
+        if "ty_le_khai" in t and (t.get("ty_le_khai") is not None or t.get("phan") == "MOT_PHAN"):
+            raise DataError("DC_PHAN_SAI", "ty_le_khai không còn được nhận cho bản ghi mới; dùng so_tien_khai và tien_te.")
+        t = {k: v for k, v in t.items() if k != "ty_le_khai"}
+        t = {"so_tien_khai": None, "tien_te": None, **t}
     _khoa_body(t, THANH_PHAN_KEYS)
     ref = kiem_ref(t["nguon"])
     if t["phan"] not in PHAN:
         raise DataError("DC_THAM_SO_SAI", "phan phải là TOAN_PHAN hoặc MOT_PHAN.")
-    ty = t["ty_le_khai"]
-    if t["phan"] == "TOAN_PHAN" and ty is not None:
-        raise DataError("DC_PHAN_SAI", "TOAN_PHAN không kèm ty_le_khai.")
-    if ty is not None:
-        _van_ban(ty, "ty_le_khai", TY_LE_TOI_DA)
-    return {"nguon": ref, "phan": t["phan"], "ty_le_khai": ty}
+    so, tt = t["so_tien_khai"], t["tien_te"]
+    if t["phan"] == "TOAN_PHAN" and (so is not None or tt is not None):
+        raise DataError("DC_PHAN_SAI", "TOAN_PHAN không kèm so_tien_khai/tien_te.")
+    if tt is not None and tt not in TIEN_TE:
+        raise DataError("DC_PHAN_SAI", "tien_te phải là VND hoặc USD.")
+    if so is not None:
+        # Cho lưu nháp thiếu tiền tệ nhưng vẫn kiểm hình thức/miền số.
+        parse_so_tien(so, tt or "USD")
+    return {"nguon": ref, "phan": t["phan"], "so_tien_khai": so, "tien_te": tt}
 
 
 def yeu_cau_luu(body) -> dict:
@@ -252,10 +316,98 @@ def thieu(do_thi: dict, thanh_phan: list | None) -> list:
         x.add("HOA_DON_CHUA_CO_PHIEN_BAN")
     if any(i.get("part_kind") == "DONG_LOGIC" and not (i.get("cau_noi") or []) for i in hd):
         x.add("CHO_MAPPING_M2")
-    if thanh_phan and any(t.get("phan") == "MOT_PHAN" and t.get("ty_le_khai") is None for t in thanh_phan):
+    if thanh_phan and any(t.get("phan") == "MOT_PHAN" and t.get("ty_le_khai") is None
+                         and (t.get("so_tien_khai") is None or t.get("tien_te") is None) for t in thanh_phan):
         x.add("PHAN_KHAI_THIEU")
     assert x <= set(THIEU)
     return sorted(x)
+
+
+def phan_khai_con_thieu(dot: dict, thanh_phan: list) -> list:
+    """Phần chưa khai của chính nguồn đợt, không suy phân bổ từ các hóa đơn trong nhóm nhiều–nhiều.
+
+    Đợt lấy giá trị KT đã xác nhận từ máy chủ. Tỷ lệ cũ chưa scale → không suy số tiền.
+    Không đổi tiền, không cộng xuyên đối chiếu, không dùng để ghi công nợ hoặc chặn xác nhận.
+    """
+    rows = []
+    for t in thanh_phan:
+        r = t["nguon"]
+        if r["kind"] != "NT" or r["occurrence_id"] != dot["cho_id"]:
+            continue
+        so = None
+        ly_do = None
+        try:
+            gia = parse_so_tien(dot.get("gia_tri"), dot.get("tien_te"), cho_phep_khong=True)
+            if t["phan"] == "TOAN_PHAN":
+                so = Decimal(0)
+            elif t.get("ty_le_khai") is not None:
+                ly_do = "TY_LE_CU_CHUA_SCALE"
+            elif t.get("so_tien_khai") is None or t.get("tien_te") is None:
+                ly_do = "PHAN_KHAI_THIEU"
+            elif t["tien_te"] != dot["tien_te"]:
+                ly_do = "TIEN_TE_KHAC"
+            else:
+                with localcontext() as ctx:
+                    ctx.prec = 40
+                    khai = parse_so_tien(t["so_tien_khai"], t["tien_te"])
+                    if khai > gia:
+                        ly_do = "KHAI_VUOT_GIA_TRI_DOT"
+                    else:
+                        so = gia - khai
+        except DataError:
+            ly_do = "GIA_TRI_DOT_CHUA_DOC_DUOC"
+        rows.append({"nguon": r, "so_tien_con_thieu": None if so is None else format(so, "f"),
+                     "tien_te": dot.get("tien_te"), "ly_do": ly_do})
+    return rows
+
+
+def xep_hang_hoa_don(dot: dict, hoa_don: list) -> list:
+    """Chỉ dữ liệu máy chủ: lọc PN + MST đối tác HĐ; kỳ không có ngưỡng loại bỏ.
+
+    Sắp chênh tháng tăng → chênh tiền tuyệt đối tăng (chỉ cùng tiền tệ) → UUID.
+    Tín hiệu không đọc được xếp cuối ở từng tiêu chí; không điểm khớp, không tự chọn.
+    Tiền hóa đơn chỉ đọc field TEXT TgTTTBSo; không cộng dòng hay dựng minor từ M2.
+    Producer M2 hiện chưa cung cấp field tổng này: tín hiệu tiền là null cho những hóa đơn đó.
+    """
+    def thang(v):
+        try:
+            d = date.fromisoformat(str(v))
+            return d.year * 12 + d.month
+        except (TypeError, ValueError):
+            return None
+
+    def tien(v, tt):
+        # Chỉ đọc tín hiệu: VND có phần lẻ toàn 0 vẫn là số nguyên; khai ghi giữ chặt.
+        if tt == "VND" and isinstance(v, str) and re.fullmatch(r"(?:0|[1-9][0-9]{0,17})\.0+", v):
+            v = v.split(".")[0]
+        try:
+            return parse_so_tien(v, tt, cho_phep_khong=True)
+        except DataError:
+            return None
+
+    ky = thang(dot.get("ngay_nghiem_thu"))
+    gia = tien(dot.get("gia_tri"), dot.get("tien_te"))
+    rows = []
+    for h in hoa_don:
+        if not dot.get("doi_tac_mst") or h.get("phap_nhan_id") != dot.get("phap_nhan_id") or h.get("mst_ban") != dot["doi_tac_mst"]:
+            continue
+        hk = thang(h.get("ngay_lap"))
+        states = h.get("raw_header_states")
+        raw = states.get("TgTTTBSo") if isinstance(states, dict) else None
+        raw = raw if isinstance(raw, dict) else {}
+        hs = tien(raw.get("lexeme"), h.get("tien_te")) if raw.get("state") == "TEXT" else None
+        with localcontext() as ctx:
+            ctx.prec = 40
+            chenh = abs(hs - gia) if hs is not None and gia is not None and h.get("tien_te") == dot.get("tien_te") else None
+        rows.append({k: h.get(k) for k in ("nguon", "phap_nhan_id", "mst_ban", "mau_so", "ky_hieu", "so_chuan", "ngay_lap", "tien_te", "da_gan_o")}
+                    | {"tin_hieu": {"chenh_ky_thang": None if hk is None or ky is None else abs(hk - ky), "cung_doi_tac": True,
+                                    "chenh_so_tien": None if chenh is None else format(chenh, "f")},
+                       "so_tien_doc_duoc": None if hs is None else format(hs, "f"), "da_gan": bool(h.get("da_gan_o"))})
+    def thu_tu(h):
+        s = h["tin_hieu"]
+        k, t = s["chenh_ky_thang"], s["chenh_so_tien"]
+        return (k is None, k or 0, t is None, Decimal(t) if t is not None else Decimal(0), h["nguon"]["occurrence_id"])
+    return sorted(rows, key=thu_tu)
 
 
 # ================================================================================================== DTO (kiểm chặt dữ liệu máy chủ, không thêm suy luận)
@@ -334,7 +486,8 @@ def lich_su_dto(r) -> dict:
     return {"schema": SCHEMA, "doi_chieu_id": r["doi_chieu_id"], "khoa_goc_sha256": r.get("khoa_goc_sha256"),
             "module_bien_nhan": r.get("module_bien_nhan"),
             "nguon": g["nguon"], "doi_chieu": {"graph_sha256": hien, "phien_ban": pbs, "bo_tap": list(r.get("bo_tap") or [])},
-            "kt": {"thieu_hien_tai": thieu(g, None), "duoc_ghi": r.get("duoc_ghi") is True},
+            "kt": {"thieu_hien_tai": thieu(g, None), "duoc_ghi": r.get("duoc_ghi") is True,
+                   "phan_khai_con_thieu": r.get("phan_khai_con_thieu") or []},
             "ghi_nhan": dict(GHI_NHAN), "request": dict(REQUEST)}
 
 
@@ -373,6 +526,25 @@ class GhiNhanChungK2:
         return (self.xd._r1(c, "SELECT kho._dc_nguon_cua(%s::uuid, %s::uuid) AS r", (goc, phien_ban)) or {}).get("r") or []
 
     # ------------------------------------------------------------------ đọc
+    def goi_y_hoa_don(self, dang_nhap: str, dot) -> dict:
+        """dot = UUID đợt; lọc/quyền SQL trước đọc, rồi xếp theo docstring xep_hang_hoa_don.
+
+        JSON {khong_quyen, hoa_don[]}; mỗi dòng có nguon để kế toán chủ động bấm chọn,
+        tin_hieu, so_tien_doc_duoc, da_gan, da_gan_o[]. Không phát sinh lệnh lưu/xác nhận.
+        """
+        dot = _uuid(dot, "dot")
+        xd = self.xd
+        dt = xd.danh_tinh(dang_nhap)
+        with xd._tx_review(dt) as c:
+            r = (xd._r1(c, "SELECT kho._dc_goi_y_hoa_don(%s::uuid) AS r", (dot,)) or {}).get("r")
+        if not isinstance(r, dict) or not isinstance(r.get("khong_quyen"), bool):
+            _dto_sai("goi_y_hoa_don")
+        if r["khong_quyen"]:
+            return {"khong_quyen": True, "hoa_don": []}
+        if not isinstance(r.get("dot"), dict) or not isinstance(r.get("hoa_don"), list):
+            _dto_sai("goi_y_hoa_don thiếu ngữ cảnh đợt/danh sách")
+        return {"khong_quyen": False, "hoa_don": xep_hang_hoa_don(r["dot"], r["hoa_don"])}
+
     def xem_doi_chieu(self, dang_nhap: str, body=None, **kw) -> dict:
         refs = yeu_cau_xem(self._body(body, kw))
         xd = self.xd
@@ -392,18 +564,29 @@ class GhiNhanChungK2:
             refs = self._refs_goc(c, goc, None)
             self._ghim(c, dt, json.dumps(refs, ensure_ascii=False), False)
             r = xd._r1(c, "SELECT kho._dc_lich_su(%s::uuid) AS r", (goc,))
+            raw = (r or {}).get("r")
+            if isinstance(raw, dict) and raw.get("phien_ban"):
+                tp = raw["phien_ban"][-1]["noi_dung"]["thanh_phan"]
+                con_thieu = []
+                for n in raw["do_thi"]["nguon"]:
+                    if n["kind"] == "NT" and n.get("dot_id"):
+                        dot = (xd._r1(c, "SELECT kho._dc_dot_goi_y(%s::uuid) AS r", (n["dot_id"],)) or {}).get("r")
+                        if dot:
+                            con_thieu.extend(phan_khai_con_thieu(dot, tp))
+                raw["phan_khai_con_thieu"] = con_thieu
         return lich_su_dto((r or {}).get("r"))
 
     # ------------------------------------------------------------------ lệnh (MỘT giao dịch chủ bảng: refs → quyền → khóa/ghim → SQL)
     def luu_doi_chieu(self, dang_nhap: str, body=None, **kw) -> dict:
-        yc = yeu_cau_luu(self._body(body, kw))
+        body = self._body(body, kw)
+        yc = yeu_cau_luu(body)
         xd = self.xd
         dt = xd.danh_tinh(dang_nhap)
         refs = [t["nguon"] for t in yc["thanh_phan"]]
         self._kiem_som(dt, refs)
         khoa = yc.pop("khoa")
         than = json.dumps(yc, ensure_ascii=False)
-        with xd._chua_ro():
+        with _loi_gan_trung([t["nguon"] for t in body["thanh_phan"]], khi_luu=True), xd._chua_ro():
             with xd._tx_review(dt) as c:
                 hop = refs
                 if yc["doi_chieu_id"] is not None:  # quyền đọc mọi nguồn của mọi revision TRƯỚC; closure = revision mới nhất ∪ yêu cầu (SQL kiểm lại dưới khóa)
@@ -418,9 +601,10 @@ class GhiNhanChungK2:
         dt = xd.danh_tinh(dang_nhap)
         khoa = yc.pop("khoa")
         than = json.dumps(yc, ensure_ascii=False)
-        with xd._chua_ro():
+        refs = []
+        with _loi_gan_trung(refs, khi_luu=False), xd._chua_ro():
             with xd._tx_review(dt) as c:
-                refs = hop_refs(self._refs_goc(c, yc["doi_chieu_id"], yc["phien_ban_id"]), self._refs_goc(c, yc["doi_chieu_id"], None))
+                refs.extend(hop_refs(self._refs_goc(c, yc["doi_chieu_id"], yc["phien_ban_id"]), self._refs_goc(c, yc["doi_chieu_id"], None)))
                 self._ghim(c, dt, json.dumps(refs, ensure_ascii=False), True)
                 r = xd._r1(c, "SELECT kho.dc_xac_nhan(%s, %s::jsonb) AS r", (khoa, than))
         return ack_dto((r or {}).get("r"), khoa)
