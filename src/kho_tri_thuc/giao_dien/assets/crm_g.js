@@ -156,7 +156,7 @@
     if (fc()) { await napLai(); return; }
     trangThai("Lệnh đã hoàn tất — form đã đổi trong lúc chờ nên chưa làm mới; bấm ↻ Làm mới khi xong.");
   }
-  async function napLai() { await napDs(); if (pbChon) await napCt(); if (tab === "chuan") await napBc(); }
+  async function napLai() { if (tab === "du-an-ban") return duAnBan.nap(); await napDs(); if (pbChon) await napCt(); if (tab === "chuan") await napBc(); }
 
   // ------------------------------------------------------------------ tải lên mẫu (U01/U02)
   // Một ý định = context gốc (epoch + actor + thế hệ form tải lên genTai) + File GỐC + header/khóa gốc. Giữ chỗ ĐỒNG BỘ trong handler click,
@@ -350,26 +350,174 @@
   }
   function boChon() { pbChon = null; ct = null; xemThu = null; soSanh = null; genForm += 1; }
   function moPb(id) { if (pbChon !== id) { boChon(); pbChon = id; doiFormTai(); } ve(); napCt(); }
-  function doiTab(t) { if (tab === t) return; tab = t; genForm += 1; genDoc += 1; doiFormTai(); ve(); if (t === "chuan") napBc(); }
+  function doiTab(t) { if (tab === t) return; duAnBan.roi(); tab = t; genForm += 1; genDoc += 1; doiFormTai(); trangThai(""); ve(); if (t === "chuan") napBc(); if (t === "du-an-ban") duAnBan.nap(); }
+
+  // ------------------------------------------------------------------ DA-2a · chỉ XEM dự án đang bán (chỗ mở rộng DA-2b)
+  // Dùng chung node/bang/nut/goi và epoch đổi vai của G1/G7. Mỗi GET có thế hệ riêng;
+  // rời tab/đổi dự án/phiên bản/vai vô hiệu phản hồi cũ trước mọi ghi DOM/cache/lỗi.
+  const duAnBan = (() => {
+    let danhSach = null, chiTiet = null, lichSu = null, id = null, pb = "", chiDangBan = false, xemLichSu = false;
+    let genDs = 0, genCt = 0, genLs = 0, loiDs = "", loiCt = "", loiLs = "";
+    let mocChuan = null;
+    const dinhNgay = new Intl.DateTimeFormat("vi-VN", {timeZone: "Asia/Ho_Chi_Minh", day: "2-digit", month: "2-digit", year: "numeric"});
+    const nhan = (nhom, ma) => ((chiTiet && chiTiet.danh_muc || danhSach && danhSach.danh_muc || {})[nhom] || []).find(x => x.ma === ma)?.nhan || "Chưa có thông tin";
+    const ngay = (hienThi, goc) => hienThi || (goc && !isNaN(new Date(goc).getTime()) ? dinhNgay.format(new Date(goc)) : "—");
+    const khoang = r => `${ngay(r.hieu_luc_tu_hien_thi, r.hieu_luc_tu || r.valid_from)} → ${r.hieu_luc_den || r.valid_to ? "trước " + ngay(r.hieu_luc_den_hien_thi, r.hieu_luc_den || r.valid_to) : "hiện hành"}`;
+    const nguoi = v => !v ? "—" : /^MO_PHONG_|^DEMO_/.test(v) ? "Người dùng mô phỏng" : /^[0-9a-f]{8}-[0-9a-f-]{27,}$/i.test(v) || /^\d+$/.test(v) ? "Người dùng" : v;
+    const giaTriDong = r => {
+      if (r.gia_tri_loai !== "AMOUNT") return r.gia_tri_loai === "PERCENT" ? giaTri(r).replace(".", ",") : "—";
+      // Chỉ đổi đơn vị biểu diễn của chuỗi minor; không tính giá/thuế, không qua float.
+      if (!["USD", "VND"].includes(r.tien_te) || !/^\d+$/.test(String(r.so_tien_minor ?? ""))) return "Chưa có giá trị hiển thị";
+      const s = String(r.so_tien_minor).padStart(r.tien_te === "USD" ? 3 : 1, "0");
+      return (r.tien_te === "USD" ? s.slice(0, -2) + "," + s.slice(-2) : s) + " " + r.tien_te;
+    };
+    function mocDong(r) {
+      if (r.moc_loai === "NGAY") return ngay(null, r.moc_ngay);
+      if (r.moc_loai !== "SU_KIEN") return "—";
+      const m = (mocChuan?.moc || []).find(x => x.ma === r.moc_su_kien);
+      if (m) return m.nhan;
+      for (const p of mocChuan?.moc_tham_so || []) {
+        const parts = p.mau_ma.split("<n>"), s = String(r.moc_su_kien || "");
+        if (parts.length !== 2 || !s.startsWith(parts[0]) || !s.endsWith(parts[1])) continue;
+        const n = s.slice(parts[0].length, parts[1] ? -parts[1].length : undefined);
+        if (/^\d+$/.test(n)) return p.nhan.replace(/\bn\b/, n);
+      }
+      return "Sự kiện khác (chưa có nhãn)";
+    }
+    function roi() { genDs += 1; genCt += 1; genLs += 1; }
+    function xoa() { roi(); danhSach = chiTiet = lichSu = null; id = null; pb = ""; xemLichSu = false; loiDs = loiCt = loiLs = ""; }
+    function loiDoc(e) {
+      if (loiAnNinh(e)) { xoa(); loiDs = "Phiên hoặc quyền truy cập đã thay đổi. Bấm Làm mới để tải lại."; }
+      else if (e.status === 404) return "Không thấy dự án trong phạm vi hiện hành.";
+      else if (e.status === 0) return "Mất kết nối khi tải dữ liệu. Bấm Làm mới để thử lại.";
+      else return "Không tải được dữ liệu dự án. Bấm Làm mới để thử lại.";
+      return "";
+    }
+    async function napDs() {
+      if (K.vaiDangChan("crm_g")) return;
+      const g = ++genDs, e = ep, chi = chiDangBan, dung = () => e === ep && g === genDs && tab === "du-an-ban";
+      danhSach = null; chiTiet = lichSu = null; genCt += 1; genLs += 1; loiDs = ""; ve();
+      try {
+        const r = await docJson(await goi("/api/crm/du-an-ban" + (chi ? "?dang_ban=1" : "")));
+        if (!dung()) return false;
+        danhSach = r;
+        if (!(r.du_an_ban || []).some(x => x.da_ban_id === id)) { id = null; pb = ""; xemLichSu = false; }
+        ve(); return true;
+      } catch (err) { if (dung()) { loiDs = loiDoc(err); ve(); } return false; }
+    }
+    async function napCt() {
+      if (!id || K.vaiDangChan("crm_g")) return;
+      const g = ++genCt, e = ep, da = id, phien = pb, dung = () => e === ep && g === genCt && tab === "du-an-ban" && da === id && phien === pb;
+      chiTiet = null; loiCt = ""; ve();
+      try {
+        const r = await docJson(await goi("/api/crm/du-an-ban/" + encodeURIComponent(da) + (phien ? "?phien_ban=" + encodeURIComponent(phien) : "")));
+        if (!dung()) return;
+        chiTiet = r; ve();
+        // Danh mục mốc nghiệp vụ có sẵn của Báo giá; GET chỉ đọc, không đụng editor Báo giá.
+        if (!mocChuan && (r.anh_chup?.bo_chuan?.rows || []).some(x => x.moc_loai === "SU_KIEN")) {
+          const m = await docJson(await goi("/api/crm/bao-gia/moc-chuan"));
+          if (dung()) { mocChuan = m; ve(); }
+        }
+      } catch (err) {
+        if (!dung()) return;
+        // Nhãn mốc chưa tải được vẫn giữ ảnh chụp đã đọc; lỗi phiên/quyền luôn xóa dữ liệu.
+        if (!chiTiet || loiAnNinh(err)) { loiCt = loiDoc(err); ve(); }
+      }
+    }
+    async function napLs() {
+      if (!id || K.vaiDangChan("crm_g")) return;
+      const g = ++genLs, e = ep, da = id, dung = () => e === ep && g === genLs && da === id && tab === "du-an-ban" && xemLichSu;
+      lichSu = null; loiLs = ""; ve();
+      try { const r = await docJson(await goi("/api/crm/du-an-ban/" + encodeURIComponent(da) + "/lich-su")); if (dung()) { lichSu = r; ve(); } }
+      catch (err) { if (dung()) { loiLs = loiDoc(err); ve(); } }
+    }
+    async function nap() { if (await napDs()) { if (id) { napCt(); if (xemLichSu) napLs(); } } }
+    function mo(da) { id = da; pb = ""; chiTiet = lichSu = null; xemLichSu = false; genLs += 1; loiLs = ""; napCt(); }
+    function bangRong(cot, rows, thongBao) { return rows.length ? bang(cot, rows) : node("p", thongBao, "da-trong"); }
+    function veCt() {
+      const box = node("section", undefined, "da-chi-tiet"); box.id = "crmg-da-chi-tiet";
+      const da = (danhSach?.du_an_ban || []).find(x => x.da_ban_id === id);
+      box.append(node("h3", "Chi tiết · " + (da?.du_an_ten || "Dự án")));
+      if (loiCt) box.append(node("p", loiCt, "da-loi"));
+      if (!chiTiet) { if (!loiCt) box.append(node("p", "Đang tải chi tiết…")); return box; }
+      const s = chiTiet.anh_chup || {}, h = chiTiet.hien_thi || {}, tt = s.thong_tin || {};
+      const thanh = node("div", undefined, "da-thanh"), sel = node("select"); sel.id = "crmg-da-phien-ban";
+      for (const v of chiTiet.phien_ban_ds || []) { const op = node("option", `Phiên bản ${v.phien_ban} · ${khoang(v)}`); op.value = String(v.phien_ban); sel.append(op); }
+      sel.value = pb || String(s.phien_ban?.so || "");
+      sel.addEventListener("change", () => { if (!sel.isConnected) return; pb = sel.value; napCt(); });
+      thanh.append(...truong("Phiên bản đang xem", sel), nut(xemLichSu ? "Ẩn lịch sử" : "Lịch sử", () => { xemLichSu = !xemLichSu; genLs += 1; ve(); if (xemLichSu) napLs(); }));
+      const chung = node("dl", undefined, "da-thong-tin");
+      for (const [ten, v] of [["Vị trí", tt.vi_tri], ["Mô tả", tt.mo_ta], ["Đơn giá niêm yết", h.don_gia], ["Tiền tệ", nhan("tien_te", s.tien_te)],
+        ["Loại hình", h.loai_hinh], ["Thuế mặc định", h.thue], ["Trạng thái", h.trang_thai], ["Hiệu lực phiên bản", h.phien_ban]]) chung.append(node("dt", ten), node("dd", v || "Chưa có thông tin"));
+      box.append(thanh, node("h4", "Thông tin chung"), chung, node("h4", "Phí tiêu chuẩn"),
+        bangRong(["Tên phí", "Loại phí", "Mức", "Đơn vị tính", "Tiền tệ", "Cơ sở tính"], (s.phi || []).map((f, i) => [f.ten, h.phi?.[i]?.loai || nhan("loai_phi", f.loai), h.phi?.[i]?.muc || "Chưa có thông tin", nhan("don_vi_tinh", f.don_vi_tinh), nhan("tien_te", f.tien_te), f.co_so_tinh || "—"]), "Chưa có phí tiêu chuẩn."),
+        node("h4", "Lô/căn"), bangRong(["Mã lô/căn", "Diện tích (m²)", "Trạng thái"], (s.lo || []).map((l, i) => [l.ma, h.lo?.[i]?.dien_tich || String(l.dien_tich ?? "—").replace(".", ",") + " m²", h.lo?.[i]?.trang_thai || nhan("trang_thai_lo", l.trang_thai)]), "Chưa có lô/căn."),
+        node("h4", "Tiến độ thanh toán tiêu chuẩn"));
+      const bc = s.bo_chuan;
+      box.append(node("p", !bc || bc.trang_thai !== "HIEU_LUC" ? "Chưa có tiến độ tiêu chuẩn hiệu lực." : `Phiên bản ${bc.version?.phien_ban || ""} · ${khoang(bc.version || {})} · ${bc.nguon === "AP_DUNG_NGAY" ? "Bán hàng áp dụng ngay" : bc.nguon === "CFO_DUYET" ? "CFO đã duyệt" : "Chưa có thông tin nguồn"}`));
+      if (bc?.trang_thai === "HIEU_LUC") box.append(bangRong(["Đợt", "Giá trị (%) / số tiền", "Mốc", "Ghi chú"], (bc.rows || []).map(r => [r.lan, giaTriDong(r), mocDong(r), r.ghi_chu || ""]), "Chưa có đợt thanh toán."));
+      return box;
+    }
+    function veLs() {
+      const box = node("section", undefined, "da-lich-su"); box.id = "crmg-da-lich-su"; box.append(node("h3", "Lịch sử dự án"));
+      if (!lichSu) { box.append(node("p", loiLs || "Đang tải lịch sử…", loiLs ? "da-loi" : "")); return box; }
+      const rows = [...(lichSu.phien_ban || [])].sort((a, b) => a.phien_ban - b.phien_ban);
+      const truong = {vi_tri: "Vị trí", mo_ta: "Mô tả", don_gia_niem_yet: "Đơn giá niêm yết", tien_te: "Tiền tệ", loai_hinh_id: "Loại hình", co_so_thue: "Cơ sở thuế", vat_phan_tram: "Thuế suất mặc định", giai_doan_g7: "Tiến độ tiêu chuẩn"};
+      box.append(node("h4", "Các phiên bản"), bangRong(["Phiên bản", "Hiệu lực từ → đến", "Người lập", "Lý do", "Trường đã đổi"], rows.map((v, i) => {
+        let doi = "Khởi tạo";
+        if (i) {
+          const a = rows[i - 1].noi_dung, b = v.noi_dung;
+          if (!a || !b) doi = "Chưa có nội dung để đối chiếu";
+          else {
+            const dsDoi = Object.entries(truong).filter(([k]) => JSON.stringify(a.thong_tin?.[k] ?? null) !== JSON.stringify(b.thong_tin?.[k] ?? null)).map(([, ten]) => ten);
+            if (a.dang_ban !== b.dang_ban) dsDoi.push("Trạng thái bán");
+            if (JSON.stringify(a.phi) !== JSON.stringify(b.phi)) dsDoi.push("Phí tiêu chuẩn");
+            doi = dsDoi.join(", ") || "Không đổi thông tin bán hàng";
+          }
+        }
+        return ["Phiên bản " + v.phien_ban, khoang(v), nguoi(v.lap_boi_ten || v.lap_boi), v.ly_do || "—", doi];
+      }), "Chưa có phiên bản."));
+      box.append(node("h4", "Sự kiện ngừng/mở bán"), bangRong(["Ngày", "Thao tác", "Người thực hiện", "Lý do"], (lichSu.su_kien || []).filter(x => ["CRM_DA_BAT_BAN", "CRM_DA_NGUNG_BAN", "CRM_DA_MO_BAN_LAI"].includes(x.hanh_dong)).map(x => [ngay(null, x.luc), x.hanh_dong_hien_thi || ({CRM_DA_BAT_BAN: "Bật bán", CRM_DA_NGUNG_BAN: "Ngừng bán", CRM_DA_MO_BAN_LAI: "Mở bán lại"})[x.hanh_dong], nguoi(x.nguoi_ten || x.nguoi), x.ly_do || "—"]), "Chưa có sự kiện ngừng/mở bán."));
+      box.append(node("h4", "Lịch sử lô/căn"), bangRong(["Mã lô/căn", "Lần", "Hiệu lực từ → đến", "Diện tích (m²)", "Trạng thái", "Người lập", "Ghi chú"], (lichSu.lo || []).flatMap(l => (l.lich_su || []).map(v => [l.ma, v.lan, khoang(v), String(v.dien_tich ?? "—").replace(".", ",") + " m²", v.trang_thai_hien_thi || nhan("trang_thai_lo", v.trang_thai), nguoi(v.tao_boi_ten || v.tao_boi), v.ghi_chu || "—"])), "Chưa có lịch sử lô/căn."));
+      return box;
+    }
+    function veDa() {
+      const box = node("div", undefined, "da-xem"); box.id = "crmg-da";
+      const loc = node("input"); loc.type = "checkbox"; loc.id = "crmg-da-chi-dang-ban"; loc.checked = chiDangBan;
+      loc.addEventListener("change", () => { if (!loc.isConnected) return; chiDangBan = loc.checked; id = null; pb = ""; xemLichSu = false; napDs(); });
+      const label = node("label", undefined, "da-loc"); label.append(loc, node("span", "Chỉ dự án đang bán")); box.append(label);
+      if (!danhSach) { box.append(node("p", loiDs || "Đang tải danh sách dự án…", loiDs ? "da-loi" : "")); return [box]; }
+      const rows = danhSach.du_an_ban || [];
+      const tb = bangRong(["Dự án", "Đơn giá niêm yết", "Số loại phí", "Số lô/căn", "Trạng thái", "Phiên bản"], rows.map(v => [v.du_an_ten || "Dự án chưa có tên", v.don_gia_hien_thi || "Chưa có thông tin", v.so_phi, v.so_lo, v.trang_thai_hien_thi || (v.dang_ban ? "Đang bán" : "Ngừng bán"), v.phien_ban]), "Không có dự án trong danh sách này.");
+      if (rows.length) Array.from(tb.children[0].children[1].children).forEach((tr, i) => {
+        tr.className = "da-dong"; tr.tabIndex = 0; tr.setAttribute("aria-label", "Xem dự án " + (rows[i].du_an_ten || "chưa có tên")); tr.setAttribute("aria-selected", String(id === rows[i].da_ban_id));
+        const chonDa = () => { if (tr.isConnected) mo(rows[i].da_ban_id); };
+        tr.addEventListener("click", chonDa); tr.addEventListener("keydown", e => { if (["Enter", " "].includes(e.key)) { e.preventDefault(); chonDa(); } });
+      });
+      box.append(tb); if (id) box.append(veCt()); if (id && xemLichSu) box.append(veLs()); return [box];
+    }
+    return {ve: veDa, nap, roi, xoa};
+  })();
 
   // ------------------------------------------------------------------ đổi vai (người tham gia seam chung)
   function xoa() {  // đồng bộ, trước await đầu tiên của lần đổi vai ở BẤT KỲ selector nào
-    ep += 1; ds = null; bc = null; bcDoc = null; soDong = 1; taiTep = null; boChon(); doiFormTai(); khoaMap.clear(); nhapGt.clear(); genDoc += 1;
+    ep += 1; duAnBan.xoa(); ds = null; bc = null; bcDoc = null; soDong = 1; taiTep = null; boChon(); doiFormTai(); khoaMap.clear(); nhapGt.clear(); genDoc += 1;
     chuNutTep = null;  // đổi vai: mọi ý định/nút gửi lại cũ đã bị huyYDinhTai vô hiệu; gỡ DOM dưới đây
     if (oGuiLai) { oGuiLai.replaceChildren(); delete oGuiLai.dataset.tep; }
     ve(); trangThai("");
     Promise.resolve().then(() => napTong());  // trong barrier: chỉ ghi "cần nạp" — nạp lại khi ý định đổi vai mới nhất giải quyết
   }
-  function napTong() { napDs(); if (tab === "chuan") napBc(); }
-  K.dangKyVai("crm_g", xoa, () => { napDs(); if (pbChon) napCt(); if (tab === "chuan") napBc(); });
+  function napTong() { if (tab === "du-an-ban") { duAnBan.nap(); return; } napDs(); if (tab === "chuan") napBc(); }
+  K.dangKyVai("crm_g", xoa, () => { napTong(); if (tab === "mau" && pbChon) napCt(); });
 
   // ------------------------------------------------------------------ vẽ
   function ve() {
     if (!oNoiDung) dungKhung();
-    $("crmg-vai").textContent = ds ? `Vai hiện hành: ${ds.nguoi.dang_nhap} (${ds.nguoi.vai_tro}) · đổi vai ở mục Vai mô phỏng phía trên.` : "Đang tải…";
+    $("crmg-vai").textContent = tab === "du-an-ban" ? "Dữ liệu theo phạm vi quyền CRM hiện hành." : ds ? `Vai hiện hành: ${ds.nguoi.dang_nhap} (${ds.nguoi.vai_tro}) · đổi vai ở mục Vai mô phỏng phía trên.` : "Đang tải…";
     $("crmg-tab-mau").setAttribute("aria-pressed", String(tab === "mau"));
     $("crmg-tab-chuan").setAttribute("aria-pressed", String(tab === "chuan"));
-    oNoiDung.replaceChildren(...(tab === "mau" ? veMau() : veChuan()));
+    $("crmg-tab-da").setAttribute("aria-pressed", String(tab === "du-an-ban"));
+    oNoiDung.replaceChildren(...(tab === "mau" ? veMau() : tab === "chuan" ? veChuan() : duAnBan.ve()));
   }
   function dungKhung() {
     const head = node("div", undefined, "section-heading"), tieuDe = node("div"), h2 = node("h2", "5 · Mẫu hợp đồng & bộ chuẩn dự án");
@@ -380,7 +528,8 @@
     const tabs = node("div", undefined, "demo-actions");
     const t1 = nut("Mẫu hợp đồng (G1)", () => doiTab("mau"), "button secondary"); t1.id = "crmg-tab-mau";
     const t2 = nut("Bộ chuẩn dự án (G7)", () => doiTab("chuan"), "button secondary"); t2.id = "crmg-tab-chuan";
-    tabs.append(t1, t2);
+    const t3 = nut("Dự án đang bán", () => doiTab("du-an-ban"), "button secondary"); t3.id = "crmg-tab-da";
+    tabs.append(t1, t2, t3);
     oTrangThai = node("p", "", "upload-status"); oTrangThai.setAttribute("role", "status"); oTrangThai.setAttribute("aria-live", "polite");
     oGuiLai = node("div", undefined, "demo-actions");
     oNoiDung = node("div");
@@ -592,7 +741,7 @@
   // ------------------------------------------------------------------ khởi động
   dungKhung(); ve();
   if (location.hash === "#hopdong") napDs();
-  window.addEventListener("hashchange", () => { if (location.hash === "#hopdong") { napDs(); if (pbChon) napCt(); if (tab === "chuan") napBc(); } });
+  window.addEventListener("hashchange", () => { if (location.hash === "#hopdong") { napTong(); if (tab === "mau" && pbChon) napCt(); } });
 })();
 
 // CRM-41-03 — S7 trong cùng shell CRM (#crm-gk): G2 Báo giá hai cột → G3 Soạn hợp đồng ba cột. Chỉ gọi route/DTO thật của crm_g.py +

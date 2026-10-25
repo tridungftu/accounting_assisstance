@@ -47,3 +47,12 @@
 .gk-nut-ly{display:inline-flex;flex-direction:column;gap:3px;max-width:440px}.gk-ly-nut{color:#8a4b12;font-size:.86em}.gk-ly-nut:empty{display:none}
 .gk-fxmd{margin:6px 0 10px;padding:6px 10px;border:1px dashed #cfd8c6;border-radius:8px;background:#fbfcf9;font-size:.92em;color:#4a5a43}.gk-fxmd-chu{font-variant-numeric:tabular-nums;font-weight:600}.gk-fxmd .link-button{margin-left:8px}
 .gk-fxmd-form{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:8px 14px;margin-top:8px;align-items:end}.gk-fxmd-form>.gk-loi,.gk-fxmd-form>.demo-actions,.gk-fxmd-form>.gk-ghi-chu{grid-column:1/-1;margin:0}.gk-fxmd-form .gk-oc input{min-height:34px;font-size:14px}
+
+/* DA-2a · phần xem danh mục dự án đang bán trong mục 5 CRM. */
+.da-xem{padding:12px 0}.da-loc{display:flex;align-items:center;gap:8px;margin:0 0 14px;font-size:13px}.da-loc input{width:18px;min-height:18px;accent-color:#315c4d}
+.da-dong{cursor:pointer}.da-dong:hover,.da-dong:focus-visible,.da-dong[aria-selected=true]{background:#f0f6e9}.da-dong:focus-visible{outline:2px solid #315c4d;outline-offset:-2px}
+.da-chi-tiet,.da-lich-su{margin-top:18px;padding:16px;border:1px solid #dfe5d6;border-radius:10px;background:#fff}.da-chi-tiet h3,.da-lich-su h3{margin:0 0 14px}.da-chi-tiet h4,.da-lich-su h4{margin:20px 0 8px}
+.da-thanh{display:flex;flex-wrap:wrap;gap:8px 12px;align-items:center}.da-thanh select{width:auto;max-width:100%;flex:1;min-width:200px}
+.da-thong-tin{display:grid;grid-template-columns:minmax(130px,180px) 1fr;gap:8px 16px;margin:10px 0;font-size:13px}.da-thong-tin dt{color:#6e7b64}.da-thong-tin dd{margin:0;white-space:pre-wrap;overflow-wrap:anywhere}
+.da-loi{color:#a8321f}.da-trong{color:#6e7b64;font-size:13px;padding:12px 0}
+@media(max-width:640px){.da-thong-tin{grid-template-columns:1fr;gap:4px}.da-thong-tin dd{margin-bottom:8px}.da-chi-tiet,.da-lich-su{padding:12px}}
