@@ -11863,3 +11863,14 @@ from ..k2.sql_crm_bg1c import CRM_BG1C_SQL  # noqa: E402 — module chỉ hằng
 M0030_CRM_BG1C = CRM_BG1C_SQL
 PG_MIGRATIONS = (*PG_MIGRATIONS, M0030_CRM_BG1C)
 PG_SCHEMA_VERSION = len(PG_MIGRATIONS)
+
+# ---------------------------------------------------------------------------
+# 0031 — DA-1 CRM · Dự án đang bán (QD-20261025-05…09; APPEND sau toàn bộ 1–30; không sửa byte/định nghĩa/checksum 1–30). Định nghĩa trong
+#        k2/sql_crm_du_an_ban.py (chỉ hằng SQL, không import ha_tang): thông tin bán hàng của dự án (gắn master.du_an) có phiên bản bất biến + phí
+#        tiêu chuẩn + lô/căn có lịch sử; G7 áp dụng ngay cho bán hàng (bỏ CFO, QD-07) + nới đúng một CHECK valid_to của crm_bo_chuan_phien_ban.
+# ---------------------------------------------------------------------------
+from ..k2.sql_crm_du_an_ban import CRM_DU_AN_BAN_SQL  # noqa: E402 — module chỉ hằng SQL, không import ha_tang
+
+M0031_CRM_DU_AN_BAN = CRM_DU_AN_BAN_SQL
+PG_MIGRATIONS = (*PG_MIGRATIONS, M0031_CRM_DU_AN_BAN)
+PG_SCHEMA_VERSION = len(PG_MIGRATIONS)
