@@ -60,8 +60,8 @@ Căn cứ: lệnh của Anh 24/10 (mọi module đã chốt thiết kế; M9 d�
 | BG-1b | CRM · Báo giá gói 1 màn hình: BG-01…05, đo số ô trước/sau → **cổng A** | Claude | BG-1a | `crm_g.js` | Cổng A 25/10: Sửa rồi xem lại |
 | BG-1c | CRM · Báo giá — sửa theo cổng A, máy chủ (VND chính, tỷ giá mặc định 26.000 tham số chung, bằng chữ, In sơ bộ, Chuyển cần khách + phí, M0030 bước kiểm Ký) | Claude Opus | BG-1b | `crm_g.py`, `crm_giao_ket.py`, `pg_migrations.py` | Xong 25/10 — gộp ec73112 |
 | BG-1d | CRM · Báo giá — sửa theo cổng A, màn hình: bước 1 to và trước (giá, tỷ giá, Tổng VND + bằng chữ, USD tham chiếu, lịch VND), bước 2 sau khi khách đồng ý (khách, liên hệ, phí quản lý/bảo trì) → phiếu xem lại | Claude | BG-1c | `crm_g.js`, `style.css` | Chờ Anh — cổng A xem lại (f904fcc, review vòng 2 Đạt) |
-| DA-1 | CRM · Dự án đang bán — máy chủ + CSDL (theo `THIET-KE-DU-AN-DANG-BAN.md`): thông tin bán hàng có phiên bản, phí tiêu chuẩn, lô/căn, bộ chuẩn G7 bán hàng áp dụng ngay (bỏ CFO), quyền bán hàng, nhật ký | Claude Opus | BG-1c gộp | `pg_migrations.py`, `crm_g.py` | Đang code DA-1c (Codex, thuế QD-20261025-20); vòng 2 xong f31e012 |
-| DA-2 | CRM · màn Dự án đang bán | Claude | DA-1 | `crm_g.js` | DA-2a chờ kiểm (Codex b339029, review Claude); DA-2b thêm/sửa chờ |
+| DA-1 | CRM · Dự án đang bán — máy chủ + CSDL (theo `THIET-KE-DU-AN-DANG-BAN.md`): thông tin bán hàng có phiên bản, phí tiêu chuẩn, lô/căn, bộ chuẩn G7 bán hàng áp dụng ngay (bỏ CFO), quyền bán hàng, nhật ký | Claude Opus | BG-1c gộp | `pg_migrations.py`, `crm_g.py` | Chờ kiểm — PostgreSQL thật 50/50; review Claude vòng 2 |
+| DA-2 | CRM · màn Dự án đang bán | Claude | DA-1 | `crm_g.js` | DA-2a xong vòng 2 (acab3b6); DA-2b1 đang code (Codex); DA-2b2 (phí, lô, tiến độ) chờ |
 | DA-3 | CRM · Báo giá chọn dự án → nạp mặc định; sửa riêng → "khác tiêu chuẩn" + nhật ký (gồm BG-09 lô/căn) | Claude | DA-1, BG-1d | `crm_g.*` | Chờ |
 | BG-2a | CRM · Báo giá gói 2 máy chủ: profile loại hình v3 (BG-06/11), tìm khách (BG-08) | Codex | BG-1a | `crm_g.py` | Chờ |
 | BG-2b | CRM · Báo giá gói 2 màn hình: BG-06, 07, 08, 10, 11, 12 — **gom vào bố cục 2 bước của BG-1d** (khách/phí ở bước 2) | Claude | cổng A gói 1, BG-2a | `crm_g.js` | Chờ |
@@ -69,7 +69,7 @@ Căn cứ: lệnh của Anh 24/10 (mọi module đã chốt thiết kế; M9 d�
 | BG-3 | CRM · Báo giá gói 3: BG-13 thanh nút, BG-14 ngăn kiểm, số đo CHANGELOG → **cổng B** | Claude | BG-2b | `crm_g.js` | Chờ |
 | C1 | CRM 41 · G6A/G5 dịch vụ (`crm_kiem_hd`, `crm_doi_chieu`) chạy test thuần + PG DEMO | Codex | P0 | — | Chờ |
 | C2 | CRM 41 · hộp KT kiểm → Hiệu lực / Trả lại, xử lý lệch | Claude | C1 | `crm_g.*` | Chờ |
-| C3 | CRM 42 · read-model danh sách hợp đồng `GET /api/crm/hop-dong` (trạng thái, người phụ trách, thẻ W1–W5; ô Junsky tạm "chưa có sổ") | Codex | P0 | `server.py` | Sửa vòng 3 (lỗi chạy PostgreSQL thật) |
+| C3 | CRM 42 · read-model danh sách hợp đồng `GET /api/crm/hop-dong` (trạng thái, người phụ trách, thẻ W1–W5; ô Junsky tạm "chưa có sổ") | Codex | P0 | `server.py` | Chờ chi tiết lỗi PostgreSQL → vòng 3 |
 | C3b | CRM 42 · phạm vi bán hàng cho hợp đồng luồng B (nhận #6 → KT kiểm → CFO duyệt) — hiện ẩn với bán hàng (an toàn) | Claude | C3; **Anh chốt nguồn phạm vi** (không suy từ người nộp) | `pg_migrations.py` | Chờ Anh |
 | C4 | CRM 42 · menu "Hợp đồng bán hàng" 6 mục + S1 danh sách (thẻ, cột, lọc) | Claude | C3 | `index.html`, `app.js` | Chờ |
 | C5 | CRM 42 · S2 tab Tổng quan / Nguồn & tham số / Lịch nghĩa vụ | Claude | C4 | `crm_g.*` | Chờ |
@@ -89,7 +89,7 @@ Căn cứ: lệnh của Anh 24/10 (mọi module đã chốt thiết kế; M9 d�
 | M4-2 | M4 · Nghiệm thu & chi phí dự án · UI 02C duyệt/PDF: đối chiếu với fix01 + 3 lỗi đã tái hiện (gồm L0-2b) | Claude | P0 | `m4\*` UI | Xong 24/10 — gộp ff9503f |
 | L0-6 | Engine trích #6 trên DEMO worktree: báo sẵn sàng lúc khởi động nhưng `TRICH6_KHONG_KET_NOI` ngay sau lệnh trích đầu tiên → chưa dựng được hợp đồng/đợt DEMO cho M4 (chẩn đoán tối đa 2 lượt; không xong thì dựng đợt bằng fixture test) | Claude | — | — | Xong 24/10 — gộp 1d1c12f (vá tạm launcher; sửa sản phẩm ở L0-7) |
 | L0-7 | Sửa sản phẩm: `trich6_host` nạp sẵn openpyxl ở luồng chính tiến trình con (hết treo 60s lệnh trích đầu ở mọi bản, kể cả DEMO của Anh); `.gitattributes` review_goc; `chuan_bi_crm_demo` seed duyệt viên M4 | Claude | `trich6_host.py`, `.gitattributes`, `chuan_bi_crm_demo.py` | L0-6 | Xong 25/10 — gộp d4eb6a5 |
-| L0-8 | Bật test PostgreSQL trên cụm DEMO (CSDL tạm `kho_test_*`, xóa sau khi chạy; QD-20261025-10) | Claude | `chay_test_theo_module.py` | — | Chờ kiểm (review Codex) |
+| L0-8 | Bật test PostgreSQL trên cụm DEMO (CSDL tạm `kho_test_*`, xóa sau khi chạy; QD-20261025-10) | Claude | `chay_test_theo_module.py` | — | Chờ kiểm — review vòng 2 Đạt; lead chạy thật trước khi gộp |
 | M4-3 | M4 · 03A kế toán nghiệm thu: M0026 + test + xác minh màn | Codex | P0 | — | Chờ |
 | M4-4 | M4 · 03B căn cứ nghiệm thu ↔ hóa đơn: L0-2a + migration + test PG | Codex | L0-2a, M4-3 | `pg_migrations.py` | Xong 25/10 — gộp 3d0be04 (M0029) |
 | M4-5 | M4 · 03B route + panel trong màn kế toán nghiệm thu | Claude | M4-4 | `giao_dien\m4.py` | Thay bằng M4-5a + M4-5b (Anh duyệt checklist 25/10) |
@@ -97,7 +97,10 @@ Căn cứ: lệnh của Anh 24/10 (mọi module đã chốt thiết kế; M9 d�
 | M4-5b | M4 · 03B màn hình: khối "Đối chiếu căn cứ với hóa đơn" trong màn Kế toán nghiệm thu theo `CHECKLIST-M4-03B.md` | Claude | M4-5a | `m4_ke_toan.js`, `giao_dien\m4.py` | Chờ |
 | M4-6 | M4 · 04 Request nháp: khôi phục `request_api.py`, `sql_request_nhap.py`, M0027; giữ CHUA_CAU_HINH, **không gọi Request thật** | Codex | P0 | — | Xong 25/10 — gộp 0737071 |
 | L0-9 | Dấu xuống dòng fixture ghim SHA: worktree mới ra đúng byte | Codex | — | `.gitattributes` | Xong 25/10 — gộp c6ef9a6 |
-| M2h | M2-00 · "Tải tất cả công ty" hàng đợi tuần tự (M2-00-02) | Codex | M2e | `m2_tai_hoa_don.*` | Đang code (25/10) |
+| M2h | M2-00 · "Tải tất cả công ty" hàng đợi tuần tự (M2-00-02) | Codex | M2e | `m2_tai_hoa_don.*` | Xong 25/10 — gộp aa7ad23 |
+| M2h-c | M2-00 · 4 điểm còn lại sau review M2h (LoiKhach → DataError, hủy khi chưa xác nhận dừng, luồng lỗi, poll lỗi) | Codex | M2h | `m2_tai_hoa_don.*` | Đang code (25/10) |
+| E1-4a | E1-MUA · lệnh xem/sửa danh mục + nhật ký | Codex | E1-1 | — | Xong 25/10 — gộp 3fc5998 |
+| E1-4b | E1-MUA · máy trích dùng danh mục đã sửa; dọn tệp tạm | Codex | E1-4a | — | Xong 25/10 — gộp 58e8391 |
 | M2j | M2-00 · bộ lọc "mới từ lần tải này" sau khi tải | Codex | M2h | `m2_tai_hoa_don.*` | Chờ |
 | M2k | M2-00 · nút "Cài đặt lại bộ tải" khi bộ tải không khởi động | Codex | M2h | `m2_tai_hoa_don.*` | Chờ |
 | M4-7 | M4 · migration master-reuse + rà `m4b2`/`m4b3` (= L0-2h) | Codex | P0 | — | Xong 25/10 — gộp 3d0be04 (M0028); rà m4b2/m4b3 còn ở L0-2h |
@@ -202,3 +205,4 @@ Mở ứng dụng Claude trên máy → tab Code → phiên **trên máy này** 
 - 25/10: BG-1c gộp hop-nhat (ec73112) → mở khóa migration: **M0031** = DA-1 (dự án đang bán), **M0032** = M4-5a (03B một phần bằng số tiền) sau khi DA-1 gộp. C3 (Codex) chạy trong sandbox thiếu psycopg báo 2 ERROR; lead chạy lại với runtime DEMO: 0 mã lỗi mới.
 - 25/10: Anh lệnh giao Codex nhiều hơn (QD-20261025-16): lead chuyển DA-1 vòng 2, DA-1c, DA-2a, L0-9, M2h, C3 vòng 3 sang Codex; Claude review chéo; lead kiểm diff đúng file + tự chạy test trước khi commit/gộp.
 - 25/10 13:12: cụm PostgreSQL DEMO (pid 37548, chạy từ 23/10) thoát đột ngột (log: "unexpected postmaster exit"); lead khởi động lại cùng cụm bằng `pg_ctl start` (nhật ký `var\pg-cluster-recovery-20261025-01`), phục hồi thường — fsync lâu vì cụm có ~337 CSDL (323 `kho_test_*` cũ từ trước L0-8).
+- 25/10: sự cố PostgreSQL DEMO rà xong (`SU-CO-POSTGRES-DEMO.md`): 1 lần Windows khởi động lại (19/10), 2 lần Codex tự cập nhật giết tiến trình trong sandbox (23/10, 25/10). Quy tắc mới `CLAUDE.md` §2: không khởi động PostgreSQL/server DEMO trong sandbox Codex. Anh chọn dịch vụ Windows + dọn 323 CSDL test (tệp Anh tự bấm).
