@@ -1,0 +1,1990 @@
+{
+ "test_bg1_o_thong_minh_tinh": {
+  "ok": 30,
+  "error": 0,
+  "fail": 0,
+  "skip": 0,
+  "treo": 0,
+  "giay": 1.1,
+  "tong": 30,
+  "ids_loi": [],
+  "loi_dau": "",
+  "pg": {
+   "ho": [],
+   "moi": 0,
+   "da_xoa": 0,
+   "con_phien": 0
+  }
+ },
+ "test_crm_41_02": {
+  "ok": 29,
+  "error": 0,
+  "fail": 0,
+  "skip": 0,
+  "treo": 0,
+  "giay": 0.9,
+  "tong": 29,
+  "ids_loi": [],
+  "loi_dau": "",
+  "pg": {
+   "ho": [],
+   "moi": 0,
+   "da_xoa": 0,
+   "con_phien": 0
+  }
+ },
+ "test_crm_41_02_http": {
+  "ok": 12,
+  "error": 0,
+  "fail": 1,
+  "skip": 0,
+  "treo": 0,
+  "giay": 8.2,
+  "tong": 13,
+  "ids_loi": [
+   "test_crm_41_02_http.CrmGHttp.test_g01_tai_san_phien_seed"
+  ],
+  "loi_dau": "AssertionError: 29 != 18",
+  "pg": {
+   "ho": [],
+   "moi": 1,
+   "da_xoa": 1,
+   "con_phien": 0
+  }
+ },
+ "test_crm_doi_chieu_http": {
+  "ok": 26,
+  "error": 0,
+  "fail": 0,
+  "skip": 0,
+  "treo": 0,
+  "giay": 5.1,
+  "tong": 26,
+  "ids_loi": [],
+  "loi_dau": "",
+  "pg": {
+   "ho": [],
+   "moi": 0,
+   "da_xoa": 0,
+   "con_phien": 0
+  }
+ },
+ "test_crm_doi_chieu_pg": {
+  "ok": 0,
+  "error": 0,
+  "fail": 16,
+  "skip": 0,
+  "treo": 0,
+  "giay": 1.4,
+  "tong": 16,
+  "ids_loi": [
+   "test_crm_doi_chieu_pg.CrmDoiChieuBanSao.test_p00_chuan_bi_va_viec_bat_buoc_cung_giao_dich",
+   "test_crm_doi_chieu_pg.CrmDoiChieuBanSao.test_p01_quyen_truoc_doc_va_lenh",
+   "test_crm_doi_chieu_pg.CrmDoiChieuBanSao.test_p02_bat_buoc_cho_nguoi_chay",
+   "test_crm_doi_chieu_pg.CrmDoiChieuBanSao.test_p03_nguoi_chay_chua_dang_ky",
+   "test_crm_doi_chieu_pg.CrmDoiChieuBanSao.test_p04_e5_chua_ghep_giu_y_dinh",
+   "test_crm_doi_chieu_pg.CrmDoiChieuBanSao.test_p05_chua_ro_doi_soat_va_khop_demo",
+   "test_crm_doi_chieu_pg.CrmDoiChieuBanSao.test_p06_thu_cong_cas_replay",
+   "test_crm_doi_chieu_pg.CrmDoiChieuBanSao.test_p07_lease_hai_worker_va_khoi_phuc",
+   "test_crm_doi_chieu_pg.CrmDoiChieuBanSao.test_p08_thu_hoi_truoc_cong_bo",
+   "test_crm_doi_chieu_pg.CrmDoiChieuBanSao.test_p09_thu_cong_lech_g6_xu_ly",
+   "test_crm_doi_chieu_pg.CrmDoiChieuBanSao.test_p10_ket_qua_moi_check_cu_bi_tu_choi",
+   "test_crm_doi_chieu_pg.CrmDoiChieuBanSao.test_p11_bat_buoc_duong_co_dieu_kien",
+   "test_crm_doi_chieu_pg.CrmDoiChieuBanSao.test_p12_chua_doi_chieu_duoc_giu_nghia_vu",
+   "test_crm_doi_chieu_pg.CrmDoiChieuBanSao.test_p13_ket_qua_hoan_tat_dong_nghia_vu",
+   "test_crm_doi_chieu_pg.CrmDoiChieuBanSao.test_p14_dang_ky_moi_tiep_tuc",
+   "test_crm_doi_chieu_pg.CrmDoiChieuBanSao.test_p15_lease_het_han_khong_ap_dung"
+  ],
+  "loi_dau": "AssertionError: NOT_VERIFIED: thiếu biến môi trường KTT_G6A_CLONE_OWNER_DSN, KTT_G6A_CLONE_APP_DSN, KTT_G6A_CLONE_PROVENANCE",
+  "pg": {
+   "ho": [],
+   "loi_dung_ban_sao": [
+    "g6a: tao-clone: DataError(FIXTURE_PIN)"
+   ],
+   "moi": 1,
+   "da_xoa": 1,
+   "con_phien": 0
+  }
+ },
+ "test_crm_doi_chieu_tinh": {
+  "ok": 60,
+  "error": 0,
+  "fail": 0,
+  "skip": 0,
+  "treo": 0,
+  "giay": 0.7,
+  "tong": 60,
+  "ids_loi": [],
+  "loi_dau": "",
+  "pg": {
+   "ho": [],
+   "moi": 0,
+   "da_xoa": 0,
+   "con_phien": 0
+  }
+ },
+ "test_crm_g6a_m25_integration": {
+  "ok": 7,
+  "error": 0,
+  "fail": 9,
+  "skip": 0,
+  "treo": 0,
+  "giay": 1.5,
+  "tong": 16,
+  "ids_loi": [
+   "test_crm_g6a_m25_integration.CrmG6aM25BanSao.test_n01_lich_su_exact25",
+   "test_crm_g6a_m25_integration.CrmG6aM25BanSao.test_n02_vai_ung_dung_thuong",
+   "test_crm_g6a_m25_integration.CrmG6aM25BanSao.test_n03_quyen_hep_sau_revoke",
+   "test_crm_g6a_m25_integration.CrmG6aM25BanSao.test_n04_viec_chu_so_huu_trien_khai",
+   "test_crm_g6a_m25_integration.CrmG6aM25BanSao.test_n05_k5_doc_hang_g6a",
+   "test_crm_g6a_m25_integration.CrmG6aM25BanSao.test_n06_anh_xa_khach_du_thao",
+   "test_crm_g6a_m25_integration.CrmG6aM25BanSao.test_n07_g5_hold",
+   "test_crm_g6a_m25_integration.M25Prefix.test_phan_noi_chi_import_alias_mot_dang_ky",
+   "test_crm_g6a_m25_integration.M25Registry.test_version25_g6a_dung_mot_lan_cung_object"
+  ],
+  "loi_dau": "AssertionError: NOT_VERIFIED: thiếu biến môi trường KTT_G6A_CLONE_OWNER_DSN, KTT_G6A_CLONE_APP_DSN, KTT_G6A_CLONE_PROVENANCE",
+  "pg": {
+   "ho": [],
+   "loi_dung_ban_sao": [
+    "g6a: tao-clone: DataError(FIXTURE_PIN)"
+   ],
+   "moi": 1,
+   "da_xoa": 1,
+   "con_phien": 0
+  }
+ },
+ "test_crm_giao_ket": {
+  "ok": 56,
+  "error": 0,
+  "fail": 0,
+  "skip": 2,
+  "treo": 0,
+  "giay": 1.5,
+  "tong": 58,
+  "ids_loi": [],
+  "loi_dau": "",
+  "pg": {
+   "ho": [],
+   "moi": 0,
+   "da_xoa": 0,
+   "con_phien": 0
+  }
+ },
+ "test_crm_giao_ket_http": {
+  "ok": 4,
+  "error": 5,
+  "fail": 2,
+  "skip": 0,
+  "treo": 0,
+  "giay": 8.1,
+  "tong": 11,
+  "ids_loi": [
+   "test_crm_giao_ket_http.CrmGiaoKetHttp.test_g01_mau_va_bo_chuan_qua_luong_that",
+   "test_crm_giao_ket_http.CrmGiaoKetHttp.test_g04_usd_fx_g7",
+   "test_crm_giao_ket_http.CrmGiaoKetHttp.test_g05_chuyen_mot_hop_dong_va_quyen",
+   "test_crm_giao_ket_http.CrmGiaoKetHttp.test_g06_mau_ghim_lich_su_va_doi_mau",
+   "test_crm_giao_ket_http.CrmGiaoKetHttp.test_g07_pdf_loi_va_doi_trong_luc_render",
+   "test_crm_giao_ket_http.CrmGiaoKetHttp.test_g08_dong_thoi_cung_khoa",
+   "test_crm_giao_ket_http.CrmGiaoKetHttp.test_g10_tinh_thu_moc_trong_tong_canonical"
+  ],
+  "loi_dau": "AssertionError: 29 != 21",
+  "pg": {
+   "ho": [],
+   "moi": 1,
+   "da_xoa": 1,
+   "con_phien": 0
+  }
+ },
+ "test_crm_k2": {
+  "ok": 18,
+  "error": 2,
+  "fail": 2,
+  "skip": 1,
+  "treo": 0,
+  "giay": 46.9,
+  "tong": 23,
+  "ids_loi": [
+   "test_crm_k2.CrmK2Test.test_t01_nang_cap_v9_giu_du_lieu_va_link_huy_lich_su",
+   "test_crm_k2.CrmK2Test.test_t01b_nang_cap_db_da_nhan_m0010_ban_dau_qua_hash_tuong_thich",
+   "test_crm_k2.CrmK2Test.test_t01c_db_dung_schema11_co_lich_su_da_duyet_len_12",
+   "test_crm_k2.CrmK2Test.test_t21_buoc_chuan_bi_nut_mo_demo"
+  ],
+  "loi_dau": "AssertionError: Tuples differ: (29, 29, 29) != (13, 13, 13)",
+  "pg": {
+   "ho": [],
+   "moi": 5,
+   "da_xoa": 5,
+   "con_phien": 0
+  }
+ },
+ "test_crm_khoi_dong": {
+  "ok": 40,
+  "error": 0,
+  "fail": 0,
+  "skip": 0,
+  "treo": 0,
+  "giay": 5.5,
+  "tong": 40,
+  "ids_loi": [],
+  "loi_dau": "",
+  "pg": {
+   "ho": [],
+   "moi": 0,
+   "da_xoa": 0,
+   "con_phien": 0
+  }
+ },
+ "test_crm_kiem_hd": {
+  "ok": 21,
+  "error": 0,
+  "fail": 5,
+  "skip": 0,
+  "treo": 0,
+  "giay": 1.2,
+  "tong": 26,
+  "ids_loi": [
+   "test_crm_kiem_hd.CrmKiemBanSao.test_p01_guard_chu_bang",
+   "test_crm_kiem_hd.CrmKiemBanSao.test_p02_g5_van_hanh_hold",
+   "test_crm_kiem_hd.CrmKiemBanSao.test_p03_quyen_login_ung_dung",
+   "test_crm_kiem_hd.CrmKiemBanSao.test_p04_k5_doc_khong_loi_quyen",
+   "test_crm_kiem_hd.HopDongSql.test_khong_dang_ky_registry"
+  ],
+  "loi_dau": "AssertionError: NOT_VERIFIED: thiếu biến môi trường KTT_G6A_CLONE_OWNER_DSN, KTT_G6A_CLONE_APP_DSN, KTT_G6A_CLONE_PROVENANCE",
+  "pg": {
+   "ho": [],
+   "loi_dung_ban_sao": [
+    "g6a: tao-clone: DataError(FIXTURE_PIN)"
+   ],
+   "moi": 1,
+   "da_xoa": 1,
+   "con_phien": 0
+  }
+ },
+ "test_crm_kiem_hd_http": {
+  "ok": 8,
+  "error": 0,
+  "fail": 10,
+  "skip": 0,
+  "treo": 0,
+  "giay": 2.0,
+  "tong": 18,
+  "ids_loi": [
+   "test_crm_kiem_hd_http.CrmKiemHttpBanSao.test_n00_chuan_bi",
+   "test_crm_kiem_hd_http.CrmKiemHttpBanSao.test_n01_quyen_truoc_pham_vi",
+   "test_crm_kiem_hd_http.CrmKiemHttpBanSao.test_n02_tim_junsky_khach_du_thao",
+   "test_crm_kiem_hd_http.CrmKiemHttpBanSao.test_n03_luu_tu_choi_ma_sai",
+   "test_crm_kiem_hd_http.CrmKiemHttpBanSao.test_n04_luu_cap_cho_khach_du_thao_va_g5_hold",
+   "test_crm_kiem_hd_http.CrmKiemHttpBanSao.test_n05_k5_doc_thu_hoi_va_ngoai_pham_vi",
+   "test_crm_kiem_hd_http.CrmKiemHttpBanSao.test_n06_khach_dinh_danh_khong_thay",
+   "test_crm_kiem_hd_http.CrmKiemHttpBanSao.test_n07_synthetic_kich_hoat",
+   "test_crm_kiem_hd_http.CrmKiemHttpBanSao.test_n08_f6_f7",
+   "test_crm_kiem_hd_http.CrmKiemHttpBanSao.test_n09_k5_khong_lien_quan_khong_doi"
+  ],
+  "loi_dau": "AssertionError: NOT_VERIFIED: thiếu biến môi trường KTT_G6A_CLONE_OWNER_DSN, KTT_G6A_CLONE_APP_DSN, KTT_G6A_CLONE_PROVENANCE",
+  "pg": {
+   "ho": [],
+   "loi_dung_ban_sao": [
+    "g6a: tao-clone: DataError(FIXTURE_PIN)"
+   ],
+   "moi": 1,
+   "da_xoa": 1,
+   "con_phien": 0
+  }
+ },
+ "test_crm_ky_ket": {
+  "ok": 37,
+  "error": 0,
+  "fail": 1,
+  "skip": 1,
+  "treo": 0,
+  "giay": 6.8,
+  "tong": 39,
+  "ids_loi": [
+   "test_crm_ky_ket.GuardCsdlThat.test_version_23_va_bang"
+  ],
+  "loi_dau": "AssertionError: 29 != 23",
+  "pg": {
+   "ho": [],
+   "moi": 1,
+   "da_xoa": 1,
+   "con_phien": 0
+  }
+ },
+ "test_crm_ky_ket_http": {
+  "ok": 0,
+  "error": 4,
+  "fail": 2,
+  "skip": 3,
+  "treo": 0,
+  "giay": 7.7,
+  "tong": 9,
+  "ids_loi": [
+   "test_crm_ky_ket_http.CrmKyKetHttp.test_k01_dung_ban_soan_va_xuat_that",
+   "test_crm_ky_ket_http.CrmKyKetHttp.test_k02_hop_dong_yeu_cau_va_quyen",
+   "test_crm_ky_ket_http.CrmKyKetHttp.test_k03_pham_vi_va_can_cu_chua_dat",
+   "test_crm_ky_ket_http.CrmKyKetHttp.test_k03b_doc_kt_cfo_can_phan_cong_hep_va_pham_vi",
+   "test_crm_ky_ket_http.CrmKyKetHttp.test_k04_pdf_hong_va_rong",
+   "test_crm_ky_ket_http.CrmKyKetHttp.test_k07_idor_va_thu_hoi"
+  ],
+  "loi_dau": "AssertionError: 29 != 23",
+  "pg": {
+   "ho": [],
+   "moi": 1,
+   "da_xoa": 1,
+   "con_phien": 0
+  }
+ },
+ "test_crm_neutral_compat": {
+  "ok": 0,
+  "error": 4,
+  "fail": 1,
+  "skip": 0,
+  "treo": 0,
+  "giay": 6.1,
+  "tong": 5,
+  "ids_loi": [
+   "test_crm_neutral_compat.CrmNeutralCompat.test_t01_neutral16_khong_legacy_va_get_crm",
+   "test_crm_neutral_compat.CrmNeutralCompat.test_t02_m1_sao_ke_http_tra_m1_chieu",
+   "test_crm_neutral_compat.CrmNeutralCompat.test_t03_hop_dong_noi_mot_phan_replay_go",
+   "test_crm_neutral_compat.CrmNeutralCompat.test_t04_guard_ngan_sach_va_quyen",
+   "test_crm_neutral_compat.CrmNeutralCompat.test_t05_rieng_tu_bat_bien_va_sum_day_du"
+  ],
+  "loi_dau": "AssertionError: Tuples differ: (29, 29) != (16, 16)",
+  "pg": {
+   "ho": [],
+   "moi": 1,
+   "da_xoa": 1,
+   "con_phien": 0
+  }
+ },
+ "test_crm_phan_tich": {
+  "ok": 21,
+  "error": 0,
+  "fail": 0,
+  "skip": 0,
+  "treo": 0,
+  "giay": 1.7,
+  "tong": 21,
+  "ids_loi": [],
+  "loi_dau": "",
+  "pg": {
+   "ho": [],
+   "moi": 0,
+   "da_xoa": 0,
+   "con_phien": 0
+  }
+ },
+ "test_doi_chieu_hoa_don": {
+  "ok": 32,
+  "error": 0,
+  "fail": 0,
+  "skip": 0,
+  "treo": 0,
+  "giay": 0.4,
+  "tong": 32,
+  "ids_loi": [],
+  "loi_dau": "",
+  "pg": {
+   "ho": [],
+   "moi": 0,
+   "da_xoa": 0,
+   "con_phien": 0
+  }
+ },
+ "test_e1_mua_danh_muc": {
+  "ok": 13,
+  "error": 0,
+  "fail": 0,
+  "skip": 0,
+  "treo": 0,
+  "giay": 0.7,
+  "tong": 13,
+  "ids_loi": [],
+  "loi_dau": "",
+  "pg": {
+   "ho": [],
+   "moi": 0,
+   "da_xoa": 0,
+   "con_phien": 0
+  }
+ },
+ "test_hoa_don_xml": {
+  "ok": 32,
+  "error": 0,
+  "fail": 0,
+  "skip": 0,
+  "treo": 0,
+  "giay": 0.5,
+  "tong": 32,
+  "ids_loi": [],
+  "loi_dau": "",
+  "pg": {
+   "ho": [],
+   "moi": 0,
+   "da_xoa": 0,
+   "con_phien": 0
+  }
+ },
+ "test_ket_noi": {
+  "ok": 23,
+  "error": 0,
+  "fail": 0,
+  "skip": 0,
+  "treo": 0,
+  "giay": 26.0,
+  "tong": 23,
+  "ids_loi": [],
+  "loi_dau": "",
+  "pg": {
+   "ho": [],
+   "moi": 0,
+   "da_xoa": 0,
+   "con_phien": 0
+  }
+ },
+ "test_kho_10": {
+  "ok": 49,
+  "error": 0,
+  "fail": 0,
+  "skip": 0,
+  "treo": 0,
+  "giay": 0.6,
+  "tong": 49,
+  "ids_loi": [],
+  "loi_dau": "",
+  "pg": {
+   "ho": [],
+   "moi": 0,
+   "da_xoa": 0,
+   "con_phien": 0
+  }
+ },
+ "test_l11_http": {
+  "ok": 0,
+  "error": 1,
+  "fail": 0,
+  "skip": 0,
+  "treo": 0,
+  "giay": 6.5,
+  "tong": 2,
+  "ids_loi": [
+   "setUpClass (test_l11_http.L11Http)"
+  ],
+  "loi_dau": "kho_tri_thuc.ha_tang.primitives.DataError: Tệp fixture manifest.json không khớp SHA đã pin.",
+  "pg": {
+   "ho": [],
+   "moi": 1,
+   "da_xoa": 1,
+   "con_phien": 0
+  }
+ },
+ "test_l11_k2": {
+  "ok": 2,
+  "error": 5,
+  "fail": 0,
+  "skip": 0,
+  "treo": 0,
+  "giay": 19.8,
+  "tong": 23,
+  "ids_loi": [
+   "setUpClass (test_l11_k2.L11K2Pg)",
+   "setUpClass (test_l11_k2.L11LoDanhTinhPg)",
+   "setUpClass (test_l11_k2.L11PhiDongNhatPg)",
+   "setUpClass (test_l11_k2.L11Q09TuyenXacNhanPg)",
+   "test_l11_k2.ThuanL11.test_profile_va_fixture_dung_pin"
+  ],
+  "loi_dau": "kho_tri_thuc.ha_tang.primitives.DataError: Tệp fixture manifest.json không khớp SHA đã pin.",
+  "pg": {
+   "ho": [],
+   "moi": 4,
+   "da_xoa": 4,
+   "con_phien": 0
+  }
+ },
+ "test_l11_migrations": {
+  "ok": 12,
+  "error": 0,
+  "fail": 2,
+  "skip": 0,
+  "treo": 0,
+  "giay": 12.4,
+  "tong": 14,
+  "ids_loi": [
+   "test_l11_migrations.PgM0016.test_fresh_0_den_16_va_primitive",
+   "test_l11_migrations.PgM0016.test_nang_cap_15_den_16_giu_hang_cu_va_lien_ket_m1"
+  ],
+  "loi_dau": "AssertionError: 29 != 16",
+  "pg": {
+   "ho": [],
+   "moi": 2,
+   "da_xoa": 2,
+   "con_phien": 0
+  }
+ },
+ "test_m0_m5_migrations": {
+  "ok": 12,
+  "error": 0,
+  "fail": 5,
+  "skip": 0,
+  "treo": 0,
+  "giay": 52.5,
+  "tong": 17,
+  "ids_loi": [
+   "test_m0_m5_migrations.PgLineage.test_cong_mo_ung_dung_doi_ban_moi_nhat",
+   "test_m0_m5_migrations.PgLineage.test_crm12_co_du_lieu_len_14_catalog_trong_allowlist",
+   "test_m0_m5_migrations.PgLineage.test_db_moi_0_den_14_va_lap_lai",
+   "test_m0_m5_migrations.PgLineage.test_i_s02_db_moi_va_schema_rong_van_duong",
+   "test_m0_m5_migrations.PgLineage.test_i_s02_extension_da_cai_khong_tinh_la_ngoai_lai"
+  ],
+  "loi_dau": "AssertionError: 29 != 14",
+  "pg": {
+   "ho": [],
+   "moi": 22,
+   "da_xoa": 22,
+   "con_phien": 0
+  }
+ },
+ "test_m1": {
+  "ok": 43,
+  "error": 0,
+  "fail": 0,
+  "skip": 0,
+  "treo": 0,
+  "giay": 10.2,
+  "tong": 43,
+  "ids_loi": [],
+  "loi_dau": "",
+  "pg": {
+   "ho": [],
+   "moi": 0,
+   "da_xoa": 0,
+   "con_phien": 0
+  }
+ },
+ "test_m2_00_hoi_cuu_tinh": {
+  "ok": 22,
+  "error": 0,
+  "fail": 0,
+  "skip": 0,
+  "treo": 0,
+  "giay": 8.0,
+  "tong": 22,
+  "ids_loi": [],
+  "loi_dau": "",
+  "pg": {
+   "ho": [],
+   "moi": 0,
+   "da_xoa": 0,
+   "con_phien": 0
+  }
+ },
+ "test_m2_00_manifest_tinh": {
+  "ok": 42,
+  "error": 0,
+  "fail": 0,
+  "skip": 1,
+  "treo": 0,
+  "giay": 10.2,
+  "tong": 43,
+  "ids_loi": [],
+  "loi_dau": "",
+  "pg": {
+   "ho": [],
+   "moi": 0,
+   "da_xoa": 0,
+   "con_phien": 0
+  }
+ },
+ "test_m2_00_nhan_tinh": {
+  "ok": 35,
+  "error": 0,
+  "fail": 0,
+  "skip": 0,
+  "treo": 0,
+  "giay": 5.4,
+  "tong": 35,
+  "ids_loi": [],
+  "loi_dau": "",
+  "pg": {
+   "ho": [],
+   "moi": 0,
+   "da_xoa": 0,
+   "con_phien": 0
+  }
+ },
+ "test_m2_00_tien_te_tinh": {
+  "ok": 18,
+  "error": 0,
+  "fail": 0,
+  "skip": 0,
+  "treo": 0,
+  "giay": 0.4,
+  "tong": 18,
+  "ids_loi": [],
+  "loi_dau": "",
+  "pg": {
+   "ho": [],
+   "moi": 0,
+   "da_xoa": 0,
+   "con_phien": 0
+  }
+ },
+ "test_m2_00b_quyen": {
+  "ok": 24,
+  "error": 0,
+  "fail": 0,
+  "skip": 0,
+  "treo": 0,
+  "giay": 1.4,
+  "tong": 24,
+  "ids_loi": [],
+  "loi_dau": "",
+  "pg": {
+   "ho": [],
+   "moi": 0,
+   "da_xoa": 0,
+   "con_phien": 0
+  }
+ },
+ "test_m2_00b_tien_trinh": {
+  "ok": 17,
+  "error": 0,
+  "fail": 0,
+  "skip": 0,
+  "treo": 0,
+  "giay": 1.3,
+  "tong": 17,
+  "ids_loi": [],
+  "loi_dau": "",
+  "pg": {
+   "ho": [],
+   "moi": 0,
+   "da_xoa": 0,
+   "con_phien": 0
+  }
+ },
+ "test_m2_00b_tinh": {
+  "ok": 19,
+  "error": 0,
+  "fail": 0,
+  "skip": 0,
+  "treo": 0,
+  "giay": 1.3,
+  "tong": 19,
+  "ids_loi": [],
+  "loi_dau": "",
+  "pg": {
+   "ho": [],
+   "moi": 0,
+   "da_xoa": 0,
+   "con_phien": 0
+  }
+ },
+ "test_m2_00e_http": {
+  "ok": 38,
+  "error": 0,
+  "fail": 0,
+  "skip": 0,
+  "treo": 0,
+  "giay": 6.9,
+  "tong": 38,
+  "ids_loi": [],
+  "loi_dau": "",
+  "pg": {
+   "ho": [],
+   "moi": 0,
+   "da_xoa": 0,
+   "con_phien": 0
+  }
+ },
+ "test_m2_http": {
+  "ok": 1,
+  "error": 1,
+  "fail": 0,
+  "skip": 0,
+  "treo": 0,
+  "giay": 4.7,
+  "tong": 3,
+  "ids_loi": [
+   "setUpClass (test_m2_http.M2Http)"
+  ],
+  "loi_dau": "kho_tri_thuc.ha_tang.primitives.DataError: Tệp fixture manifest.json không khớp SHA đã pin.",
+  "pg": {
+   "ho": [],
+   "moi": 1,
+   "da_xoa": 1,
+   "con_phien": 0
+  }
+ },
+ "test_m2_k2": {
+  "ok": 0,
+  "error": 1,
+  "fail": 0,
+  "skip": 0,
+  "treo": 0,
+  "giay": 1.0,
+  "tong": null,
+  "ids_loi": [
+   "TIEN_TRINH_CON_CHET(ma=1) khi chay nap module"
+  ],
+  "loi_dau": "AssertionError: workflow.json khác pin",
+  "test_treo": "",
+  "pg": {
+   "ho": [],
+   "moi": 0,
+   "da_xoa": 0,
+   "con_phien": 0
+  }
+ },
+ "test_m2_migrations": {
+  "ok": 5,
+  "error": 0,
+  "fail": 2,
+  "skip": 0,
+  "treo": 0,
+  "giay": 9.1,
+  "tong": 7,
+  "ids_loi": [
+   "test_m2_migrations.PgM0015.test_fresh_0_den_15",
+   "test_m2_migrations.PgM0015.test_nang_cap_14_den_15_giu_hang_cu"
+  ],
+  "loi_dau": "AssertionError: 29 != 15",
+  "pg": {
+   "ho": [],
+   "moi": 3,
+   "da_xoa": 3,
+   "con_phien": 0
+  }
+ },
+ "test_m4_01b_pg": {
+  "ok": 8,
+  "error": 0,
+  "fail": 0,
+  "skip": 2,
+  "treo": 0,
+  "giay": 8.7,
+  "tong": 10,
+  "ids_loi": [],
+  "loi_dau": "",
+  "pg": {
+   "ho": [],
+   "moi": 1,
+   "da_xoa": 1,
+   "con_phien": 0
+  }
+ },
+ "test_m4_01b_tinh": {
+  "ok": 41,
+  "error": 0,
+  "fail": 0,
+  "skip": 9,
+  "treo": 0,
+  "giay": 1.7,
+  "tong": 50,
+  "ids_loi": [],
+  "loi_dau": "",
+  "pg": {
+   "ho": [],
+   "moi": 0,
+   "da_xoa": 0,
+   "con_phien": 0
+  }
+ },
+ "test_m4_01c": {
+  "ok": 16,
+  "error": 0,
+  "fail": 0,
+  "skip": 0,
+  "treo": 0,
+  "giay": 2.0,
+  "tong": 16,
+  "ids_loi": [],
+  "loi_dau": "",
+  "pg": {
+   "ho": [],
+   "moi": 0,
+   "da_xoa": 0,
+   "con_phien": 0
+  }
+ },
+ "test_m4_01c_http": {
+  "ok": 7,
+  "error": 0,
+  "fail": 0,
+  "skip": 1,
+  "treo": 0,
+  "giay": 7.2,
+  "tong": 8,
+  "ids_loi": [],
+  "loi_dau": "",
+  "pg": {
+   "ho": [],
+   "moi": 1,
+   "da_xoa": 1,
+   "con_phien": 0
+  }
+ },
+ "test_m4_02b_http": {
+  "ok": 1,
+  "error": 0,
+  "fail": 1,
+  "skip": 2,
+  "treo": 0,
+  "giay": 5.8,
+  "tong": 4,
+  "ids_loi": [
+   "test_m4_02b_http.M4ChungTuHttp.test_h01_tai_san"
+  ],
+  "loi_dau": "AssertionError: 29 != 22",
+  "pg": {
+   "ho": [],
+   "moi": 1,
+   "da_xoa": 1,
+   "con_phien": 0
+  }
+ },
+ "test_m4_02b_k2": {
+  "ok": 8,
+  "error": 0,
+  "fail": 0,
+  "skip": 1,
+  "treo": 0,
+  "giay": 1.7,
+  "tong": 23,
+  "ids_loi": [],
+  "loi_dau": "",
+  "pg": {
+   "ho": [],
+   "moi": 0,
+   "da_xoa": 0,
+   "con_phien": 0
+  }
+ },
+ "test_m4_02b_pure": {
+  "ok": 18,
+  "error": 0,
+  "fail": 0,
+  "skip": 18,
+  "treo": 0,
+  "giay": 1.3,
+  "tong": 36,
+  "ids_loi": [],
+  "loi_dau": "",
+  "pg": {
+   "ho": [],
+   "moi": 0,
+   "da_xoa": 0,
+   "con_phien": 0
+  }
+ },
+ "test_m4_02c_dto_ui": {
+  "ok": 11,
+  "error": 0,
+  "fail": 0,
+  "skip": 0,
+  "treo": 0,
+  "giay": 79.0,
+  "tong": 11,
+  "ids_loi": [],
+  "loi_dau": "",
+  "pg": {
+   "ho": [],
+   "moi": 0,
+   "da_xoa": 0,
+   "con_phien": 0
+  }
+ },
+ "test_m4_02c_http": {
+  "ok": 0,
+  "error": 0,
+  "fail": 0,
+  "skip": 4,
+  "treo": 0,
+  "giay": 2.1,
+  "tong": 4,
+  "ids_loi": [],
+  "loi_dau": "",
+  "pg": {
+   "ho": [],
+   "loi_dung_ban_sao": [
+    "02c: tao-clone: DataError(FIXTURE_PIN)"
+   ],
+   "moi": 1,
+   "da_xoa": 1,
+   "con_phien": 0
+  }
+ },
+ "test_m4_02c_pg": {
+  "ok": 0,
+  "error": 0,
+  "fail": 0,
+  "skip": 9,
+  "treo": 0,
+  "giay": 1.0,
+  "tong": 9,
+  "ids_loi": [],
+  "loi_dau": "",
+  "pg": {
+   "ho": [],
+   "loi_dung_ban_sao": [
+    "02c: tao-clone: DataError(FIXTURE_PIN)"
+   ],
+   "moi": 1,
+   "da_xoa": 1,
+   "con_phien": 0
+  }
+ },
+ "test_m4_02c_tinh": {
+  "ok": 24,
+  "error": 0,
+  "fail": 0,
+  "skip": 0,
+  "treo": 0,
+  "giay": 1.1,
+  "tong": 24,
+  "ids_loi": [],
+  "loi_dau": "",
+  "pg": {
+   "ho": [],
+   "moi": 0,
+   "da_xoa": 0,
+   "con_phien": 0
+  }
+ },
+ "test_m4_03a_full_basis_pg": {
+  "ok": 0,
+  "error": 0,
+  "fail": 0,
+  "skip": 4,
+  "treo": 0,
+  "giay": 1.1,
+  "tong": 4,
+  "ids_loi": [],
+  "loi_dau": "",
+  "pg": {
+   "ho": [],
+   "moi": 0,
+   "da_xoa": 0,
+   "con_phien": 0
+  }
+ },
+ "test_m4_03a_full_basis_tinh": {
+  "ok": 22,
+  "error": 0,
+  "fail": 0,
+  "skip": 0,
+  "treo": 0,
+  "giay": 0.6,
+  "tong": 22,
+  "ids_loi": [],
+  "loi_dau": "",
+  "pg": {
+   "ho": [],
+   "moi": 0,
+   "da_xoa": 0,
+   "con_phien": 0
+  }
+ },
+ "test_m4_03a_graph_guard_pg": {
+  "ok": 0,
+  "error": 0,
+  "fail": 0,
+  "skip": 3,
+  "treo": 0,
+  "giay": 0.9,
+  "tong": 3,
+  "ids_loi": [],
+  "loi_dau": "",
+  "pg": {
+   "ho": [],
+   "moi": 0,
+   "da_xoa": 0,
+   "con_phien": 0
+  }
+ },
+ "test_m4_03a_graph_guard_tinh": {
+  "ok": 15,
+  "error": 0,
+  "fail": 0,
+  "skip": 0,
+  "treo": 0,
+  "giay": 0.5,
+  "tong": 15,
+  "ids_loi": [],
+  "loi_dau": "",
+  "pg": {
+   "ho": [],
+   "moi": 0,
+   "da_xoa": 0,
+   "con_phien": 0
+  }
+ },
+ "test_m4_03a_gui_fix01_http": {
+  "ok": 7,
+  "error": 0,
+  "fail": 0,
+  "skip": 0,
+  "treo": 0,
+  "giay": 0.6,
+  "tong": 7,
+  "ids_loi": [],
+  "loi_dau": "",
+  "pg": {
+   "ho": [],
+   "moi": 0,
+   "da_xoa": 0,
+   "con_phien": 0
+  }
+ },
+ "test_m4_03a_http": {
+  "ok": 15,
+  "error": 0,
+  "fail": 0,
+  "skip": 1,
+  "treo": 0,
+  "giay": 0.6,
+  "tong": 16,
+  "ids_loi": [],
+  "loi_dau": "",
+  "pg": {
+   "ho": [],
+   "moi": 0,
+   "da_xoa": 0,
+   "con_phien": 0
+  }
+ },
+ "test_m4_03a_m26_integration": {
+  "ok": 8,
+  "error": 0,
+  "fail": 0,
+  "skip": 0,
+  "treo": 0,
+  "giay": 0.7,
+  "tong": 8,
+  "ids_loi": [],
+  "loi_dau": "",
+  "pg": {
+   "ho": [],
+   "moi": 0,
+   "da_xoa": 0,
+   "con_phien": 0
+  }
+ },
+ "test_m4_03a_pg": {
+  "ok": 0,
+  "error": 0,
+  "fail": 0,
+  "skip": 13,
+  "treo": 0,
+  "giay": 1.1,
+  "tong": 13,
+  "ids_loi": [],
+  "loi_dau": "",
+  "pg": {
+   "ho": [],
+   "moi": 0,
+   "da_xoa": 0,
+   "con_phien": 0
+  }
+ },
+ "test_m4_03a_tinh": {
+  "ok": 27,
+  "error": 0,
+  "fail": 0,
+  "skip": 0,
+  "treo": 0,
+  "giay": 0.7,
+  "tong": 27,
+  "ids_loi": [],
+  "loi_dau": "",
+  "pg": {
+   "ho": [],
+   "moi": 0,
+   "da_xoa": 0,
+   "con_phien": 0
+  }
+ },
+ "test_m4_03b_common_pg": {
+  "ok": 0,
+  "error": 0,
+  "fail": 0,
+  "skip": 10,
+  "treo": 0,
+  "giay": 1.0,
+  "tong": 10,
+  "ids_loi": [],
+  "loi_dau": "",
+  "pg": {
+   "ho": [],
+   "moi": 0,
+   "da_xoa": 0,
+   "con_phien": 0
+  }
+ },
+ "test_m4_03b_common_tinh": {
+  "ok": 60,
+  "error": 0,
+  "fail": 0,
+  "skip": 0,
+  "treo": 0,
+  "giay": 0.7,
+  "tong": 60,
+  "ids_loi": [],
+  "loi_dau": "",
+  "pg": {
+   "ho": [],
+   "moi": 0,
+   "da_xoa": 0,
+   "con_phien": 0
+  }
+ },
+ "test_m4_03b_m29_integration": {
+  "ok": 7,
+  "error": 0,
+  "fail": 0,
+  "skip": 0,
+  "treo": 0,
+  "giay": 0.7,
+  "tong": 7,
+  "ids_loi": [],
+  "loi_dau": "",
+  "pg": {
+   "ho": [],
+   "moi": 0,
+   "da_xoa": 0,
+   "con_phien": 0
+  }
+ },
+ "test_m4_04b_request_wiring_http": {
+  "ok": 3,
+  "error": 13,
+  "fail": 0,
+  "skip": 0,
+  "treo": 0,
+  "giay": 58.9,
+  "tong": 16,
+  "ids_loi": [
+   "test_m4_04b_request_wiring_http.WiringHttp.test_w01_ba_route_tai_san_cong",
+   "test_m4_04b_request_wiring_http.WiringHttp.test_w02_khong_cau_hinh_khong_mang",
+   "test_m4_04b_request_wiring_http.WiringHttp.test_w03_context_va_tham_so",
+   "test_m4_04b_request_wiring_http.WiringHttp.test_w04_duong_hien_hanh_ngoai_lock",
+   "test_m4_04b_request_wiring_http.WiringHttp.test_w05_tao_lich_su_va_hien_hanh_doi_giua_chung",
+   "test_m4_04b_request_wiring_http.WiringHttp.test_w06_lich_su_can_tao_tai_hold_khong_io",
+   "test_m4_04b_request_wiring_http.WiringHttp.test_w06b_lich_su_can_tai_va_chua_co_y_dinh",
+   "test_m4_04b_request_wiring_http.WiringHttp.test_w06c_lich_su_chua_co_y_dinh",
+   "test_m4_04b_request_wiring_http.WiringHttp.test_w07_lich_su_chua_ro_tai_chi_get",
+   "test_m4_04b_request_wiring_http.WiringHttp.test_w08_mat_tien_qua_domain",
+   "test_m4_04b_request_wiring_http.WiringHttp.test_w09_phien_doi_trong_lenh_dai",
+   "test_m4_04b_request_wiring_http.WiringHttp.test_w10_quyen_authority_phat_lai",
+   "test_m4_04b_request_wiring_http.WiringHttp.test_w11_query_rong_lap_qua_handle_route_that"
+  ],
+  "loi_dau": "AttributeError: 'LocalApp' object has no attribute 'go_request_nhap'",
+  "pg": {
+   "ho": [],
+   "moi": 0,
+   "da_xoa": 0,
+   "con_phien": 0
+  }
+ },
+ "test_m4_04c_m27_integration": {
+  "ok": 7,
+  "error": 0,
+  "fail": 0,
+  "skip": 0,
+  "treo": 0,
+  "giay": 0.5,
+  "tong": 7,
+  "ids_loi": [],
+  "loi_dau": "",
+  "pg": {
+   "ho": [],
+   "moi": 0,
+   "da_xoa": 0,
+   "con_phien": 0
+  }
+ },
+ "test_m4_master_dung_chung_http": {
+  "ok": 0,
+  "error": 0,
+  "fail": 0,
+  "skip": 3,
+  "treo": 0,
+  "giay": 1.7,
+  "tong": 3,
+  "ids_loi": [],
+  "loi_dau": "",
+  "pg": {
+   "ho": [],
+   "loi_dung_ban_sao": [
+    "mc: tao-clone: DataError(FIXTURE_PIN)"
+   ],
+   "moi": 1,
+   "da_xoa": 1,
+   "con_phien": 0
+  }
+ },
+ "test_m4_master_dung_chung_pg": {
+  "ok": 0,
+  "error": 0,
+  "fail": 0,
+  "skip": 13,
+  "treo": 0,
+  "giay": 0.9,
+  "tong": 13,
+  "ids_loi": [],
+  "loi_dau": "",
+  "pg": {
+   "ho": [],
+   "loi_dung_ban_sao": [
+    "mc: tao-clone: DataError(FIXTURE_PIN)"
+   ],
+   "moi": 1,
+   "da_xoa": 1,
+   "con_phien": 0
+  }
+ },
+ "test_m4_master_dung_chung_tinh": {
+  "ok": 14,
+  "error": 0,
+  "fail": 0,
+  "skip": 0,
+  "treo": 0,
+  "giay": 0.5,
+  "tong": 14,
+  "ids_loi": [],
+  "loi_dau": "",
+  "pg": {
+   "ho": [],
+   "moi": 0,
+   "da_xoa": 0,
+   "con_phien": 0
+  }
+ },
+ "test_m4_master_m28_integration": {
+  "ok": 7,
+  "error": 0,
+  "fail": 0,
+  "skip": 0,
+  "treo": 0,
+  "giay": 0.6,
+  "tong": 7,
+  "ids_loi": [],
+  "loi_dau": "",
+  "pg": {
+   "ho": [],
+   "moi": 0,
+   "da_xoa": 0,
+   "con_phien": 0
+  }
+ },
+ "test_m4_request_fix01": {
+  "ok": 25,
+  "error": 0,
+  "fail": 0,
+  "skip": 0,
+  "treo": 0,
+  "giay": 0.9,
+  "tong": 25,
+  "ids_loi": [],
+  "loi_dau": "",
+  "pg": {
+   "ho": [],
+   "moi": 0,
+   "da_xoa": 0,
+   "con_phien": 0
+  }
+ },
+ "test_m4_request_fix02": {
+  "ok": 15,
+  "error": 0,
+  "fail": 0,
+  "skip": 0,
+  "treo": 0,
+  "giay": 0.9,
+  "tong": 15,
+  "ids_loi": [],
+  "loi_dau": "",
+  "pg": {
+   "ho": [],
+   "moi": 0,
+   "da_xoa": 0,
+   "con_phien": 0
+  }
+ },
+ "test_m4_request_http": {
+  "ok": 0,
+  "error": 0,
+  "fail": 0,
+  "skip": 3,
+  "treo": 0,
+  "giay": 1.6,
+  "tong": 3,
+  "ids_loi": [],
+  "loi_dau": "",
+  "pg": {
+   "ho": [],
+   "loi_dung_ban_sao": [
+    "04a: tao-clone: DataError(FIXTURE_PIN)"
+   ],
+   "moi": 1,
+   "da_xoa": 1,
+   "con_phien": 0
+  }
+ },
+ "test_m4_request_pg": {
+  "ok": 0,
+  "error": 0,
+  "fail": 0,
+  "skip": 6,
+  "treo": 0,
+  "giay": 1.1,
+  "tong": 6,
+  "ids_loi": [],
+  "loi_dau": "",
+  "pg": {
+   "ho": [],
+   "loi_dung_ban_sao": [
+    "04a: tao-clone: DataError(FIXTURE_PIN)"
+   ],
+   "moi": 1,
+   "da_xoa": 1,
+   "con_phien": 0
+  }
+ },
+ "test_m4_request_tinh": {
+  "ok": 56,
+  "error": 0,
+  "fail": 0,
+  "skip": 0,
+  "treo": 0,
+  "giay": 1.2,
+  "tong": 56,
+  "ids_loi": [],
+  "loi_dau": "",
+  "pg": {
+   "ho": [],
+   "moi": 0,
+   "da_xoa": 0,
+   "con_phien": 0
+  }
+ },
+ "test_m4_review_compute": {
+  "ok": 48,
+  "error": 0,
+  "fail": 0,
+  "skip": 3,
+  "treo": 0,
+  "giay": 1.5,
+  "tong": 51,
+  "ids_loi": [],
+  "loi_dau": "",
+  "pg": {
+   "ho": [],
+   "moi": 0,
+   "da_xoa": 0,
+   "con_phien": 0
+  }
+ },
+ "test_m4_review_http": {
+  "ok": 2,
+  "error": 0,
+  "fail": 1,
+  "skip": 4,
+  "treo": 0,
+  "giay": 7.1,
+  "tong": 7,
+  "ids_loi": [
+   "test_m4_review_http.M4ReviewHttp.test_h01_tai_san"
+  ],
+  "loi_dau": "AssertionError: 29 != 20",
+  "pg": {
+   "ho": [],
+   "moi": 1,
+   "da_xoa": 1,
+   "con_phien": 0
+  }
+ },
+ "test_m4_review_k2": {
+  "ok": 0,
+  "error": 0,
+  "fail": 1,
+  "skip": 13,
+  "treo": 0,
+  "giay": 9.0,
+  "tong": 14,
+  "ids_loi": [
+   "test_m4_review_k2.M4ReviewPG.test_r00_nang_19_len_20"
+  ],
+  "loi_dau": "AssertionError: 29 != 20",
+  "pg": {
+   "ho": [],
+   "moi": 2,
+   "da_xoa": 2,
+   "con_phien": 0
+  }
+ },
+ "test_m5_http": {
+  "ok": 1,
+  "error": 0,
+  "fail": 1,
+  "skip": 0,
+  "treo": 0,
+  "giay": 7.9,
+  "tong": 2,
+  "ids_loi": [
+   "test_m5_http.M5Http.test_luong_http_m5"
+  ],
+  "loi_dau": "AssertionError: Tuples differ: (400, 'L11_YEU_CAU_SAI') != (501, 'M5_L11_CHUA_PHAT_HANH')",
+  "pg": {
+   "ho": [],
+   "moi": 1,
+   "da_xoa": 1,
+   "con_phien": 0
+  }
+ },
+ "test_m5_k2": {
+  "ok": 36,
+  "error": 0,
+  "fail": 0,
+  "skip": 0,
+  "treo": 0,
+  "giay": 11.3,
+  "tong": 36,
+  "ids_loi": [],
+  "loi_dau": "",
+  "pg": {
+   "ho": [],
+   "moi": 1,
+   "da_xoa": 1,
+   "con_phien": 0
+  }
+ },
+ "test_m9_k2": {
+  "ok": 0,
+  "error": 14,
+  "fail": 4,
+  "skip": 0,
+  "treo": 0,
+  "giay": 16.6,
+  "tong": 18,
+  "ids_loi": [
+   "test_m9_k2.M9K2Test.test_m01_nhan_nguon_giu_raw_snapshot_khong_pn_va_quyen",
+   "test_m9_k2.M9K2Test.test_m02_shape_partial_va_profile_root_bi_tu_choi",
+   "test_m9_k2.M9K2Test.test_m03_mapping_cong_ty_ngan_hang_du_an",
+   "test_m9_k2.M9K2Test.test_m04_lap_phien_ban_pn_a_giu_cho_mapping_roi_bo_sung",
+   "test_m9_k2.M9K2Test.test_m05_kiem_duyet_v3_v4_va_rao_csdl",
+   "test_m9_k2.M9K2Test.test_m06_tien_truoc_nguon_sau_va_van_tay_cu_pn_b",
+   "test_m9_k2.M9K2Test.test_m07_noi_tien_tra_no_proof_bien_nhan_go",
+   "test_m9_k2.M9K2Test.test_m08_ngan_sach_chung_crm_direct_va_m9_child_race",
+   "test_m9_k2.M9K2Test.test_m09_revision_tieu_thu_xuyen_revision",
+   "test_m9_k2.M9K2Test.test_m10_lc_nhan_no_cung_alias_khong_hai_hd",
+   "test_m9_k2.M9K2Test.test_m11_s05_loan_draw_cho_xac_nhan_pham_vi_roi_bo_sung",
+   "test_m9_k2.M9K2Test.test_m12_precision_xung_dot_mo_ho_giu_cho",
+   "test_m9_k2.M9K2Test.test_m13_file_soat_lossless_va_tai_ve",
+   "test_m9_k2.M9K2Test.test_m14_http_cung_phien_cookie",
+   "test_m9_k2.M9K2Test.test_m15_retarget_cong_ty_co_impact_va_chan_alias",
+   "test_m9_k2.M9K2Test.test_m16_nhat_ky_va_tong_hop",
+   "test_m9_k2.M9MigrationTest.test_m01_fresh_len_13",
+   "test_m9_k2.M9MigrationTest.test_m02_nang_cap_tu_12_co_crm_direct_huy_va_lich_tra_no_cu"
+  ],
+  "loi_dau": "kho_tri_thuc.ha_tang.primitives.DataError: Cần kế toán có module M9 để nhận nguồn khoản vay.",
+  "pg": {
+   "ho": [],
+   "moi": 3,
+   "da_xoa": 3,
+   "con_phien": 0
+  }
+ },
+ "test_m9_phan_tich": {
+  "ok": 10,
+  "error": 0,
+  "fail": 0,
+  "skip": 0,
+  "treo": 0,
+  "giay": 0.4,
+  "tong": 10,
+  "ids_loi": [],
+  "loi_dau": "",
+  "pg": {
+   "ho": [],
+   "moi": 0,
+   "da_xoa": 0,
+   "con_phien": 0
+  }
+ },
+ "test_modules": {
+  "ok": 48,
+  "error": 0,
+  "fail": 0,
+  "skip": 0,
+  "treo": 0,
+  "giay": 14.4,
+  "tong": 48,
+  "ids_loi": [],
+  "loi_dau": "",
+  "pg": {
+   "ho": [],
+   "moi": 0,
+   "da_xoa": 0,
+   "con_phien": 0
+  }
+ },
+ "test_nghiem_thu_bridge": {
+  "ok": 21,
+  "error": 0,
+  "fail": 0,
+  "skip": 0,
+  "treo": 0,
+  "giay": 6.6,
+  "tong": 21,
+  "ids_loi": [],
+  "loi_dau": "",
+  "pg": {
+   "ho": [],
+   "moi": 0,
+   "da_xoa": 0,
+   "con_phien": 0
+  }
+ },
+ "test_pg_bo_chuyen_schema10": {
+  "ok": 1,
+  "error": 0,
+  "fail": 0,
+  "skip": 0,
+  "treo": 0,
+  "giay": 5.2,
+  "tong": 1,
+  "ids_loi": [],
+  "loi_dau": "",
+  "pg": {
+   "ho": [],
+   "moi": 1,
+   "da_xoa": 1,
+   "con_phien": 0
+  }
+ },
+ "test_pg_schema": {
+  "ok": 16,
+  "error": 0,
+  "fail": 1,
+  "skip": 1,
+  "treo": 0,
+  "giay": 6.6,
+  "tong": 18,
+  "ids_loi": [
+   "test_pg_schema.PostgresSchemaTest.test_t16_bo_chuyen_demo"
+  ],
+  "loi_dau": "AssertionError: 1 != 0 :",
+  "pg": {
+   "ho": [],
+   "moi": 0,
+   "da_xoa": 0,
+   "con_phien": 0
+  }
+ },
+ "test_source6_docx_tables": {
+  "ok": 0,
+  "error": 1,
+  "fail": 0,
+  "skip": 0,
+  "treo": 0,
+  "giay": 0.4,
+  "tong": 35,
+  "ids_loi": [
+   "setUpModule (test_source6_docx_tables)"
+  ],
+  "loi_dau": "RuntimeError: Thiếu KTT_SOURCE6_E3_OVERLAY (overlay đóng băng + hai artifact) — không skip, không tự tìm nguồn",
+  "pg": {
+   "ho": [],
+   "moi": 0,
+   "da_xoa": 0,
+   "con_phien": 0
+  }
+ },
+ "test_source6_g5_e5": {
+  "ok": 16,
+  "error": 0,
+  "fail": 0,
+  "skip": 2,
+  "treo": 0,
+  "giay": 0.7,
+  "tong": 33,
+  "ids_loi": [],
+  "loi_dau": "",
+  "pg": {
+   "ho": [],
+   "moi": 0,
+   "da_xoa": 0,
+   "con_phien": 0
+  }
+ },
+ "test_source6_lazy_excel": {
+  "ok": 0,
+  "error": 3,
+  "fail": 0,
+  "skip": 0,
+  "treo": 0,
+  "giay": 0.3,
+  "tong": 18,
+  "ids_loi": [
+   "setUpClass (test_source6_lazy_excel.TestExcelThat)",
+   "setUpClass (test_source6_lazy_excel.TestRuleOnlyBlockedSubprocess)",
+   "setUpClass (test_source6_lazy_excel.TestStaticCandidate)"
+  ],
+  "loi_dau": "RuntimeError: SETUP NOT_VERIFIED (baseline/bố cục): thư mục chứa tests/tools phải là 'files' của bố cục đóng băng, đang là D:\\Claude\\Phan mem ho tro ke toan\\Phần mềm kho tri thức\\.claude\\worktrees\\lat-l0-8; thiếu baseline D:\\Claude\\Phan mem ho tro ke toan\\Phần mềm kho tri thức\\.claude\\worktrees\\inpu",
+  "pg": {
+   "ho": [],
+   "moi": 0,
+   "da_xoa": 0,
+   "con_phien": 0
+  }
+ },
+ "test_trich6_host": {
+  "ok": 17,
+  "error": 3,
+  "fail": 0,
+  "skip": 3,
+  "treo": 0,
+  "giay": 2.5,
+  "tong": 23,
+  "ids_loi": [
+   "test_trich6_host.VongDoiThatTests.test_06a_docx_that_all37_tap_con_seal_replay_va_tu_choi",
+   "test_trich6_host.VongDoiThatTests.test_hai_instance_doc_lap_va_buoc_dung_central",
+   "test_trich6_host.VongDoiThatTests.test_vong_doi_auth_common_only_va_dung"
+  ],
+  "loi_dau": "kho_tri_thuc.nguon.trich6_host.LoiHost: Guard giữ tệp của tiến trình central chưa đạt — không mở engine DEMO.",
+  "pg": {
+   "ho": [],
+   "moi": 0,
+   "da_xoa": 0,
+   "con_phien": 0
+  }
+ },
+ "test_trich_chung_6": {
+  "ok": 31,
+  "error": 0,
+  "fail": 1,
+  "skip": 1,
+  "treo": 0,
+  "giay": 2.0,
+  "tong": 33,
+  "ids_loi": [
+   "test_trich_chung_6.WiringTests.test_m4_khong_con_loi_chep"
+  ],
+  "loi_dau": "AssertionError: 'LENH_RIENG = REVIEW_LENH | {\"hop-dong/trich\"}' not found in '\"\"\"M4-01 — HTTP mỏng cho Cổng hồ sơ xây dựng trên LocalApp hiện có (cùng token X-KTT-Token, phiên cookie HttpOnly do máy chủ cấp, mutation lock,\\ncùng kết nối login ứng dụng + cổng lineage của CRM). Không webserver/iframe ",
+  "pg": {
+   "ho": [],
+   "moi": 0,
+   "da_xoa": 0,
+   "con_phien": 0
+  }
+ },
+ "test_v10": {
+  "ok": 25,
+  "error": 0,
+  "fail": 0,
+  "skip": 0,
+  "treo": 0,
+  "giay": 4.9,
+  "tong": 25,
+  "ids_loi": [],
+  "loi_dau": "",
+  "pg": {
+   "ho": [],
+   "moi": 0,
+   "da_xoa": 0,
+   "con_phien": 0
+  }
+ },
+ "test_v11": {
+  "ok": 25,
+  "error": 0,
+  "fail": 0,
+  "skip": 0,
+  "treo": 0,
+  "giay": 3.8,
+  "tong": 25,
+  "ids_loi": [],
+  "loi_dau": "",
+  "pg": {
+   "ho": [],
+   "moi": 0,
+   "da_xoa": 0,
+   "con_phien": 0
+  }
+ },
+ "test_v12": {
+  "ok": 9,
+  "error": 0,
+  "fail": 0,
+  "skip": 0,
+  "treo": 0,
+  "giay": 3.0,
+  "tong": 9,
+  "ids_loi": [],
+  "loi_dau": "",
+  "pg": {
+   "ho": [],
+   "moi": 0,
+   "da_xoa": 0,
+   "con_phien": 0
+  }
+ },
+ "test_v13_backup_safety": {
+  "ok": 18,
+  "error": 0,
+  "fail": 0,
+  "skip": 0,
+  "treo": 0,
+  "giay": 2.3,
+  "tong": 18,
+  "ids_loi": [],
+  "loi_dau": "",
+  "pg": {
+   "ho": [],
+   "moi": 0,
+   "da_xoa": 0,
+   "con_phien": 0
+  }
+ },
+ "test_v13_backup_safety_pg": {
+  "ok": 11,
+  "error": 0,
+  "fail": 0,
+  "skip": 0,
+  "treo": 0,
+  "giay": 98.9,
+  "tong": 11,
+  "ids_loi": [],
+  "loi_dau": "",
+  "pg": {
+   "ho": [],
+   "moi": 1,
+   "da_xoa": 1,
+   "con_phien": 0
+  }
+ },
+ "test_v13_doi_chieu": {
+  "ok": 18,
+  "error": 0,
+  "fail": 0,
+  "skip": 0,
+  "treo": 0,
+  "giay": 13.1,
+  "tong": 18,
+  "ids_loi": [],
+  "loi_dau": "",
+  "pg": {
+   "ho": [],
+   "moi": 0,
+   "da_xoa": 0,
+   "con_phien": 0
+  }
+ },
+ "test_v1_matching": {
+  "ok": 27,
+  "error": 0,
+  "fail": 0,
+  "skip": 0,
+  "treo": 0,
+  "giay": 2.6,
+  "tong": 27,
+  "ids_loi": [],
+  "loi_dau": "",
+  "pg": {
+   "ho": [],
+   "moi": 0,
+   "da_xoa": 0,
+   "con_phien": 0
+  }
+ },
+ "test_v1b": {
+  "ok": 14,
+  "error": 0,
+  "fail": 0,
+  "skip": 0,
+  "treo": 0,
+  "giay": 1.9,
+  "tong": 14,
+  "ids_loi": [],
+  "loi_dau": "",
+  "pg": {
+   "ho": [],
+   "moi": 0,
+   "da_xoa": 0,
+   "con_phien": 0
+  }
+ },
+ "test_v2": {
+  "ok": 5,
+  "error": 0,
+  "fail": 0,
+  "skip": 0,
+  "treo": 0,
+  "giay": 1.3,
+  "tong": 5,
+  "ids_loi": [],
+  "loi_dau": "",
+  "pg": {
+   "ho": [],
+   "moi": 0,
+   "da_xoa": 0,
+   "con_phien": 0
+  }
+ },
+ "test_v3": {
+  "ok": 4,
+  "error": 0,
+  "fail": 0,
+  "skip": 0,
+  "treo": 0,
+  "giay": 0.9,
+  "tong": 4,
+  "ids_loi": [],
+  "loi_dau": "",
+  "pg": {
+   "ho": [],
+   "moi": 0,
+   "da_xoa": 0,
+   "con_phien": 0
+  }
+ },
+ "test_v4": {
+  "ok": 2,
+  "error": 0,
+  "fail": 0,
+  "skip": 0,
+  "treo": 0,
+  "giay": 1.5,
+  "tong": 2,
+  "ids_loi": [],
+  "loi_dau": "",
+  "pg": {
+   "ho": [],
+   "moi": 0,
+   "da_xoa": 0,
+   "con_phien": 0
+  }
+ },
+ "test_v5": {
+  "ok": 2,
+  "error": 0,
+  "fail": 0,
+  "skip": 0,
+  "treo": 0,
+  "giay": 1.2,
+  "tong": 2,
+  "ids_loi": [],
+  "loi_dau": "",
+  "pg": {
+   "ho": [],
+   "moi": 0,
+   "da_xoa": 0,
+   "con_phien": 0
+  }
+ },
+ "test_v6": {
+  "ok": 1,
+  "error": 0,
+  "fail": 0,
+  "skip": 0,
+  "treo": 0,
+  "giay": 2.0,
+  "tong": 1,
+  "ids_loi": [],
+  "loi_dau": "",
+  "pg": {
+   "ho": [],
+   "moi": 0,
+   "da_xoa": 0,
+   "con_phien": 0
+  }
+ },
+ "test_v7": {
+  "ok": 6,
+  "error": 0,
+  "fail": 0,
+  "skip": 0,
+  "treo": 0,
+  "giay": 2.1,
+  "tong": 6,
+  "ids_loi": [],
+  "loi_dau": "",
+  "pg": {
+   "ho": [],
+   "moi": 0,
+   "da_xoa": 0,
+   "con_phien": 0
+  }
+ },
+ "test_v8": {
+  "ok": 3,
+  "error": 0,
+  "fail": 0,
+  "skip": 0,
+  "treo": 0,
+  "giay": 1.5,
+  "tong": 3,
+  "ids_loi": [],
+  "loi_dau": "",
+  "pg": {
+   "ho": [],
+   "moi": 0,
+   "da_xoa": 0,
+   "con_phien": 0
+  }
+ },
+ "test_v9": {
+  "ok": 3,
+  "error": 0,
+  "fail": 0,
+  "skip": 0,
+  "treo": 0,
+  "giay": 1.5,
+  "tong": 3,
+  "ids_loi": [],
+  "loi_dau": "",
+  "pg": {
+   "ho": [],
+   "moi": 0,
+   "da_xoa": 0,
+   "con_phien": 0
+  }
+ },
+ "test_v9b": {
+  "ok": 19,
+  "error": 0,
+  "fail": 0,
+  "skip": 0,
+  "treo": 0,
+  "giay": 3.6,
+  "tong": 19,
+  "ids_loi": [],
+  "loi_dau": "",
+  "pg": {
+   "ho": [],
+   "moi": 0,
+   "da_xoa": 0,
+   "con_phien": 0
+  }
+ },
+ "test_web": {
+  "ok": 22,
+  "error": 0,
+  "fail": 1,
+  "skip": 0,
+  "treo": 0,
+  "giay": 3.6,
+  "tong": 23,
+  "ids_loi": [
+   "test_web.IntakeTests.test_scope_changes_receipt_not_raw_storage_size"
+  ],
+  "loi_dau": "AssertionError: 1 != 2",
+  "pg": {
+   "ho": [],
+   "moi": 0,
+   "da_xoa": 0,
+   "con_phien": 0
+  }
+ }
+}

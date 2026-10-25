@@ -11852,3 +11852,37 @@ from ..k2.sql_ghi_nhan_chung import M4_03B_COMMON_SQL  # noqa: E402 — module c
 M0029_M4_GHI_NHAN_CHUNG = M4_03B_COMMON_SQL
 PG_MIGRATIONS = (*PG_MIGRATIONS, M0029_M4_GHI_NHAN_CHUNG)
 PG_SCHEMA_VERSION = len(PG_MIGRATIONS)
+
+# ---------------------------------------------------------------------------
+# 0030 — BG-1c CRM · Báo giá: bước kiểm khi Ký tính Tổng VND = round(đơn giá × tỷ giá × diện tích, 0) cho báo giá v2 (tien_chinh = VND) và đọc
+#        ghi đè tổng (APPEND sau toàn bộ 1–29; không sửa byte/định nghĩa/checksum 1–29, không sửa M0025). Định nghĩa trong k2/sql_crm_bg1c.py
+#        (chỉ hằng SQL, không import ha_tang): CHỈ `CREATE OR REPLACE FUNCTION master.crm_kiem_lich_ky(uuid)` — cùng chữ ký/kiểu trả/hình dạng jsonb.
+# ---------------------------------------------------------------------------
+from ..k2.sql_crm_bg1c import CRM_BG1C_SQL  # noqa: E402 — module chỉ hằng SQL, không import ha_tang
+
+M0030_CRM_BG1C = CRM_BG1C_SQL
+PG_MIGRATIONS = (*PG_MIGRATIONS, M0030_CRM_BG1C)
+PG_SCHEMA_VERSION = len(PG_MIGRATIONS)
+
+# ---------------------------------------------------------------------------
+# 0031 — DA-1 CRM · Dự án đang bán (QD-20261025-05…09; APPEND sau toàn bộ 1–30; không sửa byte/định nghĩa/checksum 1–30). Định nghĩa trong
+#        k2/sql_crm_du_an_ban.py (chỉ hằng SQL, không import ha_tang): thông tin bán hàng của dự án (gắn master.du_an) có phiên bản bất biến + phí
+#        tiêu chuẩn + lô/căn có lịch sử; G7 áp dụng ngay cho bán hàng (bỏ CFO, QD-07) + nới đúng một CHECK valid_to của crm_bo_chuan_phien_ban.
+# ---------------------------------------------------------------------------
+from ..k2.sql_crm_du_an_ban import CRM_DU_AN_BAN_SQL  # noqa: E402 — module chỉ hằng SQL, không import ha_tang
+
+M0031_CRM_DU_AN_BAN = CRM_DU_AN_BAN_SQL
+PG_MIGRATIONS = (*PG_MIGRATIONS, M0031_CRM_DU_AN_BAN)
+PG_SCHEMA_VERSION = len(PG_MIGRATIONS)
+
+# ---------------------------------------------------------------------------
+# 0032 — CRM-41 G5-B đối chiếu bản ký ↔ bản sinh (APPEND sau toàn bộ 1–31; không sửa byte/định nghĩa/checksum 1–31). Định nghĩa trong
+#        k2/sql_crm_doi_chieu.py (chỉ hằng SQL, không import ha_tang; module ghi rõ "owner cấp ordinal và APPEND") — lead cấp ordinal 25/10/2026
+#        vì S1 (C3) và worker G5 của máy chủ đọc các bảng/hàm này (thiếu thì PostgreSQL báo crm_g5_* không tồn tại). Không seed đăng ký engine;
+#        G5 VAN_HANH vẫn HOLD như M0025 ghi.
+# ---------------------------------------------------------------------------
+from ..k2.sql_crm_doi_chieu import CRM_G5_SQL  # noqa: E402 — module chỉ hằng SQL, không import ha_tang
+
+M0032_CRM_G5 = CRM_G5_SQL
+PG_MIGRATIONS = (*PG_MIGRATIONS, M0032_CRM_G5)
+PG_SCHEMA_VERSION = len(PG_MIGRATIONS)

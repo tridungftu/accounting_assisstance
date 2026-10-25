@@ -114,7 +114,7 @@ class TrichXuat:
         if meta is not None and not isinstance(meta, dict):
             raise ValueError("Bản chụp request phải là object")
         self.meta = _copy.deepcopy(meta)
-        from .danh_muc import CATALOG_COMMON, danh_muc_theo_loai
+        from .danh_muc import CATALOG_COMMON, danh_muc_theo_loai, load_params_ban_chup
         loai_meta = self.meta.get("loai_hop_dong") if isinstance(self.meta, dict) else None
         if loai_hop_dong is not None and loai_meta is not None and loai_hop_dong != loai_meta:
             raise ValueError("Loại hợp đồng khác bản chụp request")
@@ -123,13 +123,22 @@ class TrichXuat:
             raise ValueError(f"Loại hợp đồng {self.loai_hop_dong!r} chưa đăng ký danh mục tham số")
         reg = CATALOG_COMMON[self.loai_hop_dong]
         if self.meta is not None:
-            if not loai_meta or self.meta.get("catalog_id") != reg["catalog_id"] or self.meta.get("catalog_sha256") != reg["sha256"]:
+            sha_catalog = reg["sha256"]
+            # Bản chụp gốc vẫn độc lập file đang sống; bản mới phải có chuỗi nhật ký hợp lệ.
+            if self.loai_hop_dong != "XD" and self.meta.get("catalog_sha256") != sha_catalog:
+                sha_catalog = hashlib.sha256(danh_muc_theo_loai(self.loai_hop_dong).read_bytes()).hexdigest()
+            if not loai_meta or self.meta.get("catalog_id") != reg["catalog_id"] or self.meta.get("catalog_sha256") != sha_catalog:
                 raise ValueError("Bản chụp thiếu/sai loại hoặc phiên bản danh mục đã ghim")
             self.phien_ban_danh_muc = self.meta["catalog_sha256"]
         else:
             path_catalog = danh_muc_theo_loai(self.loai_hop_dong)
             self.phien_ban_danh_muc = hashlib.sha256(path_catalog.read_bytes()).hexdigest()
-            if self.phien_ban_danh_muc != reg["sha256"]:
+            if self.loai_hop_dong != "XD":
+                # Giữ tập mã được chọn, nạp nội dung hiện hành đã kiểm chuỗi nhật ký.
+                hien_hanh = {p["ma"]: p for p in load_params_ban_chup(path_catalog)}
+                params = [hien_hanh[p["ma"]] if p["ma"] in hien_hanh else p
+                          for p in params if p["ma"] in hien_hanh or p["ma"].startswith("Y-")]
+            if hashlib.sha256(path_catalog.read_bytes()).hexdigest() != self.phien_ban_danh_muc:
                 raise ValueError("Danh mục đổi trong lúc chụp phiên bản")
         self.params = params
         self.ai = ai                              # None → chỉ tách cấu trúc + dò vị trí (không có Local AI)

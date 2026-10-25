@@ -266,6 +266,22 @@ class ChuyenMayChu(unittest.TestCase):
                 self.assertEqual(len(calls), 2)
                 self.assertIn("master.crm_gk_chuyen(", calls[-1].args[0])
 
+    def test_bg1c_chan_chuyen_thieu_khach_hoac_phi_tai_may_chu(self):
+        self.dat_bao_gia(bao_gia(khach={}))
+        with self.assertRaises(DataError) as cm:
+            self.s.chuyen("nguoi-thu", **self.kw)
+        self.assertEqual((cm.exception.code, str(cm.exception)), ("CRM_GK_CHAN_CHUYEN", "Chưa có thông tin khách hàng."))
+        self.dat_bao_gia(bao_gia())
+        self.m._mot.return_value = {"cau_hinh": {"bao_gia": {"truong_ap_dung": ["phi_bao_tri"]}}}  # profile loại hình có phí
+        with self.assertRaises(DataError) as cm:
+            self.s.chuyen("nguoi-thu", **self.kw)
+        self.assertEqual(str(cm.exception), "Chưa nhập phí quản lý/bảo trì.")
+        self.c.execute.assert_not_called()
+        self.dat_bao_gia(bao_gia(phi_bao_tri={"gia_tri": "20000000", "tien_te": "VND", "co_so": "2% (DEMO)"}))
+        self.c.execute.return_value.fetchone.side_effect = [{"r": {"danh_muc_ref": "DM", "danh_muc_rev": 1}},
+                                                            {"r": {"ket_qua": {"soan_id": "SOAN-THU"}, "lap_lai": False}}]
+        self.assertEqual(self.s.chuyen("nguoi-thu", **self.kw)["soan_id"], "SOAN-THU")
+
     def test_replay_chuyen_giu_bien_nhan_khong_tao_them_hop_dong(self):
         self.s._tra.return_value = {"soan_id": "SOAN-THU", "lap_lai": True}
         self.assertEqual(self.s.chuyen("nguoi-thu", **self.kw), self.s._tra.return_value)
@@ -305,13 +321,36 @@ class TinhChinhXac(unittest.TestCase):
         _, t = self.tinh(gia={"tien_te": "USD", "tong": "1000.00", "co_so_thue": "GROSS"})
         self.assertIn("USD_THIEU_FX", [x["ma"] for x in t["chan_in"]])
 
-    def test_usd_fx_doi_chi_doi_vnd_tham_chieu(self):
+    def test_usd_fx_doi_chi_doi_vnd_tham_chieu(self):  # dữ liệu cũ (trước BG-1c, không tien_chinh): USD là tiền chính, VND chỉ tham chiếu
         g = {"tien_te": "USD", "tong": "1234.56", "co_so_thue": "NET"}
-        _, a = self.tinh(gia=g, fx={"cap": "USD/VND", "ty_gia": "25000", "ngay": "2026-10-21"})
-        _, b = self.tinh(gia=g, fx={"cap": "USD/VND", "ty_gia": "25100.5", "ngay": "2026-10-22"})
+
+        def cu(**sua):
+            d = {k: v for k, v in GK.chuan_hoa_bao_gia(bao_gia(**sua)).items() if k != "tien_chinh"}
+            return d, GK.tinh_bao_gia(d, None)
+        _, a = cu(gia=g, fx={"cap": "USD/VND", "ty_gia": "25000", "ngay": "2026-10-21"})
+        _, b = cu(gia=g, fx={"cap": "USD/VND", "ty_gia": "25100.5", "ngay": "2026-10-22"})
         self.assertEqual((a["tong_minor"], b["tong_minor"]), ("123456", "123456"))  # USD gốc giữ nguyên
         self.assertEqual(a["vnd_tham_chieu"]["tong"], "30864000")
         self.assertEqual(b["vnd_tham_chieu"]["tong"], "30988073.28")  # 1234.56 × 25100.5 chính xác, không làm tròn
+
+    def test_bg1c_usd_doi_ty_gia_doi_tong_vnd_lich_va_bang_chu(self):
+        g = {"tien_te": "USD", "don_gia": "120.5", "dien_tich": "10000", "co_so_thue": "NET"}
+        _, a = self.tinh(gia=g, fx={"cap": "USD/VND", "ty_gia": "25000", "ngay": "2026-10-21"})
+        _, b = self.tinh(gia=g, fx={"cap": "USD/VND", "ty_gia": "25100.5", "ngay": "2026-10-22"})
+        self.assertEqual((a["tien_te"], a["tong_minor"], b["tong_minor"]), ("VND", "30125000000", "30246102500"))  # VND là tiền chính
+        self.assertEqual([x["so_tien_minor"] for x in b["dong"]], ["9073830750", "21172271750"])  # đợt % theo Tổng VND
+        self.assertEqual(a["usd_tham_chieu"], b["usd_tham_chieu"])  # USD tham chiếu = đơn giá × diện tích, không đổi theo tỷ giá
+        self.assertEqual(a["usd_tham_chieu"]["tong_hien_thi"], "1.205.000,00 USD")
+        self.assertEqual(a["tong_bang_chu"], "Ba mươi tỷ một trăm hai mươi lăm triệu đồng")
+        self.assertIsNone(a["vnd_tham_chieu"])
+        self.assertEqual(a["phep_tinh"], "120,5 USD × 25.000 × 10.000 m² = 30.125.000.000 đ")
+
+    def test_bg1c_in_so_bo_khong_can_khach_chuyen_can_khach(self):
+        _, t = self.tinh(khach={})
+        self.assertEqual((t["chan_in"], t["ly_do_chan_in"]), ([], ""))
+        self.assertEqual(t["ly_do_chan_chuyen"], "Chưa có thông tin khách hàng.")
+        _, t = self.tinh(khach={"du_thao": {"ten": "KHÁCH DEMO 2"}})
+        self.assertEqual(t["ly_do_chan_chuyen"], "")
 
     def test_scale_null_zero_sai_dang_tran(self):
         _, t = self.tinh(gia={"tien_te": "VND", "tong": "1000.5", "co_so_thue": "NET"})
@@ -497,6 +536,13 @@ class TongCanonical(unittest.TestCase):  # FIX01 #7
         chan, cb = GK.kiem_tong_canonical(None, {"gia_tri_hop_dong": {"so_tien": "1", "tien_te": "VND"}}, d, GK.tinh_bao_gia(d, None), {"gia_tri_hop_dong"})
         self.assertEqual((chan, [x["ma"] for x in cb]), ([], ["CHUA_CO_RANG_BUOC_TONG"]))
         self.assertEqual(self.kiem({"so_tien": "1", "tien_te": "VND"}, dung=()), ([], []))  # mẫu không có ô tổng → không kiểm
+
+    def test_bg1c_kiem_soan_xuat_hop_dong_can_khach(self):
+        ghim = {"danh_muc": [], "ban_do": [], "facts": {}}
+        d = GK.chuan_hoa_bao_gia(bao_gia(khach={}))
+        t = GK.tinh_bao_gia(d, None)
+        k = GK.CrmGiaoKetK2.kiem_soan({"gia_tri_truong": {}, "bao_gia": d}, ghim, t, GK.rang_buoc_tong(self.CH_THUE), True)
+        self.assertIn("THIEU_KHACH", [x["ma"] for x in k["chan_xuat"]])  # In sơ bộ được, hợp đồng thì không
 
     def test_kiem_soan_profile_doi_chan_xuat(self):
         ghim = {"danh_muc": [], "ban_do": [], "facts": {}}

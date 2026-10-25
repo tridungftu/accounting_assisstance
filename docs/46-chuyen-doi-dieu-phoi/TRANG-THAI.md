@@ -2,13 +2,16 @@
 
 Trạng thái lát: Đang code → Chờ kiểm → Chờ Anh (cổng A/B) → Sửa → Xong · Bị chặn. Kế hoạch và hàng đợi đầy đủ: `4-KE-HOACH-LEAD.md`. Nền test: `NEN-TEST.md` mục 0b — **nền v4** (mục 0, 25/10): 1501/23/44/362, **0 treo**.
 
-## Lát đang chạy (tối đa 3 worker lập trình; review chỉ đọc chạy kèm)
+## Lát đang chạy (tối đa 3 worker lập trình; review chỉ đọc chạy kèm) — từ 25/10 chia tối đa việc cho Codex (QD-20261025-16, -21)
 
 | Lát | Việc | Worker | Nhánh · worktree | Giao lúc | Trạng thái |
 |---|---|---|---|---|---|
-| BG-1c | CRM · Báo giá sửa theo cổng A — máy chủ: Tổng VND = đơn giá × tỷ giá × diện tích + bằng chữ; tỷ giá mặc định trong `master.cau_hinh` (kế toán sửa, nhật ký); In sơ bộ; Chuyển cần khách + phí; M0030 bước Ký | Claude Opus · review Codex | `lat/bg-1c` · DEMO 8791 | 25/10 | Sửa vòng 2 — review Codex: 2 Chặn (miền tổng/tiền đợt Python ≠ SQL; Python nhận chữ số không ASCII) + 1 Nên sửa (lỗi tỷ giá theo trường) |
-| BG-1d | CRM · Báo giá màn hình 2 bước: bước 1 to/đầu (giá, tỷ giá, Tổng VND + bằng chữ, lịch VND, In sơ bộ); bước 2 sau khi khách đồng ý (khách, phí, Chuyển) | Claude Sonnet | `lat/bg-1d` (từ `lat/bg-1c`) · DEMO 8791 | 25/10 | Đang code |
-| L0-8 | Bật test PostgreSQL trên cụm DEMO (CSDL tạm `kho_test_*`, xóa sau khi chạy) — QD-20261025-10 | Claude Sonnet | `lat/l0-8` | 25/10 | Đang code |
+| BG-1d | CRM · Báo giá màn hình 2 bước (BG-1b + BG-1d) | Claude Sonnet · review Codex | `lat/bg-1d` · DEMO 8791 | 25/10 | Chờ Anh — cổng A xem lại (`PHIEU-CONG-A-BAO-GIA-XEM-LAI.md`) |
+| DA-2 | CRM · màn Dự án đang bán: xem + thêm/sửa (bật bán, thông tin, phí, lô/căn, tiến độ áp dụng ngay; ẩn luồng CFO) | Codex · review Claude | `lat/da-2` (= bg-1d + da-1) | 25/10 | Xong code đến DA-2c (33a2e29; 32/32 + 23/23); review DA-2b Đạt; chờ BG-1d qua cổng A để gộp |
+| M4-5a | M4 · 03B máy chủ: một phần khai bằng số tiền + dữ liệu gợi ý hóa đơn — **M0033** | Codex · review Claude (tiền/quy tắc) | `lat/m4-5a` (từ c1a) | 25/10 | Vòng 2 đang code: chống gắn trùng hóa đơn giữa các đối chiếu (checklist dòng 7) |
+| M2j | M2-00 · bộ lọc "mới từ lần tải này" + "Xem manifest" | Codex | `lat/m2j` | 25/10 | Đang code |
+| M2s | M2-00 · seed DEMO người dùng đủ quyền tải + nhận + xem hóa đơn | Codex | `lat/m2s` | 25/10 | Đang code |
+| C3 | CRM 42 · danh sách hợp đồng S1 | Codex | `lat/c3` | 25/10 | Lỗi PostgreSQL do thiếu bảng G5 → G5 đã gắn (M0032); chờ lead chạy lại PostgreSQL |
 
 ## Lát đã xong (24/10)
 
@@ -16,6 +19,17 @@ Trạng thái lát: Đang code → Chờ kiểm → Chờ Anh (cổng A/B) → S
 |---|---|---|
 | L0-2h | Rà `luu/m4b2`, `luu/m4b3` (Codex, chỉ đọc): **không gộp** — phần dùng được (`docx_an_toan.py`) đã có trên hop-nhat giống hệt; delta còn lại đưa code/test về bản cũ (bỏ hàm review/chứng từ, bỏ UNIQUE cần cho FK M17, helper test lỗi `lam() got multiple values for argument ten`). Nhánh `luu/*` giữ nguyên, không xóa | — |
 | L0-2g | Testfix C18 review basis M4 (bản kế nhiệm `m4_02a_basis_async.cjs`): 31/32 → 32/32 | fdc3c2e |
+| C1a + T-MIG | CRM 41 · M0032 gắn SQL G5-B (đối chiếu bản ký ↔ bản sinh, có sẵn nhưng chưa từng vào chuỗi migration) + test bỏ ghim tổng migration; review Codex Đạt 4/4; PostgreSQL thật 0 mã lỗi mới, +36 ca | 174e9e0 |
+| L0-8c | Bộ chạy test: cưỡng hạn cây tiến trình (Job Object) — sửa sự cố test_crm_k2 treo 4.588 giây; nạp bảo vệ .pth theo đường dẫn tuyệt đối; PostgreSQL test_crm_* 5.742 → 125 giây | 433ec7e |
+| L0-8 | Bộ chạy test `--pg-demo` (CSDL tạm có sổ sở hữu, lọc bí mật) — review vòng 1 Codex 5 Chặn → vòng 2 Claude Đạt; chạy thật cả bộ 1577 đạt | ae0d3b3 |
+| DA-1 | CRM · Dự án đang bán máy chủ + M0031 (phiên bản, phí, lô/căn, G7 áp dụng ngay, thuế QD-20 giữ khi cập nhật) — PostgreSQL thật 55/55 | 691b959 |
+| M2h-c | M2-00 · Tải tất cả công ty: 4 điểm sau review (dừng chưa xác nhận, lỗi luồng, mất kết nối); 248 đạt | 4f4e18c |
+| M2h | M2-00 · "Tải tất cả công ty" (ca M2-00-02): hàng đợi tuần tự có hạn chờ, hủy, xác nhận; review Claude vòng 1 Cần sửa (kẹt khóa) → vòng 2 Đạt; 243 đạt, 0 mã lỗi mới | aa7ad23 |
+| E1-4b | E1-MUA · máy trích dùng danh mục đã sửa (chuỗi nhật ký) + dọn tệp tạm; XD không đổi; 70 đạt, 0 mã lỗi mới | 58e8391 |
+| E1-4a | E1-MUA · lệnh `python -m trich_xuat danh-muc xem|sua` + nhật ký nguyên tử; 65 đạt, 0 mã lỗi mới | 3fc5998 |
+| M4-6 | M4 · Nghiệm thu & chi phí dự án · 04 Request nháp nối máy chủ (`gan/go_request_nhap` + 3 route, giữ CHUA_CAU_HINH); review Codex Đạt; lead chạy test_m4_*: 467 đạt, 0 mã lỗi mới | 0737071 |
+| L0-9 | EOL checkout đúng SHA fixture (15 ghim CRLF → eol=crlf, ZIP -text); worktree mới khớp byte thư mục chính 14/14; 8 ghim L11 không khớp cả LF lẫn CRLF ghi riêng | c6ef9a6 |
+| BG-1c | CRM · Báo giá máy chủ theo cổng A: Tổng VND = đơn giá × tỷ giá × diện tích (làm tròn một lần) + bằng chữ; tỷ giá mặc định 26.000 trong cấu hình chung (kế toán sửa, nhật ký); In sơ bộ; Chuyển cần khách + phí; M0030 bước Ký. Review Codex: 2 Chặn + 1 Nên sửa, vòng 2 sửa đủ; Python = SQL 9/9 trên PostgreSQL thật; 170 đạt, 0 mã lỗi mới | ec73112 |
 | E1-3 | E1-MUA · bảng TT-05 (hàng/đơn giá) và lịch TT-20 từ DOCX trong bản vá #6; ô mơ hồ để trống + cờ rà soát; XD không đổi; 13 test mới | a7431d1 |
 | E1-2 | E1-MUA · quy tắc theo loại hợp đồng (bảng quy tắc; XD giữ nguyên — 9 đầu vào trùng hàm gốc) + phiên bản danh mục, trong bản vá #6; 42/0/0 | b391e09 |
 | M2e | M2-00 · nút "Tải từ cổng thuế" (route mỏng + giao diện + cấu hình); review Codex: 3 Chặn an toàn đã sửa vòng 2; 266 đạt; chạy với bộ tải giả — ca thật là M2f | 3b7f9e8 |
@@ -52,9 +66,10 @@ Worktree đo nền: `.claude/worktrees/nen-chinh-59b7d8e` (chinh) · `.claude/wo
 | `giao_dien\m4.py` | — |
 | `nguon\trich6_host.py`, `tools\chuan_bi_crm_demo.py`, `.gitattributes` | — |
 | `giao_dien\assets\app.js`, `index.html`, `ha_tang\config.py` | — |
-| `ha_tang\pg_migrations.py` | BG-1c (chỉ append M0030) |
-| `giao_dien\crm_g.py`, `k2\crm_giao_ket.py` | BG-1c |
-| `giao_dien\assets\crm_g.js`, `style.css` | BG-1d |
+| `ha_tang\pg_migrations.py` | M4-5a (M0033; M0031 DA-1 + M0032 G5 đã gộp) |
+| `giao_dien\crm_g.py` | — (C3 chờ gộp) |
+| `k2\crm_giao_ket.py` | — (DA-3 giữ khi bắt đầu) |
+| `giao_dien\assets\crm_g.js`, `style.css` | BG-1d (chờ Anh) + DA-2 (khối riêng, nền = bg-1d) |
 | `m4\*` dùng chung | — |
 | `tests\` (chỉ test lỗi thời N5) | — |
 | `m4\giao_dien\m4_duyet_pdf.js`, `m4.js`, `m4.css` | — |
@@ -64,8 +79,8 @@ Worktree đo nền: `.claude/worktrees/nen-chinh-59b7d8e` (chinh) · `.claude/wo
 
 | Màn | Trạng thái |
 |---|---|
-| CRM · Báo giá (#42, TL 45) | Cổng A gói 1: **Sửa rồi xem lại** (25/10) — BG-1c máy chủ xong (đang review), BG-1d màn hình 2 bước đang code → phiếu xem lại |
-| CRM · Dự án đang bán (yêu cầu mới 25/10) | Anh đã chốt thiết kế (QD-20261025-05…09) — DA-1 chờ BG-1c gộp (khóa migration) |
+| CRM · Báo giá (#42, TL 45) | **Chờ Anh kiểm cổng A (xem lại)** — `PHIEU-CONG-A-BAO-GIA-XEM-LAI.md`, DEMO http://127.0.0.1:8791 (25/10) |
+| CRM · Dự án đang bán (yêu cầu mới 25/10) | Anh đã chốt thêm QD-17…20 (tắt luồng CFO trên màn hình, đơn giá theo m², 4 trạng thái lô, thuế) — DA-1 chờ gộp; DA-2 màn hình đang làm; DA-3 báo giá nạp mặc định sau |
 | M4 · màn 03B | Anh duyệt checklist (QD-20261025-13) — M4-5a máy chủ (một phần bằng số tiền) → M4-5b màn hình |
 
 ## Việc phụ (lead làm, ghi để Anh biết)
@@ -93,3 +108,4 @@ H3 phân loại 36 đầu việc: 19 gói đã nhập `hop-nhat`, 13 xung đột
 **Agent:** tại lần kiểm tra hiện tại không có tiến trình Claude Code đang chạy. Trong cây Codex có 1 root và 3 subagent ở trạng thái interrupted; không có subagent hoạt động. 36 dòng frozen là 36 đầu việc, không chứng minh có 36 agent. Sổ theo dõi không có số phút hoặc danh tính worker đầy đủ cho toàn bộ lịch sử.
 
 **Tiếp theo:** Anh xem các nhánh `hop-nhat` và `luu/*`, cùng log H4; sau đó chốt hướng phân tích lại. Chưa làm H5, không push GitHub và không di chuyển thư mục.
+| PostgreSQL DEMO (sự cố 25/10) | Anh chọn: **dịch vụ Windows** + **dọn 323 CSDL test** — chờ Anh bấm `DỌN CSDL TEST CŨ.cmd` rồi `CÀI DỊCH VỤ POSTGRES DEMO.cmd` (`SU-CO-POSTGRES-DEMO.md`) |

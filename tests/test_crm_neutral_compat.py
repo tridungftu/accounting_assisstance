@@ -1,7 +1,7 @@
 """CRM neutral compatibility 01 — CRM/M1 trên lineage mặc định neutral16 (prefix1–12 + COMMON13 + M5/M2/L11), PostgreSQL DEMO thật.
 
 CODE_ONLY: coder viết, CHƯA CHẠY (NOT_RUN). Chỉ chạy khi Root cấp KHO_PG_DSN_TEST (không đọc .env/credentials trên đĩa). DB mới `kho_test_crmn_*`
-migrate MẶC ĐỊNH (16, không legacy-M9/M13), seed CRM DEMO chính thức; HTTP qua LocalApp/LocalServer loopback cổng ngẫu nhiên với LOGIN app_web thường
+migrate MẶC ĐỊNH (tối thiểu M0016, không legacy-M9/M13), seed CRM DEMO chính thức; HTTP qua LocalApp/LocalServer loopback cổng ngẫu nhiên với LOGIN app_web thường
 (NOSUPERUSER, không BYPASSRLS); admin chỉ dùng cho setup/bộ chiếu M1/observer chỉ-đọc. Không kế thừa class/state test cũ, không mock product/UDF/converter.
 Không DROP/DELETE/TRUNCATE/cleanup — DB/role/thư mục giữ làm bằng chứng. Thiếu driver/DSN → skip có khai báo (không tính đạt).
 
@@ -184,7 +184,12 @@ class CrmNeutralCompat(unittest.TestCase):
 
     # ------------------------------------------------------------------ T01
     def test_t01_neutral16_khong_legacy_va_get_crm(self):
-        self.assertEqual((self.version, self.schema), (16, 16))
+        from kho_tri_thuc.ha_tang import pg_migrations as PM
+        self.assertGreaterEqual(self.version, 16)
+        self.assertEqual([i + 1 for i, m in enumerate(PM.PG_MIGRATIONS) if tuple(m) == tuple(PM.M0016_L11_QUANTITY)], [16])
+        ls = self.admin.execute("SELECT version, checksum FROM master.schema_migrations WHERE version <= %s ORDER BY version", (16,)).fetchall()
+        self.assertEqual([tuple(x) for x in ls], [(i + 1, PM._hash(m)) for i, m in enumerate(PM.PG_MIGRATIONS[:16])])
+        self.assertEqual(self.version, self.schema)
         self.legacy_vang()
         kt = self.phien(KTA)
         s = self.trang(kt)

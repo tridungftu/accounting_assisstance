@@ -440,7 +440,10 @@ class CrmMauK2:
             pb = self._nhieu(c, """SELECT v.id, v.phien_ban, v.trang_thai, v.so_dong, v.valid_from, v.valid_to, v.lap_boi, v.gui_boi, v.duyet_boi,
                                           b.du_an_id, b.giai_doan, master.crm_g_chuan_token(v.id) AS token,
                                           master.crm_g_duoc('CRM_CHUAN_GUI_DUYET', v.phap_nhan_id, NULL) AS duoc_gui,
-                                          master.crm_g_duoc('CRM_CHUAN_DUYET_V4', v.phap_nhan_id, NULL) AS duoc_duyet
+                                          master.crm_g_duoc('CRM_CHUAN_DUYET_V4', v.phap_nhan_id, NULL) AS duoc_duyet,
+                                          CASE WHEN v.trang_thai <> 'HIEU_LUC' THEN NULL
+                                               WHEN EXISTS (SELECT 1 FROM master.crm_bo_chuan_ap_dung x WHERE x.phien_ban_id = v.id) THEN 'AP_DUNG_NGAY'
+                                               ELSE 'CFO_DUYET' END AS nguon_hieu_luc
                                    FROM master.crm_bo_chuan_phien_ban v JOIN master.crm_bo_chuan b ON b.id = v.bo_chuan_id
                                    WHERE master.crm_g_chuan_doc_duoc(v.phap_nhan_id) ORDER BY b.giai_doan, v.phien_ban""")
             for v in pb:
