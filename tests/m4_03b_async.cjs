@@ -69,6 +69,20 @@ async function cases(T) {
     assert.ok(!/công nợ|[0-9a-f]{8}-[0-9a-f-]{27,}|NHAP_DOI_CHIEU|THIEU_HOA_DON|graph_sha256|M4_03B/i.test(text));
     assert.strictEqual(countDc(P), 0);
   });
+  await ca("DS-4 nhãn 03A đúng nghĩa, phiên bản theo giờ Việt Nam kể cả đổi ngày/năm", async () => {
+    for (const [tao_luc, expected] of [
+      ["2026-10-26T03:00:00Z", "26/10/2026 10:00"],
+      ["2026-10-25T18:05:00Z", "26/10/2026 01:05"],
+      ["2026-12-31T18:05:00+00:00", "01/01/2027 01:05"],
+      ["2026-10-26T01:05:00+07:00", "26/10/2026 01:05"]
+    ]) {
+      const P = await open(data([root]), history([version([tp(nt)], 1, "NHAP_DOI_CHIEU", {tao_luc})]));
+      assert.ok(card(P).textContent.includes(expected), card(P).textContent);
+      assert.ok(!P.vungKt().textContent.includes("Chưa triển khai (M4-03B)"));
+      assert.ok(P.vungKt().textContent.includes("Chưa ghi công nợ/AP"));
+    }
+    assert.ok(!fs.readFileSync(path.join(__dirname, "../src/kho_tri_thuc/m4/giao_dien/m4_ke_toan.js"), "utf8").includes("Chưa triển khai (M4-03B)"));
+  });
   await ca("03B-3 một phần thiếu số tiền: xác nhận mờ và có lý do, vẫn lưu nháp thiếu", async () => {
     const P = await open(); await P.bam("Chọn hóa đơn 21");
     await P.chonSel("Phạm vi nguồn 2", "MOT_PHAN"); await P.chonSel("Đơn vị nguồn 2", "USD");

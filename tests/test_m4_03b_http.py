@@ -129,6 +129,27 @@ class Route03B(unittest.TestCase):
                 self.assertEqual(st, status)
                 self.assertEqual(data["field"], "thanh_phan.1.nguon")
 
+    def test_loi_500_giu_ma_khong_lo_message_noi_bo(self):
+        for code, status in GN.MA_HTTP.items():
+            if status != 500:
+                continue
+            for path, body, method in (("dot/" + uid(1), None, "xem_doi_chieu"),
+                                       ("lich-su/" + uid(3), None, "lich_su"),
+                                       ("xem", {"nguon": [REF]}, "xem_doi_chieu"),
+                                       ("luu", SAVE, "luu_doi_chieu"),
+                                       ("xac-nhan", CONFIRM, "xac_nhan_doi_chieu")):
+                with self.subTest(code=code, path=path):
+                    method_mock = getattr(self.gn, method)
+                    method_mock.side_effect = DataError(code, "Chi tiết nội bộ SQL: bang_bi_mat expected_graph", "thanh_phan")
+                    try:
+                        st, data, headers = self.route(path, body)
+                        self.assertEqual(st, 500)
+                        self.assertEqual(data["error"], code)
+                        self.assertEqual(data["message"], "Máy chủ không xử lý được dữ liệu đối chiếu; hãy thử tải lại căn cứ.")
+                        self.assertEqual(headers["Cache-Control"], "no-store")
+                    finally:
+                        method_mock.side_effect = None
+
     def test_mot_phan_thieu_tien_luu_nhap_duoc_tien_sai_bi_chan(self):
         body = copy.deepcopy(SAVE)
         body["thanh_phan"][0].update(phan="MOT_PHAN", so_tien_khai=None, tien_te="VND")

@@ -610,7 +610,7 @@ def dieu_huong(h, app, post: bool, path: str, query: dict):
             labels = {"so_tien_khai": "số tiền một phần", "tien_te": "đơn vị tiền", "thanh_phan": "nguồn đã chọn", "nguon": "căn cứ",
                       "expected_graph": "căn cứ đang xem", "expected_revision": "phiên bản đang xem", "doi_chieu_id": "đối chiếu",
                       "phien_ban_id": "phiên bản", "can_cu_tep": "tệp căn cứ", "ly_do": "lý do", "khoa": "khóa thao tác"}
-            message = str(exc)
+            message = "Máy chủ không xử lý được dữ liệu đối chiếu; hãy thử tải lại căn cứ." if status == 500 else str(exc)
             for field, label in labels.items():
                 message = re.sub(r"\b" + field + r"\b", label, message)
             return h.send_content(status, {"error": exc.code, "message": message, "field": exc.locator},
