@@ -56,7 +56,7 @@ Quy tắc áp cho mọi lát từ 25/10 (CD-001 việc 3): không lát nào vi�
 | UI-2 | Codex | gpt-6.1-sol · high | 19:16 | 19:30 | — | test mới 16/16; CRM PG chờ lượt |
 | Review MASK-1 | Claude | Opus | 19:17 | 19:26 | vòng 1 | Không đạt — 1 Chặn |
 | MASK-1 vòng 2 | Claude | Opus | 19:35 | 19:48 | review vòng 2 đang chạy | Mask v2: 387 đạt / 1 lỗi có sẵn; benchmark không giảm |
-| Review MASK-1 vòng 2 | Claude | Opus | 19:48 | — | — | — |
+| Review MASK-1 vòng 2 | Claude | Opus | 19:48 | 19:52 | vòng 2 | **Đạt** — 2 Nên sửa → MASK-2 |
 | AI-1b | Codex | gpt-6.1-sol · high | 19:49 | — | — | — |
 | DA-3a v2 | Codex | gpt-6.1-sol · high | 19:33 | — | — | — |
 | L0-9b (fixture L11 đúng byte ghim) | Lead | Opus | 19:24 | 19:31 | 0 | Xanh — checkout mới 19/19 ghim; `t21` hết |
