@@ -15,7 +15,7 @@ import sqlite3
 import tempfile
 import unittest
 import uuid
-from contextlib import closing, redirect_stdout
+from contextlib import closing, redirect_stderr, redirect_stdout
 from pathlib import Path
 from unittest.mock import MagicMock, Mock, patch
 
@@ -171,6 +171,7 @@ class ChuyenReviewTinhTests(unittest.TestCase):
             code, reports, raw = self.run_cli()
         self.assertEqual(code, 1)
         self.assertEqual(reports[-1]["ma_loi"], "M4_REVIEW_THIEU_ANH_XA")
+        self.assertEqual(reports[-1]["bang"], "hop_dong.ma_hd")
         write.assert_not_called()
         self.assertNotIn(MA_HD, raw)
 
@@ -254,6 +255,119 @@ class ChuyenReviewTinhTests(unittest.TestCase):
         self.assertEqual(reports[-1]["ma_loi"], "M4_REVIEW_CHUYEN_LOI")
         self.assertNotIn(TEN_GIA, raw)
         self.assertNotIn("DEMO_DSN_BI_MAT", raw)
+
+    def test_stdout_cp1252_loi_driver_khong_lo_traceback_hay_bi_mat(self):
+        driver = Mock()
+        driver.connect.side_effect = RuntimeError('invalid percent-encoded token: "BI_MAT_DEMO_123"')
+        output = io.BytesIO()
+        errors = io.StringIO()
+        with io.TextIOWrapper(output, encoding="cp1252") as stream:
+            with patch.dict("sys.modules", {"psycopg": driver}), redirect_stdout(stream), redirect_stderr(errors):
+                code = chuyen.main(self.args())
+            stream.flush()
+            raw = output.getvalue().decode("cp1252")
+        self.assertNotEqual(code, 0)
+        self.assertEqual(json.loads(raw.splitlines()[-1])["ma_loi"], "M4_REVIEW_CHUYEN_LOI")
+        for text in (raw, errors.getvalue()):
+            self.assertNotIn("Traceback", text)
+            self.assertNotIn("BI_MAT_DEMO_123", text)
+
+    def test_console_hong_khi_bao_loi_van_thoat_khong_lo_exception_goc(self):
+        driver = Mock()
+        driver.connect.side_effect = RuntimeError('invalid percent-encoded token: "BI_MAT_DEMO_123"')
+        for stderr_broken in (False, True):
+            with self.subTest(stderr_broken=stderr_broken):
+                output = io.StringIO()
+                errors = Mock() if stderr_broken else io.StringIO()
+                if stderr_broken:
+                    errors.write.side_effect = OSError("BI_MAT_DEMO_123")
+                real_print = print
+
+                def print_until_error(text, **kwargs):
+                    if json.loads(text).get("trang_thai") == "LOI":
+                        raise OSError("BI_MAT_DEMO_123")
+                    real_print(text, **kwargs)
+
+                with patch.dict("sys.modules", {"psycopg": driver}), redirect_stdout(output), redirect_stderr(errors), \
+                        patch("builtins.print", side_effect=print_until_error):
+                    code = chuyen.main(self.args())
+                self.assertNotEqual(code, 0)
+                self.assertNotIn("Traceback", output.getvalue())
+                self.assertNotIn("BI_MAT_DEMO_123", output.getvalue())
+                if stderr_broken:
+                    errors.write.assert_called_once_with("M4_REVIEW_CHUYEN_LOI\n")
+                else:
+                    self.assertEqual(errors.getvalue(), "M4_REVIEW_CHUYEN_LOI\n")
+
+    def test_hop_dong_da_xoa_khong_doi_anh_xa_dem_mo_coi_theo_bang(self):
+        deleted = "DEMO_MA_HD_DA_XOA_KHONG_DUOC_IN"
+        with closing(sqlite3.connect(self.source)) as con:
+            con.executemany("INSERT INTO nhat_ky(id,ma_hd) VALUES(?,?)", [(3, deleted), (4, deleted)])
+            con.execute("INSERT INTO canh_bao(id,ma_hd) VALUES(3,?)", (deleted,))
+            con.commit()
+        code, reports, raw = self.run_cli("--thu")
+        self.assertEqual(code, 0)
+        expected = {t: 0 for t in chuyen.BANG_NGUON}
+        expected.update(nhat_ky=2, canh_bao=1)
+        self.assertEqual({t: r["so_dong_mo_coi"] for t, r in reports[-1]["bang"].items()}, expected)
+        self.assertNotIn(deleted, raw)
+        data, _ = chuyen.doc_nguon(self.source)
+        con = Mock()
+        # Kể cả CSV còn ánh xạ cũ, dòng mồ côi phải ghi cả hai UUID là NULL.
+        for mapping in (MAPPING, {**MAPPING, deleted: MAPPING[MA_HD]}):
+            chuyen.kiem_du_lieu(data, mapping)
+            con.reset_mock()
+            with patch.object(chuyen, "_rows", return_value=[]):
+                chuyen._ghi_con_lai(con, data, mapping, "DEMO", False)
+            orphan_count = 0
+            for call in con.execute.call_args_list:
+                query, params = call.args
+                columns = query.split("(", 1)[1].split(")", 1)[0].split(",")
+                row = dict(zip(columns, params))
+                if row.get("ma_hd") == deleted:
+                    orphan_count += 1
+                    self.assertIsNone(row["hop_dong_id"])
+                    self.assertIsNone(row["du_an_id"])
+            self.assertEqual(orphan_count, 3)
+
+    def test_bao_loi_bang_cot_chi_tu_hang_khong_in_gia_tri(self):
+        original, _ = chuyen.doc_nguon(self.source)
+        for table, column, value, expected in (
+            ("nhat_ky", "chi_tiet", 1, "nhat_ky.chi_tiet"),
+            ("dot_thanh_toan", "gt_ky", float("nan"), "dot_thanh_toan.gt_ky"),
+            ("phu_luc", "ma_hd", "DEMO_DA_XOA", "phu_luc.ma_hd"),
+        ):
+            with self.subTest(table=table, column=column):
+                data = copy.deepcopy(original)
+                data[table][0][column] = value
+                with patch.object(chuyen, "doc_nguon", return_value=(data, "0" * 64)):
+                    code, reports, raw = self.run_cli("--thu")
+                self.assertNotEqual(code, 0)
+                self.assertEqual(reports[-1]["bang"], expected)
+                for secret in (TEN_GIA, SO_HD, MA_HD, "DEMO_DA_XOA"):
+                    self.assertNotIn(secret, raw)
+        error = DataError("M4_REVIEW_DU_LIEU_SAI", TEN_GIA, locator=MA_HD)
+        with patch.object(chuyen, "doc_nguon", side_effect=error):
+            code, reports, raw = self.run_cli("--thu")
+        self.assertEqual(code, 1)
+        self.assertIsNone(reports[-1]["bang"])
+        self.assertNotIn(MA_HD, raw)
+        self.assertNotIn(TEN_GIA, raw)
+
+    def test_sha256_nguon_truyen_tu_cli_vao_mo_ta_dl2(self):
+        digest = chuyen.sha256_tep(self.source)
+        data, _ = chuyen.doc_nguon(self.source)
+        driver = MagicMock()
+        con = driver.connect.return_value.__enter__.return_value
+        with patch.dict("sys.modules", {"psycopg": driver}), \
+                patch.object(chuyen, "ReviewDataPG") as base, patch.object(chuyen, "ReviewPhuLucPG"), \
+                patch.object(chuyen, "_ghi_con_lai"):
+            base.return_value.ghi_lan_chup.return_value = 5
+            con.execute.side_effect = [Mock(fetchone=Mock(return_value=(len(data[t]),))) for t in chuyen.BANG_NGUON]
+            code, reports, _ = self.run_cli()
+        self.assertEqual(code, 0)
+        self.assertEqual(reports[-1]["trang_thai"], "HOAN_TAT")
+        self.assertEqual(base.return_value.ghi_lan_chup.call_args.kwargs["mo_ta"], "sha256:" + digest)
 
     def test_metadata_thieu_timezone_dung_truoc_doc(self):
         args = self.args("--thu")

@@ -58,8 +58,8 @@ INTEGER = set("id sua pl_id doi_boq dot muc da_xac_nhan da_sua_tay".split())
 NHAP_BOI = "CHUYEN_REVIEW_CD011"
 
 
-def _loi(code, message):
-    raise DataError(code, message)
+def _loi(code, message, bang=None):
+    raise DataError(code, message, locator=bang or "$")
 
 
 def sha256_tep(path):
@@ -106,19 +106,21 @@ def doc_nguon(path, *, bao_truoc=None):
             tables = {r[0] for r in con.execute("SELECT name FROM sqlite_master WHERE type='table'")}
             for table in BANG_NGUON:
                 if table not in tables:
-                    _loi("M4_REVIEW_LUOC_DO_SAI", f"Thiếu bảng nguồn {table}; không nạp một phần.")
+                    _loi("M4_REVIEW_LUOC_DO_SAI", f"Thiếu bảng nguồn {table}; không nạp một phần.", table)
                 columns = {r[1] for r in con.execute(f'PRAGMA table_info("{table}")')}
                 expected = set(COT[table])
                 missing = expected - columns
                 # Cột bổ sung duy nhất của nguồn trước 13/10; không ALTER nguồn.
                 if columns - expected or missing - ({"ma_rieng"} if table == "boq_dong" else set()):
-                    _loi("M4_REVIEW_LUOC_DO_SAI", f"Cột nguồn {table} không đúng DDL đã kiểm kê.")
+                    _loi("M4_REVIEW_LUOC_DO_SAI", f"Cột nguồn {table} không đúng DDL đã kiểm kê.", table)
                 data[table] = [dict(r) for r in con.execute(f'SELECT * FROM "{table}"')]
                 for row in data[table]:
                     for col in missing:
                         row[col] = None
-            if con.execute("PRAGMA foreign_key_check").fetchone() is not None:
-                _loi("M4_REVIEW_FK_SAI", "Khóa ngoại nguồn không hợp lệ; dừng cả lần chụp.")
+            violation = con.execute("PRAGMA foreign_key_check").fetchone()
+            if violation is not None:
+                table = next((t for t in BANG_NGUON if t == violation[0]), None)
+                _loi("M4_REVIEW_FK_SAI", "Khóa ngoại nguồn không hợp lệ; dừng cả lần chụp.", table)
     finally:
         kiem_sha(path, before)
     return data, before
@@ -156,61 +158,65 @@ def kiem_du_lieu(data, mapping):
         keys[table] = set()
         for row in data[table]:
             if set(row) != set(COT[table]):
-                _loi("M4_REVIEW_LUOC_DO_SAI", f"Cột {table} không đúng DDL.")
-            for col, value in row.items():
+                _loi("M4_REVIEW_LUOC_DO_SAI", f"Cột {table} không đúng DDL.", table)
+            for col in COT[table]:
+                value = row[col]
                 if col in NUMERIC:
-                    real_sang_decimal(value)
+                    try:
+                        real_sang_decimal(value)
+                    except DataError as exc:
+                        exc.locator = f"{table}.{col}"
+                        raise
                 elif col in INTEGER:
                     if value is not None and (type(value) is not int or not -(2**63) <= value < 2**63):
-                        _loi("M4_REVIEW_KIEU_SAI", f"{table}.{col} cần INTEGER 64-bit hoặc NULL.")
+                        _loi("M4_REVIEW_KIEU_SAI", f"{table}.{col} cần INTEGER 64-bit hoặc NULL.", f"{table}.{col}")
                 elif value is not None and not isinstance(value, str):
-                    _loi("M4_REVIEW_KIEU_SAI", f"{table}.{col} cần TEXT hoặc NULL.")
+                    _loi("M4_REVIEW_KIEU_SAI", f"{table}.{col} cần TEXT hoặc NULL.", f"{table}.{col}")
             if any(row[c] is None for c in (*PK[table], *required.get(table, ()))):
-                _loi("M4_REVIEW_KHOA_SAI", f"{table} thiếu giá trị bắt buộc.")
+                _loi("M4_REVIEW_KHOA_SAI", f"{table} thiếu giá trị bắt buộc.", table)
             key = tuple(row[c] for c in PK[table])
             if key in keys[table]:
-                _loi("M4_REVIEW_KHOA_SAI", f"{table} trùng khóa nguồn.")
+                _loi("M4_REVIEW_KHOA_SAI", f"{table} trùng khóa nguồn.", table)
             keys[table].add(key)
-            code = row.get("ma_hd")
-            # Nhật ký/cảnh báo nguồn cho phép NULL/rỗng, không tự tạo HĐ giả.
-            if code is not None and (code != "" or table not in ("nhat_ky", "canh_bao")):
-                if code not in mapping:
-                    _loi("M4_REVIEW_THIEU_ANH_XA", "Thiếu ánh xạ ma_hd đã chốt; không ghi gì.")
-                pair = mapping[code]
-                try:
-                    if len(pair) != 2:
-                        raise ValueError
-                    for value in pair:
-                        uuid.UUID(str(value))
-                except (ValueError, TypeError, AttributeError):
-                    _loi("M4_REVIEW_ANH_XA_SAI", "Ánh xạ cần hai UUID hợp lệ.")
     contracts = {r["ma_hd"] for r in data["hop_dong"]}
+    # Chỉ HĐ còn trong lần chụp cần ánh xạ; log/cảnh báo giữ mã HĐ đã xóa.
+    for code in contracts:
+        if code not in mapping:
+            _loi("M4_REVIEW_THIEU_ANH_XA", "Thiếu ánh xạ ma_hd đã chốt; không ghi gì.", "hop_dong.ma_hd")
+        pair = mapping[code]
+        try:
+            if len(pair) != 2:
+                raise ValueError
+            for value in pair:
+                uuid.UUID(str(value))
+        except (ValueError, TypeError, AttributeError):
+            _loi("M4_REVIEW_ANH_XA_SAI", "Ánh xạ cần hai UUID hợp lệ.", "hop_dong.ma_hd")
     if len({str(mapping[c][0]) for c in contracts}) != len(contracts):
-        _loi("M4_REVIEW_ANH_XA_SAI", "Nhiều mã nguồn trỏ cùng HĐ đích trong một lần chụp.")
+        _loi("M4_REVIEW_ANH_XA_SAI", "Nhiều mã nguồn trỏ cùng HĐ đích trong một lần chụp.", "hop_dong.ma_hd")
     for table in ("tham_so", "tham_so_nguon", "phu_luc", "boq_dong", "dot_thanh_toan"):
         if any(r["ma_hd"] not in contracts for r in data[table]):
-            _loi("M4_REVIEW_FK_SAI", f"{table} thiếu HĐ cha trong lần chụp.")
+            _loi("M4_REVIEW_FK_SAI", f"{table} thiếu HĐ cha trong lần chụp.", f"{table}.ma_hd")
     pls = {r["id"]: r for r in data["phu_luc"]}
     for r in data["thay_doi_tham_so"]:
         if r["pl_id"] not in pls:
-            _loi("M4_REVIEW_FK_SAI", "Tham số thay đổi thiếu phụ lục cha.")
+            _loi("M4_REVIEW_FK_SAI", "Tham số thay đổi thiếu phụ lục cha.", "thay_doi_tham_so.pl_id")
     for r in data["kl_thanh_toan"]:
         if (r["ma_hd"], r["dot"]) not in keys["dot_thanh_toan"]:
-            _loi("M4_REVIEW_FK_SAI", "Khối lượng thanh toán thiếu đợt cha.")
+            _loi("M4_REVIEW_FK_SAI", "Khối lượng thanh toán thiếu đợt cha.", "kl_thanh_toan.dot")
     for r in data["boq_dong"]:
         if r["thao_tac"] not in ("GOC", "THAY", "THEM", "BO"):
-            _loi("M4_REVIEW_KHOA_SAI", "Thao tác BOQ chưa có quy tắc.")
+            _loi("M4_REVIEW_KHOA_SAI", "Thao tác BOQ chưa có quy tắc.", "boq_dong.thao_tac")
         if r["pl_id"] is not None and (r["pl_id"] not in pls or pls[r["pl_id"]]["ma_hd"] != r["ma_hd"]):
-            _loi("M4_REVIEW_FK_SAI", "BOQ không cùng HĐ với phụ lục cha.")
+            _loi("M4_REVIEW_FK_SAI", "BOQ không cùng HĐ với phụ lục cha.", "boq_dong.pl_id")
     for table, group, rows in (
         ("hop_dong", lambda r: r["so_hd"], data["hop_dong"]),
         ("phu_luc", lambda r: (r["ma_hd"], r["so_pl"]), [r for r in data["phu_luc"] if r["trang_thai"] != "Đã hủy"]),
         ("boq_dong", lambda r: (r["ma_hd"], r["pl_id"] or 0, r["ma_hm"]), data["boq_dong"]),
     ):
         if len({group(r) for r in rows}) != len(rows):
-            _loi("M4_REVIEW_KHOA_SAI", f"{table} vi phạm khóa UNIQUE nguồn.")
+            _loi("M4_REVIEW_KHOA_SAI", f"{table} vi phạm khóa UNIQUE nguồn.", table)
     if any(r["id"] != 1 for r in data["che_do"]):
-        _loi("M4_REVIEW_KHOA_SAI", "che_do có id ngoài DDL.")
+        _loi("M4_REVIEW_KHOA_SAI", "che_do có id ngoài DDL.", "che_do.id")
 
 
 def _tong(values):
@@ -271,20 +277,21 @@ def _ghi_con_lai(con, data, mapping, nguon_id, replay):
         actual = {tuple(r[c] for c in PK[table]): r["dong_sha256"] for r in _rows(
             con, f"SELECT {','.join(PK[table])},dong_sha256 FROM m4.review_chep_{table} WHERE nguon_id=%s", (nguon_id,))}
         if (replay and actual != {k: r["dong_sha256"] for k, r in prepared.items()}) or (not replay and actual):
-            _loi("M4_REVIEW_REPLAY_KHAC", f"Cùng nguon_id nhưng tập khóa/dữ liệu {table} khác; dừng, không ghi đè.")
+            _loi("M4_REVIEW_REPLAY_KHAC", f"Cùng nguon_id nhưng tập khóa/dữ liệu {table} khác; dừng, không ghi đè.", table)
         if not replay:
             for row in prepared.values():
                 row.update(nguon_id=nguon_id, nhap_boi=NHAP_BOI)
                 con.execute(f"INSERT INTO m4.review_chep_{table} ({','.join(row)}) VALUES ({','.join('%s' for _ in row)})", tuple(row.values()))
 
 
-def ghi_pg(con, data, mapping, *, nguon_id, chup_luc, truoc_commit=None):
+def ghi_pg(con, data, mapping, *, nguon_id, chup_luc, sha256_nguon=None, truoc_commit=None):
     """Caller cấp owner connection sạch; lỗi thoát outer transaction để rollback."""
     kiem_du_lieu(data, mapping)
     with con.transaction():
         added = ReviewDataPG(con).ghi_lan_chup(
             {t: data[t] for t in DL2}, nguon_id=nguon_id, chup_luc=chup_luc,
-            nhap_boi=NHAP_BOI, anh_xa=mapping)
+            nhap_boi=NHAP_BOI, anh_xa=mapping,
+            mo_ta=None if sha256_nguon is None else "sha256:" + sha256_nguon)
         replay = added == 0
         ReviewPhuLucPG(con).ghi_trong_giao_dich(
             {t: data[t] for t in DL3}, nguon_id=nguon_id, nhap_boi=NHAP_BOI, replay=replay)
@@ -294,7 +301,7 @@ def ghi_pg(con, data, mapping, *, nguon_id, chup_luc, truoc_commit=None):
             count = con.execute(f"SELECT count(*) FROM m4.review_chep_{table} WHERE nguon_id=%s", (nguon_id,)).fetchone()
             actual = count["count"] if isinstance(count, Mapping) else count[0]
             if actual != len(data[table]):
-                _loi("M4_REVIEW_SO_DEM_LECH", f"Số đếm {table} không khớp; rollback.")
+                _loi("M4_REVIEW_SO_DEM_LECH", f"Số đếm {table} không khớp; rollback.", table)
             counts[table] = {"da_ghi_moi": 0 if replay else actual, "da_co_dich": actual}
         if truoc_commit is not None:
             truoc_commit()
@@ -319,7 +326,7 @@ def main(argv=None):
     args = parser.parse_args(argv)
 
     def emit(report):
-        print(json.dumps(report, ensure_ascii=False, allow_nan=False), flush=True)
+        print(json.dumps(report, ensure_ascii=True, allow_nan=False), flush=True)
 
     try:
         moment = datetime.fromisoformat(args.chup_luc)
@@ -336,21 +343,39 @@ def main(argv=None):
             import psycopg
             with psycopg.connect(dsn, autocommit=True) as con:
                 counts = ghi_pg(con, data, mapping, nguon_id=args.nguon_id, chup_luc=moment,
+                                sha256_nguon=digest,
                                 truoc_commit=lambda: kiem_sha(args.nguon, digest))
         else:
             kiem_sha(args.nguon, digest)
+        contracts = {r["ma_hd"] for r in data["hop_dong"]}
         emit({"trang_thai": "THU_KHONG_GHI" if args.thu else "HOAN_TAT",
               "sha256_truoc": digest, "sha256_sau": digest,
-              "bang": {t: dict(da_doc=len(data[t]), **counts[t]) for t in BANG_NGUON},
+              "bang": {t: dict(da_doc=len(data[t]), **counts[t],
+                               so_dong_mo_coi=sum(r.get("ma_hd") not in contracts
+                                                  for r in data[t] if r.get("ma_hd") not in (None, "")))
+                       for t in BANG_NGUON},
               "tong_kiem_soat": totals})
         return 0
     except Exception as exc:
         # Không xuất str(exc), traceback, DSN/path hay nội dung driver/SQL.
-        code = exc.code if isinstance(exc, DataError) and exc.code.startswith("M4_REVIEW_") else "M4_REVIEW_CHUYEN_LOI"
-        message = ("Cùng nguon_id nhưng chup_luc, metadata hoặc dữ liệu khác; dừng, không ghi đè."
-                   if code == "M4_REVIEW_REPLAY_KHAC" else
-                   "Lần chụp không hoàn tất; không ghi dữ liệu một phần. Cần Anh kiểm tra nguồn, ánh xạ và cấu hình.")
-        emit({"trang_thai": "LOI", "ma_loi": code, "thong_bao": message})
+        try:
+            code = exc.code if isinstance(exc, DataError) and exc.code.startswith("M4_REVIEW_") else "M4_REVIEW_CHUYEN_LOI"
+            message = ("Cùng nguon_id nhưng chup_luc, metadata hoặc dữ liệu khác; dừng, không ghi đè."
+                       if code == "M4_REVIEW_REPLAY_KHAC" else
+                       "Lần chụp không hoàn tất; không ghi dữ liệu một phần. Cần Anh kiểm tra nguồn, ánh xạ và cấu hình.")
+            report = {"trang_thai": "LOI", "ma_loi": code, "thong_bao": message}
+            if isinstance(exc, DataError) and code.startswith("M4_REVIEW_"):
+                # Không lấy tên từ message/giá trị dữ liệu hoặc locator tùy ý.
+                allowed = {*COT, *(f"{t}.{c}" for t in COT for c in COT[t])}
+                report["bang"] = next((name for name in allowed if name == exc.locator), None)
+            emit(report)
+        except BaseException:
+            # Console hỏng/đóng cũng không được làm lộ exception gốc qua chaining.
+            try:
+                sys.stderr.write("M4_REVIEW_CHUYEN_LOI\n")
+                sys.stderr.flush()
+            except BaseException:
+                pass
         return 1
 
 
