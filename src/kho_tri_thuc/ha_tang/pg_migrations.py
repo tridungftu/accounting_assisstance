@@ -12483,3 +12483,10 @@ from ..k2.sql_hang_viec import HANG_VIEC_B_SQL  # noqa: E402 — chỉ hằng SQ
 M0062_HANG_VIEC_B = HANG_VIEC_B_SQL
 PG_MIGRATIONS = (*PG_MIGRATIONS, M0062_HANG_VIEC_B)
 PG_SCHEMA_VERSION = len(PG_MIGRATIONS)
+
+# XS-T1a — CD-017: hợp đồng đầu hóa đơn chỉ đọc; lead đánh số khi gộp.
+from ..k2.sql_cong_bo_hoa_don import CONG_BO_HOA_DON_SQL  # noqa: E402 — chỉ hằng SQL
+
+M00xx_CONG_BO_HOA_DON = CONG_BO_HOA_DON_SQL
+PG_MIGRATIONS = (*PG_MIGRATIONS, M00xx_CONG_BO_HOA_DON)
+PG_SCHEMA_VERSION = len(PG_MIGRATIONS)
