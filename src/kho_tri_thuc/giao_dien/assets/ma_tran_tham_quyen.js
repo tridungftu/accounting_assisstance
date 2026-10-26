@@ -23,7 +23,7 @@
     "03B_DOI_CHIEU": "Ghi nhận đối chiếu", "04_REQUEST_NHAP": "Request nháp"
   };
   const cellKey = c => JSON.stringify([c.module, c.man, c.hanh_dong]);
-  function money(value) {
+  function parseMoney(value) {
     if (value === null || value === undefined || value === "") return null;
     if (typeof value !== "string" && !(typeof value === "number" && Number.isSafeInteger(value))) throw Error("Hạn mức phải là số nguyên không âm, tối đa 20 chữ số.");
     const s = String(value).trim();
@@ -33,7 +33,14 @@
     if (raw.length > 20) throw Error("Hạn mức tối đa 20 chữ số.");
     return raw;
   }
-  const moneyText = v => v === null ? "Không giới hạn" : v.replace(/\B(?=(\d{3})+(?!\d))/g, ".") + " VND";
+  function moneyText(value) {
+    // Số JSON trong nhật ký có thể đã mất chính xác; không định dạng số đã làm tròn.
+    if (typeof value === "number" && Math.abs(value) > Number.MAX_SAFE_INTEGER) return "Giá trị quá lớn — xem ở máy chủ";
+    try {
+      const raw = parseMoney(value);
+      return raw === null ? "Không giới hạn" : raw.replace(/\B(?=(\d{3})+(?!\d))/g, ".") + " VND";
+    } catch (_) { return "Hạn mức không hợp lệ — xem ở máy chủ"; }
+  }
   function timeText(value) {
     if (!value) return "Chưa có thông tin";
     const d = new Date(value);
@@ -63,7 +70,7 @@
     const canActivate = () => isAdmin() && data.chua_noi_mtq4 === false && version()?.trang_thai === "DA_CONG_BO" && !(activation()?.bat && activation().phien_ban_id === versionId);
     const roomName = id => (data.phong || []).find(p => p.id === id)?.ten || (data.dong || []).find(d => d.phong_id === id)?.ten_phong || "Chưa có tên phòng";
     const personName = id => (options.tenNguoi && options.tenNguoi(id)) || "Chưa có tên hiển thị";
-    const legalIds = () => [...new Set([...(data.phong || []), ...(data.phien_ban || []), ...(data.dong || [])].map(x => x.phap_nhan_id))];
+    const legalIds = () => [...new Set([...(data.phong || []), ...(data.phien_ban || []), ...(data.dong || []), ...(data.gan_vai || []), ...(data.kich_hoat || [])].map(x => x.phap_nhan_id))];
     const legalName = id => (options.tenPhapNhan && options.tenPhapNhan(id)) || `Pháp nhân ${legalIds().indexOf(id) + 1} (chưa có tên)`;
     async function api(path, body) {
       const res = await scope.fetch("/api/tham-quyen/" + path, {
@@ -73,12 +80,11 @@
       });
       const payload = await res.json();
       if (!res.ok) {
-        const reason = ({
-          MTQ_CHUA_NOI_MTQ4: "Chưa thể bật: các chức năng chưa hoàn tất kiểm tra thẩm quyền.",
-          MTQ_THIEU_DONG: "Chưa đủ năm vai tại mọi phòng hoạt động.",
-          MTQ_CON_TRO_SAI: "Chưa thể bật: cần chọn bản đã công bố của đúng pháp nhân."
-        })[payload.error] || "";
-        const e = Error(res.status === 403 ? "Anh không có quyền thực hiện thao tác này." : res.status === 409 ? "Đã có người khác sửa, tải lại" + (reason ? ". " + reason : "") : reason || "Máy chủ từ chối yêu cầu. Vui lòng kiểm tra lại hoặc tải lại.");
+        let text = typeof payload.message === "string" && payload.message.trim() ? payload.message : "Máy chủ từ chối yêu cầu. Vui lòng kiểm tra lại hoặc tải lại.";
+        if (res.status === 403) text = "Người dùng đang thực hành không có quyền thực hiện thao tác này.";
+        else if (res.status === 409 && ["MTQ_REVISION", "MTQ_IDEMPOTENCY_KHAC"].includes(payload.error)) text = "Đã có người khác sửa, tải lại";
+        else if (res.status === 503 && payload.error === "MTQ_NHAT_KY_LOI") text = "Chưa ghi được nhật ký, thao tác chưa thực hiện. Báo quản trị.";
+        const e = Error(text);
         e.status = res.status; throw e;
       }
       return payload;
@@ -93,7 +99,7 @@
       catalog = (data.danh_muc || []).filter(c => c.catalog_version === (v ? v.catalog_version : 1) && MODULE[c.module] && MAN[c.man] && HD.some(a => a[0] === c.hanh_dong));
       rows = VAI.filter(([vai]) => isAdmin() || data.dong.some(d => d.phien_ban_id === versionId && d.phong_id === room && d.vai === vai)).map(([vai]) => {
         const d = data.dong.find(x => x.phien_ban_id === versionId && x.phong_id === room && x.vai === vai);
-        return {phong_id: room, vai, gioi_han_vnd: money(d ? d.gioi_han_vnd : null), o: catalog.map(c => ({module: c.module, man: c.man, hanh_dong: c.hanh_dong, cho_phep: !!d?.o.some(o => cellKey(o) === cellKey(c) && o.cho_phep === true)})), missing: !d, error: ""};
+        return {phong_id: room, vai, gioi_han_vnd: parseMoney(d ? d.gioi_han_vnd : null), o: catalog.map(c => ({module: c.module, man: c.man, hanh_dong: c.hanh_dong, cho_phep: !!d?.o.some(o => cellKey(o) === cellKey(c) && o.cho_phep === true)})), missing: !d, error: ""};
       });
       original = JSON.parse(JSON.stringify(rows)); reason = "";
     }
@@ -167,7 +173,7 @@
           input.addEventListener("input", () => {
             if (busy || blocked) return;
             r.raw = input.value;
-            try { r.gioi_han_vnd = money(input.value); r.error = ""; display.textContent = moneyText(r.gioi_han_vnd); }
+            try { r.gioi_han_vnd = parseMoney(input.value); r.error = ""; display.textContent = moneyText(r.gioi_han_vnd); }
             catch (e) { r.error = e.message; display.textContent = ""; }
             error.textContent = r.error; input.setAttribute("aria-invalid", String(!!r.error)); updateDiff();
           });
@@ -192,21 +198,35 @@
     function auditDetail(event) {
       const before = event.truoc || {}, after = event.sau || {}, target = after.module ? after : event.doi_tuong || {};
       if (target.module && target.man && target.hanh_dong) return `${MODULE[target.module] || "Nhóm chức năng"} · ${MAN[target.man] || "Màn chức năng"} · ${HD.find(a => a[0] === target.hanh_dong)?.[1] || "Thao tác"}: ${before.cho_phep === true ? "Có" : "Không"} → ${after.cho_phep === true ? "Có" : "Không"}`;
-      if (Object.prototype.hasOwnProperty.call(after, "gioi_han_vnd")) return `${VAI.find(v => v[0] === after.vai)?.[1] || "Vai"} · Giới hạn số tiền: ${moneyText(money(before.gioi_han_vnd))} → ${moneyText(money(after.gioi_han_vnd))}`;
+      if (Object.prototype.hasOwnProperty.call(after, "gioi_han_vnd")) return `${VAI.find(v => v[0] === after.vai)?.[1] || "Vai"} · Giới hạn số tiền: ${moneyText(before.gioi_han_vnd)} → ${moneyText(after.gioi_han_vnd)}`;
       return ({NHAP: "Tạo bản nháp", DONG: "Cập nhật dòng quyền", O: "Cập nhật ô quyền", CONG_BO: "Công bố phiên bản", KICH_HOAT: "Bật ma trận", HTTP_LUU_NHAP: "Lưu bản nháp", HTTP_CONG_BO: "Công bố phiên bản", HTTP_KICH_HOAT: "Bật ma trận"})[event.loai_su_kien] || "Thay đổi cấu hình thẩm quyền";
     }
     function render() {
-      if (dead) return;
+      if (dead) return false;
+      try { renderContent(); return true; }
+      catch (_) { recover("Không hiển thị được quyền. Vui lòng tải lại."); return false; }
+    }
+    function recover(text) {
+      busy = false; blocked = true; data = logs = null; rows = original = [];
+      message = diffBox = saveButton = publishButton = activateButton = reasonInput = null;
+      pending = null;
+      view.replaceChildren(node("p", text, "mtq-error"), button("Tải lại", () => { load(); }));
+    }
+    function renderContent() {
       view.replaceChildren(node("h2", isAdmin() ? "Ma trận thẩm quyền" : "Quyền của tôi"));
       message = node("p", "", "mtq-message"); message.setAttribute("role", "status"); view.append(message);
       if (!data) return;
-      if (!legalIds().length) { view.append(node("p", "Chưa có quyền đang áp dụng.")); return; }
+      const noMatrix = "Pháp nhân chưa dùng ma trận thẩm quyền; quyền hiện áp dụng theo phân quyền đang có.";
+      if (!legalIds().length) {
+        view.append(node("p", !isAdmin() && !(data.kich_hoat || []).some(k => k.bat) ? noMatrix : "Chưa có quyền đang áp dụng."), button("Tải lại", () => { load(); })); return;
+      }
       const controls = node("div", undefined, "mtq-controls");
       controls.append(selectField("Pháp nhân", legalIds().map(id => [id, legalName(id)]), pn, id => { pn = id; choose(); }));
       const rooms = isAdmin() ? data.phong.filter(p => p.phap_nhan_id === pn && p.hoat_dong).map(p => p.id) : [...new Set(data.dong.filter(d => d.phap_nhan_id === pn).map(d => d.phong_id))];
       controls.append(selectField("Phòng", rooms.map(id => [id, roomName(id)]), room, id => { room = id; }));
       controls.append(selectField("Phiên bản", data.phien_ban.filter(v => v.phap_nhan_id === pn).map(v => [v.id, `${v.so_phien_ban} · ${v.trang_thai === "NHAP" ? "Bản nháp" : "Đã công bố"}`]), versionId, id => { versionId = id; }));
       controls.append(button("Tải lại", () => { load(); })); view.append(controls);
+      if (!isAdmin() && !activation()?.bat) { view.append(node("p", noMatrix)); return; }
       const v = version(), last = (logs?.thay_doi || []).filter(e => e.phien_ban_id === versionId).sort((a, b) => new Date(b.luc) - new Date(a.luc))[0];
       view.append(node("p", `${activation()?.bat ? "Đang dùng" : "Chưa bật"} · Phiên bản ${v ? v.so_phien_ban : "chưa có"}${activation()?.bat && activation().phien_ban_id !== versionId ? " · Bản đang xem chưa áp dụng" : ""}`, "mtq-state"));
       if (isAdmin()) view.append(node("p", `Lần sửa cuối: ${timeText(last?.luc)} · Người sửa: ${last ? personName(last.actor_id) : "Chưa có thông tin"}`));
@@ -260,7 +280,7 @@
       const signature = JSON.stringify([command, body]);
       if (!retry || retry.signature !== signature) retry = {signature, khoa: scope.crypto.randomUUID()};
       body.khoa = retry.khoa;
-      busy = true; render(); const current = generation;
+      busy = true; if (!render()) return; const current = generation;
       try {
         const result = await api(command, body);
         if (dead || current !== generation) return;
@@ -281,8 +301,9 @@
     async function load() {
       if (dead || (busy && !data)) return;
       const current = ++generation; busy = true; blocked = false;
-      if (data) render(); else { view.replaceChildren(node("p", "Đang tải quyền…")); }
       try {
+        if (data) { if (!render()) return; }
+        else { view.replaceChildren(node("p", "Đang tải quyền…")); }
         const next = await api(options.laAdmin === true ? "ma-tran" : "cua-toi");
         if (dead || current !== generation) return;
         data = next; logs = null; logError = "";
@@ -295,9 +316,10 @@
         choose(); prepare(); busy = false; render();
       } catch (e) {
         if (dead || current !== generation) return;
-        busy = false; blocked = true;
         // Không để ma trận phiên trước tồn tại sau khi bị từ chối tải lại.
-        data = null; rows = []; view.replaceChildren(node("p", e.status ? e.message : "Không tải được quyền. Vui lòng thử lại.", "mtq-error"), button("Tải lại", () => { load(); }));
+        recover(e.status ? e.message : "Không tải được quyền. Vui lòng thử lại.");
+      } finally {
+        if (!dead && current === generation) busy = false;
       }
     }
     return {sanSang: load(), taiLai: load, huy() { dead = true; ++generation; data = logs = null; rows = original = []; root.replaceChildren(); }};

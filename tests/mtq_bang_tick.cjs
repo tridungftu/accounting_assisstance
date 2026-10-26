@@ -19,7 +19,9 @@ function fixture() {
 }
 const logFixture = () => ({thay_doi: [{phap_nhan_id: PN, phien_ban_id: VERSION, actor_id: "actor-demo", actor_login: "KHONG_HIEN_LOGIN",
   luc: "2026-10-26T01:05:00Z", ly_do: "Thử <script>audit()</script>", loai_su_kien: "O", doi_tuong: {},
-  truoc: {cho_phep: false}, sau: {module: "CRM", man: "G2_BAO_GIA", hanh_dong: "XEM", cho_phep: true}}], tu_choi: []});
+  truoc: {cho_phep: false}, sau: {module: "CRM", man: "G2_BAO_GIA", hanh_dong: "XEM", cho_phep: true}},
+  {phap_nhan_id: PN, phien_ban_id: VERSION, actor_id: "actor-demo", luc: "2026-10-26T01:00:00Z", ly_do: "Đổi hạn mức DEMO", loai_su_kien: "DONG",
+    truoc: {vai: "CFO", gioi_han_vnd: 0}, sau: {vai: "CFO", gioi_han_vnd: 500000000}}], tu_choi: []});
 function environment(options = {}) {
   class El {
     constructor(tag) { this.tagName = tag.toUpperCase(); this.children = []; this.listeners = {}; this.attrs = {}; this.className = ""; this._text = ""; this.value = ""; this.disabled = false; this.checked = false; this.hidden = false; this.ownerDocument = doc; }
@@ -130,18 +132,41 @@ async function main() {
     tick(e); input(textArea(e), "Nháp kế tiếp"); button(e, "Lưu nháp").click();
     const p = JSON.parse(e.calls.at(-1).opts.body); assert.equal(p.nguon_id, VERSION); assert.equal(p.expected_revision, 0); assert.ok(!("phien_ban_id" in p));
   });
-  await test("409 khóa ghi, báo tiếng Việt và không tự ghi đè", async () => {
+  for (const code of ["MTQ_REVISION", "MTQ_IDEMPOTENCY_KHAC"]) await test(`409 ${code} khóa ghi, báo xung đột và không tự ghi đè`, async () => {
     const e = await ready(); tick(e); input(textArea(e), "Đổi quyền"); button(e, "Lưu nháp").click();
-    await respond(e, "luu-nhap", {error: "MTQ_REVISION", message: "Không hiện mã kỹ thuật"}, 409);
-    assert.match(e.root.textContent, /Đã có người khác sửa, tải lại/); assert.equal(button(e, "Lưu nháp").disabled, true); assert.equal(checks(e)[0].disabled, true);
-    assert.equal(e.calls.filter(c => c.opts.method === "POST").length, 1); assert.ok(!e.root.textContent.includes("MTQ_REVISION"));
+    await respond(e, "luu-nhap", {error: code, message: "Không hiện mã kỹ thuật"}, 409);
+    assert.equal(byClass(e.root, "mtq-message")[0].textContent, "Đã có người khác sửa, tải lại"); assert.equal(button(e, "Lưu nháp").disabled, true); assert.equal(checks(e)[0].disabled, true);
+    assert.equal(e.calls.filter(c => c.opts.method === "POST").length, 1); assert.ok(!e.root.textContent.includes(code));
+  });
+  await test("409 nghiệp vụ giữ nguyên câu máy chủ, không ghép câu xung đột", async () => {
+    for (const [code, message] of [
+      ["MTQ_THIEU_DONG", "Chưa đủ năm vai tại mọi phòng hoạt động."],
+      ["MTQ_BAT_BIEN", "Bản đã công bố không được sửa."],
+      ["CRM_G_GIAO_DICH_NGOAI", "Không thể ghi cấu hình trong giao dịch hiện hành."]
+    ]) {
+      const e = await ready(); tick(e); input(textArea(e), "Đổi quyền"); button(e, "Lưu nháp").click();
+      await respond(e, "luu-nhap", {error: code, message}, 409);
+      assert.equal(byClass(e.root, "mtq-message")[0].textContent, message);
+      assert.ok(!e.root.textContent.includes("Đã có người khác sửa")); assert.equal(button(e, "Lưu nháp").disabled, true);
+      assert.equal(button(e, "Tải lại").disabled, false); assert.equal(e.calls.filter(c => c.opts.method === "POST").length, 1);
+    }
   });
   await test("403 khóa ghi, báo không có quyền; tải lại bị từ chối xóa dữ liệu cũ", async () => {
     const e = await ready(); tick(e); input(textArea(e), "Đổi quyền"); button(e, "Lưu nháp").click();
     await respond(e, "luu-nhap", {error: "MTQ_CHI_ADMIN", message: "<script>error()</script>"}, 403);
-    assert.match(e.root.textContent, /Anh không có quyền/); assert.equal(button(e, "Lưu nháp").disabled, true);
+    assert.match(e.root.textContent, /Người dùng đang thực hành không có quyền/); assert.equal(button(e, "Lưu nháp").disabled, true);
     button(e, "Tải lại").click(); await respond(e, "ma-tran", {error: "MTQ_CHI_ADMIN"}, 403);
-    assert.equal(byClass(e.root, "mtq-row").length, 0); assert.match(e.root.textContent, /Anh không có quyền/);
+    assert.equal(byClass(e.root, "mtq-row").length, 0); assert.match(e.root.textContent, /Người dùng đang thực hành không có quyền/);
+  });
+  await test("503 lỗi nhật ký báo thao tác chưa thực hiện và cho phép thử lại", async () => {
+    const e = await ready(); tick(e); input(textArea(e), "Đổi quyền"); button(e, "Lưu nháp").click();
+    const body = e.calls.at(-1).opts.body;
+    await respond(e, "luu-nhap", {error: "MTQ_NHAT_KY_LOI", message: "Chưa ghi được nhật ký thẩm quyền, thao tác không được thực hiện. Báo quản trị."}, 503);
+    assert.equal(byClass(e.root, "mtq-message")[0].textContent, "Chưa ghi được nhật ký, thao tác chưa thực hiện. Báo quản trị.");
+    assert.ok(!e.root.textContent.includes("Mất kết nối")); assert.ok(!e.root.textContent.includes("Đã lưu nháp"));
+    assert.equal(button(e, "Lưu nháp").disabled, false); assert.equal(button(e, "Tải lại").disabled, false);
+    assert.equal(checks(e)[0].disabled, false); assert.equal(checks(e)[0].checked, true);
+    button(e, "Lưu nháp").click(); assert.equal(e.calls.at(-1).opts.body, body);
   });
   await test("Mất mạng thử lại cùng khóa yêu cầu và cùng nội dung", async () => {
     const e = await ready(); tick(e); input(textArea(e), "Thử lại"); button(e, "Lưu nháp").click();
@@ -160,6 +185,7 @@ async function main() {
     const e = await ready(); button(e, "Xem nhật ký").click();
     assert.match(e.root.textContent, /26\/10\/2026 08:05/); assert.match(e.root.textContent, /Chị DEMO <script>ten\(\)<\/script>/);
     assert.match(e.root.textContent, /Thử <script>audit\(\)<\/script>/); assert.match(e.root.textContent, /Xem: Không → Có/);
+    assert.match(e.root.textContent, /0 VND → 500\.000\.000 VND/);
     assert.equal(all(e.root, n => n.tagName === "SCRIPT").length, 0);
     for (const s of [PN, ROOM, VERSION, "KHONG_HIEN_LOGIN", "KHONG_HIEN_MA_PHONG", "THUC_HIEN_1", "G2_BAO_GIA"]) assert.ok(!e.root.textContent.includes(s), s);
   });
@@ -171,15 +197,61 @@ async function main() {
     input(textArea(e), "Bật DEMO"); button(e, "Bật").click(); button(e, "Xác nhận bật").click();
     const p = JSON.parse(e.calls.at(-1).opts.body); assert.equal(p.expected_revision, 8); assert.equal(p.phien_ban_id, VERSION);
     assert.deepEqual(Object.keys(p).sort(), ["expected_revision", "ly_do", "phien_ban_id", "khoa"].sort());
-    await respond(e, "kich-hoat", {error: "MTQ_CHUA_NOI_MTQ4", message: "CSDL từ chối cấu hình (MTQ_CHUA_NOI_MTQ4)."}, 409);
-    assert.match(e.root.textContent, /Đã có người khác sửa, tải lại/); assert.match(e.root.textContent, /Chưa thể bật: các chức năng chưa hoàn tất kiểm tra thẩm quyền/);
+    const message = "Không thể áp dụng cấu hình thẩm quyền; kiểm tra lại phiên bản và điều kiện thực hiện.";
+    await respond(e, "kich-hoat", {error: "MTQ_CHUA_NOI_MTQ4", message}, 409);
+    assert.equal(byClass(e.root, "mtq-message")[0].textContent, message); assert.ok(!e.root.textContent.includes("Đã có người khác sửa"));
     assert.ok(!e.root.textContent.includes("MTQ_CHUA_NOI_MTQ4"));
   });
   await test("Nhật ký hạn mức cũ → mới, trạng thái đang dùng", async () => {
     const d = fixture(); d.kich_hoat = [{phap_nhan_id: PN, bat: true, phien_ban_id: VERSION, revision: 3}];
     const e = environment(); await respond(e, "ma-tran", d);
-    const l = logFixture(); l.thay_doi[0].sau = {vai: "CFO", gioi_han_vnd: "0"}; l.thay_doi[0].truoc = {gioi_han_vnd: null};
+    const l = logFixture(); l.thay_doi[0].sau = {vai: "CFO", gioi_han_vnd: 0}; l.thay_doi[0].truoc = {gioi_han_vnd: null};
     await respond(e, "nhat-ky", l); button(e, "Xem nhật ký").click(); assert.match(e.root.textContent, /Không giới hạn → 0 VND/); assert.match(e.root.textContent, /Đang dùng/);
+  });
+  for (const literal of ["99999999999999999999", "123456789012345678"]) await test(`Nhật ký số JSON ${literal}: vẽ đủ và mở lại nút sau Tải lại`, async () => {
+    const e = environment(), l = logFixture(), amount = JSON.parse(literal);
+    assert.equal(typeof amount, "number"); assert.equal(Number.isSafeInteger(amount), false);
+    l.thay_doi[1].sau.gioi_han_vnd = amount;
+    l.thay_doi.push({...clone(l.thay_doi[1]), truoc: {gioi_han_vnd: amount}, sau: {vai: "CFO", gioi_han_vnd: 500000000}});
+    await respond(e, "ma-tran", fixture()); await respond(e, "nhat-ky", l); await e.app.sanSang;
+    button(e, "Xem nhật ký").click();
+    const checkScreen = () => {
+      const log = byClass(e.root, "mtq-log")[0]; assert.ok(log);
+      assert.match(log.textContent, /0 VND → Giá trị quá lớn — xem ở máy chủ/);
+      assert.match(log.textContent, /Giá trị quá lớn — xem ở máy chủ → 500\.000\.000 VND/);
+      assert.ok(!log.textContent.includes(String(amount))); assert.ok(!log.textContent.includes(literal));
+      assert.equal(byClass(e.root, "mtq-row").length, 5); assert.equal(checks(e).length, catalog.length * 5);
+      assert.ok(checks(e).every(c => !c.disabled)); assert.ok(inputs(e).every(c => !c.disabled));
+      assert.equal(button(e, "Tải lại").disabled, false); assert.equal(button(e, "Ẩn nhật ký").disabled, false);
+    };
+    checkScreen(); button(e, "Tải lại").click();
+    assert.equal(button(e, "Tải lại").disabled, true);
+    await respond(e, "ma-tran", fixture()); await respond(e, "nhat-ky", l); checkScreen();
+    tick(e); input(textArea(e), "Thử sau tải lại"); assert.equal(button(e, "Lưu nháp").disabled, false);
+    button(e, "Lưu nháp").click(); assert.equal(e.calls.filter(c => c.opts.method === "POST").length, 1);
+  });
+  await test("Nhật ký nhận chuỗi tiền chính xác và dữ liệu tiền sai không làm hỏng màn", async () => {
+    const e = environment(), l = logFixture();
+    for (const value of ["99999999999999999999", "123456789012345678", "không hợp lệ", {sai: true}]) {
+      l.thay_doi.push({...clone(l.thay_doi[1]), truoc: {gioi_han_vnd: value}, sau: {vai: "CFO", gioi_han_vnd: value}});
+    }
+    await respond(e, "ma-tran", fixture()); await respond(e, "nhat-ky", l); await e.app.sanSang;
+    button(e, "Xem nhật ký").click();
+    const text = byClass(e.root, "mtq-log")[0].textContent;
+    assert.match(text, /99\.999\.999\.999\.999\.999\.999 VND/); assert.match(text, /123\.456\.789\.012\.345\.678 VND/);
+    assert.match(text, /Hạn mức không hợp lệ — xem ở máy chủ/); assert.equal(button(e, "Tải lại").disabled, false);
+  });
+  for (const action of ["render", "load"]) await test(`Lỗi ${action} phục hồi bằng Tải lại, không để nút khóa`, async () => {
+    let fail = false;
+    const e = await ready(fixture(), {tenPhapNhan: () => { if (fail) throw Error("Lỗi nhãn DEMO"); return "Công ty DEMO"; }});
+    fail = true;
+    if (action === "render") button(e, "Xem nhật ký").click();
+    else await e.app.taiLai(); // Lỗi ở lần vẽ trạng thái busy, trước khi gọi fetch.
+    assert.match(e.root.textContent, /Không hiển thị được quyền/);
+    assert.equal(byClass(e.root, "mtq-row").length, 0); assert.equal(button(e, "Tải lại").disabled, false);
+    fail = false; button(e, "Tải lại").click(); await respond(e, "ma-tran", fixture()); await respond(e, "nhat-ky", logFixture());
+    assert.equal(byClass(e.root, "mtq-row").length, 5); assert.ok(checks(e).every(c => !c.disabled));
+    tick(e); input(textArea(e), "Đã phục hồi"); assert.equal(button(e, "Lưu nháp").disabled, false);
   });
   await test("Bật lần đầu gửi revision 0; thành công nạp lại và ẩn nút Bật", async () => {
     const d = fixture(); d.phien_ban[0].trang_thai = "DA_CONG_BO"; d.chua_noi_mtq4 = false;
@@ -192,14 +264,31 @@ async function main() {
   });
   await test("Người không phải Admin chỉ gọi cua-toi, chỉ hiện vai được trả, không có ô sửa", async () => {
     const d = fixture(); d.admin = false; d.phong = []; d.dong = [{...d.dong[2], ten_phong: "Phòng của tôi"}];
+    d.kich_hoat = [{phap_nhan_id: PN, bat: true, phien_ban_id: VERSION, revision: 1}];
     const e = await ready(d, {laAdmin: false}); assert.deepEqual(e.calls.map(c => c.url), ["/api/tham-quyen/cua-toi"]);
     assert.equal(byClass(e.root, "mtq-row").length, 1); assert.match(e.root.textContent, /Trưởng phòng/); assert.ok(!e.root.textContent.includes("Người thực hiện 1"));
     assert.equal(checks(e).length, 0); assert.equal(inputs(e).length, 0); assert.ok(!button(e, "Lưu nháp")); assert.ok(!button(e, "Xem nhật ký"));
     button(e, "Tải lại").click(); await respond(e, "cua-toi", d); assert.ok(e.calls.every(c => c.url.endsWith("/cua-toi")));
   });
+  await test("Người không phải Admin: chưa bật ma trận hiện quyền theo phân quyền đang có", async () => {
+    for (const state of ["rong", "chua-bat", "khac-phap-nhan"]) {
+      const d = fixture(); d.admin = false; d.phong = []; d.phien_ban = []; d.dong = [];
+      if (state !== "rong") {
+        d.gan_vai = [{id: "gan-demo", phap_nhan_id: PN, phong_id: ROOM, vai: "CFO"}];
+        d.kich_hoat = [{phap_nhan_id: PN, bat: false, phien_ban_id: null, revision: 1}];
+        if (state === "khac-phap-nhan") d.kich_hoat.push({phap_nhan_id: "pn-khac", bat: true, phien_ban_id: "ban-khac", revision: 1});
+      }
+      const e = await ready(d, {laAdmin: false});
+      assert.match(e.root.textContent, /Pháp nhân chưa dùng ma trận thẩm quyền; quyền hiện áp dụng theo phân quyền đang có\./);
+      assert.ok(!e.root.textContent.includes("Chưa có quyền đang áp dụng")); assert.ok(!button(e, "Lưu nháp"));
+      assert.equal(button(e, "Tải lại").disabled, false); button(e, "Tải lại").click(); await respond(e, "cua-toi", d);
+      assert.ok(e.calls.every(c => c.url.endsWith("/cua-toi")));
+    }
+  });
   await test("Mặc định gọi cua-toi; thiếu tên dùng nhãn rõ, không lấy login hay UUID", async () => {
     const e = environment({laAdmin: undefined, tenPhapNhan: undefined, tenNguoi: undefined}); assert.equal(e.calls[0].url, "/api/tham-quyen/cua-toi");
-    const d = fixture(); d.admin = false; await respond(e, "cua-toi", d); assert.match(e.root.textContent, /Pháp nhân 1 \(chưa có tên\)/); assert.ok(!e.root.textContent.includes(PN));
+    const d = fixture(); d.admin = false; d.kich_hoat = [{phap_nhan_id: PN, bat: true, phien_ban_id: VERSION, revision: 1}];
+    await respond(e, "cua-toi", d); assert.match(e.root.textContent, /Pháp nhân 1 \(chưa có tên\)/); assert.ok(!e.root.textContent.includes(PN));
   });
   await test("Tạo mới phòng đủ năm dòng, trường gửi đúng; chọn pháp nhân rồi phòng", async () => {
     const d = fixture(); d.phien_ban = []; d.dong = [];
