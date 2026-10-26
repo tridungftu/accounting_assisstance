@@ -12409,3 +12409,10 @@ from ..k2.sql_mtq_nen import MTQ_NEN_B_SQL  # noqa: E402 — chỉ hằng SQL
 M0058_MTQ_NEN_B = MTQ_NEN_B_SQL
 PG_MIGRATIONS = (*PG_MIGRATIONS, M0058_MTQ_NEN_B)
 PG_SCHEMA_VERSION = len(PG_MIGRATIONS)
+
+# BO-1a — QD-09: M0059; bỏ dòng và đọc BOQ hiệu lực, giữ writer M0055.
+from ..m4.sql_boq_bo import M4_BOQ_BO_SQL  # noqa: E402 — chỉ hằng SQL
+
+M0059_M4_BOQ_BO = M4_BOQ_BO_SQL
+PG_MIGRATIONS = (*PG_MIGRATIONS, M0059_M4_BOQ_BO)
+PG_SCHEMA_VERSION = len(PG_MIGRATIONS)
