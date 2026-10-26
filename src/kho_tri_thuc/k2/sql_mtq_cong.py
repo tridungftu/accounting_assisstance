@@ -1356,6 +1356,8 @@ MTQ_CONG_F_SQL = (
         p_hanh_dong text, p_doi_tuong jsonb) RETURNS jsonb
         LANGUAGE plpgsql STABLE SECURITY DEFINER
         SET search_path = pg_catalog, master, nhat_ky, pg_temp AS $$
+        -- Hàm nội bộ, chỉ hai cổng phiên cùng chủ sở hữu gọi; không cấp cho vai ứng dụng.
+        -- Hàm cho ứng dụng lọc danh sách sẽ là hàm quyết định boolean ở NEN-1.
         DECLARE
             pn uuid; phong uuid; obj uuid; hd uuid; da uuid; lh uuid; khach uuid;
             loai text; man_hinh text; module_hd text; hd_ho_tro boolean; hd_crm boolean;
@@ -1850,9 +1852,4 @@ MTQ_CONG_F_SQL = (
         END IF;
         END $$""",
     """REVOKE ALL ON FUNCTION master.mtq_giai_doi_tuong(text,jsonb) FROM PUBLIC""",
-    """DO $$ BEGIN
-        IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'app_web') THEN
-            GRANT EXECUTE ON FUNCTION master.mtq_giai_doi_tuong(text,jsonb) TO app_web;
-        END IF;
-        END $$""",
 )

@@ -98,8 +98,9 @@ class MtqCongFTinh(unittest.TestCase):
         for new, old in zip(MTQ_CONG_F_SQL[1:3], MTQ_CONG_E_SQL[:2]):
             self.assertEqual(new.split("DECLARE", 1)[0], old.split("DECLARE", 1)[0])
         self.assertEqual(MTQ_CONG_F_SQL[3:5], MTQ_CONG_E_SQL[2:])
-        self.assertEqual(MTQ_CONG_F_SQL[5], f"REVOKE ALL ON FUNCTION {RESOLVER} FROM PUBLIC")
-        self.assertIn(f"GRANT EXECUTE ON FUNCTION {RESOLVER} TO app_web", MTQ_CONG_F_SQL[6])
+        self.assertEqual(MTQ_CONG_F_SQL[5:], (f"REVOKE ALL ON FUNCTION {RESOLVER} FROM PUBLIC",))
+        self.assertNotRegex("\n".join(MTQ_CONG_F_SQL),
+                            r"(?is)\bGRANT\b[^;]*\bmtq_giai_doi_tuong\b")
         for sql in MTQ_CONG_F_SQL[:3]:
             self.assertNotIn("EXECUTE ", sql)
 
@@ -197,7 +198,7 @@ class MtqCongFReadOnlyPostgres(unittest.TestCase):
         # Một CSDL test riêng, migrate thật; không dùng CSDL/DSN của ứng dụng.
         cong.MtqCongCPostgres.setUpClass.__func__(cls)
 
-    def test_read_only_app_web_du_crm_m4_khong_tao_nhat_ky_va_acl(self):
+    def test_read_only_owner_du_crm_m4_app_web_bi_chan_va_acl(self):
         base = cong.MtqCongCPostgres(methodName="runTest")
         base.c = self.c
         self.addCleanup(base.doCleanups)
@@ -212,6 +213,8 @@ class MtqCongFReadOnlyPostgres(unittest.TestCase):
             fixture.objects, fixture.refs = fixture.fixture(base.pn)
             fixtures.append(fixture)
         base.cau_hinh()
+        other_objects = [base.obj("master.phap_nhan", base.pn2),
+                         base.obj("master.hop_dong", base.hop_dong(base.pn2))]
         # CSDL riêng của đúng một test này; commit dữ liệu giả để mở một
         # giao dịch READ ONLY mới trước mọi SELECT/SET ROLE.
         self.c.execute("COMMIT")
@@ -224,7 +227,6 @@ class MtqCongFReadOnlyPostgres(unittest.TestCase):
         self.c.execute("BEGIN")
         self.addCleanup(self.c.execute, "ROLLBACK")
         self.c.execute("SET TRANSACTION READ ONLY")
-        self.c.execute("SET LOCAL ROLE app_web")
         self.assertEqual(self.c.execute("SHOW transaction_read_only").fetchone()[0], "on")
         pairs = [(action, fixtures[0].objects[table]) for _, action, table in cong.CASES]
         pairs += [(action, fixtures[1].objects[key]) for key, actions in crm.ALLOWED.items() for action in actions]
@@ -243,6 +245,18 @@ class MtqCongFReadOnlyPostgres(unittest.TestCase):
                     result = self.c.execute("SELECT master.mtq_giai_doi_tuong(%s,%s::jsonb)",
                                             (action, json.dumps(bad))).fetchone()[0]
                     self.assertIs(result["hop_le"], False)
+        self.c.execute("SET LOCAL ROLE app_web")
+        blocked_pairs = pairs + [("M1:TIEN:LAP", other_objects[0]),
+                                 ("M1:TIEN:SUA", other_objects[1])]
+        for action, obj in blocked_pairs:
+            with self.subTest(app_web=action, obj=obj):
+                with self.assertRaises(cong.psycopg.errors.InsufficientPrivilege) as error:
+                    # SAVEPOINT phục hồi giao dịch sau lỗi quyền của từng lần gọi.
+                    with self.c.transaction():
+                        self.c.execute("SELECT master.mtq_giai_doi_tuong(%s,%s::jsonb)",
+                                       (action, json.dumps(obj)))
+                self.assertEqual(error.exception.sqlstate, "42501")
+                self.assertIn("mtq_giai_doi_tuong", error.exception.diag.message_primary)
         self.c.execute("RESET ROLE")
         self.assertEqual(audit_counts(), before)
         for signature in (*crm.SIGNATURES, RESOLVER):
@@ -251,8 +265,11 @@ class MtqCongFReadOnlyPostgres(unittest.TestCase):
                 "LATERAL aclexplode(coalesce(p.proacl,acldefault('f',p.proowner))) a "
                 "WHERE p.oid=%s::regprocedure AND a.grantee=0 AND a.privilege_type='EXECUTE')",
                 (signature,)).fetchone()[0])
-            self.assertTrue(self.c.execute("SELECT has_function_privilege('app_web',%s,'EXECUTE')",
-                                           (signature,)).fetchone()[0])
+            self.assertEqual(self.c.execute("SELECT has_function_privilege('app_web',%s,'EXECUTE')",
+                                            (signature,)).fetchone()[0], signature != RESOLVER)
+        self.assertEqual(self.c.execute(
+            "SELECT count(DISTINCT proowner) FROM pg_proc WHERE oid=ANY(%s::regprocedure[])",
+            ([*crm.SIGNATURES, RESOLVER],)).fetchone()[0], 1)
         self.assertEqual(self.c.execute(
             "SELECT provolatile,prosecdef,proconfig FROM pg_proc WHERE oid=%s::regprocedure",
             (RESOLVER,)).fetchone(), ("s", True, ["search_path=pg_catalog, master, nhat_ky, pg_temp"]))
