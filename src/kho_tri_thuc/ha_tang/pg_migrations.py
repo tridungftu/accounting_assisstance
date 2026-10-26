@@ -12184,3 +12184,24 @@ from ..k2.sql_mtq_cong import MTQ_CONG_D_SQL  # noqa: E402 — chỉ hằng SQL
 M0047_MTQ_CONG_D = MTQ_CONG_D_SQL
 PG_MIGRATIONS = (*PG_MIGRATIONS, M0047_MTQ_CONG_D)
 PG_SCHEMA_VERSION = len(PG_MIGRATIONS)
+
+# MTQ-4b1b — CD-012: guard G1/G7; tên tạm, lead đánh số khi gộp.
+from ..k2.sql_mtq_crm import MTQ_CRM_A_SQL  # noqa: E402 — chỉ hằng SQL
+
+# Lấy định nghĩa hiện hành và thay đúng một vị trí; giữ toàn bộ CAS, graph,
+# digest, hiệu lực, append-only và tách nhiệm G1 của các hàm lệnh đã phát hành.
+M00xx_MTQ_CRM_A = (
+    *MTQ_CRM_A_SQL,
+    _m36_thay(
+        _m37_ham("master.crm_g_chuan_doc"),
+        ("LANGUAGE plpgsql STABLE SET search_path", "LANGUAGE plpgsql SET search_path"),
+        ("IF pn IS NULL OR NOT master.ktt_duoc(pn, 'CRM') THEN",
+         "IF pn IS NULL OR NOT master.crm_g_chuan_xem(p_du_an, false) THEN")),
+    _m36_thay(
+        _m37_ham("master.crm_g_chuan_duyet"),
+        ("IF v.gui_boi = ai THEN",
+         "IF v.gui_boi = ai OR (v.lap_boi = ai AND EXISTS (SELECT 1 FROM master.mtq_kich_hoat "
+         "WHERE phap_nhan_id = v.phap_nhan_id AND bat)) THEN")),
+)
+PG_MIGRATIONS = (*PG_MIGRATIONS, M00xx_MTQ_CRM_A)
+PG_SCHEMA_VERSION = len(PG_MIGRATIONS)
