@@ -18,7 +18,6 @@ try:
     import psycopg
     from psycopg import sql
     from psycopg.conninfo import make_conninfo
-    from psycopg.rows import dict_row
 except ImportError:
     psycopg = None
 
@@ -51,7 +50,16 @@ class BoqBoTinh(unittest.TestCase):
         self.assertIn("pg_catalog.pg_constraint", M4_BOQ_BO_SQL[0])
         self.assertIn("INTO STRICT", M4_BOQ_BO_SQL[0])
         self.assertIn("STABLE SECURITY INVOKER", M4_BOQ_BO_SQL[1])
-        self.assertIn("kl text, don_gia text, thanh_tien text", M4_BOQ_BO_SQL[1])
+        self.assertIn("RETURNS jsonb", M4_BOQ_BO_SQL[1])
+        self.assertNotRegex(M4_BOQ_BO_SQL[1], r"::(?:numeric|decimal|float|real)\b")
+
+    def test_moi_than_ham_sql_dong_dollar_quote(self):
+        for statement in M4_BOQ_BO_SQL:
+            with self.subTest(statement=statement[:70]):
+                if "$$" in statement:
+                    self.assertEqual(statement.count("$$"), 2)
+                    self.assertTrue(statement.rstrip().endswith("END $$"))
+        self.assertEqual(M4_BOQ_BO_SQL[1].count("AS $$"), 1)
 
     def test_utf8_khong_bom_registry_lf(self):
         for path in (Path(PM.__file__), ROOT / "src/kho_tri_thuc/m4/sql_boq_bo.py", Path(__file__)):
@@ -116,7 +124,7 @@ class BoqBoPostgres(unittest.TestCase):
         return hd, da, pn
 
     @classmethod
-    def boq(cls, hd, da, lan, rows, pl=None, state="DA_MAP"):
+    def boq(cls, hd, da, lan, rows, pl=None, state="DA_MAP", cells=None):
         from psycopg.types.json import Jsonb
 
         pn = cls.c.execute("SELECT phap_nhan_id FROM master.du_an WHERE id=%s", (da,)).fetchone()[0]
@@ -130,10 +138,14 @@ class BoqBoPostgres(unittest.TestCase):
                        cot=Jsonb({}), so_dong=len(rows), loi_chan=Jsonb([] if state == "DA_MAP" else ["Lỗi giả"]),
                        phat_hien=Jsonb([]), trang_thai=state, bo_doc="BO_TEST", tao_boi="MO_PHONG_BO")
         for dong, ma, op, quantity in rows:
+            values = dict(stt="01", nhom="Nhóm giả", ten="Hạng mục giả", dvt="m2",
+                          kl=quantity, don_gia="0002,50", thanh_tien=None, ma_rieng="MÃ-GIẢ")
+            values.update((cells or {}).get(dong, {}))
             cls.c.execute("""INSERT INTO m4.boq_dong
                 (boq_id,du_an_id,dong,ma_hm,thao_tac,stt,nhom,ten,dvt,kl,don_gia,thanh_tien,ma_rieng,o_goc)
-                VALUES (%s,%s,%s,%s,%s,'01','Nhóm giả','Hạng mục giả','m2',%s,'0002,50',NULL,'MÃ-GIẢ',%s)""",
-                          (b, da, dong, ma, op, quantity, Jsonb({"kl": {"loai": "CHU", "gia_tri": quantity}})))
+                VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)""",
+                          (b, da, dong, ma, op, *values.values(),
+                           Jsonb({"kl": {"loai": "CHU", "gia_tri": values["kl"]}})))
         return b
 
     @classmethod
@@ -163,12 +175,33 @@ class BoqBoPostgres(unittest.TestCase):
         self.b2 = self.boq(self.hd, self.da, 3, [(7, "A", "BO", None)], self.p2)
 
     def doc(self, day="2026-03-01", conn=None, hd=None):
-        with (conn or self.c).cursor(row_factory=dict_row) as cur:
-            cur.execute("SELECT * FROM m4.boq_hieu_luc(%s,%s::date)", (hd or self.hd, day))
-            return cur.fetchall()
+        return (conn or self.c).execute("SELECT m4.boq_hieu_luc(%s,%s::date)",
+                                       (hd or self.hd, day)).fetchone()[0]
+
+    def rows(self, day="2026-03-01", **kwargs):
+        result = self.doc(day, **kwargs)
+        self.assertEqual(set(result), {"boq", "can_xem_lai", "ly_do"})
+        self.assertFalse(result["can_xem_lai"], result["ly_do"])
+        self.assertEqual(result["ly_do"], [])
+        return result["boq"]
+
+    def can_xem_lai(self, reason, day="2026-03-01", **kwargs):
+        result = self.doc(day, **kwargs)
+        self.assertEqual(set(result), {"boq", "can_xem_lai", "ly_do"})
+        self.assertIs(result["can_xem_lai"], True)
+        self.assertIsNone(result["boq"])
+        self.assertIn(reason, result["ly_do"])
+        self.assertEqual(len(result["ly_do"]), len(set(result["ly_do"])))
+        return result
+
+    def so_pl(self, pl):
+        return self.c.execute("SELECT so_pl FROM m4.phu_luc WHERE id=%s", (pl,)).fetchone()[0]
+
+    def sai_thao_tac(self, pl):
+        return f"Phụ lục {self.so_pl(pl)}: thao tác BOQ không khớp hạng mục đang hiệu lực."
 
     def codes(self, day="2026-03-01"):
-        return [r["ma_hm"] for r in self.doc(day)]
+        return [r["ma_hm"] for r in self.rows(day)]
 
     def huy(self, pl):
         self.c.execute("UPDATE m4.phu_luc SET trang_thai='DA_HUY',huy_ly_do='Hủy giả',"
@@ -188,12 +221,14 @@ class BoqBoPostgres(unittest.TestCase):
             with self.subTest(day=day):
                 self.assertEqual(self.codes(day), expected)
                 self.assertEqual(self.doc(day), self.doc(day))
-        root = self.doc("2026-01-31")[0]
-        self.assertEqual((root["boq_id"], root["dong"], root["phu_luc_id"]), (self.b0, 2, None))
+        root = self.rows("2026-01-31")[0]
+        self.assertEqual((root["boq_id"], root["dong"], root["phu_luc_id"]), (str(self.b0), 2, None))
+        self.assertEqual(root["nguon"], "HĐ gốc")
         self.assertEqual((root["kl"], root["don_gia"], root["thanh_tien"]), ("01,2300", "0002,50", None))
-        changed = self.doc()[0]
+        changed = self.rows()[0]
         self.assertEqual((changed["boq_id"], changed["dong"], changed["phu_luc_id"], changed["lan"]),
-                         (self.b1, 4, self.p1, 2))
+                         (str(self.b1), 4, str(self.p1), 2))
+        self.assertEqual(changed["nguon"], self.so_pl(self.p1))
         self.assertEqual((changed["kl"], changed["don_gia"], changed["thanh_tien"]), ("2.5000", "0002,50", None))
         self.assertEqual(changed["o_goc"], {"kl": {"loai": "CHU", "gia_tri": "2.5000"}})
         self.assertEqual(self.old, [r for r in self.chup(self.hd) if r[0]["boq_id"] == str(self.b0)])
@@ -212,44 +247,109 @@ class BoqBoPostgres(unittest.TestCase):
         pl = self.phu_luc(self.hd, self.da, "2026-04-01")
         self.boq(self.hd, self.da, 4, [(1, "KHONG_CO", "BO", None)], pl)
         self.assertEqual(self.codes(), ["Z", "C"])
-        with self.assertRaisesRegex(psycopg.Error, "M4_BOQ_BO_KHONG_HOP_LE.*KHONG_CO"):
-            self.doc("2026-04-01")
+        self.can_xem_lai(self.sai_thao_tac(pl), "2026-04-01")
         self.huy(pl)
         self.assertEqual(self.codes("2026-04-01"), ["Z", "C"])
 
     def test_bo_khong_phu_luc_bao_ro(self):
         hd, da, _ = self.hop_dong()
         self.boq(hd, da, 1, [(1, "GIA", "BO", None)])
-        with self.assertRaisesRegex(psycopg.Error, "M4_BOQ_BO_KHONG_HOP_LE"):
-            self.doc(hd=hd)
+        self.can_xem_lai("BOQ gốc trùng mã hoặc sai thao tác.", hd=hd)
 
     def test_bo_khong_duoc_dua_vao_them_cung_phu_luc(self):
         pl = self.phu_luc(self.hd, self.da, "2026-04-01")
         self.boq(self.hd, self.da, 4, [(1, "MOI", "THEM", "1"), (2, "MOI", "BO", None)], pl)
-        with self.assertRaisesRegex(psycopg.Error, "M4_BOQ_BO_KHONG_HOP_LE"):
-            self.doc("2026-04-01")
+        self.can_xem_lai(f"Phụ lục {self.so_pl(pl)}: trùng mã hạng mục.", "2026-04-01")
 
     def test_bo_lan_hai_va_huy_phu_luc_them_truoc_do(self):
         p3 = self.phu_luc(self.hd, self.da, "2026-04-01")
         self.boq(self.hd, self.da, 4, [(1, "A", "BO", None)], p3)
-        with self.assertRaisesRegex(psycopg.Error, "M4_BOQ_BO_KHONG_HOP_LE"):
-            self.doc("2026-04-01")
+        self.can_xem_lai(self.sai_thao_tac(p3), "2026-04-01")
         self.huy(p3)
         p4 = self.phu_luc(self.hd, self.da, "2026-05-01")
         self.boq(self.hd, self.da, 5, [(1, "C", "BO", None)], p4)
         self.assertEqual(self.codes("2026-05-01"), ["Z"])
         self.huy(self.p1)
-        with self.assertRaisesRegex(psycopg.Error, "M4_BOQ_BO_KHONG_HOP_LE.*C"):
-            self.doc("2026-05-01")
+        self.can_xem_lai(self.sai_thao_tac(p4), "2026-05-01")
+
+    def test_them_b_thay_b_roi_huy_phu_luc_them_can_xem_lai(self):
+        hd, da, _ = self.hop_dong()
+        self.boq(hd, da, 1, [(1, "A", "GOC", "1")])
+        p1 = self.phu_luc(hd, da, "2026-02-01")
+        self.boq(hd, da, 2, [(1, "B", "THEM", "01,2300")], p1)
+        p2 = self.phu_luc(hd, da, "2026-03-01")
+        self.boq(hd, da, 3, [(1, "B", "THAY", "2.5000")], p2)
+        before = self.chup(hd)
+        self.assertEqual([r["ma_hm"] for r in self.rows(hd=hd)], ["A", "B"])
+        self.assertEqual(self.rows(hd=hd)[1]["kl"], "2.5000")
+        self.huy(p1)
+        self.can_xem_lai(self.sai_thao_tac(p2), hd=hd)
+        self.assertEqual(self.chup(hd), before)
+
+    def test_thay_chi_ghi_de_truong_co_gia_tri_va_cap_nhat_nguon(self):
+        before = self.rows()[0]
+        pl = self.phu_luc(self.hd, self.da, "2026-04-01")
+        b = self.boq(self.hd, self.da, 4, [(1, "Z", "THAY", None)], pl,
+                     cells={1: dict(stt="", nhom=None, ten="", dvt="", don_gia="",
+                                    thanh_tien="000,00", ma_rieng="MA-THAY")})
+        changed = self.rows("2026-04-01")[0]
+        for key in ("ma_hm", "stt", "nhom", "ten", "dvt", "kl", "don_gia", "ma_rieng"):
+            with self.subTest(key=key):
+                self.assertEqual(changed[key], before[key])
+        self.assertEqual(changed["thanh_tien"], "000,00")
+        self.assertEqual((changed["boq_id"], changed["dong"], changed["phu_luc_id"],
+                          changed["lan"], changed["thao_tac"], changed["nguon"]),
+                         (str(b), 1, str(pl), 4, "THAY", self.so_pl(pl)))
+        self.assertEqual(changed["o_goc"], {"kl": {"loai": "CHU", "gia_tri": None}})
+
+    def test_them_ma_da_co_va_thay_ma_chua_co_can_xem_lai(self):
+        pl = self.phu_luc(self.hd, self.da, "2026-04-01")
+        self.boq(self.hd, self.da, 4, [(1, "Z", "THEM", "9"),
+                                      (2, "KHONG_CO", "THAY", "8")], pl)
+        result = self.can_xem_lai(self.sai_thao_tac(pl), "2026-04-01")
+        self.assertEqual(result["ly_do"], [self.sai_thao_tac(pl)])
+
+    def test_trung_ma_cung_phu_luc_ke_ca_khac_lan_boq(self):
+        pl = self.phu_luc(self.hd, self.da, "2026-04-01")
+        self.boq(self.hd, self.da, 4, [(1, "Z", "THAY", "4"), (2, "Z", "THAY", "5")], pl)
+        reason = f"Phụ lục {self.so_pl(pl)}: trùng mã hạng mục."
+        self.assertEqual(self.can_xem_lai(reason, "2026-04-01")["ly_do"], [reason])
+        # Một mã xuất hiện ở BOQ khác nhưng cùng PL vẫn là trùng mã.
+        self.boq(self.hd, self.da, 5, [(1, "A", "THEM", "1")], pl)
+        self.boq(self.hd, self.da, 6, [(1, "A", "BO", None)], pl)
+        self.assertEqual(self.can_xem_lai(reason, "2026-04-01")["ly_do"], [reason])
+
+    def test_boq_thieu_phu_luc_nguon_can_xem_lai(self):
+        # Chỉ tạo nguồn giả hỏng trong transaction test; không sửa/xóa dữ liệu cũ.
+        is_super = self.c.execute("SELECT rolsuper FROM pg_roles WHERE rolname=current_user").fetchone()[0]
+        if not is_super:
+            self.skipTest("NOT_RUN: cần superuser tạo fixture thiếu phụ lục qua session_replication_role")
+        with self.c.transaction():
+            self.c.execute("SET LOCAL session_replication_role = replica")
+            self.boq(self.hd, self.da, 4, [(1, "MAT_NGUON", "THEM", "1")], uuid.uuid4())
+            self.c.execute("SET LOCAL session_replication_role = origin")
+            self.can_xem_lai("BOQ thiếu phụ lục nguồn.")
+
+    def test_bo_roi_them_lai_noi_cuoi_va_chi_doc_boq_goc_moi_nhat(self):
+        hd, da, _ = self.hop_dong()
+        self.boq(hd, da, 1, [(1, "CU", "GOC", "1")])
+        self.boq(hd, da, 2, [(1, "B", "GOC", "2"), (2, "A", "GOC", "3")])
+        p1 = self.phu_luc(hd, da, "2026-02-01")
+        self.boq(hd, da, 3, [(1, "B", "BO", None)], p1)
+        p2 = self.phu_luc(hd, da, "2026-03-01")
+        self.boq(hd, da, 4, [(1, "B", "THEM", "0004,00")], p2)
+        rows = self.rows(hd=hd)
+        self.assertEqual([r["ma_hm"] for r in rows], ["A", "B"])
+        self.assertEqual(rows[1]["kl"], "0004,00")
 
     def test_ngay_uu_tien_truoc_lan_va_cung_ngay_theo_lan(self):
         # lan=4 nhập sau nhưng hiệu lực trước PL1; PL1 phải thắng.
         early = self.phu_luc(self.hd, self.da, "2026-01-15")
         self.boq(self.hd, self.da, 4, [(1, "Z", "THAY", "4")], early)
-        self.assertEqual(self.doc()[0]["kl"], "2.5000")
+        self.assertEqual(self.rows()[0]["kl"], "2.5000")
         same = self.phu_luc(self.hd, self.da, "2026-02-01")
         self.boq(self.hd, self.da, 5, [(1, "Z", "THAY", "5")], same)
-        self.assertEqual(self.doc()[0]["kl"], "5")
+        self.assertEqual(self.rows()[0]["kl"], "5")
         # Cùng ngày, lan nhỏ có thể thêm rồi lan lớn bỏ.
         later = self.phu_luc(self.hd, self.da, "2026-02-01")
         self.boq(self.hd, self.da, 6, [(1, "C", "BO", None)], later)
@@ -276,13 +376,13 @@ class BoqBoPostgres(unittest.TestCase):
                 self.c.execute("SELECT set_config('ktt.nguoi_dung_id',%s,true),"
                                "set_config('ktt.nguoi_dung_dang_nhap',%s,true)", (str(user), login))
                 self.c.execute("SET LOCAL ROLE app_web")
-                self.assertEqual([r["ma_hm"] for r in self.doc()], ["Z", "C"])
-                self.assertEqual(self.doc(hd=self.hd_cu), [])
+                self.assertEqual([r["ma_hm"] for r in self.rows()], ["Z", "C"])
+                self.assertEqual(self.rows(hd=self.hd_cu), [])
                 self.c.execute("SET LOCAL ROLE NONE")
                 self.c.execute("UPDATE m4.quyen_du_an SET thu_hoi_luc=now(),thu_hoi_boi='MO_PHONG_BO',"
                                "thu_hoi_ly_do='Thu hồi giả' WHERE id=%s", (grant,))
                 self.c.execute("SET LOCAL ROLE app_web")
-                self.assertEqual(self.doc(), [])
+                self.assertEqual(self.rows(), [])
                 self.c.execute("SET LOCAL ROLE NONE")
         self.assertFalse(self.c.execute("SELECT EXISTS (SELECT 1 FROM pg_proc p, "
                                        "LATERAL aclexplode(p.proacl) a WHERE p.oid="

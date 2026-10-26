@@ -1,32 +1,9 @@
 """BO-1a — QD-09: sự kiện bỏ dòng và BOQ hiệu lực, không sửa lịch sử.
 
-BO được kiểm lúc đọc, kể cả sau khi hủy phụ lục trước nó: báo lỗi thay vì
-âm thầm bỏ mã không còn tồn tại. Không thêm trigger lên dữ liệu cũ.
+Projection cùng quy tắc Review: dữ liệu nguồn sai trả cờ cần xem lại,
+không trả tập dòng dở và không thêm trigger lên dữ liệu cũ.
 BOQ gốc là lần DA_MAP mới nhất không gắn phụ lục, cùng quy ước writer M17.
 """
-
-# Dùng chung cho kiểm BO và projection; mọi SELECT chạy dưới RLS của caller.
-_SU_KIEN = """WITH goc AS (
-    SELECT b.id, b.lan, b.phu_luc_id
-    FROM m4.boq b
-    WHERE b.hop_dong_id = p_hop_dong_id AND b.phu_luc_id IS NULL
-      AND b.trang_thai = 'DA_MAP'
-    ORDER BY b.lan DESC LIMIT 1
-), lan_doc AS (
-    SELECT g.id, g.lan, g.phu_luc_id, '-infinity'::date AS ngay_hieu_luc
-    FROM goc g
-    UNION ALL
-    SELECT b.id, b.lan, b.phu_luc_id, p.ngay_hieu_luc
-    FROM m4.boq b JOIN m4.phu_luc p
-      ON p.id = b.phu_luc_id AND p.hop_dong_id = b.hop_dong_id
-    WHERE b.hop_dong_id = p_hop_dong_id AND b.trang_thai = 'DA_MAP'
-      AND p.trang_thai = 'DA_KY' AND p.ngay_hieu_luc <= p_ngay
-      AND EXISTS (SELECT 1 FROM goc)
-), su_kien AS (
-    SELECT d.*, l.lan, l.phu_luc_id, l.ngay_hieu_luc,
-           row_number() OVER (ORDER BY l.ngay_hieu_luc, l.lan, d.dong) AS vi_tri
-    FROM lan_doc l JOIN m4.boq_dong d ON d.boq_id = l.id
-) """
 
 M4_BOQ_BO_SQL = (
     # Chỉ thay CHECK đơn cột thao_tac; giữ nguyên tên tìm được từ catalog.
@@ -44,47 +21,105 @@ M4_BOQ_BO_SQL = (
                        'CHECK (thao_tac IN (''GOC'',''THEM'',''THAY'',''BO''))', ten);
     END $$""",
     """CREATE FUNCTION m4.boq_hieu_luc(p_hop_dong_id uuid, p_ngay date)
-    RETURNS TABLE (
-        boq_id uuid, dong integer, phu_luc_id uuid, lan integer,
-        ma_hm text, thao_tac text, stt text, nhom text, ten text, dvt text,
-        kl text, don_gia text, thanh_tien text, ma_rieng text, o_goc jsonb
-    )
+    RETURNS jsonb
     LANGUAGE plpgsql STABLE SECURITY INVOKER
     SET search_path = pg_catalog, m4, pg_temp AS $$
-    DECLARE sai record;
+    DECLARE
+        ban record;
+        dong_doc record;
+        dong_moi jsonb;
+        cac_dong jsonb := '{}'::jsonb;
+        da_gap jsonb := '{}'::jsonb;
+        thu_tu text[] := ARRAY[]::text[];
+        ly_do text[] := ARRAY[]::text[];
+        ket_qua jsonb := '[]'::jsonb;
+        loi text;
     BEGIN
         IF p_ngay IS NULL THEN
-            RAISE EXCEPTION 'M4_BOQ_NGAY_THIEU: cần ngày đọc BOQ' USING ERRCODE = 'P0001';
-        END IF;
-        """ + _SU_KIEN + """
-        SELECT s.boq_id, s.dong, s.ma_hm INTO sai
-        FROM su_kien s
-        WHERE s.thao_tac = 'BO' AND (
-            s.phu_luc_id IS NULL OR NOT coalesce((
-                SELECT t.thao_tac <> 'BO'
-                FROM su_kien t
-                WHERE t.ma_hm = s.ma_hm
-                  AND t.phu_luc_id IS DISTINCT FROM s.phu_luc_id
-                  AND (t.ngay_hieu_luc, t.lan) < (s.ngay_hieu_luc, s.lan)
-                ORDER BY t.vi_tri DESC LIMIT 1
-            ), false))
-        ORDER BY s.vi_tri LIMIT 1;
-        IF FOUND THEN
-            RAISE EXCEPTION 'M4_BOQ_BO_KHONG_HOP_LE: BOQ %, dòng %, mã % phải có phụ lục và đang hiệu lực trước phụ lục',
-                sai.boq_id, sai.dong, sai.ma_hm USING ERRCODE = 'P0001';
+            RETURN jsonb_build_object('boq', NULL, 'can_xem_lai', true,
+                'ly_do', jsonb_build_array('Cần ngày đọc BOQ.'));
         END IF;
 
-        RETURN QUERY
-        """ + _SU_KIEN + """, cuoi AS (
-            SELECT DISTINCT ON (s.ma_hm) s.*,
-                   min(s.vi_tri) OVER (PARTITION BY s.ma_hm) AS vi_tri_dau
-            FROM su_kien s ORDER BY s.ma_hm, s.vi_tri DESC
-        )
-        SELECT c.boq_id, c.dong, c.phu_luc_id, c.lan,
-               c.ma_hm, c.thao_tac, c.stt, c.nhom, c.ten, c.dvt,
-               c.kl, c.don_gia, c.thanh_tien, c.ma_rieng, c.o_goc
-        FROM cuoi c WHERE c.thao_tac <> 'BO'
-        ORDER BY c.vi_tri_dau, c.ma_hm;
+        -- Mọi SELECT chịu RLS của caller; LEFT JOIN giữ dấu thiếu nguồn.
+        FOR ban IN
+            WITH goc AS (
+                SELECT b.id FROM m4.boq b
+                WHERE b.hop_dong_id = p_hop_dong_id
+                  AND b.phu_luc_id IS NULL AND b.trang_thai = 'DA_MAP'
+                ORDER BY b.lan DESC LIMIT 1
+            )
+            SELECT b.id, b.lan, b.phu_luc_id, p.id AS nguon_id, p.so_pl
+            FROM m4.boq b LEFT JOIN m4.phu_luc p
+              ON p.id = b.phu_luc_id AND p.hop_dong_id = b.hop_dong_id
+            WHERE b.hop_dong_id = p_hop_dong_id AND b.trang_thai = 'DA_MAP'
+              AND (b.id IN (SELECT id FROM goc)
+                   OR (b.phu_luc_id IS NOT NULL AND
+                       (p.id IS NULL OR
+                        (p.trang_thai = 'DA_KY' AND p.ngay_hieu_luc <= p_ngay))))
+            ORDER BY CASE WHEN b.phu_luc_id IS NULL THEN '-infinity'::date
+                          ELSE p.ngay_hieu_luc END, b.lan
+        LOOP
+            FOR dong_doc IN
+                SELECT d.boq_id, d.dong, d.ma_hm, d.thao_tac, d.stt,
+                       d.nhom, d.ten, d.dvt, d.kl, d.don_gia,
+                       d.thanh_tien, d.ma_rieng, d.o_goc
+                FROM m4.boq_dong d WHERE d.boq_id = ban.id ORDER BY d.dong
+            LOOP
+                loi := NULL;
+                dong_moi := to_jsonb(dong_doc) || jsonb_build_object(
+                    'phu_luc_id', ban.phu_luc_id, 'lan', ban.lan,
+                    'nguon', coalesce(ban.so_pl, 'HĐ gốc'));
+                IF ban.phu_luc_id IS NULL THEN
+                    IF dong_doc.thao_tac <> 'GOC' OR cac_dong ? dong_doc.ma_hm THEN
+                        loi := 'BOQ gốc trùng mã hoặc sai thao tác.';
+                    ELSE
+                        cac_dong := cac_dong || jsonb_build_object(dong_doc.ma_hm, dong_moi);
+                        thu_tu := array_append(thu_tu, dong_doc.ma_hm);
+                    END IF;
+                ELSIF ban.nguon_id IS NULL THEN
+                    loi := 'BOQ thiếu phụ lục nguồn.';
+                ELSIF coalesce(da_gap -> ban.phu_luc_id::text, '{}'::jsonb) ? dong_doc.ma_hm THEN
+                    loi := format('Phụ lục %s: trùng mã hạng mục.', ban.so_pl);
+                ELSE
+                    -- Ghi nhớ theo phụ lục, kể cả khi có nhiều lần BOQ của cùng PL.
+                    da_gap := da_gap || jsonb_build_object(ban.phu_luc_id::text,
+                        coalesce(da_gap -> ban.phu_luc_id::text, '{}'::jsonb)
+                        || jsonb_build_object(dong_doc.ma_hm, true));
+                    IF dong_doc.thao_tac = 'THEM' AND NOT (cac_dong ? dong_doc.ma_hm) THEN
+                        cac_dong := cac_dong || jsonb_build_object(dong_doc.ma_hm, dong_moi);
+                        thu_tu := array_append(thu_tu, dong_doc.ma_hm);
+                    ELSIF dong_doc.thao_tac = 'THAY' AND cac_dong ? dong_doc.ma_hm THEN
+                        -- Đúng allowlist _THAY của Review; tiền/khối lượng giữ text.
+                        SELECT coalesce(jsonb_object_agg(e.key, e.value), '{}'::jsonb)
+                        INTO dong_moi
+                        FROM jsonb_each(dong_moi) e
+                        WHERE e.key IN ('stt', 'nhom', 'ten', 'dvt', 'kl', 'don_gia', 'thanh_tien')
+                          AND e.value NOT IN ('null'::jsonb, '\"\"'::jsonb);
+                        dong_moi := (cac_dong -> dong_doc.ma_hm) || dong_moi
+                            || jsonb_build_object('boq_id', ban.id, 'dong', dong_doc.dong,
+                                'phu_luc_id', ban.phu_luc_id, 'lan', ban.lan,
+                                'thao_tac', dong_doc.thao_tac, 'o_goc', dong_doc.o_goc,
+                                'nguon', ban.so_pl);
+                        cac_dong := cac_dong || jsonb_build_object(dong_doc.ma_hm, dong_moi);
+                    ELSIF dong_doc.thao_tac = 'BO' AND cac_dong ? dong_doc.ma_hm THEN
+                        cac_dong := cac_dong - dong_doc.ma_hm;
+                        thu_tu := array_remove(thu_tu, dong_doc.ma_hm);
+                    ELSE
+                        loi := format('Phụ lục %s: thao tác BOQ không khớp hạng mục đang hiệu lực.',
+                                      ban.so_pl);
+                    END IF;
+                END IF;
+                IF loi IS NOT NULL AND NOT (loi = ANY(ly_do)) THEN
+                    ly_do := array_append(ly_do, loi);
+                END IF;
+            END LOOP;
+        END LOOP;
+        IF cardinality(ly_do) > 0 THEN
+            RETURN jsonb_build_object('boq', NULL, 'can_xem_lai', true, 'ly_do', to_jsonb(ly_do));
+        END IF;
+        SELECT coalesce(jsonb_agg(cac_dong -> t.ma_hm ORDER BY t.vi_tri), '[]'::jsonb)
+        INTO ket_qua FROM unnest(thu_tu) WITH ORDINALITY AS t(ma_hm, vi_tri);
+        RETURN jsonb_build_object('boq', ket_qua, 'can_xem_lai', false, 'ly_do', '[]'::jsonb);
     END $$""",
     "REVOKE ALL ON FUNCTION m4.boq_hieu_luc(uuid, date) FROM PUBLIC",
     """DO $$ BEGIN
