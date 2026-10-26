@@ -184,9 +184,25 @@ M3_CO_SO_SQL = (
 
 # M3-1c — CD-013: chưa có quy tắc chia giá trị; chỉ một liên kết xác nhận/hóa đơn.
 # Cần Anh: hóa đơn chung cho nhiều hợp đồng có cần chia giá trị không.
-# Bản xác nhận bất biến vẫn giữ chỗ; không tự chuyển sang hợp đồng/bản khác.
+# Chỉ bản hiện hành giữ chỗ; revision cũ vẫn bất biến để truy vết.
 M3_CO_SO_B_SQL = (
-    """CREATE UNIQUE INDEX hoa_don_hop_dong_mot_xac_nhan
-        ON m3.hoa_don_hop_dong (phap_nhan_id, hoa_don_id)
-        WHERE trang_thai = 'DA_XAC_NHAN'""",
+    """CREATE FUNCTION m3.lien_ket_mot_xac_nhan() RETURNS trigger
+        LANGUAGE plpgsql SET search_path = pg_catalog, m3, pg_temp AS $$
+        BEGIN
+            IF NEW.trang_thai = 'DA_XAC_NHAN' THEN
+                PERFORM pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(NEW.hoa_don_id::text, 0));
+                IF EXISTS (
+                    SELECT 1 FROM m3.hoa_don_hop_dong l
+                    WHERE l.phap_nhan_id = NEW.phap_nhan_id AND l.hoa_don_id = NEW.hoa_don_id
+                      AND l.trang_thai = 'DA_XAC_NHAN' AND l.khoa_lien_ket <> NEW.khoa_lien_ket
+                      AND NOT EXISTS (
+                          SELECT 1 FROM m3.hoa_don_hop_dong s WHERE s.thay_cho_id = l.id)) THEN
+                    RAISE EXCEPTION 'Hóa đơn đã có liên kết hiện hành được xác nhận ở chuỗi khác'
+                        USING ERRCODE = '23505';
+                END IF;
+            END IF;
+            RETURN NEW;
+        END $$""",
+    """CREATE TRIGGER hoa_don_hop_dong_mot_xac_nhan BEFORE INSERT ON m3.hoa_don_hop_dong
+        FOR EACH ROW EXECUTE FUNCTION m3.lien_ket_mot_xac_nhan()""",
 )

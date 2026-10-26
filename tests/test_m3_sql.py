@@ -2,7 +2,7 @@
 
 Không có KHO_PG_DSN_TEST/psycopg thì skip PG, không mở dịch vụ.
 M2 chưa promote BAN_RA: chỉ thử candidate/FK/guard, không giả bản bán hợp lệ.
-M3-1c kiểm riêng index và SELECT trên bảng tạm không có FK/trigger nguồn;
+M3-1c kiểm riêng trigger và SELECT trên bảng tạm không có FK/trigger nguồn;
 đây là test SQL cô lập, không phải xác minh luồng bán ra đầu-cuối của M2.
 """
 
@@ -37,6 +37,13 @@ REGISTRY = ROOT / 'src/kho_tri_thuc/ha_tang/pg_migrations.py'
 DDL = '\n'.join(M3_CO_SO_SQL)
 TABLES = ('hop_dong_co_so', 'hoa_don_hop_dong', 'policy_hinh_thuc_doanh_thu')
 ADMIN_DSN = os.environ.get('KHO_PG_DSN_TEST')
+
+
+def migration_b_index():
+    tail = REGISTRY.read_text(encoding='utf-8').split('# M3-1c — CD-013:', 1)[1]
+    name = re.search(r'^(\w+_M3_CO_SO_B) = M3_CO_SO_B_SQL$', tail, re.MULTILINE).group(1)
+    migration = getattr(registry, name)
+    return next(i for i, m in enumerate(registry.PG_MIGRATIONS) if m is migration)
 
 
 class M3SqlTinh(unittest.TestCase):
@@ -78,8 +85,22 @@ class M3SqlTinh(unittest.TestCase):
         self.assertRegex(tail, r'PG_MIGRATIONS = \(\*PG_MIGRATIONS, \w+_M3_CO_SO_B\)')
         migrations = registry.PG_MIGRATIONS
         self.assertEqual(sum(m is M3_CO_SO_B_SQL for m in migrations), 1)
-        self.assertGreater(next(i for i, m in enumerate(migrations) if m is M3_CO_SO_B_SQL),
-                           next(i for i, m in enumerate(migrations) if m is M3_CO_SO_SQL))
+        i = migration_b_index()
+        self.assertIs(migrations[i], M3_CO_SO_B_SQL)
+        self.assertIn(M3_CO_SO_SQL, registry.PG_MIGRATIONS[:i])
+
+    def test_migration_b_trigger_invoker_khoa_va_chi_xet_ban_hien_hanh(self):
+        ddl = '\n'.join(M3_CO_SO_B_SQL)
+        self.assertNotIn('CREATE UNIQUE INDEX', ddl)
+        self.assertNotIn('SECURITY DEFINER', ddl)
+        self.assertIn('SET search_path = pg_catalog, m3, pg_temp', ddl)
+        self.assertIn('BEFORE INSERT ON m3.hoa_don_hop_dong', ddl)
+        self.assertIn('pg_catalog.pg_advisory_xact_lock', ddl)
+        self.assertIn('pg_catalog.hashtextextended(NEW.hoa_don_id::text, 0)', ddl)
+        self.assertIn("IF NEW.trang_thai = 'DA_XAC_NHAN' THEN", ddl)
+        self.assertIn('l.khoa_lien_ket <> NEW.khoa_lien_ket', ddl)
+        self.assertIn('SELECT 1 FROM m3.hoa_don_hop_dong s WHERE s.thay_cho_id = l.id', ddl)
+        self.assertIn("ERRCODE = '23505'", ddl)
 
     def test_utf8_khong_bom_registry_lf(self):
         for path in (MODULE, REGISTRY, Path(__file__)):
@@ -233,7 +254,9 @@ class M3Postgres(unittest.TestCase):
         cls.addClassCleanup(cls._don_csdl)
         cls.c = psycopg.connect(make_conninfo(ADMIN_DSN, dbname=cls.db), autocommit=True)
         cls.addClassCleanup(cls.c.close)
-        pg.migrate(cls.c)
+        i = migration_b_index()
+        pg.migrate(cls.c, target=i)  # đúng tiền tố PG_MIGRATIONS[:i], kể cả khi lead thêm migration
+        pg.migrate(cls.c, target=i + 1)
 
     @classmethod
     def _don_csdl(cls):
@@ -348,36 +371,80 @@ class M3Postgres(unittest.TestCase):
                       co_so_id=self.basis(), revision=1, nguon='M2 DEMO', nguon_ref='DEMO', tao_boi='DEMO',
                       hoa_don_id=invoice, hoa_don_phien_ban_id=uuid.uuid4(), hoa_don_quan_sat_id=uuid.uuid4())))
 
-    def test_mot_hoa_don_hai_hop_dong_chi_ung_vien_duoc_trung(self):
-        # Chạy đúng DDL index mới trên bản sao cấu trúc tạm, không nới guard M2.
-        self.c.execute('CREATE TEMP TABLE m3c_lien_ket (LIKE m3.hoa_don_hop_dong INCLUDING DEFAULTS INCLUDING CONSTRAINTS)')
+    def mapping_snapshot(self):
+        # Cô lập trigger mới; giữ CHECK/index, không nới FK/guard M2 trên bảng gốc.
+        self.c.execute('CREATE TEMP TABLE m3c_lien_ket (LIKE m3.hoa_don_hop_dong INCLUDING DEFAULTS INCLUDING CONSTRAINTS INCLUDING INDEXES)')
         for statement in M3_CO_SO_B_SQL:
-            self.c.execute(statement.replace('ON m3.hoa_don_hop_dong', 'ON m3c_lien_ket'))
+            self.c.execute(statement.replace('m3.hoa_don_hop_dong', 'pg_temp.m3c_lien_ket')
+                           .replace('m3.lien_ket_mot_xac_nhan', 'pg_temp.m3c_mot_xac_nhan'))
         invoice, version, observation = (uuid.uuid4() for _ in range(3))
-        bases = [uuid.uuid4(), uuid.uuid4()]  # hai cơ sở hợp đồng trong test SQL cô lập
 
-        def add(basis, confirmed):
-            return self.c.execute("""INSERT INTO m3c_lien_ket
-                (phap_nhan_id,co_so_id,revision,hoa_don_id,hoa_don_phien_ban_id,hoa_don_quan_sat_id,
+        def add(basis, confirmed, *, chain=None, revision=1, replaces=None, invoice_version=version):
+            return self.c.execute("""INSERT INTO pg_temp.m3c_lien_ket
+                (phap_nhan_id,co_so_id,khoa_lien_ket,revision,thay_cho_id,
+                 hoa_don_id,hoa_don_phien_ban_id,hoa_don_quan_sat_id,
                  nguon,nguon_ref,tao_boi,trang_thai,can_cu,xac_nhan_boi,xac_nhan_luc)
-                VALUES (%s,%s,1,%s,%s,%s,'DEMO','DEMO','DEMO',%s,'DEMO',%s,%s) RETURNING id""",
-                (self.pn, basis, invoice, version, observation,
+                VALUES (%s,%s,%s,%s,%s,%s,%s,%s,'DEMO','DEMO','DEMO',%s,'DEMO',%s,%s) RETURNING id""",
+                (self.pn, basis, chain or uuid.uuid4(), revision, replaces, invoice, invoice_version, observation,
                  'DA_XAC_NHAN' if confirmed else 'PENDING',
                  'DEMO' if confirmed else None, '2026-01-01' if confirmed else None)).fetchone()[0]
 
+        return add
+
+    def test_cung_chuoi_revision_2_xac_nhan_lai_duoc(self):
+        add = self.mapping_snapshot()
+        basis, chain = uuid.uuid4(), uuid.uuid4()
+        old = add(basis, True, chain=chain)
+        new_version = uuid.uuid4()
+        new = add(basis, True, chain=chain, revision=2, replaces=old, invoice_version=new_version)
+        self.assertEqual(self.c.execute('SELECT id FROM pg_temp.m3c_lien_ket ORDER BY revision').fetchall(),
+                         [(old,), (new,)])
+        # Cùng chuỗi có thể chuyển tiếp sang revision mới của cơ sở hợp đồng.
+        add(uuid.uuid4(), True, chain=chain, revision=3, replaces=new, invoice_version=new_version)
+
+    def test_chuoi_cu_da_pending_chuoi_moi_xac_nhan_duoc(self):
+        add = self.mapping_snapshot()
+        basis, chain = uuid.uuid4(), uuid.uuid4()
+        old = add(basis, True, chain=chain)
+        add(basis, False, chain=chain, revision=2, replaces=old)
+        new = add(uuid.uuid4(), True)
+        self.assertEqual(self.c.execute("""SELECT id FROM pg_temp.m3c_lien_ket l
+            WHERE l.trang_thai='DA_XAC_NHAN' AND NOT EXISTS (
+                SELECT 1 FROM pg_temp.m3c_lien_ket s WHERE s.thay_cho_id=l.id)""").fetchall(), [(new,)])
+        self.assertEqual(self.c.execute('SELECT count(*) FROM pg_temp.m3c_lien_ket').fetchone()[0], 3)
+
+    def test_hai_chuoi_hien_hanh_cung_xac_nhan_bi_tu_choi(self):
+        add = self.mapping_snapshot()
+        bases = [uuid.uuid4(), uuid.uuid4()]
+        add(bases[0], True)
+        for basis in bases:
+            with self.subTest(basis=basis):
+                with self.assertRaises(psycopg.errors.UniqueViolation) as caught:
+                    with self.c.transaction():
+                        add(basis, True)
+                self.assertEqual(caught.exception.sqlstate, '23505')
+                self.assertIn('Hóa đơn đã có liên kết hiện hành được xác nhận', str(caught.exception))
+        self.assertEqual(self.c.execute('SELECT count(*) FROM pg_temp.m3c_lien_ket').fetchone()[0], 1)
+
+    def test_mot_hoa_don_hai_hop_dong_chi_ung_vien_duoc_trung(self):
+        add = self.mapping_snapshot()
+        bases = [uuid.uuid4(), uuid.uuid4()]
         for basis in bases:
             add(basis, False)
         add(bases[0], True)
         self.rejected('23505', lambda: add(bases[1], True))
         add(bases[1], False)  # vẫn là ứng viên được, dù HĐ thứ nhất đã xác nhận
-        self.assertEqual(self.c.execute('SELECT count(*) FROM m3c_lien_ket').fetchone()[0], 4)
-        # Migration cũng đã cài index UNIQUE một phần trên bảng sản phẩm.
-        indexes = self.c.execute("""SELECT i.indisunique, pg_get_expr(i.indpred,i.indrelid),
-                   pg_get_indexdef(i.indexrelid)
-            FROM pg_index i WHERE i.indrelid='m3.hoa_don_hop_dong'::regclass""").fetchall()
-        self.assertTrue(any(unique and predicate and 'DA_XAC_NHAN' in predicate
-                            and '(phap_nhan_id, hoa_don_id)' in definition
-                            for unique, predicate, definition in indexes))
+        self.assertEqual(self.c.execute('SELECT count(*) FROM pg_temp.m3c_lien_ket').fetchone()[0], 4)
+
+    def test_trigger_moi_da_cai_tren_bang_goc(self):
+        definition, definer, config = self.c.execute("""SELECT pg_get_triggerdef(t.oid), p.prosecdef, p.proconfig
+            FROM pg_trigger t JOIN pg_proc p ON p.oid=t.tgfoid
+            WHERE t.tgrelid='m3.hoa_don_hop_dong'::regclass
+              AND t.tgname='hoa_don_hop_dong_mot_xac_nhan'""").fetchone()
+        self.assertIn('BEFORE INSERT ON m3.hoa_don_hop_dong', definition)
+        self.assertIn('m3.lien_ket_mot_xac_nhan()', definition)
+        self.assertFalse(definer)
+        self.assertIn('search_path=pg_catalog, m3, pg_temp', config)
 
     def test_reader_pg_ban_ghim_khac_eligible_hoac_co_successor_pending(self):
         # Thực thi SELECT của reader trên snapshot bảng tạm; không sửa CHECK,
