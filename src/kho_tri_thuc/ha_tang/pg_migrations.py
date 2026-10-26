@@ -12136,9 +12136,16 @@ M0040_M4_REVIEW_CHEP_B = M4_REVIEW_CHEP_B_SQL
 PG_MIGRATIONS = (*PG_MIGRATIONS, M0040_M4_REVIEW_CHEP_B)
 PG_SCHEMA_VERSION = len(PG_MIGRATIONS)
 
-# M3-1a — CD-013: cơ sở doanh thu/thuế và mapping M2; lead đánh số khi gộp sau MTQ-4a0.
+# MTQ-4a0 — CD-012: M0041 (lead đánh số khi gộp 26/10); cổng SQL danh tính phiên.
+from ..k2.sql_mtq_cong import MTQ_CONG_SQL  # noqa: E402 — chỉ hằng SQL
+
+M0041_MTQ_CONG = MTQ_CONG_SQL
+PG_MIGRATIONS = (*PG_MIGRATIONS, M0041_MTQ_CONG)
+PG_SCHEMA_VERSION = len(PG_MIGRATIONS)
+
+# M3-1a — CD-013: M0042 (lead đánh số khi gộp 26/10); cơ sở doanh thu/thuế và mapping M2.
 from ..k2.sql_m3 import M3_CO_SO_SQL  # noqa: E402 — chỉ hằng SQL
 
-M00xx_M3_CO_SO = M3_CO_SO_SQL
-PG_MIGRATIONS = (*PG_MIGRATIONS, M00xx_M3_CO_SO)
+M0042_M3_CO_SO = M3_CO_SO_SQL
+PG_MIGRATIONS = (*PG_MIGRATIONS, M0042_M3_CO_SO)
 PG_SCHEMA_VERSION = len(PG_MIGRATIONS)

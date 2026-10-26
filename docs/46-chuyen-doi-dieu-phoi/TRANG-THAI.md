@@ -357,3 +357,29 @@ H3 phân loại 36 đầu việc: 19 gói đã nhập `hop-nhat`, 13 xung đột
 - 12:05 **MASK-3 (Mask v2 2.7.2) xong vòng 2:** lead chạy pytest `-m "not ocr"` 476 đạt (chỉ còn `test_local_ai::test_cancel_and_reset…` có sẵn từ 2.7.0); benchmark bộ chính lộ 1/101, held_out lộ 6/51 — giữ nguyên so 2.7.1; smoke giao diện đạt (không còn tự tải lại `/api/pending`). Điểm Chặn review vòng 1 (phiên không hết hạn) lead kiểm đã hết. Sửa tại chỗ trong Mask v2 (không git).
 - **Thiếu sót quy trình (lead tự báo):** trước MASK-3 lead **không** sao lưu Mask v2 vào `LUU-TRU` như MASK-1/2 (thư mục `tam-20261026` trống). Đã sao lưu trạng thái sau sửa: `LUU-TRU\mask3-v2-sau-sua-20261026-120235\` (133 tệp mã/tài liệu + `SHA256SUMS.txt`; không chép `config\`, `tmp\`, `data\`, khóa). Bản gần nhất trước MASK-3 là `mask2-v3-sao-luu-20261025-211809` (trước MASK-2 vòng 3). Từ nay mỗi lát Mask sao lưu trước khi giao.
 - M2k-b: Python M2 291 ok (0 mã mới), node 3 bộ đạt — chờ review-lat (đổi thứ tự khóa).
+### 26/10 12:40 — gộp M4-DL1b (M0040), MTQ-5a, MTQ-3a, MTQ-2c, MTQ-3b1, M2k-b, M2k-c, M10-1a, T-NODE, M3-0 · rà hàng đợi
+- Hợp nhất: 08b9444 M4-DL1b (**M0040**; review Chặn = 2 dòng kiểm ghim vị trí, sửa vòng 2–4: ghim hash nội dung SQL M0038 `a908f99c…` thay byte tệp), 1da8b8b M2k-b, 77dcdb3 MTQ-3a (+vòng 2 hạn mức lớn), e191cc6 M10-1a (ví dụ 7.4: A = 120; B = 93,33 chính xác / 93,36 làm tròn từng kỳ), a1d7813 MTQ-5a (+vòng 2 tick Xem màn gốc), 79ff430 M2k-c, 637df66 MTQ-2c, 38ddd08 MTQ-3b1, 30c3127 M3-0 (tài liệu), T-NODE (node hợp nhất 14→16/21).
+- PG: hợp nhất M0040 123 ok; MTQ-5a 10 module 298 ok; MTQ-2c 80 ok — 0 mã lỗi mới.
+- `lat/ui-ky` b3a8099 = + E1-4u (Danh mục tham số chung; vòng 3 sửa `.after` làm hỏng 17 bộ node).
+- MTQ-4a0 (cổng SQL SECURITY DEFINER): PG 1 ca đỏ `test_hoi_khong_ghi_audit…` (bảng nhật ký từ chối không trống trước lúc hỏi — chờ review để phân định lỗi test hay lỗi thật).
+- **Lưu ý DEMO:** MTQ-5a seed mẫu ma trận một lần vào CSDL DEMO khi mở DEMO từ nhánh có MTQ-5a; không gỡ được. DEMO 8798 (`lat/ui-dem`) chưa có MTQ-5a.
+- 5 bộ node còn đỏ (T-NODE): `m2_00a/00b` cần biến môi trường VIEW_ROOT (view materialize); `m4_02c_dto_ui`, `m4_04b_request` cần runner Python truyền fixture qua argv; `m4_03a_async` bản gốc ghim — đề xuất runner dùng FIX02.
+- Đang chạy: Codex — M4-DL3, MTQ-2d, M3-1a (3/4). Claude — review-lat MTQ-4a0, M4-DL2 (2/2).
+| Việc chưa giao | Lý do chặn |
+|---|---|
+| MTQ-4a (adapter Python) | chờ MTQ-4a0 qua review + gộp (M0041) |
+| MTQ-3b2 (menu/màn ma trận, dòng giao diện) | chờ MTQ-2d (trường `la_admin`) |
+| M3-1b (ba đẳng thức) | chờ M3-1a |
+| Bảng mốc M3 + phiếu cổng A M3 hoàn chỉnh | chờ mục 17 thiết kế v2 (chưa có lúc 12:40) |
+| M4-DL4 (đợt/KL/ghép/log) | cùng tệp DL2 — chờ DL2 gộp |
+| Nạp dữ liệu Review thật (CD-011) | **Cần Anh**: bảng ánh xạ `ma_hd → HĐ/pháp nhân/dự án` |
+### 26/10 ~13:00 — gộp MTQ-4a0 (M0041), MTQ-2d, M4-DL2 · lead chốt · lỗi test PG tự bỏ qua
+- Hợp nhất: e9553d4 MTQ-4a0 (**M0041**, cổng SQL SECURITY DEFINER; review vòng 2 Đạt, PG 103 ok), 881ba6d MTQ-2d (la_admin, mã lỗi trùng/khóa ngoại; PG 95 ok), 663ac63 M4-DL2 (review vòng 2 Đạt; PG 31 ok). `lat/ui-ky` 204ba6f nhận hợp nhất (style.css giữ cả khối khung lưới và khối `mtq-`).
+- **Lead chốt:**
+  - DL2 lớp đọc **tự kiểm quyền M4** (phương án (a), khớp hợp đồng dữ liệu); DL3 làm theo ở vòng 2.
+  - CD1: **chỉ đòi ánh xạ cho `ma_hd` có trong bảng `hop_dong`**; dòng mồ côi (`canh_bao`, `nhat_ky` của HĐ đã xóa) lưu NULL + đếm riêng.
+  - MTQ-4a0: phòng chọn trong các phòng người dùng có vai, mơ hồ thì chặn; tiền do máy chủ lấy từ phiên bản đã khóa; đối tượng `{bang,id,phong_id?}` (chờ Anh xác nhận, không chặn).
+- **Review M4-CD1 Không đạt (Chặn):** khi stdout không phải UTF-8, nhánh lỗi in traceback có thể lộ đoạn mật khẩu DSN → vòng 2 đang chạy. **Khi lead chạy thật:** dùng `python -X utf8`, ghi báo cáo vào `LUU-TRU` (không dán chat — có số tiền theo cặp HĐ × đợt).
+- **Lỗi lặp lại ở test PG mới (M3-1a, M3-1b):** test tự skip dưới bộ chạy của lead (đọc biến nội bộ `KHO_PG_DEMO_*`, hoặc đòi DSN đã trỏ vào `kho_test_*`). Bài học: cổng gộp phải kiểm **`tao=`/`skip`** của từng module PG mới, không chỉ `ids_loi`. M3-1a vòng 2 đã sửa (PG 16 ok); M3-1b vòng 2 chờ suất.
+- Thiết kế M3 v2 vẫn chưa có mục 17 (bảng mốc) → M3-3/M3-4 và phiếu cổng A M3 chờ.
+- Đang chạy: Codex — MTQ-4a, MTQ-3b2, M2-BR0, M4-CD1 v2 (4/4). Claude — review-lat M3-1a+1b (1/2). Chờ suất: M3-1b v2, M4-DL3 v2.
