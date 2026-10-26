@@ -341,3 +341,16 @@ H3 phân loại 36 đầu việc: 19 gói đã nhập `hop-nhat`, 13 xung đột
 | MTQ-4b…4m | nối tiếp MTQ-4a (adapter chung); mỗi lát cần review Opus |
 | Nạp dữ liệu Review thật (CD-011 bước 4) | **Cần Anh**: bảng ánh xạ `ma_hd → HĐ/pháp nhân/dự án` |
 | M3 | **Cần Anh**: 15 câu checklist M3 |
+### 26/10 12:10 — CD-013/014 (M3 v2) nhận · MTQ-2b gộp · MTQ-4a bị chặn thiết kế · sự cố lệnh tìm kiếm
+- Gộp hợp nhất a12c0eb MTQ-2b (review vòng 2 Đạt; PG 64 ok).
+- **CD-013/014:** M3 + M10-1 vào `4-KE-HOACH-LEAD.md`; bản M3 20/10 → `LUU-TRU	hiet-ke-m3-ban-20261020\` (SHA256 khớp sau khi chuyển); 2 liên kết thiết kế trỏ v2; M3-CL đánh dấu đã thay. Giao **M10-1a** (engine lịch A/B). M3-0 chờ mục 17 của v2.
+- **MTQ-4a dừng (đúng quy tắc, chưa sửa tệp):** `CrmK2` chạy bằng kết nối `app_web`, M0039 thu hồi quyền gọi lõi MTQ của vai này. **Lead chốt hướng:** lát **MTQ-4a0** (SQL, migration mới) thêm hàm SECURITY DEFINER bọc lõi quyết định, lấy danh tính từ GUC phiên (`ktt_danh_tinh()`), cấp EXECUTE cho app_web; và hàm ghi nhật ký từ chối gọi được từ app_web trong giao dịch riêng — vì thiết kế §5.1 cũng cần SQL/RLS chạy dưới app_web gọi cùng lõi. Sau đó giao lại MTQ-4a (adapter Python). MTQ-4a0 chờ `pg_migrations.py` (DL1b đang giữ, sẽ là M0040).
+- **Sự cố 12:03 (lead tự báo):** lệnh `grep -r` tìm liên kết tài liệu M3 chạy trên **cả thư mục cha**, gồm `Phần mềm kho tri thứcar\` (có kho thật), lọc `*.md`, khoảng 2 phút rồi lead dừng (TaskStop). Không in nội dung, kết quả không hiển thị; vẫn là vi phạm "không đọc kho thật qua công cụ" ở mức duyệt tên/đọc tệp `.md`. Từ nay chỉ tìm trong thư mục cụ thể (`THIET-KE-MODULE-DE-CHOT-2026-10-20`, `docs`), không tìm đệ quy từ thư mục cha.
+- Đang chạy: Codex — DL1b v4, MTQ-5a v2, M10-1a, MTQ-2c (4/4). Claude — review-lat MTQ-3a (1/2). Lead — test M2k-b, MASK-3 v2 (pytest + benchmark).
+| Việc chưa giao | Lý do chặn |
+|---|---|
+| MTQ-4a0 / MTQ-4a | chờ `pg_migrations.py` (DL1b → M0040) |
+| M3-0, M3-1a… | M3-0 chờ mục 17 thiết kế v2; M3-1a cần `pg_migrations.py` sau MTQ-4a0 |
+| MTQ-3b | `app.js` đang do E1-4u giữ — chờ E1-4u gộp |
+| M4-DL3 | cùng tệp DL2 — chờ DL2 gộp (sau DL1b) |
+| Nạp dữ liệu Review thật (CD-011) | **Cần Anh**: bảng ánh xạ `ma_hd → HĐ/pháp nhân/dự án` |
