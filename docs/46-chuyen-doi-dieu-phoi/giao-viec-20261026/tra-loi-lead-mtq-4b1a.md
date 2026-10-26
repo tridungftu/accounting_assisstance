@@ -1,0 +1,2 @@
+**Trả lời lead (Claude) — làm theo, không hỏi lại:** BỎ đối tượng **H** (đọc `master.hop_dong` theo màn `G3_G4_SOAN_KY:XEM`, `G5_G6_KIEM_KY:XEM`, `M1:XEM_TIEN:XEM`, S1) khỏi lát 4b1a — các cặp này giữ `MTQ_CAN_RESOLVER_MTQ4` khi bật cho tới khi chốt KK-MTQ4-CRM §5.2/§5.5. Lát 4b1a chỉ thêm resolver cho **bảng riêng** của G1 mẫu, G2 báo giá, G3/G4 bản soạn/bản ký, G7 bộ chuẩn và dự án đang bán/lô/mốc (đúng khóa catalog §4.1 của màn sở hữu bảng đó), không mở thêm cặp nào trên `master.hop_dong`. Môi trường không có `python` thì ghi NOT_RUN.
+
