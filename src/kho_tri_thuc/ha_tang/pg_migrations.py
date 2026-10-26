@@ -12490,3 +12490,10 @@ from ..m4.sql_boq_bo import M4_BOQ_BO_B_SQL  # noqa: E402 — chỉ các cặp S
 M0063_M4_BOQ_BO_B = (_m36_thay(_m37_ham("m4.ghi_boq"), *M4_BOQ_BO_B_SQL),)
 PG_MIGRATIONS = (*PG_MIGRATIONS, M0063_M4_BOQ_BO_B)
 PG_SCHEMA_VERSION = len(PG_MIGRATIONS)
+
+# XS-T1a — CD-017: hợp đồng đầu hóa đơn chỉ đọc; lead đánh số khi gộp.
+from ..k2.sql_cong_bo_hoa_don import CONG_BO_HOA_DON_SQL  # noqa: E402 — chỉ hằng SQL
+
+M0064_CONG_BO_HOA_DON = CONG_BO_HOA_DON_SQL
+PG_MIGRATIONS = (*PG_MIGRATIONS, M0064_CONG_BO_HOA_DON)
+PG_SCHEMA_VERSION = len(PG_MIGRATIONS)
