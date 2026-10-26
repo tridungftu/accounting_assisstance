@@ -103,14 +103,10 @@ class M3SqlTinh(unittest.TestCase):
 class M3Postgres(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        cls.runner_cap = bool(os.environ.get('KHO_PG_DEMO_SO'))
-        cls.db = os.environ.get('KHO_PG_DEMO_DB') if cls.runner_cap else 'kho_test_m3_' + uuid.uuid4().hex
-        if not cls.db or not re.fullmatch(r'kho_test_[a-z0-9_]+', cls.db):
-            raise unittest.SkipTest('Chỉ chạy M3 trên CSDL test riêng kho_test_*')
-        if not cls.runner_cap:
-            with psycopg.connect(ADMIN_DSN, autocommit=True) as admin:
-                admin.execute(sql.SQL("CREATE DATABASE {} ENCODING 'UTF8' TEMPLATE template0").format(sql.Identifier(cls.db)))
-            cls.addClassCleanup(cls._don_csdl)
+        cls.db = 'kho_test_m3_' + uuid.uuid4().hex
+        with psycopg.connect(ADMIN_DSN, autocommit=True) as admin:
+            admin.execute(sql.SQL("CREATE DATABASE {} ENCODING 'UTF8' TEMPLATE template0").format(sql.Identifier(cls.db)))
+        cls.addClassCleanup(cls._don_csdl)
         cls.c = psycopg.connect(make_conninfo(ADMIN_DSN, dbname=cls.db), autocommit=True)
         cls.addClassCleanup(cls.c.close)
         pg.migrate(cls.c)
