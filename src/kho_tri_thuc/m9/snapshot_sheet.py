@@ -15,6 +15,8 @@ CAU_HINH_MAU = {
     "ten_tab": "DEMO - Dư nợ và lãi suất (Sheet giả)",
     "dong_tieu_de": 1,  # Số dòng Sheet, bắt đầu từ 1.
     "dau_thap_phan": ",",  # Dùng cho tiền; lãi suất nhận 8,5% hoặc 8.5.
+    "tien_te_cho_phep": ["VND", "USD"],
+    "cach_tinh_cho_phep": ["CO_DINH", "THA_NOI"],
     "anh_xa_cot": {
         "Pháp nhân DEMO": "phap_nhan",
         "Ngân hàng DEMO": "ngan_hang",
@@ -37,17 +39,25 @@ _TRUONG = (
 )
 _LAI = frozenset({"lai_suat_nam", "lai_co_so", "bien_do"})
 _NGAY = frozenset({"ky_dieu_chinh_ke_tiep", "ngay_dao_han"})
+_O_LOI_SHEET = frozenset({
+    "#N/A", "#REF!", "#VALUE!", "#DIV/0!", "#NAME?", "#NUM!",
+    "#NULL!", "#ERROR!", "#CALC!", "#SPILL!", "Loading...",
+})
+_CHO_PHEP_MAC_DINH = {
+    "tien_te": ("VND", "USD"),
+    "cach_tinh": ("CO_DINH", "THA_NOI"),
+}
 
 
 def _loi_cau_hinh() -> DataError:
     return DataError(
         "M9_SHEET_CAU_HINH",
-        "Cần Anh/lead: chốt tab, dòng tiêu đề (từ 1), ánh xạ đủ 11 trường "
-        "không trùng và dấu thập phân ',' hoặc '.'.",
+        "Cấu hình phải có tab, dòng tiêu đề (từ 1), ánh xạ đủ 11 trường "
+        "không trùng, dấu thập phân ',' hoặc '.' và danh sách giá trị cho phép hợp lệ.",
     )
 
 
-def _cau_hinh(cau_hinh: dict) -> tuple[str, int, dict, str]:
+def _cau_hinh(cau_hinh: dict) -> tuple[str, int, dict, str, dict]:
     if not isinstance(cau_hinh, dict):
         raise _loi_cau_hinh()
     tab = cau_hinh.get("ten_tab")
@@ -65,7 +75,14 @@ def _cau_hinh(cau_hinh: dict) -> tuple[str, int, dict, str]:
     anh_xa = {k.strip(): v for k, v in cot.items()}
     if len(anh_xa) != len(_TRUONG) or set(anh_xa.values()) != set(_TRUONG):
         raise _loi_cau_hinh()
-    return tab, dong, anh_xa, dau
+    cho_phep = {}
+    for truong, mac_dinh in _CHO_PHEP_MAC_DINH.items():
+        ds = cau_hinh.get(truong + "_cho_phep", mac_dinh)
+        if (not isinstance(ds, (list, tuple, set, frozenset))
+                or not ds or any(not isinstance(v, str) or not v.strip() for v in ds)):
+            raise _loi_cau_hinh()
+        cho_phep[truong] = {v.strip().upper() for v in ds}
+    return tab, dong, anh_xa, dau, cho_phep
 
 
 def _tien(chu: str, dau: str) -> Decimal:
@@ -89,6 +106,8 @@ def _doc_o(chu: str, truong: str, dau: str):
     chu = chu.strip()
     if not chu:
         return None
+    if truong in _CHO_PHEP_MAC_DINH:
+        return chu.upper()
     if truong == "du_no":
         return _tien(chu, dau)
     if truong in _LAI:
@@ -126,7 +145,10 @@ def lap_snapshot(gia_tri: list[list[str]], *, cau_hinh: dict,
 
     anh_xa_cot ánh xạ tên tiêu đề -> trường; đủ 11 tiêu đề là bắt buộc,
     nhưng từng ô trống (kể cả ô cuối bị Sheets bỏ) thành None. Tên tiêu đề
-    và ô được strip khi đọc; không đổi mã, tiền tệ hay cách tính.
+    và ô được strip khi đọc; giữ nguyên mã, tiền tệ/cách tính viết hoa.
+    tien_te_cho_phep mặc định VND/USD; cach_tinh_cho_phep mặc định
+    CO_DINH/THA_NOI; danh sách cấu hình so không phân biệt hoa thường.
+    Ô lỗi Sheet ở mọi cột, kể cả ngoài ánh xạ, đều loại cả dòng.
     Tiền theo dau_thap_phan (mặc định ','); lãi là Decimal %/năm.
 
     Lỗi toàn bảng/cấu hình: DataError có code; thiếu tiêu đề có code
@@ -140,13 +162,13 @@ def lap_snapshot(gia_tri: list[list[str]], *, cau_hinh: dict,
     không gồm giờ kéo/cấu hình/nguồn. Mốc giữ giờ keo_luc bên gọi cung cấp,
     không tự chuyển múi giờ. Hàm không sửa đầu vào, ghi đĩa hay log ô.
     """
-    tab, dong, anh_xa, dau = _cau_hinh(cau_hinh)
+    tab, dong, anh_xa, dau, cho_phep = _cau_hinh(cau_hinh)
     if (not isinstance(gia_tri, list)
             or any(not isinstance(hang, list)
                    or any(not isinstance(o, str) for o in hang) for hang in gia_tri)):
-        raise DataError("M9_SHEET_DAU_VAO", "Cần Anh/lead: cung cấp list các dòng ô chuỗi.")
+        raise DataError("M9_SHEET_DAU_VAO", "Đầu vào phải là list các dòng ô chuỗi.")
     if not isinstance(keo_luc, datetime) or not isinstance(nguon_id, str) or not nguon_id.strip():
-        raise DataError("M9_SHEET_NGUON", "Cần Anh/lead: cung cấp giờ kéo và ID nguồn Sheet.")
+        raise DataError("M9_SHEET_NGUON", "Nguồn Sheet phải có giờ kéo và ID nguồn hợp lệ.")
 
     tieu_de = gia_tri[dong - 1] if dong <= len(gia_tri) else []
     vi_tri = {}
@@ -154,11 +176,11 @@ def lap_snapshot(gia_tri: list[list[str]], *, cau_hinh: dict,
         ten = ten.strip()
         if ten in anh_xa:
             if ten in vi_tri:
-                raise DataError("M9_SHEET_TRUNG_COT", "Cần Anh/lead: tiêu đề trùng: " + ten)
+                raise DataError("M9_SHEET_TRUNG_COT", "Tiêu đề trùng: " + ten)
             vi_tri[ten] = i
     thieu = sorted(set(anh_xa) - set(vi_tri))
     if thieu:
-        raise DataError("M9_SHEET_THIEU_COT", "Cần Anh/lead: thiếu cột: " + ", ".join(thieu))
+        raise DataError("M9_SHEET_THIEU_COT", "Thiếu cột: " + ", ".join(thieu))
 
     dong_loi = []
     dong_sai = set()
@@ -170,18 +192,31 @@ def lap_snapshot(gia_tri: list[list[str]], *, cau_hinh: dict,
         dong_sai.add(so_dong)
         dong_loi.append({
             "so_dong": so_dong, "ten_cot": ten, "ma_loi": ma,
-            "ghi_chu": "Cần Anh/lead: kiểm tra ô nguồn Sheet; không tự sửa/chọn dữ liệu.",
+            "ghi_chu": "Ô nguồn Sheet không hợp lệ; dòng bị loại khỏi snapshot khoản vay.",
         })
 
     for so_dong, hang in enumerate(gia_tri[dong:], start=dong + 1):
         if not any(o.strip() for o in hang):
             continue
+        for i, o in enumerate(hang):
+            if o.strip() in _O_LOI_SHEET:
+                ten = tieu_de[i].strip() if i < len(tieu_de) else ""
+                them_loi(so_dong, ten or f"Cột {i + 1}", "O_LOI_SHEET")
         khoan = {}
         for truong in _TRUONG:
             ten = ten_theo_truong[truong]
             i = vi_tri[ten]
+            chu = hang[i] if i < len(hang) else ""
+            if chu.strip() in _O_LOI_SHEET:
+                khoan[truong] = None
+                continue
             try:
-                khoan[truong] = _doc_o(hang[i] if i < len(hang) else "", truong, dau)
+                khoan[truong] = _doc_o(chu, truong, dau)
+                if (truong in cho_phep and khoan[truong] is not None
+                        and khoan[truong] not in cho_phep[truong]):
+                    ma = ("TIEN_TE_KHONG_HO_TRO" if truong == "tien_te"
+                          else "CACH_TINH_KHONG_HO_TRO")
+                    them_loi(so_dong, ten, ma)
             except ValueError:
                 ma = "M9_SHEET_NGAY_SAI" if truong in _NGAY else "M9_SHEET_SO_SAI"
                 them_loi(so_dong, ten, ma)

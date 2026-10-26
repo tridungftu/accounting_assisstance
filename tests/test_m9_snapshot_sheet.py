@@ -3,8 +3,10 @@
 from copy import deepcopy
 from datetime import date, datetime
 from decimal import Decimal, localcontext
+from pathlib import Path
 import unittest
 
+from kho_tri_thuc.m9 import snapshot_sheet
 from kho_tri_thuc.ha_tang.primitives import DataError
 from kho_tri_thuc.m9.bao_cao_lai_suat import lap_bao_cao
 from kho_tri_thuc.m9.snapshot_sheet import CAU_HINH_MAU, lap_snapshot
@@ -143,7 +145,7 @@ class SnapshotSheetTests(unittest.TestCase):
                     self.assertEqual(loi["so_dong"], 2)
                     self.assertEqual(loi["ten_cot"], next(k for k, v in CAU_HINH_MAU["anh_xa_cot"].items() if v == t))
                     self.assertEqual(loi["ma_loi"], "M9_SHEET_NGAY_SAI")
-                    self.assertIn("Cần Anh/lead", loi["ghi_chu"])
+                    self.assertTrue(loi["ghi_chu"])
                     self.assertNotIn(sai, str(kq["dong_loi"]))
 
     def test_so_sai_khong_doan_dau_khong_nhan_nan_inf_cong_thuc(self):
@@ -151,13 +153,120 @@ class SnapshotSheetTests(unittest.TestCase):
             ("du_no", "1,234,567,890.50"), ("du_no", "12.34.567"),
             ("du_no", "1 234"), ("du_no", "NaN"), ("du_no", "Infinity"),
             ("du_no", "1e9"), ("du_no", "=SUM(A1:A2)"),
-            ("lai_suat_nam", "8,5.1%"), ("lai_co_so", "NaN"), ("bien_do", "#N/A"),
+            ("lai_suat_nam", "8,5.1%"), ("lai_co_so", "NaN"),
         ):
             with self.subTest(truong=t, sai=sai):
                 kq = _lap(_sheet(_hang(**{t: sai})))
                 self.assertEqual(kq["khoan_vay"], [])
                 self.assertEqual(kq["dong_loi"][0]["ma_loi"], "M9_SHEET_SO_SAI")
                 self.assertNotIn(sai, str(kq["dong_loi"]))
+
+    def test_moi_loi_sheet_o_moi_cot_deu_loai_dong(self):
+        for ten, truong in CAU_HINH_MAU["anh_xa_cot"].items():
+            for loi in ("#N/A", "#REF!", "#VALUE!", "#DIV/0!", "#NAME?", "#NUM!",
+                        "#NULL!", "#ERROR!", "#CALC!", "#SPILL!", "Loading..."):
+                with self.subTest(truong=truong, loi=loi):
+                    kq = _lap(_sheet(_hang(**{truong: " " + loi + " "})))
+                    self.assertEqual(kq["khoan_vay"], [])
+                    self.assertEqual(len(kq["dong_loi"]), 1)
+                    e = kq["dong_loi"][0]
+                    self.assertEqual((e["so_dong"], e["ten_cot"], e["ma_loi"]),
+                                     (2, ten, "O_LOI_SHEET"))
+                    self.assertNotIn(loi, str(kq["dong_loi"]))
+
+    def test_loi_sheet_cot_ngoai_anh_xa_va_khong_co_tieu_de(self):
+        for ten in ("Ghi chú DEMO", "", None):
+            with self.subTest(ten=ten):
+                tho = _sheet(_hang())
+                if ten is not None:
+                    tho[0].append(ten)
+                tho[1].append("#REF!")
+                kq = _lap(tho)
+                self.assertEqual(kq["khoan_vay"], [])
+                e = kq["dong_loi"][0]
+                self.assertEqual((e["so_dong"], e["ten_cot"], e["ma_loi"]),
+                                 (2, ten or "Cột 12", "O_LOI_SHEET"))
+
+    def test_nhieu_o_loi_sheet_giu_so_dong_ten_cot_khi_dao_cot(self):
+        cfg = deepcopy(CAU_HINH_MAU)
+        cfg["dong_tieu_de"] = 3
+        tho = [["DEMO"], []] + [list(reversed(h)) for h in _sheet(
+            _hang(tien_te="#N/A", ngan_hang="#REF!", ma_khoan_vay="#VALUE!"))]
+        kq = _lap(tho, cau_hinh=cfg)
+        self.assertEqual(kq["khoan_vay"], [])
+        self.assertEqual({(e["so_dong"], e["ten_cot"], e["ma_loi"])
+                          for e in kq["dong_loi"]},
+                         {(4, ten, "O_LOI_SHEET") for ten in (
+                             "Tiền tệ", "Ngân hàng DEMO", "Mã khoản vay DEMO")})
+
+    def test_loi_sheet_khong_tao_nhom_tien_te_la_trong_bao_cao(self):
+        for truong in ("tien_te", "ngan_hang", "ma_khoan_vay"):
+            with self.subTest(truong=truong):
+                snap = _lap(_sheet(_hang(**{truong: "#N/A"}),
+                                   _hang(ma_khoan_vay="DEMO-02", tien_te="usd")))
+                self.assertEqual([k["ma_khoan_vay"] for k in snap["khoan_vay"]],
+                                 ["DEMO-02"])
+                self.assertEqual(len(snap["dong_loi"]), 1)
+                bc = lap_bao_cao(snap, ngay_bao_cao=date(2026, 10, 26))
+                self.assertEqual(bc["tong_du_no_theo_tien_te"],
+                                 {"USD": Decimal("1234567890")})
+                self.assertEqual(set(bc["binh_quan_theo_tien_te"]), {"USD"})
+
+    def test_tien_te_cach_tinh_chuan_hoa_chu_hoa_va_mac_dinh(self):
+        cfg = deepcopy(CAU_HINH_MAU)
+        cfg.pop("tien_te_cho_phep")
+        cfg.pop("cach_tinh_cho_phep")
+        for tien, cach in ((" usd ", " co_dinh "), ("vNd", "tha_noi")):
+            with self.subTest(tien=tien, cach=cach):
+                kq = _lap(_sheet(_hang(tien_te=tien, cach_tinh=cach)), cau_hinh=cfg)
+                self.assertEqual(kq["dong_loi"], [])
+                self.assertEqual(kq["khoan_vay"][0]["tien_te"], tien.strip().upper())
+                self.assertEqual(kq["khoan_vay"][0]["cach_tinh"], cach.strip().upper())
+
+    def test_tien_te_cach_tinh_ngoai_danh_sach_bi_loai(self):
+        for truong, chu, ten, ma in (
+            ("tien_te", "EUR", "Tiền tệ", "TIEN_TE_KHONG_HO_TRO"),
+            ("cach_tinh", "DEMO_KHAC", "Cách tính", "CACH_TINH_KHONG_HO_TRO"),
+        ):
+            with self.subTest(truong=truong):
+                snap = _lap(_sheet(_hang(**{truong: chu})))
+                self.assertEqual(snap["khoan_vay"], [])
+                self.assertEqual(len(snap["dong_loi"]), 1)
+                e = snap["dong_loi"][0]
+                self.assertEqual((e["so_dong"], e["ten_cot"], e["ma_loi"]), (2, ten, ma))
+                bc = lap_bao_cao(snap, ngay_bao_cao=date(2026, 10, 26))
+                self.assertEqual(bc["tong_du_no_theo_tien_te"], {})
+
+    def test_danh_sach_cho_phep_theo_cau_hinh_khong_phan_biet_hoa_thuong(self):
+        cfg = deepcopy(CAU_HINH_MAU)
+        cfg["tien_te_cho_phep"] = [" eur "]
+        cfg["cach_tinh_cho_phep"] = [" co_dinh "]
+        kq = _lap(_sheet(_hang(tien_te="eUr", cach_tinh="co_dinh")), cau_hinh=cfg)
+        self.assertEqual(kq["dong_loi"], [])
+        self.assertEqual(kq["khoan_vay"][0]["tien_te"], "EUR")
+        self.assertEqual(kq["khoan_vay"][0]["cach_tinh"], "CO_DINH")
+        kq = _lap(_sheet(_hang()), cau_hinh=cfg)
+        self.assertEqual(kq["khoan_vay"], [])
+        self.assertEqual({e["ma_loi"] for e in kq["dong_loi"]},
+                         {"TIEN_TE_KHONG_HO_TRO", "CACH_TINH_KHONG_HO_TRO"})
+
+    def test_danh_sach_cho_phep_sai_cau_hinh(self):
+        for khoa in ("tien_te_cho_phep", "cach_tinh_cho_phep"):
+            for sai in (None, "USD", [], [""], [123]):
+                with self.subTest(khoa=khoa, sai=sai), self.assertRaises(DataError) as bat:
+                    _lap(cau_hinh={**deepcopy(CAU_HINH_MAU), khoa: sai})
+                self.assertEqual(bat.exception.code, "M9_SHEET_CAU_HINH")
+
+    def test_loi_sheet_khong_bo_sot_dong_trung_ma(self):
+        snap = _lap(_sheet(_hang(ngan_hang="#N/A"), _hang()))
+        self.assertEqual(snap["khoan_vay"], [])
+        self.assertEqual([e["so_dong"] for e in snap["dong_loi"]
+                          if e["ma_loi"] == "TRUNG_MA"], [2, 3])
+
+    def test_ma_snapshot_khong_con_cau_xung_ho(self):
+        ma = Path(snapshot_sheet.__file__).read_text(encoding="utf-8")
+        self.assertNotIn("Cần Anh", ma)
+        self.assertNotIn("Cần lead", ma)
 
     def test_trung_ma_loai_tat_ca_ke_ca_dong_da_co_loi_khac(self):
         kq = _lap(_sheet(_hang(du_no="sai"), _hang(),
