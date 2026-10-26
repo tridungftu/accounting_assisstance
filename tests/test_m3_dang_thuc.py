@@ -11,20 +11,24 @@ from decimal import Decimal, localcontext
 import json
 import os
 from pathlib import Path
+import re
 from types import SimpleNamespace
 import unittest
 import uuid
 
+from kho_tri_thuc.ha_tang import postgres as pg
 from kho_tri_thuc.k2.m3 import M3K2, tinh_ba_dang_thuc
 
 try:
     import psycopg
-    from psycopg.conninfo import conninfo_to_dict
+    from psycopg import sql
+    from psycopg.conninfo import make_conninfo
 except ImportError:
     psycopg = None
 
 
 D = Decimal
+ADMIN_DSN = os.environ.get("KHO_PG_DSN_TEST")
 
 
 def demo():
@@ -250,23 +254,35 @@ class BaDangThucThuan(unittest.TestCase):
             data.decode("utf-8", errors="strict")
 
 
-@unittest.skipUnless(os.environ.get("KHO_PG_DSN_TEST") and psycopg is not None,
+@unittest.skipUnless(ADMIN_DSN and psycopg is not None,
                      "Thiếu KHO_PG_DSN_TEST hoặc psycopg — bỏ qua PG")
 class BaDangThucPostgres(unittest.TestCase):
-    """Dùng CSDL test đã migrate; chỉ INSERT DEMO trong transaction rollback.
+    """Tạo CSDL test riêng; chỉ INSERT DEMO trong transaction rollback.
 
     Cần Anh: đường PG khớp số chờ M2 hỗ trợ hóa đơn bán và tiền exact. Không
     sửa CHECK/migration để giả đường này đã chạy được.
     """
 
+    @classmethod
+    def setUpClass(cls):
+        cls.db = "kho_test_m3b_" + uuid.uuid4().hex
+        with psycopg.connect(ADMIN_DSN, autocommit=True) as admin:
+            admin.execute(sql.SQL("CREATE DATABASE {} ENCODING 'UTF8' TEMPLATE template0").format(sql.Identifier(cls.db)))
+        cls.addClassCleanup(cls._don_csdl)
+        cls.conn = psycopg.connect(make_conninfo(ADMIN_DSN, dbname=cls.db), autocommit=True)
+        cls.addClassCleanup(cls.conn.close)
+        pg.migrate(cls.conn)
+
+    @classmethod
+    def _don_csdl(cls):
+        # Chỉ CSDL mới do chính class tạo; không DROP role/dịch vụ/dữ liệu ngoài.
+        assert re.fullmatch(r"kho_test_m3b_[a-f0-9]+", cls.db)
+        with psycopg.connect(ADMIN_DSN, autocommit=True) as admin:
+            admin.execute(sql.SQL("DROP DATABASE {}").format(sql.Identifier(cls.db)))
+
     def setUp(self):
-        dsn = os.environ["KHO_PG_DSN_TEST"]
-        db = conninfo_to_dict(dsn).get("dbname", "")
-        if not db.startswith("kho_test_"):
-            self.skipTest("Chỉ dùng CSDL test có tên kho_test_* đã migrate")
-        self.conn = psycopg.connect(dsn)
-        self.addCleanup(self.conn.close)
-        self.addCleanup(self.conn.rollback)
+        self.conn.execute("BEGIN")
+        self.addCleanup(lambda: self.conn.execute("ROLLBACK"))
         self.pn = self.conn.execute("""INSERT INTO master.phap_nhan (ma,ten)
             VALUES (%s,'Pháp nhân DEMO đẳng thức') RETURNING id""",
                                     ("DEMO_M31B_" + uuid.uuid4().hex,)).fetchone()[0]
