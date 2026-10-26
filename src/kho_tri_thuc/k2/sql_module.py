@@ -78,7 +78,7 @@ MODULE_CONG_TAC_SQL = (
                 -- Handoff XS-4b quy định VAN_HANH: mọi cờ true, kể cả cờ này.
                 'dai_dang_thu', hop_le AND (cd = 'VAN_HANH' OR duoc_thu));
         END $$""",
-    # Helper chỉ dành cho các hàm ghi cùng owner; không cấp EXECUTE cho ứng dụng.
+    # Helper chỉ dành cho các hàm cùng owner; không cấp EXECUTE cho ứng dụng.
     """CREATE FUNCTION master.module_kiem_admin(p_module text, p_pn uuid, p_ly_do text)
         RETURNS uuid LANGUAGE plpgsql SECURITY DEFINER
         SET search_path = pg_catalog, master, nhat_ky, pg_temp AS $$
@@ -102,6 +102,16 @@ MODULE_CONG_TAC_SQL = (
             PERFORM pg_advisory_xact_lock(hashtextextended('module|' || p_module || '|' || p_pn::text, 0));
             RETURN ai;
         END $$""",
+    """CREATE FUNCTION master.module_danh_sach_nguoi_thu(p_module text, p_pn uuid)
+        RETURNS SETOF master.module_nguoi_thu LANGUAGE plpgsql SECURITY DEFINER
+        SET search_path = pg_catalog, master, nhat_ky, pg_temp AS $$
+        BEGIN
+            PERFORM master.module_kiem_admin(p_module, p_pn, 'Xem danh sách người thử');
+            -- Admin xem cả lịch sử cấp/thu hồi, chỉ trong đúng module × pháp nhân.
+            RETURN QUERY SELECT t.* FROM master.module_nguoi_thu t
+                WHERE t.module = p_module AND t.phap_nhan_id = p_pn
+                ORDER BY t.cap_luc, t.id;
+        END $$""",
     """CREATE FUNCTION master.module_doi_che_do(p_module text, p_pn uuid, p_che_do text,
         p_ly_do text, p_revision_cu bigint) RETURNS bigint
         LANGUAGE plpgsql SECURITY DEFINER
@@ -122,6 +132,7 @@ MODULE_CONG_TAC_SQL = (
                 RAISE EXCEPTION 'MODULE_REVISION: công tắc đã đổi, cần đọc lại';
             END IF;
             da_chay := coalesce(cu.da_van_hanh, false) OR cd_cu = 'VAN_HANH';
+            -- Chủ bảng/DBA là bên tin cậy; DML qua migration có review, vai ứng dụng đã khóa.
             IF p_che_do = 'VAN_HANH' AND mac_dinh <> 'VAN_HANH' AND NOT da_chay THEN
                 RAISE EXCEPTION 'MODULE_CHUA_DU_DIEU_KIEN_GO_LIVE: chờ bảng điều kiện go-live';
             END IF;
@@ -158,7 +169,9 @@ MODULE_CONG_TAC_SQL = (
             INSERT INTO nhat_ky.su_kien (phap_nhan_id, luc, nguoi, loai, doi_tuong_bang,
                 doi_tuong_id, hanh_dong, sau, ly_do)
                 VALUES (p_pn, moi.cap_luc, ai::text, 'SUA_DANH_MUC', 'master.module_nguoi_thu',
-                    moi.id, 'MODULE_CAP_NGUOI_THU', to_jsonb(moi), btrim(p_ly_do));
+                    moi.id, 'MODULE_CAP_NGUOI_THU', jsonb_build_object('id', moi.id,
+                        'module', p_module, 'phap_nhan_id', p_pn, 'hanh_dong', 'CAP',
+                        'ly_do', btrim(p_ly_do), 'nguoi_thuc_hien', ai), btrim(p_ly_do));
             RETURN moi.id;
         END $$""",
     """CREATE FUNCTION master.module_thu_hoi_nguoi_thu(p_module text, p_pn uuid, p_nguoi uuid,
@@ -173,13 +186,16 @@ MODULE_CONG_TAC_SQL = (
             UPDATE master.module_nguoi_thu SET thu_hoi_boi = ai, thu_hoi_luc = clock_timestamp(),
                 ly_do_thu_hoi = btrim(p_ly_do) WHERE id = cu.id RETURNING * INTO moi;
             INSERT INTO nhat_ky.su_kien (phap_nhan_id, luc, nguoi, loai, doi_tuong_bang,
-                doi_tuong_id, hanh_dong, truoc, sau, ly_do)
+                doi_tuong_id, hanh_dong, sau, ly_do)
                 VALUES (p_pn, moi.thu_hoi_luc, ai::text, 'SUA_DANH_MUC', 'master.module_nguoi_thu',
-                    moi.id, 'MODULE_THU_HOI_NGUOI_THU', to_jsonb(cu), to_jsonb(moi), btrim(p_ly_do));
+                    moi.id, 'MODULE_THU_HOI_NGUOI_THU', jsonb_build_object('id', moi.id,
+                        'module', p_module, 'phap_nhan_id', p_pn, 'hanh_dong', 'THU_HOI',
+                        'ly_do', btrim(p_ly_do), 'nguoi_thuc_hien', ai), btrim(p_ly_do));
             RETURN moi.id;
         END $$""",
     """REVOKE ALL ON master.module_danh_muc, master.module_cong_tac, master.module_nguoi_thu FROM PUBLIC""",
     """REVOKE ALL ON FUNCTION master.module_trang_thai(text,uuid),
+        master.module_danh_sach_nguoi_thu(text,uuid),
         master.module_kiem_admin(text,uuid,text), master.module_doi_che_do(text,uuid,text,text,bigint),
         master.module_cap_nguoi_thu(text,uuid,uuid,text), master.module_thu_hoi_nguoi_thu(text,uuid,uuid,text)
         FROM PUBLIC""",
@@ -189,6 +205,7 @@ MODULE_CONG_TAC_SQL = (
                 EXECUTE format('REVOKE ALL ON master.module_danh_muc, master.module_cong_tac,
                     master.module_nguoi_thu FROM %I', r);
                 EXECUTE format('REVOKE ALL ON FUNCTION master.module_trang_thai(text,uuid),
+                    master.module_danh_sach_nguoi_thu(text,uuid),
                     master.module_kiem_admin(text,uuid,text), master.module_doi_che_do(text,uuid,text,text,bigint),
                     master.module_cap_nguoi_thu(text,uuid,uuid,text),
                     master.module_thu_hoi_nguoi_thu(text,uuid,uuid,text) FROM %I', r);
@@ -196,6 +213,7 @@ MODULE_CONG_TAC_SQL = (
         END LOOP;
         IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'app_web') THEN
             GRANT EXECUTE ON FUNCTION master.module_trang_thai(text,uuid),
+                master.module_danh_sach_nguoi_thu(text,uuid),
                 master.module_doi_che_do(text,uuid,text,text,bigint),
                 master.module_cap_nguoi_thu(text,uuid,uuid,text),
                 master.module_thu_hoi_nguoi_thu(text,uuid,uuid,text) TO app_web;

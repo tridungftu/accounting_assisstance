@@ -69,6 +69,7 @@ class ModuleTinh(unittest.TestCase):
         self.assertIn('FROM PUBLIC', SQL)
         grant = SQL.split('GRANT EXECUTE ON FUNCTION', 1)[1].split(';', 1)[0]
         self.assertNotIn('module_kiem_admin', grant)
+        self.assertIn('master.module_danh_sach_nguoi_thu(text,uuid)', grant)
         self.assertNotRegex(SQL, r'GRANT (?:ALL|SELECT|INSERT|UPDATE|DELETE)')
         change = next(s for s in MODULE_CONG_TAC_SQL
                       if s.startswith('CREATE FUNCTION master.module_doi_che_do('))
@@ -76,13 +77,32 @@ class ModuleTinh(unittest.TestCase):
         self.assertIn('p_revision_cu IS DISTINCT FROM rev', change)
         self.assertNotIn('FROM nhat_ky.su_kien', change)
 
+    def test_nhat_ky_nguoi_thu_khong_ghi_ca_dong_hay_danh_tinh_nguoi_duoc_cap(self):
+        for name in ('module_cap_nguoi_thu', 'module_thu_hoi_nguoi_thu'):
+            function = next(s for s in MODULE_CONG_TAC_SQL
+                            if s.startswith('CREATE FUNCTION master.' + name + '('))
+            audit = function.split('INSERT INTO nhat_ky.su_kien', 1)[1]
+            self.assertNotIn('to_jsonb', audit)
+            self.assertNotIn('nguoi_dung_id', audit)
+            self.assertNotIn('p_nguoi', audit)
+
+    def test_moi_than_ham_sql_mo_dong_dollar_day_du(self):
+        for statement in MODULE_CONG_TAC_SQL:
+            if statement.startswith('CREATE FUNCTION'):
+                self.assertEqual(statement.count('AS $$'), 1)
+                self.assertEqual(statement.count('$$'), 2)
+                self.assertTrue(statement.endswith('END $$'))
+            elif statement.startswith('DO $$'):
+                self.assertEqual(statement.count('$$'), 2)
+                self.assertTrue(statement.endswith('END $$'))
+
     def test_utf8_khong_bom_lf_va_hang_sql_thuan(self):
         path = ROOT / 'src/kho_tri_thuc/k2/sql_module.py'
         for item in (path, Path(PM.__file__), Path(__file__)):
             raw = item.read_bytes()
             self.assertFalse(raw.startswith(b'\xef\xbb\xbf'))
             self.assertNotIn('\ufffd', raw.decode('utf-8'))
-        self.assertNotIn(b'\r', Path(PM.__file__).read_bytes())
+            self.assertNotIn(b'\r', raw)
         tree = ast.parse(path.read_text(encoding='utf-8'))
         self.assertEqual(ast.literal_eval(tree.body[1].value), MODULE_CONG_TAC_SQL)
 
@@ -164,6 +184,10 @@ class ModulePostgres(unittest.TestCase):
     def thu_hoi(self, reason='Thu hồi thử giả XS4'):
         return self.c.execute('SELECT master.module_thu_hoi_nguoi_thu(%s,%s,%s,%s)',
                               ('CRM', self.pn, self.tester[0], reason)).fetchone()[0]
+
+    def danh_sach(self, module='CRM', pn=None):
+        return self.c.execute('SELECT to_jsonb(t) FROM master.module_danh_sach_nguoi_thu(%s,%s) t',
+                              (module, self.pn if pn is None else pn)).fetchall()
 
     def loi(self, code, fn):
         with self.assertRaises(psycopg.Error) as cm:
@@ -280,11 +304,95 @@ class ModulePostgres(unittest.TestCase):
         self.assertEqual(rows[0][4]['che_do'], 'THU')
         self.assertEqual(rows[-1][3]['che_do'], 'THU')
         self.assertEqual(rows[-1][4]['che_do'], 'TAT')
-        self.assertIsNone(rows[2][3]['thu_hoi_luc'])
-        self.assertIsNotNone(rows[2][4]['thu_hoi_luc'])
+        for row, row_id, action in ((rows[1], key, 'CAP'), (rows[2], key, 'THU_HOI'),
+                                    (rows[3], new_key, 'CAP')):
+            self.assertIsNone(row[3])
+            self.assertEqual(row[4], {'id': str(row_id), 'module': 'CRM',
+                                     'phap_nhan_id': str(self.pn), 'hanh_dong': action,
+                                     'ly_do': row[5], 'nguoi_thuc_hien': str(self.admin[0])})
         history = self.c.execute('SELECT count(*),count(thu_hoi_luc) FROM master.module_nguoi_thu '
                                  'WHERE module=%s AND phap_nhan_id=%s', ('CRM', self.pn)).fetchone()
         self.assertEqual(history, (2, 1))
+
+    def test_app_web_khong_admin_doc_nhat_ky_khong_lo_nguoi_duoc_cap(self):
+        self.c.execute('INSERT INTO master.phan_quyen (nguoi_dung_id,phap_nhan_id) VALUES (%s,%s)',
+                       (self.other[0], self.pn))
+        self.c.execute('SET LOCAL ROLE app_web')
+        key = self.cap()
+        self.assertEqual(self.thu_hoi(), key)
+        self.actor(self.other)
+        self.loi('MODULE_CHI_ADMIN', self.danh_sach)
+        rows = self.c.execute("SELECT to_jsonb(s) FROM nhat_ky.su_kien s "
+                              "WHERE phap_nhan_id=%s AND doi_tuong_bang='master.module_nguoi_thu'",
+                              (self.pn,)).fetchall()
+        self.assertEqual(len(rows), 2)  # Thực sự đọc được nhật ký qua RLS, không xanh vì rỗng.
+        self.assertEqual({r[0]['hanh_dong'] for r in rows},
+                         {'MODULE_CAP_NGUOI_THU', 'MODULE_THU_HOI_NGUOI_THU'})
+        for (row,) in rows:
+            self.assertEqual(row['doi_tuong_id'], str(key))
+            self.assertIsNone(row['truoc'])
+            self.assertEqual(set(row['sau']),
+                             {'id', 'module', 'phap_nhan_id', 'hanh_dong', 'ly_do', 'nguoi_thuc_hien'})
+            self.assertNotIn(str(self.tester[0]), str(row))
+            self.assertNotIn('nguoi_dung_id', str(row))
+
+    def test_danh_sach_admin_dung_module_pn_va_lich_su_khong_ghi_nhat_ky(self):
+        self.c.execute('SET LOCAL ROLE app_web')
+        key = self.cap()
+        self.thu_hoi()
+        new_key = self.cap()
+        other_pn_key = self.cap(pn=self.pn2)
+        self.c.execute("SELECT master.module_cap_nguoi_thu('M9',%s,%s,'Thử module khác')",
+                       (self.pn, self.other[0]))
+        self.c.execute('RESET ROLE')
+        before = len(self.audit())
+        self.c.execute('SET LOCAL ROLE app_web')
+        rows = [r[0] for r in self.danh_sach()]
+        self.assertEqual([r['id'] for r in rows], [str(key), str(new_key)])
+        for row in rows:
+            self.assertEqual(row['nguoi_dung_id'], str(self.tester[0]))
+            self.assertEqual(row['module'], 'CRM')
+            self.assertEqual(row['phap_nhan_id'], str(self.pn))
+            self.assertEqual(row['cap_boi'], str(self.admin[0]))
+        self.assertIsNotNone(rows[0]['thu_hoi_luc'])
+        self.assertEqual(rows[0]['thu_hoi_boi'], str(self.admin[0]))
+        self.assertIsNone(rows[1]['thu_hoi_luc'])
+        self.assertEqual([r[0]['id'] for r in self.danh_sach(pn=self.pn2)], [str(other_pn_key)])
+        self.assertEqual([r[0]['nguoi_dung_id'] for r in self.danh_sach('M9')], [str(self.other[0])])
+        self.assertEqual(self.danh_sach('M10'), [])
+        self.loi('MODULE_DAU_VAO', lambda: self.danh_sach('CHUA_KHAI_BAO'))
+        self.loi('MODULE_DAU_VAO', lambda: self.danh_sach(pn=uuid.uuid4()))
+        self.c.execute('RESET ROLE')
+        self.assertEqual(len(self.audit()), before)
+
+    def test_danh_sach_chan_khong_admin_va_danh_tinh_gia_ke_ca_khi_rong(self):
+        self.c.execute('SET LOCAL ROLE app_web')
+        for actor in (self.tester, self.other, (self.admin[0], self.other[1]), ('', '')):
+            self.actor(actor)
+            for module in ('CRM', 'CHUA_KHAI_BAO'):
+                self.loi('MODULE_CHI_ADMIN', lambda: self.danh_sach(module))
+        self.actor(self.admin)
+        self.assertEqual(self.danh_sach(), [])
+        self.cap()
+        self.actor(self.tester)
+        self.loi('MODULE_CHI_ADMIN', self.danh_sach)
+
+    def test_danh_sach_chan_admin_vua_bi_thu_hoi(self):
+        from psycopg.types.json import Jsonb
+
+        grant = self.c.execute("SELECT master.mtq_cau_hinh_ghi(%s,'ADMIN',%s,0,'Admin giả tạm thời')",
+                               (uuid.uuid4(), Jsonb({'nguoi_dung_id': str(self.other[0])}))).fetchone()[0]
+        self.cap()
+        self.c.execute('SET LOCAL ROLE app_web')
+        self.actor(self.other)
+        self.assertEqual(self.danh_sach()[0][0]['nguoi_dung_id'], str(self.tester[0]))
+        self.c.execute('RESET ROLE')
+        self.actor(self.admin)
+        self.c.execute("SELECT master.mtq_cau_hinh_ghi(%s,'THU_HOI_ADMIN',%s,%s,'Thu hồi Admin giả')",
+                       (uuid.uuid4(), Jsonb({'id': grant['id']}), grant['revision']))
+        self.c.execute('SET LOCAL ROLE app_web')
+        self.actor(self.other)
+        self.loi('MODULE_CHI_ADMIN', self.danh_sach)
 
     def test_thu_hoi_mat_quyen_phap_nhan_b_doc_lap(self):
         self.c.execute('SET LOCAL ROLE app_web')
