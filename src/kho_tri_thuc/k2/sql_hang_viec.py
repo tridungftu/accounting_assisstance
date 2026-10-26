@@ -305,3 +305,34 @@ HANG_VIEC_SQL = (
         END IF;
         END $$""",
 )
+
+
+# XS-2a2 — CD-017: đọc lease không khóa/ghi; giữ nguyên hợp đồng M0060.
+HANG_VIEC_B_SQL = (
+    """CREATE FUNCTION viec.trang_thai_lease(p_pn uuid, p_id uuid, p_worker uuid, p_token uuid)
+        RETURNS jsonb LANGUAGE plpgsql STABLE SECURITY DEFINER
+        SET search_path = pg_catalog, viec, master, nhat_ky, pg_temp AS $$
+        DECLARE v viec.hang_viec;
+            khong_giu jsonb := jsonb_build_object('con_giu', false, 'yeu_cau_dung', NULL,
+                'het_han_luc', NULL, 'trang_thai', NULL);
+        BEGIN
+            IF NOT EXISTS (SELECT 1 FROM master.ktt_pn_cho_phep() pn WHERE pn = p_pn) THEN
+                RAISE EXCEPTION 'VIEC_PHAM_VI' USING ERRCODE = '42501';
+            END IF;
+            SELECT * INTO v FROM viec.hang_viec WHERE id = p_id AND phap_nhan_id = p_pn;
+            IF NOT FOUND THEN RETURN khong_giu; END IF;
+            PERFORM viec._kiem_quyen(p_pn, v.module);
+            IF v.trang_thai <> 'DANG_CHAY' OR v.lease_boi IS DISTINCT FROM p_worker
+                OR v.lease_token IS DISTINCT FROM p_token
+                OR v.lease_danh_tinh IS DISTINCT FROM master.ktt_danh_tinh()
+                OR v.lease_den <= clock_timestamp() THEN RETURN khong_giu; END IF;
+            RETURN jsonb_build_object('con_giu', true, 'yeu_cau_dung', v.yeu_cau_dung,
+                'het_han_luc', v.lease_den, 'trang_thai', v.trang_thai);
+        END $$""",
+    "REVOKE ALL ON FUNCTION viec.trang_thai_lease(uuid,uuid,uuid,uuid) FROM PUBLIC",
+    """DO $$ BEGIN
+        IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'app_web') THEN
+            GRANT EXECUTE ON FUNCTION viec.trang_thai_lease(uuid,uuid,uuid,uuid) TO app_web;
+        END IF;
+        END $$""",
+)
