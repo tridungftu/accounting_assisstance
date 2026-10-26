@@ -1,0 +1,8 @@
+# MTQ-2 — Ma trận thẩm quyền: dịch vụ + HTTP (CD-012; thiết kế MTQ-0, nền MTQ-1)
+
+Bạn là worker Codex, chạy không tương tác. **Làm ngay, không hỏi lại** (chưa rõ → chọn cách an toàn, ghi "Cần Anh"). Đọc `AGENTS.md`, `CLAUDE.md`. UTF-8 không BOM. Sandbox không ghi `.git`: **không commit**. Không mở server/PostgreSQL (test PG tự skip). Không xóa file.
+
+Worktree hiện tại, nhánh `lat/mtq-2` (nối tiếp `lat/mtq-1` vòng 2: SQL `k2/sql_ma_tran_tham_quyen.py` — đọc kỹ các hàm/lệnh, mã lỗi, quy tắc bootstrap trong docstring). Căn cứ: hộp thư **CD-012**, thiết kế `docs\46-chuyen-doi-dieu-phoi\THIET-KE-MA-TRAN-THAM-QUYEN.md` (làm đúng dòng **MTQ-2**), review `docs\46-chuyen-doi-dieu-phoi\giao-viec-20261026\review-mtq-1-m2k.md` (phần MTQ-1: **không mở bootstrap qua HTTP**).
+**Việc:** dịch vụ Python (tệp mới `k2/ma_tran_tham_quyen.py`) gọi lệnh SQL MTQ-1 qua kết nối chủ bảng + GUC danh tính như các dịch vụ K2 khác (`k2/crm_mau.py` `_lenh`/`_tx`): đọc ma trận (Admin xem toàn bộ; người khác chỉ phần của mình), lưu bản nháp ô tick + giới hạn tiền (chỉ Admin, CAS revision, lý do), công bố/kích hoạt theo thiết kế, nhật ký. Route HTTP (đăng ký đúng cách các route `/api/...` khác — vd qua `giao_dien/crm_g.py` hoặc tệp route mới nếu thiết kế chỉ) : GET ma trận, GET nhật ký, POST lưu/công bố; quyền ở máy chủ; không nhận actor/pháp nhân từ trình duyệt; tham số lạ 400; 409 CAS. **Không** có route bootstrap; **không** bật ma trận làm nguồn quyền (MTQ-4).
+**Test — mới `tests/test_mtq_dich_vu.py`:** giả lập + PG (`skipUnless KHO_PG_DSN_TEST`): Admin lưu/công bố, người khác 403, CAS 409, nhật ký cũ → mới, tham số lạ 400, không có route bootstrap.
+**File (≤ 4, gồm test):** dịch vụ, tệp route, 1–2 test. **Báo cáo (≤ ⅓ trang)**, Cần Anh, thông điệp commit `[MTQ-2] …`.

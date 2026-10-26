@@ -313,3 +313,16 @@ H3 phân loại 36 đầu việc: 19 gói đã nhập `hop-nhat`, 13 xung đột
 | M2f, E1-5 | việc của Anh (cổng thuế thật / áp vào #6 thật) |
 | Chuyển DEMO 8798 sang `lat/ui-ky` | chờ Anh thử xong cổng A trên bản hiện tại |
 - 10:50 rà hàng đợi (CD-009 mục 5): Codex chạy M4-DL1 v2, KY-G5TAY-UI, M3-CL (CD-009.3d checklist M3); hàng chờ nối tiếp KY-G5TAY v4 → MTQ-1 v2 → M2k v2 → MASK-3; review Opus AI-4a/E1-4u/M4-03B-YC. Đã xong chờ review/gộp: AI-4a c639b79, E1-4u 456dca1, M4-03B-YC 553ac93, BG-e8 (ui-ky), UI-3e (ui-ky). KY-G5TAY: PG p01/p07 đạt sau vòng 3 (lỗi cú pháp `IF NOT CASE` có sẵn ở guard G6), còn p03 lỗi test (login không có trong seed) → v4. Không việc nào không bị chặn bị bỏ trống.
+
+### 26/10 11:15 — gộp KY-G5TAY, M4-DL1, MTQ-1 (M0037–M0039) · rà hàng đợi (CD-009 mục 5)
+- PG từng lát (10:58–11:01) so nền v3: KY-G5TAY 98 ok, MTQ-1 50 ok, M4-DL1 67 ok — **0 mã lỗi mới**, skip bằng nền; FAIL `test_pg_schema`/`test_m4_review_http` là FAIL có sẵn trong nền.
+- Gộp `hop-nhat-20261023`: 0079426 KY-G5TAY (**M0037**), 07bb02d M4-DL1 (**M0038**, đổi `M00xx` → `M0038_M4_REVIEW_CHEP`), 506f41c MTQ-1 (**M0039**, `M0039_MA_TRAN_THAM_QUYEN`). `pg_migrations.py` giữ LF (0 byte CR). Chưa CSDL bền nào chạy M4-DL1 v1. Review vòng 2 M4-DL1: Đạt (`review-m4-dl1-v2.md`); 3 điểm nên sửa → lát **M4-DL1b** (đang giao).
+- Đang chạy: lead — PG trên hợp nhất sau đánh số (14 nhóm module); test E1-4u v2, M2k v2 (không PG). Codex — MTQ-2, MASK-3, M4-03B-YC v2, M4-DL1b (4/4). Claude — review-lat KY-G5TAY-UI, review-lat E1-4u vòng 2 (2/2).
+| Việc chưa giao | Lý do chặn |
+|---|---|
+| M4-DL2 (lớp đọc/ghi dữ liệu chép Review) | nối tiếp M4-DL1b (cần cột `chup_luc`, hàm bản hiện hành) |
+| MTQ-3 (màn ma trận) | nối tiếp MTQ-2 (HTTP) đang chạy |
+| MTQ-4 (áp ma trận làm nguồn quyền) | nối tiếp MTQ-2/3; review Opus |
+| Nạp dữ liệu Review thật (CD-011 bước 4) | **Cần Anh**: bảng ánh xạ `ma_hd → hợp đồng / pháp nhân / dự án` |
+| M3 (hóa đơn bán ra) | **Cần Anh**: 15 câu trong `CHECKLIST-M3-HOA-DON-BAN-RA.md` |
+| Chuyển DEMO 8798 sang `lat/ui-ky` | chờ Anh thử xong cổng A |
