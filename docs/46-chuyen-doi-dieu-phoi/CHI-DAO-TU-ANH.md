@@ -187,3 +187,14 @@
 6. OCR bản scan: dùng lại cách ABBYY Hot Folder của phần mềm review (chép code, không sửa bản gốc đang đóng băng — CD-011).
 **Báo Anh khi:** cần thông tin Sheet; phiếu cổng A M9.
 **Trạng thái:** ĐÃ NHẬN 14:05 26/10 — M9-1…M9-5 vào `4-KE-HOACH-LEAD.md` + TRANG-THAI, xếp sau CD-011/012/013/014, dùng lấp chỗ trống. Chưa giao lát: hạn mức Claude tuần 88% (lead đang chậm lại, xử lý nốt hàng chờ). Cổng kiểm soát M9: grep không có đường Cloud/Mask. M9-3 chờ Anh cung cấp Sheet/tab/tài khoản dịch vụ.
+
+## CD-016 · 26/10/2026 20:25 · Kho vận hành: một CSDL PostgreSQL thật chung; phát hành tối thứ Sáu; 5 module vận hành cùng lúc
+**Căn cứ:** Anh chốt 26/10 20:20 (bảng chọn); Project TL 52 `52-gan-module-lien-tuc-va-phat-hanh.md` §4–§5. `CLAUDE.md` ngoại lệ kho thật đã sửa (20:25).
+**Việc:**
+1. **CD-011 bước 4(c) đổi:** tạo **một CSDL PostgreSQL thật chung cho mọi module** (không tạo CSDL riêng M4); M4 nạp trước theo đúng các bước sao lưu/chạy thử bản sao/đối chiếu/biên bản của CD-011. Nếu đã tạo CSDL riêng M4 → ghi lại, đề xuất cách gộp, không tự xóa.
+2. **Kho thật SQLite (`var\plhn-that`, `var\web-that`) — chưa đụng.** Lead chỉ **soạn kế hoạch chuyển** sang CSDL PostgreSQL thật chung (bảng nguồn → đích, công cụ, biên bản đối chiếu, sao lưu, đường lùi) → báo Anh duyệt; chạy khi Anh ra lệnh riêng.
+3. **Phát hành hằng tuần tối thứ Sáu** lên nhánh `chinh`/kho thật; sửa khẩn đi đường riêng. Lead soạn `CHECKLIST-PHAT-HANH.md` (sao lưu → nâng dữ liệu chỉ thêm → test → bật → đường lùi).
+4. **Go-live: M0, M2, M3, M4, M9 cùng một lần phát hành**, khi cả 5 qua cổng B. Lead lập bảng điều kiện go-live từng module (cổng B, điểm chờ chốt, dữ liệu thật cần nạp) trong `TRANG-THAI.md`; không phát hành từng module lẻ.
+5. **Không làm** khung cắm module tổng quát (TL 52 §2) — Anh đang nghiên cứu; module mới vẫn khai báo theo cách hiện có của TL 49.
+**Báo Anh khi:** kế hoạch chuyển kho thật SQLite sẵn sàng; bảng điều kiện go-live 5 module.
+**Trạng thái:** ĐÃ NHẬN 20:30 26/10 — (1) chưa tạo CSDL thật riêng M4 nào → không cần gộp, CSDL thật chung tạo theo CD-011 khi có ánh xạ `ma_hd`; (2)(3)(4) giao Codex soạn tài liệu (chỉ đọc mã, không đọc kho thật), lead duyệt rồi báo Anh; (5) không làm khung cắm tổng quát.
