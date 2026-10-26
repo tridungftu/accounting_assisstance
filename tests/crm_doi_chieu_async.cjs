@@ -170,7 +170,15 @@ async function main() {
   async function moKy(id, v) {  // mở bản ký: GET chi tiết G6A → GET VIEW đối chiếu (fence riêng)
     const tr = tim(sec(), e => e.tagName === "TR" && e.textContent.includes(MA_CUA[id]));
     assert.ok(tr, "không thấy dòng " + MA_CUA[id]);
-    nut(tr, "Mở").click(); await chay();
+    // bd2824b: dòng đang chọn là "Đang mở" và bị tắt; nạp lại qua nút Làm mới thật.
+    const mo = nut(tr, "Mở");
+    if (mo) { assert.ok(!mo.disabled, "Mở bản ký bị tắt"); mo.click(); await chay(); }
+    else {
+      const dangMo = nut(tr, "Đang mở");
+      assert.ok(dangMo && dangMo.disabled, "dòng đã chọn phải có Đang mở bị tắt");
+      nut(sec(), "↻ Làm mới").click(); await chay();
+      await traDs(KT);
+    }
     cho(getCt(id), "GET chi tiết " + id).resolve(phanHoi(200, DOC(id))); await chay();
     if (v !== undefined) await traDc(id, v);
   }
@@ -327,9 +335,7 @@ async function main() {
     nut(g5s(), "Chạy đối chiếu").click(); await chay();
     const pCu = cho(postDc("chay"), "POST trước đổi vai");
     const khoaCu = than(pCu).khoa;
-    const tr = tim(sec(), e => e.tagName === "TR" && e.textContent.includes(MA_CUA[KY1]));
-    nut(tr, "Mở").click(); await chay();
-    cho(getCt(KY1), "GET chi tiết trước đổi vai").resolve(phanHoi(200, DOC(KY1))); await chay();
+    await moKy(KY1);
     const gCu = cho(getDc(KY1), "GET VIEW trước đổi vai");  // còn bay qua A→B→A
     await doiVai(BH);
     assert.ok(!g5s(), "D5: vai BH vẫn thấy khối đối chiếu của KT");
