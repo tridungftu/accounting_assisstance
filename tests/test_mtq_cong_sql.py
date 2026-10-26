@@ -50,9 +50,8 @@ class MtqCongTinh(unittest.TestCase):
         old = {"__name__": PM.__name__, "__package__": PM.__package__}
         exec(compile(prefix, PM.__file__, "exec"), old)
         previous = old["PG_MIGRATIONS"]
-        self.assertEqual(PM.PG_MIGRATIONS[:-1], previous)
-        self.assertIs(PM.PG_MIGRATIONS[-1], MTQ_CONG_SQL)
-        self.assertIs(PM.M00xx_MTQ_CONG, MTQ_CONG_SQL)
+        self.assertEqual(PM.PG_MIGRATIONS[:len(previous)], previous)
+        self.assertIs(PM.PG_MIGRATIONS[len(previous)], MTQ_CONG_SQL)
         self.assertEqual(sum(m is MTQ_CONG_SQL for m in PM.PG_MIGRATIONS), 1)
         self.assertEqual(PM.PG_SCHEMA_VERSION, len(PM.PG_MIGRATIONS))
 
@@ -189,6 +188,61 @@ class MtqCongPostgres(unittest.TestCase):
         self.permission_denied("SELECT master.mtq_quyet_dinh(NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL)")
         self.permission_denied("INSERT INTO nhat_ky.mtq_tu_choi (request_id,ma,ly_do) VALUES (gen_random_uuid(),'GIA','DEMO')")
 
+    def test_vai_khac_khong_co_execute_hai_ham_cong(self):
+        roles = self.c.execute("SELECT rolname FROM pg_roles WHERE rolname = ANY(%s)",
+                               (["app_ke_toan", "app_doc", "app_cong_ai"],)).fetchall()
+        for (role,) in roles:
+            for signature in ("master.mtq_quyet_dinh_phien(text,jsonb,numeric)",
+                              "master.mtq_ghi_tu_choi_phien(uuid,text,jsonb,numeric)"):
+                with self.subTest(vai=role, ham=signature):
+                    self.assertFalse(self.c.execute("SELECT has_function_privilege(%s,%s,'EXECUTE')",
+                                                    (role, signature)).fetchone()[0])
+
+    def test_phap_nhan_chua_bat_hd_m4_ban_soan_va_hanh_dong_chua_ho_tro_tra_cu(self):
+        objects = []
+        for pn in (self.pn, self.pn2):
+            da = self.c.execute("INSERT INTO master.du_an (phap_nhan_id,ma_junsky,ten) VALUES (%s,%s,'Resolver DEMO') RETURNING id",
+                                (pn, uuid.uuid4().hex)).fetchone()[0]
+            for module, giao_ket, loai, trang_thai in (("M4", None, "XAY_DUNG", "SOAN_THAO"),
+                                                       (None, "SOAN_THAO", "DICH_VU", "SOAN_THAO")):
+                hd = self.c.execute("INSERT INTO master.hop_dong (phap_nhan_id,du_an_id,loai,ma_noi_bo,so_hop_dong,module_chu,crm_giao_ket,trang_thai) VALUES (%s,%s,%s,%s,%s,%s,%s,%s) RETURNING id",
+                                     (pn, da, loai, uuid.uuid4().hex, "HD-DEMO-" + uuid.uuid4().hex,
+                                      module, giao_ket, trang_thai)).fetchone()[0]
+                objects.append((pn, {"bang": "master.hop_dong", "id": str(hd)}, "CRM:TIEP_NHAN:XEM"))
+            objects.append((pn, {"bang": "master.du_an", "id": str(da)}, "CRM:G3_G4_SOAN_KY:XEM"))
+        self.actor(self.user)
+        self.web()
+        for pn, obj, action in objects:
+            with self.subTest(phap_nhan=pn, obj=obj, bat=False):
+                kq = self.cong(action, obj)
+                self.assertEqual(kq["nguon"], "CU")
+                self.assertIsNone(kq["cho_phep"])
+                self.assertFalse(kq["can_thiep"])
+        self.c.execute("RESET ROLE")
+        self.cau_hinh()
+        self.web()
+        for pn, obj, action in objects:
+            with self.subTest(phap_nhan=pn, obj=obj, bat=pn == self.pn):
+                kq = self.cong(action, obj)
+                if pn == self.pn:
+                    self.assertEqual(kq["ma"], "MTQ_CAN_RESOLVER_MTQ4")
+                    self.assertFalse(kq["cho_phep"])
+                else:
+                    self.assertEqual(kq["nguon"], "CU")
+
+    def test_bang_chua_co_resolver_chi_chan_khi_co_phap_nhan_bat(self):
+        objects = ({"bang": "master.nguoi_dung", "id": str(self.user[0])},
+                   {"bang": "master.du_an", "id": str(uuid.uuid4())}, {})
+        self.actor(self.user)
+        self.web()
+        for obj in objects:
+            self.assertEqual(self.cong(obj=obj)["nguon"], "CU")
+        self.c.execute("RESET ROLE")
+        self.cau_hinh()
+        self.web()
+        for obj in objects:
+            self.assertEqual(self.cong(obj=obj)["ma"], "MTQ_CAN_RESOLVER_MTQ4")
+
     def test_cung_ket_qua_loi_va_doi_guc_khong_lan_cache(self):
         self.cau_hinh()
         core = self.c.execute("SELECT master.mtq_quyet_dinh(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)",
@@ -256,12 +310,12 @@ class MtqCongPostgres(unittest.TestCase):
 
     def test_hoi_khong_ghi_audit_logger_ghi_dung_mot_dong(self):
         self.cau_hinh(tick=False)
+        before = self.c.execute("SELECT count(*) FROM nhat_ky.mtq_tu_choi").fetchone()[0]
         self.web()
         kq = self.cong()
         self.assertEqual(kq["ma"], "MTQ_CHUA_TICK")
         self.c.execute("RESET ROLE")
-        before = self.c.execute("SELECT count(*) FROM nhat_ky.mtq_tu_choi").fetchone()[0]
-        self.assertEqual(before, 0)
+        self.assertEqual(self.c.execute("SELECT count(*) FROM nhat_ky.mtq_tu_choi").fetchone()[0], before)
         self.web()
         req = uuid.uuid4()
         key = self.audit(req)
@@ -269,6 +323,46 @@ class MtqCongPostgres(unittest.TestCase):
         row = self.c.execute("SELECT request_id,actor_id,actor_login,ma,doi_tuong,gioi_han_vnd,so_tien_vnd FROM nhat_ky.mtq_tu_choi WHERE id=%s", (key,)).fetchone()
         self.assertEqual(row, (req, self.user[0], self.user[1], kq["ma"], str(self.da), 100, None))
         self.assertEqual(self.c.execute("SELECT count(*) FROM nhat_ky.mtq_tu_choi").fetchone()[0], before + 1)
+
+    def test_logger_trung_request_tra_cung_id_khong_them_dong(self):
+        self.cau_hinh(tick=False)
+        before = self.c.execute("SELECT count(*) FROM nhat_ky.mtq_tu_choi").fetchone()[0]
+        self.web()
+        req = uuid.uuid4()
+        key = self.audit(req)
+        self.c.execute("RESET ROLE")
+        after_first = self.c.execute("SELECT count(*) FROM nhat_ky.mtq_tu_choi").fetchone()[0]
+        self.assertEqual(after_first, before + 1)
+        self.web()
+        self.assertEqual(self.audit(req), key)
+        self.c.execute("RESET ROLE")
+        self.assertEqual(self.c.execute("SELECT count(*) FROM nhat_ky.mtq_tu_choi").fetchone()[0], after_first)
+        self.assertEqual(self.c.execute("SELECT count(*) FROM nhat_ky.mtq_tu_choi WHERE request_id=%s", (req,)).fetchone()[0], 1)
+
+    def test_logger_hanh_dong_la_bi_tu_choi_khong_ghi(self):
+        self.cau_hinh(tick=False)
+        before = self.c.execute("SELECT count(*) FROM nhat_ky.mtq_tu_choi").fetchone()[0]
+        self.web()
+        for action in ("CRM:DU_AN_BAN:LA", "", None):
+            with self.subTest(hanh_dong=action):
+                with self.assertRaisesRegex(psycopg.Error, "MTQ_HANH_DONG"):
+                    with self.c.transaction():
+                        self.audit(action=action)
+        self.c.execute("RESET ROLE")
+        self.assertEqual(self.c.execute("SELECT count(*) FROM nhat_ky.mtq_tu_choi").fetchone()[0], before)
+
+    def test_logger_khong_danh_tinh_khong_ghi(self):
+        self.cau_hinh(tick=False)
+        before = self.c.execute("SELECT count(*) FROM nhat_ky.mtq_tu_choi").fetchone()[0]
+        self.web()
+        for actor in (("", ""), (str(uuid.uuid4()), self.user[1]),
+                      (str(self.user[0]), self.admin[1])):
+            self.actor(actor)
+            with self.assertRaisesRegex(psycopg.Error, "MTQ_DANH_TINH"):
+                with self.c.transaction():
+                    self.audit()
+        self.c.execute("RESET ROLE")
+        self.assertEqual(self.c.execute("SELECT count(*) FROM nhat_ky.mtq_tu_choi").fetchone()[0], before)
 
     def test_logger_khong_ghi_cho_phep_cu_va_loi_audit_khong_bi_nuot(self):
         self.actor(self.user)
@@ -300,18 +394,19 @@ class MtqCongPostgres(unittest.TestCase):
             self.c.execute("UPDATE master.nguoi_dung SET ten='Chưa commit DEMO' WHERE id=%s", (actor_id,))
             self.actor((actor_id, login))
             self.web()
-            self.assertEqual(self.cong(obj={})["ma"], "MTQ_CAN_RESOLVER_MTQ4")
+            self.assertEqual(self.cong(obj={"actor_id": "GIA_DEMO"})["ma"], "MTQ_DOI_TUONG")
             self.c.execute("ROLLBACK")
             req = uuid.uuid4()
             with audit_c.transaction():
                 audit_c.execute("SET LOCAL ROLE app_web")
                 audit_c.execute("SELECT set_config('ktt.nguoi_dung_id',%s,true),set_config('ktt.nguoi_dung_dang_nhap',%s,true)", (str(actor_id), login))
-                key = audit_c.execute("SELECT master.mtq_ghi_tu_choi_phien(%s,'CRM:DU_AN_BAN:XEM','{}'::jsonb,NULL)", (req,)).fetchone()[0]
+                key = audit_c.execute("SELECT master.mtq_ghi_tu_choi_phien(%s,'CRM:DU_AN_BAN:XEM',%s::jsonb,NULL)",
+                                       (req, json.dumps({"actor_id": "GIA_DEMO"}))).fetchone()[0]
             self.c.execute("BEGIN")
             self.c.execute("UPDATE master.nguoi_dung SET ten='Giao dịch khác DEMO' WHERE id=%s", (actor_id,))
             self.c.execute("ROLLBACK")
             self.assertEqual(audit_c.execute("SELECT request_id,actor_id,actor_login,ma FROM nhat_ky.mtq_tu_choi WHERE id=%s", (key,)).fetchone(),
-                             (req, actor_id, login, "MTQ_CAN_RESOLVER_MTQ4"))
+                             (req, actor_id, login, "MTQ_DOI_TUONG"))
             self.assertEqual(audit_c.execute("SELECT ten FROM master.nguoi_dung WHERE id=%s", (actor_id,)).fetchone()[0], "Audit DEMO")
 
 
