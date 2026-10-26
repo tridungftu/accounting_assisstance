@@ -326,3 +326,18 @@ H3 phân loại 36 đầu việc: 19 gói đã nhập `hop-nhat`, 13 xung đột
 | Nạp dữ liệu Review thật (CD-011 bước 4) | **Cần Anh**: bảng ánh xạ `ma_hd → hợp đồng / pháp nhân / dự án` |
 | M3 (hóa đơn bán ra) | **Cần Anh**: 15 câu trong `CHECKLIST-M3-HOA-DON-BAN-RA.md` |
 | Chuyển DEMO 8798 sang `lat/ui-ky` | chờ Anh thử xong cổng A |
+
+### 26/10 11:50 — gộp M4-03B-YC, M2k, MTQ-2; KY-G5TAY-UI lên dòng giao diện · rà hàng đợi (CD-009 mục 5)
+- Gộp `hop-nhat-20261023`: bf592ba M4-03B-YC (CD-010.7), 789607f M2k (QD-20261026-01, review vòng 2 Đạt), 5424efb MTQ-2 (review Đạt; chưa nối dispatcher).
+- `lat/ui-ky` d5448cb = nhận hợp nhất (M0037–M0039, MTQ-2, M2k, 03B-YC) + KY-G5TAY-UI (review Đạt + vòng 2 nên sửa; node 3 bộ đạt). DEMO 8798 vẫn chạy `lat/ui-dem` cho Anh thử cổng A.
+- Review: `review-e14u-v2-ky-g5tay-ui.md`, `review-m2k-v2-mtq-2-dl1b-mask-3.md`. M4-DL1b Không đạt (2 dòng kiểm ghim vị trí trong test) → vòng 2; MASK-3 Không đạt (tự tải lại 15 giây làm phiên không hết hạn) → vòng 2.
+- PG: MTQ-2b 64 ok, MTQ-5a 118 ok, M4-DL2 19 ok (ca đỏ là dòng kiểm hash DL1b đang bỏ) — 0 mã lỗi mới.
+- Đang chạy: Codex — M4-DL1b v2, M2k-b, MTQ-4a (rủi ro cao), MASK-3 v2 (4/4). Claude — review-lat MTQ-5a, MTQ-2b vòng 2 (2/2). Lead — node E1-4u v3 + dòng giao diện, node MTQ-3a.
+| Việc chưa giao | Lý do chặn |
+|---|---|
+| MTQ-3b (nối màn/route ma trận) | `app.js` đang do E1-4u giữ (tệp dùng chung); giao sau khi E1-4u gộp |
+| MTQ-2c (route khai phòng/gán vai/phạm vi/Admin/khôi phục) | chờ MTQ-2b qua review (cùng 2 tệp dịch vụ/HTTP) |
+| M4-DL3 (PL/BOQ) | cùng tệp `review_data_pg.py` với DL2 — chờ DL2 gộp |
+| MTQ-4b…4m | nối tiếp MTQ-4a (adapter chung); mỗi lát cần review Opus |
+| Nạp dữ liệu Review thật (CD-011 bước 4) | **Cần Anh**: bảng ánh xạ `ma_hd → HĐ/pháp nhân/dự án` |
+| M3 | **Cần Anh**: 15 câu checklist M3 |
