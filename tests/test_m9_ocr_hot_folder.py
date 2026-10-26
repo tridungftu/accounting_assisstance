@@ -12,6 +12,7 @@ import time
 from types import SimpleNamespace
 import unittest
 from unittest.mock import patch
+import uuid
 import zipfile
 
 from kho_tri_thuc.ha_tang.primitives import DataError
@@ -46,9 +47,10 @@ def _docx_demo():
 
 class HotFolderM9Tests(unittest.TestCase):
     def setUp(self):
-        tam = tempfile.TemporaryDirectory(prefix="m9_ocr_demo_")
-        self.addCleanup(tam.cleanup)
-        self.goc = Path(tam.name)
+        # Giữ lại dữ liệu DEMO; mỗi ca có gốc riêng dù runner đổi thư mục tạm.
+        self.goc = Path(tempfile.mkdtemp(prefix=f"m9_ocr_demo_{uuid.uuid4().hex}_"))
+        self.giu_tep = os.environ.get("CODEX_NO_DELETE_FILES", "").strip().lower() in (
+            "1", "true", "yes", "on")
         self.hot = self.goc / "hot_demo"
         self.du_lieu = self.goc / "du_lieu_demo"
         self.bo_noi = self._moi()
@@ -68,6 +70,8 @@ class HotFolderM9Tests(unittest.TestCase):
         dung = threading.Event()
         hang = Queue()
         replace = os.replace
+        da_nhan = self.goc / "abbyy_da_nhan_demo"
+        da_nhan.mkdir()
 
         def doi(src, dst):
             ket_qua = replace(src, dst)
@@ -88,7 +92,8 @@ class HotFolderM9Tests(unittest.TestCase):
                     try:
                         self.da_thay.append(tep.read_bytes())
                         ma = tep.stem
-                        tep.unlink()  # Chỉ file DEMO trong TemporaryDirectory.
+                        # ABBYY lấy file khỏi in; vẫn mô phỏng được khi guard giữ tệp.
+                        replace(tep, da_nhan / tep.name)
                     finally:
                         nhan.set()
                     if xu_ly:
@@ -133,9 +138,13 @@ class HotFolderM9Tests(unittest.TestCase):
         return xong, ket_qua, loi
 
     def _sach(self):
-        for ten in ("in", "out", "tam", "nhan"):
-            with self.subTest(thu_muc=ten):
-                self.assertEqual(list((self.hot / ten).iterdir()), [])
+        # Chỉ skip phần dọn; các kiểm tra kết quả/sổ trang của ca vẫn chạy tiếp.
+        with self.subTest(kiem_tra="don_tep"):
+            if self.giu_tep:
+                self.skipTest("guard giữ tệp của runner kiểm thử")
+            for ten in ("in", "out", "tam", "nhan"):
+                with self.subTest(thu_muc=ten):
+                    self.assertEqual(list((self.hot / ten).iterdir()), [])
 
     def _so(self):
         return self.du_lieu / "ocr_hot_folder_m9" / "so_trang.json"
@@ -213,7 +222,11 @@ class HotFolderM9Tests(unittest.TestCase):
         self.assertTrue(da_ra.wait(CHO))
         self.assertEqual(len(hen), 1)
         hen[0].lam()
-        self.assertEqual([p.name for p in (self.hot / "out").iterdir()], ["nguoi_dung.demo"])
+        self.assertEqual((self.hot / "out" / "nguoi_dung.demo").read_bytes(), b"DEMO")
+        if self.giu_tep:
+            self.assertEqual([p.read_bytes() for p in (self.hot / "out").glob("m9_*.docx")], [self.docx])
+        else:
+            self.assertEqual([p.name for p in (self.hot / "out").iterdir()], ["nguoi_dung.demo"])
         self.assertEqual(self._trang(), 1)
 
     def test_huy_truoc_khi_gui_khong_tao_file(self):
@@ -431,7 +444,8 @@ class HotFolderM9Tests(unittest.TestCase):
         self._gia()
         self.assertEqual(self.bo_noi.ocr(self.pdf, "pdf"), self.docx)
         for ten in ("out", "tam", "nhan"):
-            self.assertEqual([tep.name for tep in d[ten].iterdir()], ["nguoi_dung.demo"])
+            if not self.giu_tep:
+                self.assertEqual([tep.name for tep in d[ten].iterdir()], ["nguoi_dung.demo"])
             self.assertEqual((d[ten] / "nguoi_dung.demo").read_bytes(), b"DEMO giu nguyen")
 
 
