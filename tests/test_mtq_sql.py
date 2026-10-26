@@ -381,8 +381,17 @@ class MtqPostgres(unittest.TestCase):
     def test_thu_hoi_pham_vi_hieu_luc_ngay_va_nguon_chua_resolve_bi_chan(self):
         _, g, s, _ = self.cau_hinh()
         self.actor(self.admin)
-        self.loi("MTQ_CAN_RESOLVER_MTQ4", lambda: self.ghi("PHAM_VI", {
+        self.loi("MTQ_NGUON_KHOA", lambda: self.ghi("PHAM_VI", {
             "gan_vai_id": g["id"], "phap_nhan_id": str(self.pn), "loai": "NGUON", "khoa": "NGUON-DEMO"}))
+        # Profile hợp lệ nhưng chưa có ánh xạ định tuyến hiện hành vẫn bị chặn.
+        inst = "MTQ_NGUON_DEMO_" + uuid.uuid4().hex
+        self.c.execute("INSERT INTO master.nguon_instance (source_instance_id) VALUES (%s)", (inst,))
+        self.c.execute("""INSERT INTO master.nguon_profile
+            (source_instance_id,profile_ref,profile_sha256,payload)
+            VALUES (%s,'PROFILE_DEMO',%s,'{}'::jsonb)""", (inst, "a" * 64))
+        self.loi("MTQ_NGUON_ANH_XA", lambda: self.ghi("PHAM_VI", {
+            "gan_vai_id": g["id"], "phap_nhan_id": str(self.pn), "loai": "NGUON",
+            "khoa": "INVOICE_SET|" + inst + "|CTY DEMO"}))
         self.ghi("THU_HOI_PHAM_VI", {"id": s["id"]}, s["revision"])
         self.actor(self.user)
         self.assertEqual(self.quyet(s["id"])["ma"], "MTQ_PHAM_VI")
