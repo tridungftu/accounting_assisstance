@@ -109,7 +109,40 @@ MTQ_M4_B_SQL = (
             END CASE;
             IF pn IS NULL OR NOT EXISTS (SELECT 1 FROM master.phap_nhan WHERE id = pn) THEN RETURN false; END IF;
             IF NOT EXISTS (SELECT 1 FROM master.mtq_kich_hoat WHERE phap_nhan_id = pn AND bat) THEN RETURN NULL; END IF;
-            RETURN master.mtq_duoc_doc('M4:HO_SO:' || p_hanh, jsonb_build_object('bang', p_bang, 'id', p_id)) IS TRUE;
+            IF master.mtq_duoc_doc('M4:HO_SO:' || p_hanh, jsonb_build_object('bang', p_bang, 'id', p_id)) IS TRUE THEN
+                RETURN true;
+            END IF;
+            IF p_hanh <> 'XEM' THEN RETURN false; END IF;
+            -- KK-MTQ4-M4 §1–§2: ô Xem bước sau không mở dữ liệu nháp.
+            -- 02A/02B/02C giải trên đợt; 03A chỉ giải trên dòng chờ KT thật.
+            IF p_bang = 'm4.dot' THEN
+                RETURN EXISTS (SELECT 1 FROM m4.dot d WHERE d.id = p_id AND d.trang_thai = 'DA_NOP'
+                    AND (master.mtq_duoc_doc('M4:02A_REVIEW:XEM', jsonb_build_object('bang', 'm4.dot', 'id', d.id)) IS TRUE
+                      OR master.mtq_duoc_doc('M4:02B_CHUNG_TU:XEM', jsonb_build_object('bang', 'm4.dot', 'id', d.id)) IS TRUE
+                      OR master.mtq_duoc_doc('M4:02C_DUYET:XEM', jsonb_build_object('bang', 'm4.dot', 'id', d.id)) IS TRUE
+                      OR EXISTS (SELECT 1 FROM m4.duyet_kt_cho c
+                          WHERE c.dot_id = d.id AND c.du_an_id = d.du_an_id AND c.hop_dong_id = d.hop_dong_id
+                            AND c.phap_nhan_id = pn
+                            AND master.mtq_duoc_doc('M4:03A_KE_TOAN:XEM',
+                                jsonb_build_object('bang', 'm4.duyet_kt_cho', 'id', c.id)) IS TRUE)));
+            ELSIF p_bang = 'm4.tep' THEN
+                -- Cần lead: tệp ngoài liên kết dot_tep chưa rõ ô Xem bước sau;
+                -- giữ chặt: chỉ tệp hồ sơ đợt đã nộp, đúng phạm vi từng đợt.
+                RETURN EXISTS (SELECT 1 FROM m4.tep t JOIN m4.dot_tep k ON k.tep_id = t.id AND k.du_an_id = t.du_an_id
+                    JOIN m4.dot d ON d.id = k.dot_id AND d.du_an_id = t.du_an_id
+                    WHERE t.id = p_id AND t.vai_tro_tai_lieu = 'HO_SO_DOT' AND d.trang_thai = 'DA_NOP'
+                      -- Không suy HO_SO:XEM trên HĐ thành quyền tệp: resolver
+                      -- của tệp vẫn chỉ có dự án, như hợp đồng M0048 hiện tại.
+                      AND (master.mtq_duoc_doc('M4:02A_REVIEW:XEM', jsonb_build_object('bang', 'm4.dot', 'id', d.id)) IS TRUE
+                        OR master.mtq_duoc_doc('M4:02B_CHUNG_TU:XEM', jsonb_build_object('bang', 'm4.dot', 'id', d.id)) IS TRUE
+                        OR master.mtq_duoc_doc('M4:02C_DUYET:XEM', jsonb_build_object('bang', 'm4.dot', 'id', d.id)) IS TRUE
+                        OR EXISTS (SELECT 1 FROM m4.duyet_kt_cho c
+                            WHERE c.dot_id = d.id AND c.du_an_id = d.du_an_id AND c.hop_dong_id = d.hop_dong_id
+                              AND c.phap_nhan_id = pn
+                              AND master.mtq_duoc_doc('M4:03A_KE_TOAN:XEM',
+                                  jsonb_build_object('bang', 'm4.duyet_kt_cho', 'id', c.id)) IS TRUE)));
+            END IF;
+            RETURN false;
         END $$""",
     """CREATE FUNCTION m4.mau_duoc(p_du_an uuid) RETURNS boolean
         LANGUAGE sql STABLE SECURITY DEFINER

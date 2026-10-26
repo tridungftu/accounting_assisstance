@@ -94,6 +94,18 @@ class MtqM4DocTinh(unittest.TestCase):
             self.assertLess(stmt.index('ELSIF NOT m4.mau_duoc'), stmt.index('SELECT coalesce(jsonb_agg'))
         self.assertIn("m4.mtq_ho_so_doc('master.hop_dong', h.id, 'LAP')", AFTER['m4.master_hop_dong_ds'])
 
+    def test_o_xem_buoc_sau_giu_trang_thai_va_fk_that(self):
+        stmt = AFTER['m4.mtq_ho_so_doc']
+        self.assertLess(stmt.index("'M4:HO_SO:' || p_hanh"), stmt.index("IF p_hanh <> 'XEM'"))
+        for screen in ('02A_REVIEW', '02B_CHUNG_TU', '02C_DUYET', '03A_KE_TOAN'):
+            self.assertIn(f"'M4:{screen}:XEM'", stmt)
+        self.assertEqual(stmt.count("d.trang_thai = 'DA_NOP'"), 2)
+        self.assertIn("t.vai_tro_tai_lieu = 'HO_SO_DOT'", stmt)
+        self.assertIn('k.tep_id = t.id AND k.du_an_id = t.du_an_id', stmt)
+        self.assertIn('c.dot_id = d.id AND c.du_an_id = d.du_an_id AND c.hop_dong_id = d.hop_dong_id', stmt)
+        self.assertIn("jsonb_build_object('bang', 'm4.duyet_kt_cho', 'id', c.id)", stmt)
+        self.assertIn('Cần lead', stmt)
+
     def test_cau_tu_choi_tieng_viet_khong_khoa_ky_thuat(self):
         messages = re.findall(r"RAISE EXCEPTION '([^']*cần chọn dự án[^']*)'", '\n'.join(MIGRATION))
         self.assertEqual(len(messages), 2)
@@ -209,7 +221,7 @@ class _M4DocPgFixture:
                 result['master'] = self.c.execute('SELECT m4.master_can_cu_doc(%s)', (self.f['hd'],)).fetchone()[0]
                 if selectors:
                     for name in ('master_hop_dong_ds', 'master_doi_tac_ds'):
-                        result[name] = self.c.execute('SELECT m4.' + name + "(%s,'',100)", (self.f['da'],)).fetchone()[0]
+                        result[name] = self.c.execute('SELECT m4.' + name + "(%s,'',50)", (self.f['da'],)).fetchone()[0]
                 return result
             finally:
                 self.c.execute('ROLLBACK TO SAVEPOINT m4_doc_oracle')
@@ -258,6 +270,40 @@ class MtqM4DocPostgres(_M4DocPgFixture, unittest.TestCase):
         self.assertEqual(len(result['review_chep_thay_doi_tham_so']), 1)
         self.assertEqual(len(result['review_chep_kl_thanh_toan']), 1)
 
+    def test_cung_pham_vi_review_chi_da_nop_ho_so_xem_ca_nhap(self):
+        # Nộp bằng lệnh thật khi PN tắt; giữ nguyên trigger và căn cứ M17.
+        self.legacy(self.f)
+        self.c.execute('SELECT m4.nop(%s,%s,1,1)', (uuid.uuid4().hex, self.f['dot']))
+        owner = self.nguoi('XEM')
+        self.actor(self.admin)
+        version = self.nhap()
+        for phong in (self.phong, self.phong2):
+            for vai in nen.VAI:
+                row = self.sua_nhap(version, 'DONG', {'phong_id': phong, 'vai': vai, 'gioi_han_vnd': 0})
+                if phong == self.phong and vai in ('TRUONG_PHONG', 'NGUOI_XEM'):
+                    self.sua_nhap(version, 'O', {'dong_id': row['id'], 'module': 'M4',
+                        'man': '02A_REVIEW' if vai == 'TRUONG_PHONG' else 'HO_SO',
+                        'hanh_dong': 'XEM', 'cho_phep': True})
+        self.sua_nhap(version, 'CONG_BO', {})
+        for actor, vai in ((self.user, 'TRUONG_PHONG'), (owner, 'NGUOI_XEM')):
+            grant = self.ghi('GAN_VAI', {'nguoi_dung_id': str(actor[0]), 'phap_nhan_id': str(self.pn),
+                'phong_id': self.phong, 'vai': vai})
+            self.ghi('PHAM_VI', {'gan_vai_id': grant['id'], 'phap_nhan_id': str(self.pn),
+                'loai': 'DU_AN', 'khoa': str(self.f['da'])})
+        self.san_sang()
+        self.ghi('KICH_HOAT', {'phap_nhan_id': str(self.pn), 'phien_ban_id': version['id'], 'bat': True})
+        self.actor(self.user)
+        review = self.snapshot()
+        self.assertEqual({r['id'] for r in review['dot']}, {str(self.f['dot'])})
+        self.assertEqual({r['dot_id'] for r in review['dot_tep']}, {str(self.f['dot'])})
+        self.assertEqual({r['id'] for r in review['tep']}, {str(self.f['t_dot'])})
+        self.actor(owner)
+        ho_so_doc = self.snapshot()
+        self.assertEqual({r['id'] for r in ho_so_doc['dot']}, {str(self.f['dot']), str(self.g['dot'])})
+        self.assertEqual({r['dot_id'] for r in ho_so_doc['dot_tep']}, {str(self.f['dot']), str(self.g['dot'])})
+        self.assertEqual({r['id'] for r in ho_so_doc['tep']},
+                         {str(f[key]) for f in (self.f, self.g) for key in ('t_hd', 't_hd2', 't_pl', 't_boq', 't_dot')})
+
     def test_khong_tick_xem_khong_fallback_soan_cu(self):
         self.legacy(self.f, self.h)
         self.configure(actions=(), scope='PHAP_NHAN')
@@ -274,10 +320,10 @@ class MtqM4DocPostgres(_M4DocPgFixture, unittest.TestCase):
             self.assertTrue(self.c.execute('SELECT m4.mau_duoc(%s)', (self.f['da'],)).fetchone()[0])
             self.assertFalse(self.c.execute('SELECT m4.mau_duoc(NULL)').fetchone()[0])
             self.assertFalse(self.c.execute('SELECT m4.mau_duoc(%s)', (self.h['da'],)).fetchone()[0])
-            result = self.c.execute("SELECT m4.master_hop_dong_ds(%s,'',100)", (self.f['da'],)).fetchone()[0]
+            result = self.c.execute("SELECT m4.master_hop_dong_ds(%s,'',50)", (self.f['da'],)).fetchone()[0]
             self.assertEqual({r['hop_dong_id'] for r in result['items']}, {str(self.f['hd']), str(self.g['hd'])})
             self.assertNotIn(str(crm['hd']), str(result))
-            self.assertTrue(self.c.execute("SELECT m4.master_doi_tac_ds(%s,'',100)", (self.f['da'],)).fetchone()[0]['items'])
+            self.assertTrue(self.c.execute("SELECT m4.master_doi_tac_ds(%s,'',50)", (self.f['da'],)).fetchone()[0]['items'])
             self.assertEqual(self.c.execute('SELECT id FROM master.hop_dong WHERE id=%s', (crm['hd'],)).fetchall(), [])
 
     def test_b6_xem_khong_suy_thanh_lap_va_thieu_du_an_bi_chan(self):
@@ -288,8 +334,18 @@ class MtqM4DocPostgres(_M4DocPgFixture, unittest.TestCase):
                     with self.assertRaises(psycopg.Error) as cm:
                         with self.c.transaction():
                             self.c.execute('SET LOCAL ROLE app_web')
-                            self.c.execute('SELECT m4.' + name + "(%s,'',100)", (project,))
+                            self.c.execute('SELECT m4.' + name + "(%s,'',50)", (project,))
                     self.assertIn('cần chọn dự án', str(cm.exception))
+
+    def test_bo_chon_limit_100_bi_chan(self):
+        self.configure(actions=('LAP',), scope='DU_AN', key=self.f['da'])
+        for name in ('master_hop_dong_ds', 'master_doi_tac_ds'):
+            with self.subTest(name=name):
+                with self.assertRaises(psycopg.Error) as cm:
+                    with self.c.transaction():
+                        self.c.execute('SET LOCAL ROLE app_web')
+                        self.c.execute('SELECT m4.' + name + "(%s,'',100)", (self.f['da'],))
+                self.assertIn('M4_THAM_SO_SAI', str(cm.exception))
 
     def test_pn_a_bat_khong_doi_pn_b_tat(self):
         b = self.fixture(self.pn2)
@@ -346,8 +402,8 @@ class MtqM4DocReadOnlyPostgres(_M4DocPgFixture, unittest.TestCase):
         self.assertIsNotNone(self.c.execute('SELECT m4.digest_tham_so(%s)', (self.f['hd'],)).fetchone()[0])
         self.assertTrue(self.c.execute('SELECT m4.tep_da_nop(%s)', (self.f['t_hd'],)).fetchone()[0] is False)
         self.assertEqual(self.c.execute('SELECT m4.thieu(%s)', (self.f['dot'],)).fetchone()[0], [])
-        self.assertEqual(len(self.c.execute("SELECT m4.master_hop_dong_ds(%s,'',100)", (self.f['da'],)).fetchone()[0]['items']), 2)
-        self.assertTrue(self.c.execute("SELECT m4.master_doi_tac_ds(%s,'',100)", (self.f['da'],)).fetchone()[0]['items'])
+        self.assertEqual(len(self.c.execute("SELECT m4.master_hop_dong_ds(%s,'',50)", (self.f['da'],)).fetchone()[0]['items']), 2)
+        self.assertTrue(self.c.execute("SELECT m4.master_doi_tac_ds(%s,'',50)", (self.f['da'],)).fetchone()[0]['items'])
 
 
 if __name__ == '__main__':
