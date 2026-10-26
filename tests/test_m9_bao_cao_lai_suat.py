@@ -1,14 +1,16 @@
-"""M9-4a: dữ liệu DEMO giả, tính thuần và đọc Excel trong bộ nhớ."""
+"""M9-4a/b: DEMO giả, tính thuần, trích hợp đồng và đọc Excel trong bộ nhớ."""
 
 from copy import deepcopy
 from datetime import date, datetime, timedelta
 from decimal import Decimal, localcontext
 from io import BytesIO
 import unittest
+from unittest.mock import call, patch
 
 from openpyxl import load_workbook
 
 from kho_tri_thuc.m9.bao_cao_lai_suat import lap_bao_cao, xuat_excel
+from kho_tri_thuc.m9.chi_muc_vay import ChiMucVay
 
 
 _NGAY = date(2026, 10, 26)
@@ -42,6 +44,108 @@ def _ba_khoan():
 
 def _lap(*khoan):
     return lap_bao_cao(_snapshot(*khoan), ngay_bao_cao=_NGAY)
+
+
+_CHU_DE = ("biên độ lãi suất", "điều chỉnh lãi suất", "phí trả nợ trước hạn")
+_CAU_DEMO = (
+    "Biên độ lãi suất DEMO là 2,75%/năm; giữ NGUYÊN chữ gốc.",
+    "Điều chỉnh lãi suất DEMO định kỳ 03 tháng một lần.",
+    '=Phí trả nợ trước hạn DEMO là 1,25% số tiền trả trước; "nguyên văn".',
+)
+
+
+def _chi_muc_demo():
+    chi_muc = ChiMucVay()
+    for ma, ten, cac_cau in (
+            ("HD-DEMO-A", "Hợp đồng DEMO A.docx", _CAU_DEMO),
+            ("HD-DEMO-B", "Hợp đồng DEMO B.docx", _CAU_DEMO[:2]),
+            ("HD-DEMO-KHAC", "Hợp đồng DEMO khác.docx", (
+                "Biên độ lãi suất khoản KHÁC là 99%/năm.",
+                "Điều chỉnh lãi suất khoản KHÁC mỗi ngày.",
+                "Phí trả nợ trước hạn khoản KHÁC là 99%.",
+            ))):
+        chi_muc.them(ma, ten, [
+            {"trang_dau": i + 2, "trang_cuoi": i + 3,
+             "dieu": str(i + 4), "khoan": str(i + 1), "diem": None,
+             "ma_doan": f"DEMO-{i}", "cau": [cau]}
+            for i, cau in enumerate(cac_cau)
+        ])
+    return chi_muc
+
+
+def _lap_co_trich_dan(*khoan):
+    return lap_bao_cao(
+        _snapshot(*khoan), ngay_bao_cao=_NGAY, chi_muc=_chi_muc_demo(),
+        tai_lieu_theo_khoan_vay={"DEMO-01": {"HD-DEMO-A"}, "DEMO-02": {"HD-DEMO-B"}},
+    )
+
+
+class TrichDanHopDongTests(unittest.TestCase):
+    def test_du_ba_chu_de_nguyen_van_va_nguon_khong_sua_dau_vao(self):
+        chi_muc = _chi_muc_demo()
+        snapshot = _snapshot(_khoan())
+        anh_xa = {"DEMO-01": {"HD-DEMO-A"}}
+        truoc = deepcopy((snapshot, anh_xa, chi_muc.to_dict()))
+        bc = lap_bao_cao(snapshot, ngay_bao_cao=_NGAY, chi_muc=chi_muc,
+                         tai_lieu_theo_khoan_vay=anh_xa)
+        self.assertEqual((snapshot, anh_xa, chi_muc.to_dict()), truoc)
+        k = bc["khoan_vay"][0]
+        self.assertEqual(k["dieu_khoan_lien_quan_toi_dam_phan"], [
+            {"chu_de": chu_de, "ten_tep": "Hợp đồng DEMO A.docx",
+             "trang": f"{i + 2}-{i + 3}", "dieu": str(i + 4),
+             "khoan": str(i + 1), "cau": _CAU_DEMO[i]}
+            for i, chu_de in enumerate(_CHU_DE)
+        ])
+        self.assertEqual(k["ghi_chu"], "")
+        # Chỉ thêm trích dẫn, không suy số từ tỷ lệ ghi trong hợp đồng.
+        cu = _lap(_khoan())["khoan_vay"][0]
+        for truong in cu.keys() - {"ghi_chu", "dieu_khoan_lien_quan_toi_dam_phan"}:
+            self.assertEqual(k[truong], cu[truong])
+
+    def test_thieu_phi_va_khong_lay_cau_tu_hop_dong_khac(self):
+        bc = _lap_co_trich_dan(_khoan(), _khoan("DEMO-02"))
+        k = next(k for k in bc["khoan_vay"] if k["ma_khoan_vay"] == "DEMO-02")
+        muc = k["dieu_khoan_lien_quan_toi_dam_phan"]
+        self.assertEqual([m["cau"] for m in muc[:2]], list(_CAU_DEMO[:2]))
+        self.assertTrue(all(m["ten_tep"] == "Hợp đồng DEMO B.docx" for m in muc[:2]))
+        self.assertEqual(muc[2], {
+            "chu_de": "phí trả nợ trước hạn", "ten_tep": None, "trang": None,
+            "dieu": None, "khoan": None, "cau": "Không thấy trong hợp đồng",
+        })
+
+    def test_dung_ba_truy_van_moi_khoan_toi_da_mot_cau(self):
+        chi_muc = _chi_muc_demo()
+        anh_xa = {"DEMO-01": {"HD-DEMO-A"}, "DEMO-02": {"HD-DEMO-B"}}
+        with patch.object(chi_muc, "tim", wraps=chi_muc.tim) as tim:
+            lap_bao_cao(_snapshot(_khoan(), _khoan("DEMO-02")),
+                         ngay_bao_cao=_NGAY, chi_muc=chi_muc,
+                         tai_lieu_theo_khoan_vay=anh_xa)
+        self.assertEqual(tim.call_args_list, [
+            call(chu_de, so_ket_qua=1, loc_tai_lieu=anh_xa[ma])
+            for ma in ("DEMO-01", "DEMO-02") for chu_de in _CHU_DE
+        ])
+
+    def test_anh_xa_rong_thieu_ma_rong_id_va_id_khong_ton_tai_khong_tim_toan_bo(self):
+        for anh_xa in ({}, {"DEMO-KHAC": {"HD-DEMO-KHAC"}},
+                        {"DEMO-01": set()}, {"DEMO-01": {"KHONG-CO"}}):
+            with self.subTest(anh_xa=anh_xa):
+                chi_muc = _chi_muc_demo()
+                with patch.object(chi_muc, "tim", wraps=chi_muc.tim) as tim:
+                    bc = lap_bao_cao(_snapshot(_khoan()), ngay_bao_cao=_NGAY,
+                                     chi_muc=chi_muc, tai_lieu_theo_khoan_vay=anh_xa)
+                self.assertEqual(tim.call_count, 3)
+                muc = bc["khoan_vay"][0]["dieu_khoan_lien_quan_toi_dam_phan"]
+                self.assertEqual([m["cau"] for m in muc], ["Không thấy trong hợp đồng"] * 3)
+                self.assertTrue(all(m["ten_tep"] is None for m in muc))
+
+    def test_thieu_mot_tham_so_giu_nguyen_toan_bo_bao_cao_cu(self):
+        snapshot = _snapshot(*_ba_khoan(), _khoan("DEMO-THIEU", lai_suat_nam=None))
+        cu = lap_bao_cao(snapshot, ngay_bao_cao=_NGAY)
+        for tham_so in ({"chi_muc": _chi_muc_demo()},
+                         {"tai_lieu_theo_khoan_vay": {"DEMO-01": {"HD-DEMO-A"}}},
+                         {"chi_muc": None, "tai_lieu_theo_khoan_vay": None}):
+            with self.subTest(tham_so=tham_so):
+                self.assertEqual(lap_bao_cao(snapshot, ngay_bao_cao=_NGAY, **tham_so), cu)
 
 
 class BaoCaoLaiSuatTests(unittest.TestCase):
@@ -197,6 +301,30 @@ class XuatExcelTests(unittest.TestCase):
         dong = next(o.row for hang in ws for o in hang if o.value == "Mã khoản vay")
         cot = {o.value: o.column for o in ws[dong] if o.value is not None}
         return ws, dong, cot
+
+    def test_excel_dieu_khoan_nguyen_van_co_trich_dan_va_khong_cong_thuc(self):
+        bc = _lap_co_trich_dan(_khoan(), _khoan("DEMO-02"))
+        truoc = deepcopy(bc)
+        ws, dong, cot = self._doc(bc)
+        self.assertEqual(bc, truoc)
+        for i, (ma, ten) in enumerate((("DEMO-01", "A"), ("DEMO-02", "B")), 1):
+            self.assertEqual(ws.cell(dong + i, cot["Mã khoản vay"]).value, ma)
+            mong_doi = []
+            for j, chu_de in enumerate(_CHU_DE):
+                if ten == "B" and j == 2:
+                    mong_doi.append(chu_de + ": Không thấy trong hợp đồng")
+                else:
+                    mong_doi.append(
+                        f"{chu_de}: {_CAU_DEMO[j]} (Hợp đồng DEMO {ten}.docx, "
+                        f"trang {j + 2}-{j + 3}, Điều {j + 4}, Khoản {j + 1})")
+            o = ws.cell(dong + i, cot["Điều khoản liên quan tới đàm phán"])
+            self.assertEqual(o.value, "\n".join(mong_doi))
+            self.assertEqual(o.data_type, "s")
+        for hang in ws:
+            for o in hang:
+                self.assertNotEqual(o.data_type, "f")
+                if isinstance(o.value, str):
+                    self.assertNotIn("chờ nối trích dẫn hợp đồng (M9-2)", o.value)
 
     def test_excel_tieu_de_so_ngay_khong_cong_thuc(self):
         bc = _lap(*_ba_khoan(), _khoan("DEMO-THIEU", lai_suat_nam=None))
