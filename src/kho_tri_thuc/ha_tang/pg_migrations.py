@@ -12483,3 +12483,10 @@ from ..k2.sql_hang_viec import HANG_VIEC_B_SQL  # noqa: E402 — chỉ hằng SQ
 M0062_HANG_VIEC_B = HANG_VIEC_B_SQL
 PG_MIGRATIONS = (*PG_MIGRATIONS, M0062_HANG_VIEC_B)
 PG_SCHEMA_VERSION = len(PG_MIGRATIONS)
+
+# BO-1b — QD-09: thao tác BOQ tường minh; giữ thân writer hiện hành M0055.
+from ..m4.sql_boq_bo import M4_BOQ_BO_B_SQL  # noqa: E402 — chỉ các cặp SQL
+
+M0063_M4_BOQ_BO_B = (_m36_thay(_m37_ham("m4.ghi_boq"), *M4_BOQ_BO_B_SQL),)
+PG_MIGRATIONS = (*PG_MIGRATIONS, M0063_M4_BOQ_BO_B)
+PG_SCHEMA_VERSION = len(PG_MIGRATIONS)

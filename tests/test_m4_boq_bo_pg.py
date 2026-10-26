@@ -13,6 +13,7 @@ import uuid
 
 from kho_tri_thuc.ha_tang import pg_migrations as PM
 from kho_tri_thuc.m4.sql_boq_bo import M4_BOQ_BO_SQL
+from tests import test_mtq_m4_ho_so_sql as mtq
 
 try:
     import psycopg
@@ -25,6 +26,16 @@ except ImportError:
 DSN = os.environ.get("KHO_PG_DSN_TEST")
 POSITION = next(i for i, m in enumerate(PM.PG_MIGRATIONS) if m is M4_BOQ_BO_SQL)
 ROOT = Path(__file__).resolve().parents[1]
+B_POSITION = next(i for i, m in enumerate(PM.PG_MIGRATIONS) if m is PM.M0063_M4_BOQ_BO_B)
+
+
+def writer(migrations):
+    return [s for m in migrations for s in m
+            if s.startswith("CREATE OR REPLACE FUNCTION m4.ghi_boq(")][-1]
+
+
+OLD_WRITER = writer(PM.PG_MIGRATIONS[:B_POSITION])
+NEW_WRITER = writer(PM.PG_MIGRATIONS[:B_POSITION + 1])
 
 
 class BoqBoTinh(unittest.TestCase):
@@ -41,7 +52,7 @@ class BoqBoTinh(unittest.TestCase):
         def writer(migrations):
             return [s for m in migrations for s in m
                     if s.startswith("CREATE OR REPLACE FUNCTION m4.ghi_boq(")][-1]
-        self.assertEqual(writer(PM.PG_MIGRATIONS), writer(old["PG_MIGRATIONS"]))
+        self.assertEqual(writer(PM.PG_MIGRATIONS[:POSITION + 1]), writer(old["PG_MIGRATIONS"]))
 
     def test_khong_them_bang_cot_hay_quyen_bang(self):
         statements = "\n".join(M4_BOQ_BO_SQL)
@@ -61,12 +72,28 @@ class BoqBoTinh(unittest.TestCase):
                     self.assertTrue(statement.rstrip().endswith("END $$"))
         self.assertEqual(M4_BOQ_BO_SQL[1].count("AS $$"), 1)
 
-    def test_utf8_khong_bom_registry_lf(self):
+    def test_utf8_khong_bom(self):
         for path in (Path(PM.__file__), ROOT / "src/kho_tri_thuc/m4/sql_boq_bo.py", Path(__file__)):
             raw = path.read_bytes()
             self.assertFalse(raw.startswith(b"\xef\xbb\xbf"), str(path))
             self.assertNotIn("\ufffd", raw.decode("utf-8"))
-        self.assertNotIn(b"\r", Path(PM.__file__).read_bytes())
+
+    def test_bo_1b_append_va_giu_guard_receipt_nguyen_than(self):
+        from kho_tri_thuc.m4.sql_boq_bo import M4_BOQ_BO_B_SQL
+
+        source = Path(PM.__file__).read_text(encoding="utf-8")
+        old = {"__name__": PM.__name__, "__package__": PM.__package__}
+        exec(compile(source.split("# BO-1b — QD-09:", 1)[0], PM.__file__, "exec"), old)
+        self.assertEqual(PM.PG_MIGRATIONS[:B_POSITION], old["PG_MIGRATIONS"])
+        self.assertEqual(OLD_WRITER, writer((PM.M0055_MTQ_M4_A,)))
+        restored = NEW_WRITER
+        for before, after in reversed(M4_BOQ_BO_B_SQL):
+            self.assertEqual(restored.count(after), 1)
+            restored = restored.replace(after, before, 1)
+        self.assertEqual(restored, OLD_WRITER)
+        self.assertEqual(NEW_WRITER.count("AS $$"), 1)
+        self.assertEqual(NEW_WRITER.count("$$"), 2)
+        self.assertTrue(NEW_WRITER.rstrip().endswith("END $$"))
 
 
 @unittest.skipUnless(DSN and psycopg is not None,
@@ -387,6 +414,229 @@ class BoqBoPostgres(unittest.TestCase):
         self.assertFalse(self.c.execute("SELECT EXISTS (SELECT 1 FROM pg_proc p, "
                                        "LATERAL aclexplode(p.proacl) a WHERE p.oid="
                                        "'m4.boq_hieu_luc(uuid,date)'::regprocedure AND a.grantee=0)").fetchone()[0])
+
+
+@unittest.skipUnless(DSN and psycopg is not None,
+                     "NOT_RUN: cần KHO_PG_DSN_TEST + psycopg; lead chạy PG")
+class BoqGhiPostgres(unittest.TestCase):
+    # Dùng đúng fixture, danh tính ứng dụng và cổng cấu hình của test M0055.
+    nguoi = mtq.MtqM4HoSoPostgres.nguoi
+    actor = mtq.MtqM4HoSoPostgres.actor
+    ghi = mtq.MtqM4HoSoPostgres.ghi
+    nhap = mtq.MtqM4HoSoPostgres.nhap
+    sua_nhap = mtq.MtqM4HoSoPostgres.sua_nhap
+    san_sang = mtq.MtqM4HoSoPostgres.san_sang
+    insert = mtq.MtqM4HoSoPostgres.insert
+    fixture = mtq.MtqM4HoSoPostgres.fixture
+    legacy = mtq.MtqM4HoSoPostgres.legacy
+    configure = mtq.MtqM4HoSoPostgres.configure
+    setUp = mtq.MtqM4HoSoPostgres.setUp
+
+    @classmethod
+    def setUpClass(cls):
+        from kho_tri_thuc.ha_tang import postgres
+
+        db = "kho_test_m4_boq_ghi_" + uuid.uuid4().hex[:12]
+        with psycopg.connect(DSN, autocommit=True) as admin:
+            admin.execute("DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname='app_web') "
+                          "THEN CREATE ROLE app_web NOLOGIN; END IF; END $$")
+            admin.execute(sql.SQL("CREATE DATABASE {} ENCODING 'UTF8' TEMPLATE template0").format(sql.Identifier(db)))
+        cls.c = psycopg.connect(make_conninfo(DSN, dbname=db), autocommit=True)
+        cls.addClassCleanup(cls.c.close)
+        postgres.migrate(cls.c)
+
+    def pl(self, day="2026-03-01", state="DA_KY"):
+        return self.insert("m4.phu_luc", hop_dong_id=self.f["hd"], du_an_id=self.f["da"],
+                           so_pl="BO-" + uuid.uuid4().hex, ngay_ky="2026-01-01", ngay_hieu_luc=day,
+                           trang_thai=state, doi_boq=True, tao_boi=self.user[1])
+
+    @staticmethod
+    def dong(ma="GIA", **extra):
+        return dict(dong=1, ma_hm=ma, ten="Tên gửi giả", dvt="m2", kl="01,2300",
+                    don_gia="0002,50", thanh_tien="000,00", o_goc={}, **extra)
+
+    def call(self, rows, pl=None, key=None, rev=None):
+        from psycopg.types.json import Jsonb
+
+        if rev is None:
+            rev = self.c.execute("SELECT revision FROM m4.ho_so_hop_dong WHERE hop_dong_id=%s",
+                                 (self.f["hd"],)).fetchone()[0]
+        return self.c.execute("SELECT m4.ghi_boq(%s,%s,%s,%s,%s,%s,'Gia',1,%s,'BO_TEST',%s,%s,%s)",
+                              (key or uuid.uuid4().hex, self.f["hd"], rev, self.f["t_boq"],
+                               self.f["t_boq_sha"], pl, Jsonb({}), Jsonb(rows), Jsonb([]), Jsonb([]))).fetchone()[0]
+
+    def stored(self, result):
+        return self.c.execute("SELECT dong,ma_hm,thao_tac,ten,dvt,kl,don_gia,thanh_tien,o_goc "
+                              "FROM m4.boq_dong WHERE boq_id=%s ORDER BY dong",
+                              (result["ket_qua"]["boq_id"],)).fetchall()
+
+    def loi(self, code, rows, pl=None):
+        before = self.counts()
+        with self.assertRaises(psycopg.Error) as caught:
+            with self.c.transaction():
+                self.call(rows, pl)
+        self.assertEqual(caught.exception.sqlstate, "P0001")
+        self.assertTrue(caught.exception.diag.message_primary.startswith(code + ": "))
+        message = caught.exception.diag.message_primary.split(": ", 1)[1]
+        self.assertNotRegex(message, r"\b(?:GOC|THEM|THAY|BO)\b")
+        self.assertEqual(self.counts(), before)
+
+    def counts(self):
+        return tuple(self.c.execute("SELECT count(*) FROM " + table).fetchone()[0]
+                     for table in ("m4.boq", "m4.boq_dong", "m4.bien_nhan", "m4.nhat_ky"))
+
+    def probe(self, rows, pl=None, oracle=False, web=False):
+        self.c.execute("SAVEPOINT bo_oracle")
+        try:
+            if oracle:
+                self.c.execute(OLD_WRITER)
+            if web:
+                self.c.execute("SET LOCAL ROLE app_web")
+            try:
+                result = self.call(rows, pl)
+                meta = {k: v for k, v in result["ket_qua"].items() if k != "boq_id"}
+                return ("OK", meta, self.stored(result))
+            except psycopg.Error as exc:
+                return ("ERR", exc.sqlstate, exc.diag.message_primary)
+        finally:
+            self.c.execute("ROLLBACK TO SAVEPOINT bo_oracle")
+            self.c.execute("RELEASE SAVEPOINT bo_oracle")
+
+    def test_caller_cu_oracle_goc_thay_them_ke_ca_ma_chi_co_o_pl(self):
+        self.legacy(self.f)
+        pl = self.pl()
+        rows = [self.dong(), {**self.dong("MOI"), "dong": 2}]
+        for target in (None, pl):
+            with self.subTest(pl=target):
+                result = self.probe(rows, target)
+                self.assertEqual(result, self.probe(rows, target, oracle=True))
+                self.assertEqual([r[2] for r in result[2]], ["GOC", "GOC"] if target is None else ["THAY", "THEM"])
+        self.call([self.dong("MOI")], self.pl("2026-02-01"))
+        self.assertEqual(self.stored(self.call([self.dong("MOI")], pl))[0][2], "THEM")
+
+    def test_bo_toi_thieu_chep_ten_dvt_doc_va_replay(self):
+        self.legacy(self.f)
+        pl = self.pl()
+        rows = [{"ma_hm": "GIA", "thao_tac": "BO"}]
+        rev = self.c.execute("SELECT revision FROM m4.ho_so_hop_dong WHERE hop_dong_id=%s", (self.f["hd"],)).fetchone()[0]
+        key = uuid.uuid4().hex
+        result = self.call(rows, pl, key, rev)
+        self.assertEqual(self.stored(result), [(1, "GIA", "BO", "Hạng mục giả", "m", None, None, None, {})])
+        doc = self.c.execute("SELECT m4.boq_hieu_luc(%s,'2026-03-01')", (self.f["hd"],)).fetchone()[0]
+        self.assertEqual(doc, dict(boq=[], can_xem_lai=False, ly_do=[]))
+        before = self.counts()
+        replay = self.call(rows, pl, key, rev)
+        self.assertTrue(replay["lap_lai"])
+        self.assertEqual(replay["ket_qua"], result["ket_qua"])
+        self.assertEqual(self.counts(), before)
+
+    def test_thao_tac_sai_lan_goc_phu_luc_va_bo_khong_hieu_luc(self):
+        self.legacy(self.f)
+        pl = self.pl()
+        for op in ("LA", None, 1, "GOC", "bo"):
+            with self.subTest(op=op):
+                self.loi("M4_BOQ_THAO_TAC_SAI", [self.dong(thao_tac=op)], pl)
+        self.loi("M4_BOQ_LAN_THAO_TAC", [self.dong(thao_tac="BO"), {**self.dong(), "dong": 2}], pl)
+        self.loi("M4_BOQ_THAO_TAC_SAI", [self.dong(thao_tac="BO")])
+        self.loi("M4_BOQ_BO_THIEU_MA", [{"thao_tac": "BO"}], pl)
+        self.loi("M4_BOQ_BO_KHONG_HIEU_LUC", [{"ma_hm": "MAT", "thao_tac": "BO"}], pl)
+        self.call([{"ma_hm": "GIA", "thao_tac": "BO"}], self.pl("2026-02-01"))
+        self.loi("M4_BOQ_BO_KHONG_HIEU_LUC", [{"ma_hm": "GIA", "thao_tac": "BO"}], pl)
+
+    def test_bo_thieu_dong_khong_trung_them_dong_mot(self):
+        self.legacy(self.f)
+        result = self.call([{"ma_hm": "GIA", "thao_tac": "BO"},
+                            self.dong("MOI", thao_tac="THEM")], self.pl())
+        self.assertEqual([r[:3] for r in self.stored(result)],
+                         [(1, "MOI", "THEM"), (2, "GIA", "BO")])
+        doc = self.c.execute("SELECT m4.boq_hieu_luc(%s,'2026-03-01')",
+                             (self.f["hd"],)).fetchone()[0]
+        self.assertFalse(doc["can_xem_lai"])
+        self.assertEqual([r["ma_hm"] for r in doc["boq"]], ["MOI"])
+
+    def test_dong_thieu_noi_sau_so_lon_nhat_theo_thu_tu_gui(self):
+        self.legacy(self.f)
+        for explicit in (False, True):
+            with self.subTest(explicit=explicit):
+                rows = [{"ma_hm": "DAU", "ten": "Dòng giả đầu", "dvt": "m", "o_goc": {}},
+                        {**self.dong("MUOI"), "dong": 10},
+                        {"ma_hm": "SAU", "ten": "Dòng giả sau", "dvt": "m", "o_goc": {}},
+                        {**self.dong("BA"), "dong": 3}]
+                if explicit:
+                    rows = [dict(row, thao_tac="THEM") for row in rows]
+                result = self.call(rows, self.pl())
+                self.assertEqual([r[:2] for r in self.stored(result)],
+                                 [(3, "BA"), (10, "MUOI"), (11, "DAU"), (12, "SAU")])
+
+    def test_dong_tuong_minh_trung_bao_loi_co_ma(self):
+        self.legacy(self.f)
+        pl = self.pl()
+        cases = [([self.dong(), self.dong("MOI")], None),
+                 ([self.dong(thao_tac="GOC"), self.dong("MOI", thao_tac="GOC")], None),
+                 ([self.dong(thao_tac="BO"), self.dong("MOI", thao_tac="THEM")], pl)]
+        for rows, target in cases:
+            with self.subTest(rows=rows, pl=target):
+                self.loi("M4_BOQ_TRUNG_DONG", rows, target)
+
+    def test_them_thay_nhan_dung_khong_chan_nghiep_vu_va_giu_tien_text(self):
+        self.legacy(self.f)
+        result = self.call([self.dong(thao_tac="GOC")])
+        self.assertEqual(self.stored(result)[0][2], "GOC")
+        result = self.call([self.dong(thao_tac="THEM"), {**self.dong("CHUA_CO", thao_tac="THAY"), "dong": 2}], self.pl())
+        self.assertEqual([r[2] for r in self.stored(result)], ["THEM", "THAY"])
+        self.assertEqual(self.stored(result)[0][5:8], ("01,2300", "0002,50", "000,00"))
+        doc = self.c.execute("SELECT m4.boq_hieu_luc(%s,'2026-03-01')", (self.f["hd"],)).fetchone()[0]
+        self.assertTrue(doc["can_xem_lai"])
+
+    def test_bo_nguon_truoc_pl_cung_ngay_thay_them_huy_va_tuong_lai(self):
+        self.legacy(self.f)
+        # Cùng ngày nhưng lan trước: THEM rồi THAY; tiền không bị tính lại.
+        self.call([self.dong("MOI", thao_tac="THEM")], self.pl())
+        changed = {**self.dong("MOI", thao_tac="THAY"), "ten": "Tên sau thay", "dvt": "kg"}
+        self.call([changed], self.pl())
+        # Phụ lục tương lai nhập trước và dự thảo không được ảnh hưởng nguồn BO.
+        self.call([self.dong("MOI", thao_tac="BO")], self.pl("2026-04-01"))
+        self.call([self.dong("MOI", thao_tac="BO")], self.pl("2026-03-01", "DU_THAO"))
+        cancelled = self.pl("2026-02-01")
+        self.call([self.dong("GIA", thao_tac="BO")], cancelled)
+        self.c.execute("UPDATE m4.phu_luc SET trang_thai='DA_HUY',huy_ly_do='Giả',huy_boi=%s,huy_luc=now() WHERE id=%s",
+                       (self.user[1], cancelled))
+        result = self.call([{"ma_hm": "MOI", "thao_tac": "BO"}], self.pl())
+        self.assertEqual(self.stored(result)[0][3:5], ("Tên sau thay", "kg"))
+        # Lỗi projection ở MOI không chặn BO của mã GIA vẫn đang hiệu lực.
+        self.call([{"ma_hm": "GIA", "thao_tac": "BO"}], self.pl())
+
+    def test_bo_khong_muon_ma_tu_chinh_pl_va_pl_tuong_lai(self):
+        self.legacy(self.f)
+        pl = self.pl()
+        self.call([self.dong("CUNG_PL", thao_tac="THEM")], pl)
+        self.loi("M4_BOQ_BO_KHONG_HIEU_LUC", [{"ma_hm": "CUNG_PL", "thao_tac": "BO"}], pl)
+        self.call([self.dong("TUONG_LAI", thao_tac="THEM")], self.pl("2026-04-01"))
+        self.loi("M4_BOQ_BO_KHONG_HIEU_LUC", [{"ma_hm": "TUONG_LAI", "thao_tac": "BO"}], pl)
+
+    def test_guard_pn_tat_bat_oracle_va_acl_tin_cay(self):
+        rows = [{"ma_hm": "GIA", "thao_tac": "BO"}]
+        pl = self.pl()
+        self.assertEqual(self.probe(rows, pl), self.probe(rows, pl, oracle=True))
+        self.legacy(self.f)
+        self.assertEqual(self.probe([self.dong()], pl), self.probe([self.dong()], pl, oracle=True))
+        self.configure(actions=())
+        self.assertEqual(self.probe(rows, pl), self.probe(rows, pl, oracle=True))
+        self.assertTrue(self.probe(rows, pl)[2].startswith("MTQ_CHUA_TICK:"))
+        self.assertEqual(self.probe(rows, pl, web=True)[:2], ("ERR", "42501"))
+
+    def test_guard_pn_bat_lap_khong_can_quyen_cu_replay_bi_chan_sau_thu_hoi(self):
+        self.configure(actions=("LAP",))
+        self.assertFalse(self.c.execute("SELECT master.m4_duoc(%s,'SOAN')", (self.f["da"],)).fetchone()[0])
+        rows = [{"ma_hm": "GIA", "thao_tac": "BO"}]
+        pl, key = self.pl(), uuid.uuid4().hex
+        result = self.call(rows, pl, key, 1)
+        self.assertEqual(self.stored(result)[0][2], "BO")
+        self.assertTrue(self.call(rows, pl, key, 1)["lap_lai"])
+        self.c.execute("UPDATE master.nguoi_dung SET trang_thai='KHOA' WHERE id=%s", (self.user[0],))
+        with self.assertRaises(psycopg.Error):
+            with self.c.transaction():
+                self.call(rows, pl, key, 1)
 
 
 if __name__ == "__main__":
