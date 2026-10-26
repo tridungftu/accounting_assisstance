@@ -318,16 +318,21 @@ class ChuyenReviewTinhTests(unittest.TestCase):
     def test_logger_psycopg_warning_khong_ra_stderr(self):
         driver = MagicMock()
 
-        def warning(*args, **kwargs):
+        def warning(con, data, mapping, **kwargs):
             logging.getLogger("psycopg").warning("DETAIL: BI_MAT_DEMO_456")
             logging.getLogger("psycopg.connection").warning("DETAIL: BI_MAT_DEMO_456")
-            return {}
+            # CLI cần số đếm đủ 12 bảng để tạo báo cáo hoàn tất.
+            return {table: {"da_ghi_moi": len(rows), "da_co_dich": len(rows)}
+                    for table, rows in data.items()}
 
         errors = io.StringIO()
         with patch.dict("sys.modules", {"psycopg": driver}), \
-                patch.object(chuyen, "ghi_pg", side_effect=warning), redirect_stderr(errors):
-            code, _, _ = self.run_cli()
+                patch.object(chuyen, "ghi_pg", side_effect=warning) as write, redirect_stderr(errors):
+            code, reports, _ = self.run_cli()
         self.assertEqual(code, 0)
+        driver.connect.assert_called_once()
+        write.assert_called_once()
+        self.assertEqual(reports[-1]["trang_thai"], "HOAN_TAT")
         self.assertEqual(errors.getvalue(), "")
 
     def test_console_hong_khi_bao_loi_van_thoat_khong_lo_exception_goc(self):
