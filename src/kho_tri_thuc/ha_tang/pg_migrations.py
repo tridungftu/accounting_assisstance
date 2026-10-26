@@ -12080,3 +12080,15 @@ M0036_KY_DOCX = (
 
 PG_MIGRATIONS = (*PG_MIGRATIONS, M0036_KY_DOCX)
 PG_SCHEMA_VERSION = len(PG_MIGRATIONS)
+
+# M0037 — CD-010 mục 1: kế toán kiểm tay G5 cho bản sinh chỉ DOCX; E5 giữ nguyên.
+from ..k2.sql_crm_g5_tay import CRM_G5_TAY_SQL, G5_TAY_XET  # noqa: E402
+
+_M37_KIEM_G5_XET = _m36_thay(
+    _M36_KIEM_G5_XET,
+    ("            v_kt := jsonb_build_object('trang_thai', g.trang_thai, 'ly_do', g.ly_do, 'la_bang_chung', false);\n",
+     "            v_kt := jsonb_build_object('trang_thai', g.trang_thai, 'ly_do', g.ly_do, 'la_bang_chung', false);\n" + G5_TAY_XET))
+
+M0037_CRM_G5_TAY = (*CRM_G5_TAY_SQL, _M37_KIEM_G5_XET)
+PG_MIGRATIONS = (*PG_MIGRATIONS, M0037_CRM_G5_TAY)
+PG_SCHEMA_VERSION = len(PG_MIGRATIONS)

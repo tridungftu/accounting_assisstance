@@ -171,6 +171,27 @@ class CrmKyKetK2:
                                    json.dumps(tom_tat, ensure_ascii=False))).fetchone()))["r"]
         return {**r["ket_qua"], "lap_lai": bool(r["lap_lai"])}
 
+    def xac_nhan_g5_tay(self, dang_nhap: str, *, ky_id, ly_do, khoa) -> dict:
+        """CD-010: xác nhận đã kiểm tay; chỉ SQL quyết định quyền, trạng thái và tách nhiệm."""
+        try:
+            kid = _uuid(ky_id, "ky_id")
+        except DataError as exc:
+            raise DataError(exc.code, str(exc), "ky_id") from None
+        try:
+            key = _khoa(khoa)
+        except DataError as exc:
+            raise DataError(exc.code, str(exc), "khoa") from None
+        if (not isinstance(ly_do, str) or not 10 <= len(ly_do.strip()) <= 1000
+                or any(ord(c) < 32 and c not in "\n\t" for c in ly_do)):
+            raise DataError("CRM_G5_TAY_LY_DO", "Lý do kiểm tay bắt buộc từ 10 đến 1000 ký tự.", "ly_do")
+        ly_do = ly_do.strip()
+        m, dt = self.mau, self.mau.danh_tinh(dang_nhap)
+        h = _h("CRM_G5_XAC_NHAN_TAY", {"ky_id": kid, "ly_do": ly_do})
+        with m._tx(dt) as c:
+            r = _v(dict(c.execute("SELECT master.crm_g5_xac_nhan_tay(%s, %s, %s::uuid, %s) AS r",
+                                  (key, h, kid, ly_do)).fetchone()))["r"]
+        return {**r["ket_qua"], "lap_lai": bool(r["lap_lai"])}
+
     # ------------------------------------------------------------------ đọc
     def doc(self, dang_nhap: str, soan_id) -> dict:
         """Điều kiện/căn cứ dialog + bản ký + lịch sử theo quyền HIỆN HÀNH (giao dịch RR). Người không đọc được bản ký chỉ nhận trạng thái/quyền.
