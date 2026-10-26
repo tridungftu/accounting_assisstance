@@ -513,3 +513,13 @@ H3 phân loại 36 đầu việc: 19 gói đã nhập `hop-nhat`, 13 xung đột
   - các hàng đợi M3/M10/M2/M4-CD3/UI0/nạp thật đã ghi trước.
 - **Theo dõi:** `test_chay_test_pg_demo...timeout_giet_ca_chau` chạy lại khi máy rảnh.
 - 19:45: chạy lại `test_chay_test_pg_demo` khi máy rảnh (0 tiến trình Codex) → 51/51 đạt. Xác nhận chập chờn do máy tải nặng; không phải lỗi mã.
+### 26/10 ~20:45 — CD-016: điều kiện go-live 5 module (M0, M2, M3, M4, M9) — phát hành cùng một lần, tối thứ Sáu
+Chi tiết có tệp:dòng: `BANG-DIEU-KIEN-GO-LIVE.md`; quy trình: `CHECKLIST-PHAT-HANH.md`; chuyển kho thật: `KE-HOACH-CHUYEN-KHO-THAT-SQLITE-PG.md` (chờ Anh ra lệnh riêng).
+| Module | Tình trạng | Chặn chính (cần Anh / còn làm) |
+|---|---|---|
+| M0 | Chưa rõ phạm vi go-live | Chưa có bằng chứng cổng B; Anh xác nhận phạm vi M0 |
+| M2 | Mua vào đã chạy DEMO; bán ra chưa | Nguồn/quyền/mẫu XML bán ra (BR1…); MTQ-4i chưa đủ |
+| M3 | Có lõi SQL/dịch vụ (M0042/44/46); chưa màn hình | Bảng mốc §17, #7 cơ sở thuế, #8 ánh xạ Junsky, #11; phiếu cổng A M3 |
+| M4 | Lõi review chép + PG (DL1–DL5c, CD1/CD2); 02C/03A/03B/04 có | Ánh xạ `ma_hd` để nạp thật (CD-011); 8 màn Review chưa đủ (UI0 giữ chờ cổng A trang chủ); MTQ-4f chưa đủ |
+| M9 | Phần thuần đủ (đọc/OCR/tìm/hỏi đáp Local/snapshot/báo cáo) | Duyệt phiếu cổng A M9; Sheet thật; lưu trữ/CSDL/màn hình chưa làm |
+| Chung | Chưa bật ma trận PN nào | B11: PN còn đường cũ chưa được bật; chuỗi MTQ-4/MTQ-NEN còn lại; nền PG v5 |
