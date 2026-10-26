@@ -621,3 +621,23 @@ Chi tiết có tệp:dòng: `BANG-DIEU-KIEN-GO-LIVE.md`; quy trình: `CHECKLIST-
   - 4d1b;
   - review NEN-2b, BO-1a.
 - **Chờ Anh:** phiếu dọn dẹp D1–D2 (`CAN-ANH-CHOT-DON-DEP.md`).
+### 26/10 ~23:40 — gộp SL-1, NEN-2b (M0058), XS-4c1; đang sửa vòng 4b2b/4f1c/XS-4c2/BO-1a/4i-b1
+- **Gộp thêm:**
+  - **SL-1**: sao lưu PG mã hóa GPG. Review chặn: biên bản có thể ghi vào bản mã → vòng 3.
+  - **NEN-2b (M0058)**: `mtq_duoc_doc` theo tập PN. Review Đạt.
+  - **XS-4c1**: dịch vụ công tắc + `kiem_module`/`trang_thai_cho`. Review Đạt. Rút thăm trúng (0,012); Claude tự đọc **sau khi đã gộp** (sai thứ tự — từ nay kiểm trước rồi mới gộp): Đạt.
+    - Để sau: tên module trong câu "Chờ …" mới có CRM (cần danh mục tên M2/M3/M4/M9 cho pilot S6);
+    - Để sau: dịch vụ xương sống còn mượn `_v`/`CrmMauK2` của CRM (tách ở XS-5b).
+  - **Migration cuối = M0058.**
+- **Hồi quy phát hiện ở gate PG rộng (4b2b, 57 module): 12 mã lỗi mới.**
+  - Đường cũ khi PN tắt bị đổi (`test_crm_g5_tay`, `test_crm_ky_ket_http`); lỗi PL/pgSQL `record "s" is not assigned`.
+  - Hàm ghim `quan_he` chặn mọi phạm vi HĐ/dự án, kể cả HĐ M4. Do lead quyết vòng 2 chưa tính phạm vi MTQ gắn theo vai, không theo khóa.
+  - Lead quyết lại (`tra-loi-lead-mtq-4b2b-v3.md`): không chặn cấp; chỉ ghim với HĐ CRM có bản soạn; khóa ký chỉ nhận phạm vi có `quan_he` khớp. Đang làm vòng 3.
+- **Quyết định lead khác:**
+  - BO-1a theo đúng ngữ nghĩa projection Review: THEM/THAY/BO theo trạng thái, THAY ghi đè trường có giá trị, sai → "cần xem lại", không vỡ màn.
+  - 4f1c giữ ràng buộc "đợt đã nộp" theo ô thẩm quyền.
+  - XS-4c2 tập PN theo `ktt_pn_cho_phep`, không lọc vai CRM; Admin MTQ toàn hệ thống.
+  - 4i-b1: cổng khớp phạm vi NGUON (`nguon_khoa`); PN đích ánh xạ kiểm bằng lần gọi cổng thứ hai.
+- **Đang chạy (4 Codex):** 4i-b1 v3, 4f1c v2, 4b2b v3, XS-4c2 v3.
+- **Gate PG đang chạy:** BO-1a v2 → XS-2a (review tĩnh Đạt).
+- **Chờ Anh:** phiếu D1–D2.
