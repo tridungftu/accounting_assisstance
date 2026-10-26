@@ -12190,7 +12190,7 @@ from ..k2.sql_mtq_crm import MTQ_CRM_A_SQL  # noqa: E402 — chỉ hằng SQL
 
 # Lấy định nghĩa hiện hành và thay đúng một vị trí; giữ toàn bộ CAS, graph,
 # digest, hiệu lực, append-only và tách nhiệm G1 của các hàm lệnh đã phát hành.
-M00xx_MTQ_CRM_A = (
+M0050_MTQ_CRM_A = (
     *MTQ_CRM_A_SQL,
     _m36_thay(
         _m37_ham("master.crm_g_chuan_doc"),
@@ -12203,5 +12203,5 @@ M00xx_MTQ_CRM_A = (
          "IF v.gui_boi = ai OR (v.lap_boi = ai AND EXISTS (SELECT 1 FROM master.mtq_kich_hoat "
          "WHERE phap_nhan_id = v.phap_nhan_id AND bat)) THEN")),
 )
-PG_MIGRATIONS = (*PG_MIGRATIONS, M00xx_MTQ_CRM_A)
+PG_MIGRATIONS = (*PG_MIGRATIONS, M0050_MTQ_CRM_A)
 PG_SCHEMA_VERSION = len(PG_MIGRATIONS)
