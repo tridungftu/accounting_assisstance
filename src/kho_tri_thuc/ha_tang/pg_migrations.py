@@ -12081,9 +12081,50 @@ M0036_KY_DOCX = (
 PG_MIGRATIONS = (*PG_MIGRATIONS, M0036_KY_DOCX)
 PG_SCHEMA_VERSION = len(PG_MIGRATIONS)
 
-# MTQ-1 — append; lead đánh số khi gộp. Chưa nối quyền cũ, mặc định tắt.
+# M0037 — CD-010 mục 1: kế toán kiểm tay G5 cho bản sinh chỉ DOCX; E5 giữ nguyên.
+from ..k2.sql_crm_g5_tay import CRM_G5_TAY_SQL, G5_TAY_XET, G6_KIEM_CASE_CAP  # noqa: E402
+
+
+def _m37_ham(ten: str) -> str:
+    """Lấy định nghĩa cuối trước M0037, gồm schema master hoặc kho."""
+    for migration in reversed(PG_MIGRATIONS):
+        ds = [s for s in migration if s.lstrip().startswith(f"CREATE OR REPLACE FUNCTION {ten}(")]
+        if ds:
+            if len(ds) != 1:
+                raise RuntimeError(f"M0037: không định vị đúng một định nghĩa {ten}")
+            return ds[0]
+    raise RuntimeError(f"M0037: thiếu định nghĩa hiện hành {ten}")
+
+
+_M37_KIEM_G5_XET = _m36_thay(
+    _m37_ham("master.crm_kiem_g5_xet"),
+    ("            v_kt := jsonb_build_object('trang_thai', g.trang_thai, 'ly_do', g.ly_do, 'la_bang_chung', false);\n",
+     "            v_kt := jsonb_build_object('trang_thai', g.trang_thai, 'ly_do', g.ly_do, 'la_bang_chung', false);\n" + G5_TAY_XET))
+
+# Lỗi thật tại dòng 32 của kho.crm_kiem_viec_kiem là IF NOT CASE bị cắt ở
+# THEN đầu, không phải guard G5 tự động. Guard hồ sơ cũng dùng cùng cú pháp;
+# sửa cả hai để lưu/Hiệu lực chạy được, không thêm ngoại lệ bỏ qua G5 hay G6.
+_M37_KIEM_VIEC_KIEM = _m36_thay(_m37_ham("kho.crm_kiem_viec_kiem"), *G6_KIEM_CASE_CAP)
+_M37_KIEM_HO_SO_KIEM = _m36_thay(_m37_ham("master.crm_kiem_ho_so_kiem"), *G6_KIEM_CASE_CAP)
+
+M0037_CRM_G5_TAY = (*CRM_G5_TAY_SQL, _M37_KIEM_G5_XET, _M37_KIEM_VIEC_KIEM, _M37_KIEM_HO_SO_KIEM)
+PG_MIGRATIONS = (*PG_MIGRATIONS, M0037_CRM_G5_TAY)
+PG_SCHEMA_VERSION = len(PG_MIGRATIONS)
+
+# ---------------------------------------------------------------------------
+# M4-DL1 — CD-011: chứng cứ nguồn Review SQLite; M0038 (lead đánh số khi gộp 26/10).
+# Chỉ append, không đổi migration đã phát hành.
+# Lát chưa gộp: vòng 2 sửa trực tiếp SQL sang lần chụp riêng, không thêm migration.
+# ---------------------------------------------------------------------------
+from ..m4.sql_review_chep import M4_REVIEW_CHEP_SQL  # noqa: E402 — chỉ hằng SQL
+
+M0038_M4_REVIEW_CHEP = M4_REVIEW_CHEP_SQL
+PG_MIGRATIONS = (*PG_MIGRATIONS, M0038_M4_REVIEW_CHEP)
+PG_SCHEMA_VERSION = len(PG_MIGRATIONS)
+
+# MTQ-1 — M0039 (lead đánh số khi gộp 26/10). Chưa nối quyền cũ, mặc định tắt.
 from ..k2.sql_ma_tran_tham_quyen import MA_TRAN_THAM_QUYEN_SQL  # noqa: E402 — chỉ hằng SQL
 
-M00xx_MA_TRAN_THAM_QUYEN = MA_TRAN_THAM_QUYEN_SQL
-PG_MIGRATIONS = (*PG_MIGRATIONS, M00xx_MA_TRAN_THAM_QUYEN)
+M0039_MA_TRAN_THAM_QUYEN = MA_TRAN_THAM_QUYEN_SQL
+PG_MIGRATIONS = (*PG_MIGRATIONS, M0039_MA_TRAN_THAM_QUYEN)
 PG_SCHEMA_VERSION = len(PG_MIGRATIONS)

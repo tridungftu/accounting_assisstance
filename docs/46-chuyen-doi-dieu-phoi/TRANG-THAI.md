@@ -294,3 +294,22 @@ H3 phân loại 36 đầu việc: 19 gói đã nhập `hop-nhat`, 13 xung đột
 | M2k (nút "Cài đặt lại bộ tải") | Hàng đợi ghi "chưa chốt thiết kế" (thiếu: cài lại là gì — tải lại gói bộ tải hay khởi động lại tiến trình; quyền ai bấm) | **Bị chặn — hỏi Anh** (bảng chọn) |
 | E1-4 giao diện (màn danh mục Sửa + nhật ký) | Chưa rõ đặt màn ở đâu (M4 review / Cài đặt / Danh mục chung) | **Bị chặn — hỏi Anh** (bảng chọn) |
 | M4-3 (03A: M0026 + test + xác minh màn) | Thực chất đã xong qua các lát 03A/M4-5a; chưa đóng dòng | **Đóng**: PG v3 `test_m4_03a_pg` 13 ok, `test_m4_03a_tinh` 27 ok, `m4_03b_common_pg` 21 ok |
+
+### 26/10 10:15 — Đang chạy + việc chưa giao kèm lý do chặn (CD-009 mục 2)
+**Đang chạy (6/6):** Codex — M4-DL1 (CD-011 lược đồ PG), MTQ-1 (CD-012 SQL), M2k (QD-20261026-01), BG-e8 (CD-010.5, dòng giao diện); Claude — review-lat KY-G5TAY (Opus); lead — PG KY-G5TAY.
+**Đã xong sáng 26/10:** KY-DOCX gộp hợp nhất (3dd1661, M0036); KY-UI trên `lat/ui-ky`; UI-3e (thanh cố định theo vai, giữ tiền tố) trên `lat/ui-ky`; M4-KK (kiểm kê 8 màn: 8 có · 23 khác · 37 thiếu API; 12 bảng) và MTQ-0 (thiết kế) gộp hợp nhất 29d719d; KY-G5TAY code xong (M0037) chờ PG + review.
+| Việc chưa giao | Lý do chặn |
+|---|---|
+| KY-G5TAY giao diện (nút xác nhận tay ở màn Kiểm) | chờ máy chủ KY-G5TAY qua review (đợt sau) |
+| M4-DL2…, công cụ chuyển dữ liệu, 8 màn M4 (CD-011) | nối tiếp M4-DL1 (đang chạy) |
+| MTQ-2…5 (CD-012) | nối tiếp MTQ-1 (đang chạy); MTQ-4 cần review Opus |
+| AI-4, MASK-3 | không chặn — giao đợt kế (chờ suất Codex trống) |
+| E1-4 giao diện (màn Danh mục chung, QD-20261026-02) | không chặn — giao đợt kế |
+| CD-010.7 (03B: hướng kế toán dùng "Yêu cầu bổ sung") | không chặn — lát nhỏ đợt kế |
+| Seed DEMO 5 vai (CD-010.4) | gộp vào MTQ-5 (theo thiết kế MTQ-0) |
+| UI-4 (áp khung cho M2, M4, K5) | chờ Anh qua cổng A UI-1 (phiếu trang chủ lưới icon) |
+| BG-2a/2b, BG-3 (Báo giá gói 2–3) | chờ Anh qua cổng A Báo giá lần 2 |
+| C3b (phạm vi bán hàng HĐ luồng B) | chờ Anh chốt nguồn phạm vi |
+| M2f, E1-5 | việc của Anh (cổng thuế thật / áp vào #6 thật) |
+| Chuyển DEMO 8798 sang `lat/ui-ky` | chờ Anh thử xong cổng A trên bản hiện tại |
+- 10:50 rà hàng đợi (CD-009 mục 5): Codex chạy M4-DL1 v2, KY-G5TAY-UI, M3-CL (CD-009.3d checklist M3); hàng chờ nối tiếp KY-G5TAY v4 → MTQ-1 v2 → M2k v2 → MASK-3; review Opus AI-4a/E1-4u/M4-03B-YC. Đã xong chờ review/gộp: AI-4a c639b79, E1-4u 456dca1, M4-03B-YC 553ac93, BG-e8 (ui-ky), UI-3e (ui-ky). KY-G5TAY: PG p01/p07 đạt sau vòng 3 (lỗi cú pháp `IF NOT CASE` có sẵn ở guard G6), còn p03 lỗi test (login không có trong seed) → v4. Không việc nào không bị chặn bị bỏ trống.

@@ -1,0 +1,6 @@
+# M4-03B-YC — Khối 03B: kế toán thiếu tệp căn cứ thì dùng "Yêu cầu bổ sung" gửi phòng dự án (CD-010 mục 7)
+
+Bạn là worker Codex, chạy không tương tác. **Làm ngay, không hỏi lại.** UTF-8 không BOM — ghi tệp bằng UTF-8. Sandbox không ghi `.git`: **không commit**. Không mở server. Không xóa file. Worktree hiện tại, nhánh `lat/m4-03b-yc` (hợp nhất, có M4-5b/c/d, DS-4). Căn cứ: hộp thư **CD-010 mục 7** (Anh chốt: kế toán **không** có đường tải tệp căn cứ riêng; kế toán dùng **"Yêu cầu bổ sung"** gửi phòng dự án; giữ quyền tải như hiện tại).
+**Việc — `src/kho_tri_thuc/m4/giao_dien/m4_ke_toan.js` (khối 03B, chỗ chọn tệp căn cứ):** câu hướng dẫn + nút **"Yêu cầu bổ sung"** dùng **đúng luồng yêu cầu bổ sung đã có** của màn kế toán nghiệm thu (tìm hành động trả lại/yêu cầu bổ sung hiện có ở 03A — tên trạng thái `CHO_BO_SUNG`/`yeu-cau-bo-sung` hoặc tương tự; không tạo luồng mới), điền sẵn nội dung "Thiếu tệp căn cứ cho đối chiếu hóa đơn – đợt …". Nếu không có luồng sẵn → chỉ hiện hướng dẫn rõ (không nút), ghi "Cần Anh".
+**Test — `tests/m4_03b_async.cjs`:** khi chưa có tệp căn cứ → hiện hướng dẫn + nút (nếu luồng có), bấm gửi đúng route có sẵn; không có nút tải tệp cho kế toán.
+**File (≤ 2):** `m4_ke_toan.js`, `tests/m4_03b_async.cjs`. Chạy `node tests/m4_03b_async.cjs`, `node tests/m4_01c_async.cjs`. **Báo cáo (≤ ¼ trang)**, thông điệp commit `[M4-03B-YC] …`.

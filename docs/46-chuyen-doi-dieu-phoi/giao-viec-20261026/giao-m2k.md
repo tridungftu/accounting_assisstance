@@ -1,0 +1,8 @@
+# M2k — M2 · Hóa đơn mua: nút "Khởi động lại bộ tải" (QD-20261026-01)
+
+Bạn là worker Codex, chạy không tương tác. **Làm ngay, không hỏi lại.** Đọc `AGENTS.md`, `CLAUDE.md`. UTF-8 không BOM — ghi tệp bằng UTF-8. Sandbox không ghi `.git`: **không commit**. Không mở server, **không chạy bộ tải thật, không gọi cổng thuế thật**. Không xóa file.
+
+Worktree hiện tại, nhánh `lat/m2k` (hợp nhất). Căn cứ: `docs\QUYET-DINH.md` **QD-20261026-01** (Anh chốt: nút chỉ **dừng tiến trình bộ tải đang treo rồi chạy lại**; không tải lại gói, không đổi cấu hình; chỉ kế toán có quyền M2 bấm; ghi nhật ký).
+**Việc:** máy chủ `src/kho_tri_thuc/giao_dien/m2_tai_hoa_don.py` (bộ tải: `goc_bo_tai`, `node_exe`, tệp ghim…): thêm lệnh **khởi động lại** dùng chính cơ chế khởi động/dừng hiện có (chỉ dừng đúng tiến trình bộ tải do phần mềm sở hữu — theo pid/khóa sở hữu đang dùng, không giết tiến trình khác), kiểm quyền M2 ở máy chủ, chống bấm lặp khi đang khởi động, ghi nhật ký (ai, lúc, kết quả); route POST cùng chỗ các route bộ tải. Giao diện `src/kho_tri_thuc/giao_dien/assets/m2_tai_hoa_don.js`: khi trạng thái "bộ tải không khởi động / treo" hiện nút **"Khởi động lại bộ tải"** (xác nhận trong trang, không `confirm()`), hiện kết quả tiếng Việt; vai không quyền không thấy nút (máy chủ vẫn chặn).
+**Test:** Python (tệp test bộ tải M2 có sẵn hoặc mới `tests/test_m2k_khoi_dong_lai.py`; giả lập tiến trình — không chạy node thật): quyền, chống lặp, chỉ dừng tiến trình sở hữu, nhật ký; node (bộ test M2 có sẵn `tests/m2_*` hoặc mới): nút hiện đúng lúc, gửi đúng route, câu tiếng Việt.
+**File (≤ 4, gồm test):** `m2_tai_hoa_don.py`, `m2_tai_hoa_don.js`, 1–2 test. **Báo cáo (≤ ¼ trang)**, thông điệp commit `[M2k] …`.
