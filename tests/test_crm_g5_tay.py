@@ -54,6 +54,30 @@ class G5TayThuan(unittest.TestCase):
         command = next(s for s in PM.M0037_CRM_G5_TAY if "FUNCTION master.crm_g5_xac_nhan_tay(" in s)
         self.assertLess(command.index("crm_kiem_dich"), command.index("crm_g_bn_tra"))
 
+    def test_guard_g6_chi_sua_ngoac_case_khong_noi_dieu_kien(self):
+        # Lỗi PG thật: IF dừng ngay THEN đầu của CASE không có ngoặc.
+        # So toàn định nghĩa để quyền/trạng thái/revision/CFO không bị nới.
+        for ten in ("kho.crm_kiem_viec_kiem", "master.crm_kiem_ho_so_kiem"):
+            prefix = f"CREATE OR REPLACE FUNCTION {ten}("
+            cu = next(s for m in reversed(PM.PG_MIGRATIONS[:36]) for s in reversed(m)
+                      if s.lstrip().startswith(prefix))
+            moi = [s for s in PM.M0037_CRM_G5_TAY if s.lstrip().startswith(prefix)]
+            self.assertEqual(len(moi), 1, ten)
+            self.assertIn("NOT (CASE NEW.trang_thai", moi[0])
+            self.assertIn("ELSE false END) THEN", moi[0])
+            self.assertEqual(moi[0].replace("NOT (CASE NEW.trang_thai", "NOT CASE NEW.trang_thai", 1)
+                             .replace("ELSE false END) THEN", "ELSE false END THEN", 1), cu, ten)
+
+    def test_g5_kiem_tay_khop_dung_lineage_truoc_hold_docx(self):
+        f = next(s for s in PM.M0037_CRM_G5_TAY if s.startswith("CREATE OR REPLACE FUNCTION master.crm_kiem_g5_xet("))
+        tay = f[f.index("SELECT t.* INTO x"):f.index("-- M0036")]
+        for can in ("t.ky_id = p_ky", "kt.phap_nhan_id = t.phap_nhan_id", "t.soan_rev_id = kt.soan_rev_id",
+                    "st.revision_hien_hanh = kt.revision", "t.ky_pdf_sha256 = kt.ky_pdf_sha256",
+                    "t.g3_docx_sha256 = kt.g3_docx_sha256", "kt.g3_pdf_sha256 IS NULL",
+                    "NOT EXISTS (SELECT 1 FROM master.crm_g5_ket_qua", "NOT EXISTS (SELECT 1 FROM master.crm_kiem_g5_ket_qua",
+                    "IF x.id IS NOT NULL THEN", "'trang_thai', 'KHOP', 'loai', 'KIEM_TAY'", "'chan', '[]'::jsonb"):
+            self.assertIn(can, tay)
+
     def test_sql_khong_noi_e5_va_khong_tu_duyet_g6(self):
         sql = "\n".join(PM.M0037_CRM_G5_TAY)
         self.assertIn("ALTER TABLE master.crm_g5_kiem_tay ENABLE ROW LEVEL SECURITY", sql)

@@ -4,6 +4,14 @@ from .sql_crm_doi_chieu import _G_KET, _G_REPLAY
 from .sql_crm_kiem_hd import _KIEM_MO
 
 
+# PL/pgSQL cần ngoặc để THEN của SQL CASE không kết thúc sớm biểu thức IF.
+# Dùng cho cả guard việc và guard hồ sơ G6; giữ nguyên mọi nhánh nghiệp vụ.
+G6_KIEM_CASE_CAP = (
+    ("NOT CASE NEW.trang_thai", "NOT (CASE NEW.trang_thai"),
+    ("ELSE false END THEN", "ELSE false END) THEN"),
+)
+
+
 G5_TAY_XET = """
             -- CD-010: chỉ bằng chứng kiểm tay của đúng revision đã ký mới qua G5.
             SELECT t.* INTO x FROM master.crm_g5_kiem_tay t

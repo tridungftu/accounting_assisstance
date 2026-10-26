@@ -34,8 +34,8 @@ TT_DOCX = "('PDF_DAT','PDF_CHUA_SAN_SANG','PDF_LOI')"
 M36 = "\n".join(PM.M0036_KY_DOCX)
 
 
-def _ham(goc, ten):
-    ds = [s for s in goc if s.lstrip().startswith(f"CREATE OR REPLACE FUNCTION master.{ten}(")]
+def _ham(goc, ten, schema="master"):
+    ds = [s for s in goc if s.lstrip().startswith(f"CREATE OR REPLACE FUNCTION {schema}.{ten}(")]
     assert len(ds) == 1, (ten, len(ds))
     return ds[0]
 
@@ -48,10 +48,10 @@ def _khac(goc, ten):
     return bo, them
 
 
-def _ham_hien_hanh(ten):
+def _ham_hien_hanh(ten, schema="master"):
     """Migration chạy sau ghi đè định nghĩa cùng hàm; giữ kiểm M0036 tĩnh riêng."""
     return next(s for migration in reversed(PM.PG_MIGRATIONS) for s in reversed(migration)
-                if s.lstrip().startswith(f"CREATE OR REPLACE FUNCTION master.{ten}("))
+                if s.lstrip().startswith(f"CREATE OR REPLACE FUNCTION {schema}.{ten}("))
 
 
 class M36Tinh(unittest.TestCase):
@@ -59,9 +59,14 @@ class M36Tinh(unittest.TestCase):
         ten = "crm_kiem_g5_xet"
         self.assertEqual(_ham_hien_hanh(ten), _ham(PM.M0037_CRM_G5_TAY, ten))
         self.assertEqual(_ham_hien_hanh("crm_ky_ket"), _ham(PM.M0036_KY_DOCX, "crm_ky_ket"))
+        for schema, guard in (("kho", "crm_kiem_viec_kiem"), ("master", "crm_kiem_ho_so_kiem")):
+            self.assertEqual(_ham_hien_hanh(guard, schema), _ham(PM.M0037_CRM_G5_TAY, guard, schema))
         moi = "CREATE OR REPLACE FUNCTION master.crm_kiem_g5_xet(p_ky uuid, p_che_do text) RETURNS jsonb AS $$ SELECT '{}'::jsonb $$"
         with patch.object(PM, "PG_MIGRATIONS", (*PM.PG_MIGRATIONS, (moi,))):
             self.assertEqual(_ham_hien_hanh(ten), moi)
+        moi_kho = "CREATE OR REPLACE FUNCTION kho.crm_kiem_viec_kiem() RETURNS trigger AS $$ BEGIN RETURN NEW; END $$"
+        with patch.object(PM, "PG_MIGRATIONS", (*PM.PG_MIGRATIONS, (moi_kho,))):
+            self.assertEqual(_ham_hien_hanh("crm_kiem_viec_kiem", "kho"), moi_kho)
 
     def test_dang_ky_thu_tu_36_va_tien_to_nguyen_byte(self):
         self.assertIs(PM.PG_MIGRATIONS[35], PM.M0036_KY_DOCX)
@@ -244,13 +249,15 @@ class M36CsdlThat(unittest.TestCase):
                                        AND column_name = 'g3_pdf_sha256'""", t), [("NO",)], t)
 
     def test_than_ham_trien_khai_dung_dinh_nghia_hien_hanh(self):
-        for ten, sig in (("crm_gk_xuat_ghi", "(text, text, text, uuid, integer, text, text, bigint, text, bigint, text, text, text, jsonb)"),
-                         ("crm_hd_ky_kiem", "()"),
-                         ("crm_ky_ket", "(text, text, uuid, integer, uuid, text, text, bigint, text, bigint, integer, text, date, boolean, text, text, jsonb)"),
-                         ("crm_kiem_g5_xet", "(uuid, text)"), ("crm_g5_hang_doi", "(integer)"), ("crm_g5_nhan", "(uuid, text, integer)"),
-                         ("crm_g5_doc", "(uuid)"), ("crm_g5_chay", "(text, text, uuid, text)")):
-            src = self.q(f"SELECT prosrc FROM pg_proc WHERE oid = 'master.{ten}{sig}'::regprocedure")[0][0]
-            self.assertEqual(src, _than(_ham_hien_hanh(ten)), ten)
+        for schema, ten, sig in (("master", "crm_gk_xuat_ghi", "(text, text, text, uuid, integer, text, text, bigint, text, bigint, text, text, text, jsonb)"),
+                                ("master", "crm_hd_ky_kiem", "()"),
+                                ("master", "crm_ky_ket", "(text, text, uuid, integer, uuid, text, text, bigint, text, bigint, integer, text, date, boolean, text, text, jsonb)"),
+                                ("master", "crm_kiem_g5_xet", "(uuid, text)"), ("master", "crm_g5_hang_doi", "(integer)"),
+                                ("master", "crm_g5_nhan", "(uuid, text, integer)"), ("master", "crm_g5_doc", "(uuid)"),
+                                ("master", "crm_g5_chay", "(text, text, uuid, text)"),
+                                ("kho", "crm_kiem_viec_kiem", "()"), ("master", "crm_kiem_ho_so_kiem", "()")):
+            src = self.q(f"SELECT prosrc FROM pg_proc WHERE oid = '{schema}.{ten}{sig}'::regprocedure")[0][0]
+            self.assertEqual(src, _than(_ham_hien_hanh(ten, schema)), f"{schema}.{ten}")
         # quyền giữ nguyên: hàm lệnh không cấp PUBLIC/vai ứng dụng
         for vai in ("app_web", "app_ke_toan", "app_doc", "app_cong_ai"):
             if not self.q("SELECT 1 FROM pg_roles WHERE rolname = %s", vai):
