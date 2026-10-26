@@ -26,6 +26,7 @@ from pathlib import Path
 from kho_tri_thuc.ha_tang.primitives import DataError
 from kho_tri_thuc.m4.review_data_pg import ReviewDataPG, dong_sha256, real_sang_decimal
 from kho_tri_thuc.m4.review_phu_luc_pg import ReviewPhuLucPG
+from kho_tri_thuc.m4.review_doi_chieu import doi_chieu
 from kho_tri_thuc.m4.sql_review_chep import BANG_NGUON
 
 
@@ -326,15 +327,33 @@ def main(argv=None):
         logger.addHandler(logging.NullHandler())
     logger.propagate = False
     parser = argparse.ArgumentParser(description=__doc__)
-    for name in ("nguon", "anh-xa", "dsn-tep", "nguon-id", "chup-luc"):
+    for name in ("nguon", "dsn-tep", "nguon-id"):
         parser.add_argument("--" + name, required=True)
+    parser.add_argument("--anh-xa")
+    parser.add_argument("--chup-luc")
     parser.add_argument("--thu", action="store_true")
+    parser.add_argument("--doi-chieu", action="store_true",
+                        help="Doi chieu sau nap; bo ca --anh-xa va --chup-luc de chi doi chieu lan chup da co.")
     args = parser.parse_args(argv)
 
     def emit(report):
         print(json.dumps(report, ensure_ascii=True, allow_nan=False), flush=True)
 
     try:
+        if args.doi_chieu and args.thu:
+            _loi("M4_REVIEW_METADATA_SAI", "Doi chieu can doc PG; khong dung cung --thu.")
+        if args.doi_chieu and args.anh_xa is None and args.chup_luc is None:
+            if not args.nguon_id.strip():
+                _loi("M4_REVIEW_METADATA_SAI", "Can nguon_id khong rong.")
+            dsn = doc_dsn(args.dsn_tep)
+            import psycopg
+            with psycopg.connect(dsn, autocommit=True) as con:
+                report = doi_chieu(args.nguon, con, nguon_id=args.nguon_id)
+            emit({"trang_thai": "DOI_CHIEU_KHOP" if report["khop"] else "DOI_CHIEU_LECH",
+                  "doi_chieu": report})
+            return 0 if report["khop"] else 2
+        if args.anh_xa is None or args.chup_luc is None:
+            _loi("M4_REVIEW_METADATA_SAI", "Nap can ca --anh-xa va --chup-luc.")
         moment = datetime.fromisoformat(args.chup_luc)
         if moment.tzinfo is None or moment.utcoffset() is None or not args.nguon_id.strip():
             _loi("M4_REVIEW_METADATA_SAI", "Cần nguon_id không rỗng và chup_luc ISO có múi giờ.")
@@ -345,12 +364,15 @@ def main(argv=None):
         dsn = doc_dsn(args.dsn_tep)
         totals = tong_kiem_soat(data)
         counts = {t: {"da_ghi_moi": 0, "da_co_dich": None} for t in BANG_NGUON}
+        comparison = None
         if not args.thu:
             import psycopg
             with psycopg.connect(dsn, autocommit=True) as con:
                 counts = ghi_pg(con, data, mapping, nguon_id=args.nguon_id, chup_luc=moment,
                                 sha256_nguon=digest,
                                 truoc_commit=lambda: kiem_sha(args.nguon, digest))
+                if args.doi_chieu:
+                    comparison = doi_chieu(args.nguon, con, nguon_id=args.nguon_id)
         else:
             kiem_sha(args.nguon, digest)
         contracts = {r["ma_hd"] for r in data["hop_dong"]}
@@ -361,6 +383,10 @@ def main(argv=None):
                                                   for r in data[t] if r.get("ma_hd") not in (None, "")))
                        for t in BANG_NGUON},
               "tong_kiem_soat": totals})
+        if comparison is not None:
+            emit({"trang_thai": "DOI_CHIEU_KHOP" if comparison["khop"] else "DOI_CHIEU_LECH",
+                  "doi_chieu": comparison})
+            return 0 if comparison["khop"] else 2
         return 0
     except KeyboardInterrupt:
         try:
@@ -375,6 +401,8 @@ def main(argv=None):
             code = exc.code if isinstance(exc, DataError) and exc.code.startswith("M4_REVIEW_") else "M4_REVIEW_CHUYEN_LOI"
             message = ("Cùng nguon_id nhưng chup_luc, metadata hoặc dữ liệu khác; dừng, không ghi đè."
                        if code == "M4_REVIEW_REPLAY_KHAC" else
+                       "Đối chiếu không hoàn tất; dữ liệu đã nạp trước đó vẫn được giữ. Cần Anh kiểm tra nguồn và cấu hình."
+                       if args.doi_chieu else
                        "Lần chụp không hoàn tất; không ghi dữ liệu một phần. Cần Anh kiểm tra nguồn, ánh xạ và cấu hình.")
             report = {"trang_thai": "LOI", "ma_loi": code, "thong_bao": message}
             if isinstance(exc, DataError) and code.startswith("M4_REVIEW_"):
