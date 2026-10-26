@@ -272,7 +272,7 @@ class LocalApp:
             if exc.code == "CRM_CHUA_CAU_HINH":
                 return {"cau_hinh": False, "ly_do": str(exc)}
             raise
-        demo = [dict(r) for r in crm.conn.execute("SELECT dang_nhap, vai_tro FROM master.nguoi_dung WHERE mo_phong AND trang_thai = 'HOAT_DONG' ORDER BY dang_nhap")]
+        demo = self._demo_vai_cu(crm.conn)
         from ..kiem_chung.fixtures_crm import MAU, SAO_KE_M1
         tien_mau = [f"{pn}:{dot}" for pn in sorted(SAO_KE_M1) for dot in SAO_KE_M1[pn]]
         try:
@@ -283,6 +283,36 @@ class LocalApp:
             data = {"nguoi": {"dang_nhap": me}, "khong_quyen": str(exc), "ho_so": [], "hop_dong": [], "tien": [], "file_soat": [], "danh_muc": {}}
         return {"cau_hinh": True, **data, "danh_tinh_demo": demo, "mau": sorted(MAU), "tien_mau": tien_mau,
                 "m1_cau_hinh": bool(self._crm_ket_noi()[1])}
+
+    @staticmethod
+    def _demo_vai_cu(conn):
+        # Chỉ lọc danh sách hiển thị; giữ nguyên registry/grant và ca âm legacy.
+        return [dict(r) for r in conn.execute("""SELECT dang_nhap, vai_tro FROM master.nguoi_dung
+            WHERE mo_phong AND trang_thai = 'HOAT_DONG'
+              AND starts_with(dang_nhap, 'MO_PHONG_MTQ_') = false ORDER BY dang_nhap""")]
+
+    def demo_vai(self, me):
+        """DTO bộ chọn chung trang chủ/ma trận; CRM/M9/M5 giữ bộ chọn riêng.
+
+        GET /api/demo/vai cấp cookie CRM như GET /api/crm. Giao diện dùng
+        POST /api/crm/danh-tinh hiện có qua cổng đổi vai tuần tự để đổi vai.
+        Nhãn/vai lấy từ seed; giao với danh tính mô phỏng đang hoạt động.
+        """
+        if self.is_that:
+            raise DataError("THAT_UI", "Bản vận hành không có bộ chọn vai DEMO.")
+        from ..k2.mtq_demo import ADMIN, NGUOI_DUNG
+        crm = self.crm()
+        actors = [ADMIN, *(n[0] for n in NGUOI_DUNG)]
+        active = {r["dang_nhap"] for r in crm.conn.execute("""SELECT dang_nhap FROM master.nguoi_dung
+            WHERE mo_phong AND trang_thai = 'HOAT_DONG' AND dang_nhap = ANY(%s)""", (actors,))}
+        return {"dang_nhap": me, "danh_tinh_demo_nhom": [
+            {"ma": "MTQ", "ten": "Ma trận thẩm quyền (DEMO)", "vai": [
+                {"dang_nhap": login, "ten": ten.removesuffix(" DEMO"), "vai_tro": vai}
+                for login, ten, vai, _ in NGUOI_DUNG if login in active]},
+            {"ma": "QUAN_TRI", "ten": "Quản trị DEMO", "vai": [
+                {"dang_nhap": ADMIN, "ten": "Admin DEMO"}] if ADMIN in active else []},
+            {"ma": "CU", "ten": "Vai DEMO hiện có", "vai": self._demo_vai_cu(crm.conn)},
+        ]}
 
     @staticmethod
     def _crm_db(fn, *args):
@@ -388,7 +418,7 @@ class LocalApp:
                 return {"cau_hinh": False, "ly_do": str(exc)}
             raise
         from ..kiem_chung.fixtures_m9 import MAU, SAO_KE_M9
-        demo = [dict(r) for r in m9.conn.execute("SELECT dang_nhap, vai_tro FROM master.nguoi_dung WHERE mo_phong AND trang_thai = 'HOAT_DONG' ORDER BY dang_nhap")]
+        demo = self._demo_vai_cu(m9.conn)
         try:
             data = self._crm_db(lambda: m9.danh_sach(me, ngay_xem=(query.get("ngay") or [None])[0], biet_den=(query.get("biet_den") or [None])[0]))
         except DataError as exc:
@@ -1025,6 +1055,15 @@ class Handler(BaseHTTPRequestHandler):
                         sid, me, moi = app.crm_phien(self.crm_sid(), tao=True)
                         headers = {"Set-Cookie": f"{app.CRM_COOKIE}={sid}; Path=/; HttpOnly; SameSite=Strict"} if moi else None
                         return self.send_content(200, app.crm_state(me), headers=headers)
+                if path == "/api/demo/vai":
+                    if app.is_that:
+                        raise DataError("THAT_UI", "Bản vận hành không có bộ chọn vai DEMO.")
+                    if parse_qs(urlsplit(self.path).query, keep_blank_values=True):
+                        raise DataError("INVALID_REQUEST", "Bộ chọn vai DEMO không nhận tham số truy vấn.")
+                    with app.mutation_lock:
+                        sid, me, moi = app.crm_phien(self.crm_sid(), tao=True)
+                        headers = {"Set-Cookie": f"{app.CRM_COOKIE}={sid}; Path=/; HttpOnly; SameSite=Strict"} if moi else None
+                        return self.send_content(200, app._crm_db(app.demo_vai, me), headers=headers)
                 if path.startswith("/api/crm/file-soat/"):
                     with app.mutation_lock:
                         name, raw = app.crm_file(self.crm_sid(), path.split("/")[-1])
