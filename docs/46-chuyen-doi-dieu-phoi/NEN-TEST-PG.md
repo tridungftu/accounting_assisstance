@@ -67,3 +67,9 @@ So v2: **0 mã lỗi mới**; +106 ok (module mới: mốc dự án, 03B HTTP, A
 - Cả bộ `--pg-demo` trên thư mục chính (sau M0037–M0043, M3-1a/1b, MTQ-1…4a0b, M4-DL1…DL3, CD1, M2-BR4): 149 module, ok 2877 / ERROR 21 / FAIL 67 / skip 65, 0 module treo, 1553 giây.
 - Mục `test_hoa_don_xml` lấy từ lần chạy sau khi gộp M2-BR4b (4 FAIL do test BR4 đọc fixture CRLF trên thư mục chính đã hết). `test_trich6_host.HandlerSoHuuTests.test_cong_chan_truoc_handler_goc` lỗi mạng chập chờn (đã biết, CLAUDE.md §4) — giữ trong nền.
 - Tệp: `nen-test-hop-nhat-pg-v4.json`. So các lát sau với **v4**.
+
+## Nền PG v5 (26/10 ~17:15, hợp nhất sau FIX-NEN-V5)
+- Cơ sở: chạy PG **cả bộ** trên hợp nhất b470ece (159 module, 37 phút). Thay kết quả 3 module bằng lượt chạy lại sau FIX-NEN-V5: `test_trich_chung_6`, `test_m4_dl5b_lich_su`, `test_m9_ocr_hot_folder`. Lý do: test cũ chưa theo kịp mã (lớp giả thiếu `_tx`; mock thiếu `id`; OCR dưới guard giữ tệp).
+- Số: **3214 ok / 20 ERROR / 63 FAIL / 78 skip, 0 treo**. So v4: 0 mã lỗi mới.
+- Skip +13 là `test_m9_ocr_hot_folder`: chỉ phần kiểm dọn tệp bị skip dưới guard `CODEX_NO_DELETE_FILES`; kiểm kết quả vẫn chạy.
+- Tệp: `nen-test-hop-nhat-pg-v5.json`. Từ nay so PG theo **v5**.

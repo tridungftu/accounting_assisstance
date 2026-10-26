@@ -465,3 +465,21 @@ H3 phân loại 36 đầu việc: 19 gói đã nhập `hop-nhat`, 13 xung đột
   - M4-CD3 phạm vi tệp đính kèm;
   - M4-UI0 (đụng trang chủ chờ cổng A);
   - ánh xạ `ma_hd` cho nạp thật CD-011.
+### 26/10 ~17:15 — nền PG v5; gộp phiếu cổng A M9 (nháp), FIX-NEN-V5
+- PG cả bộ trên hợp nhất bắt 3 test cũ hỏng sau đợt gộp. Codex sửa test (FIX-NEN-V5, 2 vòng), lead kiểm bằng runner. → **Nền PG v5** 3214/20/63/78, 0 mã mới so v4 (`NEN-TEST-PG.md`).
+- Mẫu review bổ sung:
+  - gate chạy cả test gọi tới hàm bị sửa;
+  - gate thuần chạy bằng runner có guard giữ tệp;
+  - PG cả bộ mỗi đợt gộp;
+  - chép tài liệu vào prompt khi worktree cũ.
+- Gộp a82302b **nháp phiếu cổng A M9**: 6 màn, 8 câu "Cần Anh chốt". Lưu trữ/CSDL/màn M9 dừng tới khi Anh duyệt.
+- Không còn lát nào đang chạy. Hàng đợi chưa bị chặn: trống. Các việc còn lại chờ Anh:
+  - M3 bảng mốc §17;
+  - M10 #8;
+  - M2 bán ra;
+  - M4-CD3 phạm vi tệp;
+  - M4-UI0 (trang chủ cổng A);
+  - ánh xạ `ma_hd` nạp thật CD-011;
+  - phiếu cổng A M9;
+  - lũy kế lịch sử Review (DL5b);
+  - sổ trang ABBYY.
