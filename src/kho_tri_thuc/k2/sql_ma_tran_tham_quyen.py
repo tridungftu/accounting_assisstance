@@ -3,6 +3,11 @@
 Giống master CRM: thu hồi mọi quyền của app, dịch vụ dùng kết nối chủ bảng
 và danh tính phiên đã xác thực. Không đưa các hàm này ra kết nối SQL của client.
 MTQ-4 cung cấp resolver đối tượng/tiền và thay readiness sau khi đủ bao phủ.
+
+Bootstrap chỉ khi mtq_admin chưa từng có dòng (kể cả dòng đã thu hồi vẫn chặn),
+session_user phải thuộc vai chủ bảng; người được chỉ định phải đang hoạt động,
+cap_boi = p_nguoi. Web dùng kết nối chủ bảng nên MTQ-2 không mở bootstrap qua
+HTTP; chỉ công cụ lead tin cậy được gọi mtq_bootstrap_admin.
 """
 
 _VAI = "('THUC_HIEN_1','THUC_HIEN_2','TRUONG_PHONG','CFO','NGUOI_XEM')"

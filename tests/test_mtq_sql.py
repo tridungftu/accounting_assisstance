@@ -35,8 +35,9 @@ class MtqTinh(unittest.TestCase):
         prefix = source[:source.index("from ..k2.sql_ma_tran_tham_quyen import ")]
         old = {"__name__": PM.__name__, "__package__": PM.__package__}
         exec(compile(prefix, PM.__file__, "exec"), old)
-        self.assertEqual(PM.PG_MIGRATIONS[:-1], old["PG_MIGRATIONS"])
-        self.assertIs(PM.PG_MIGRATIONS[-1], MA_TRAN_THAM_QUYEN_SQL)
+        old_migrations = old["PG_MIGRATIONS"]
+        self.assertEqual(PM.PG_MIGRATIONS[:len(old_migrations)], old_migrations)
+        self.assertIs(PM.PG_MIGRATIONS[len(old_migrations)], MA_TRAN_THAM_QUYEN_SQL)
         self.assertEqual(sum(m is MA_TRAN_THAM_QUYEN_SQL for m in PM.PG_MIGRATIONS), 1)
         self.assertEqual(PM.PG_SCHEMA_VERSION, len(PM.PG_MIGRATIONS))
 
@@ -225,6 +226,27 @@ class MtqPostgres(unittest.TestCase):
         self.assertEqual(self.quyet()["ma"], "MTQ_DANH_TINH")
         self.actor(self.admin)
         self.assertEqual(self.nhap()["trang_thai"], "NHAP")
+
+    def test_migrate_lai_khong_doi_du_lieu_mtq_va_lich_su(self):
+        from psycopg import sql
+        from kho_tri_thuc.ha_tang import postgres
+
+        # Có cấu hình và cả hai loại nhật ký trước khi chạy lại migrate.
+        _, _, scope, _ = self.cau_hinh()
+        self.assertEqual(self.quyet(scope["id"], tien=101)["ma"], "MTQ_VUOT_HAN_MUC")
+
+        def chup():
+            return {
+                table: self.c.execute(sql.SQL(
+                    "SELECT coalesce(jsonb_agg(to_jsonb(t) ORDER BY to_jsonb(t)::text), '[]'::jsonb) FROM {} AS t"
+                ).format(sql.Identifier(*table.split(".")))).fetchone()[0]
+                for table in (*_BANG, "master.schema_migrations")
+            }
+
+        truoc = chup()
+        self.assertTrue(all(truoc.values()))
+        self.assertEqual(postgres.migrate(self.c), PM.PG_SCHEMA_VERSION)
+        self.assertEqual(chup(), truoc)
 
     def test_bootstrap_chi_mot_lan_admin_cuoi(self):
         self.loi("MTQ_BOOTSTRAP", lambda: self.c.execute("SELECT master.mtq_bootstrap_admin(%s,%s,'DEMO')", (self.user[0], uuid.uuid4())))
