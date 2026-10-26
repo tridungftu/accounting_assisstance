@@ -480,6 +480,9 @@ class MtqCongCPostgres(unittest.TestCase):
                 # chuyển HĐ B thành bản soạn. Chỉ tạm tắt đúng guard đó khi dựng,
                 # bật lại trước khi gọi cổng; cả giao dịch test luôn rollback.
                 with self.c.transaction():
+                    # Xử lý hết trigger deferred trước ALTER và giữ IMMEDIATE
+                    # để UPDATE bên dưới không chặn bước bật lại guard.
+                    self.c.execute("SET CONSTRAINTS ALL IMMEDIATE")
                     self.c.execute("ALTER TABLE master.hop_dong DISABLE TRIGGER hop_dong_gk_kiem")
                     self.c.execute("UPDATE master.hop_dong SET crm_giao_ket=%s,trang_thai=%s WHERE id=%s",
                                    (giao_ket, giao_ket, hd))
