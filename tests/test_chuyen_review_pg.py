@@ -10,6 +10,7 @@ import ast
 import copy
 import io
 import json
+import logging
 import os
 import sqlite3
 import tempfile
@@ -267,10 +268,67 @@ class ChuyenReviewTinhTests(unittest.TestCase):
             stream.flush()
             raw = output.getvalue().decode("cp1252")
         self.assertNotEqual(code, 0)
+        driver.connect.assert_called_once()
         self.assertEqual(json.loads(raw.splitlines()[-1])["ma_loi"], "M4_REVIEW_CHUYEN_LOI")
         for text in (raw, errors.getvalue()):
             self.assertNotIn("Traceback", text)
             self.assertNotIn("BI_MAT_DEMO_123", text)
+
+    def test_ctrl_c_khi_ghi_va_khi_rollback_khong_lo_exception_goc(self):
+        for rollback in (False, True):
+            with self.subTest(rollback=rollback):
+                driver = MagicMock()
+                con = driver.connect.return_value.__enter__.return_value
+                transaction = con.transaction.return_value
+                if rollback:
+                    failure = RuntimeError("DETAIL: BI_MAT_DEMO_456")
+
+                    def interrupt(*args):
+                        raise KeyboardInterrupt
+
+                    transaction.__exit__.side_effect = interrupt
+                else:
+                    failure = KeyboardInterrupt()
+                errors = io.StringIO()
+                with patch.dict("sys.modules", {"psycopg": driver}), \
+                        patch.object(chuyen, "ReviewDataPG") as base, redirect_stderr(errors):
+                    base.return_value.ghi_lan_chup.side_effect = failure
+                    code, _, raw = self.run_cli()
+                self.assertEqual(code, 130)
+                driver.connect.assert_called_once()
+                transaction.__exit__.assert_called_once()
+                self.assertIs(transaction.__exit__.call_args.args[1], failure)
+                self.assertEqual(errors.getvalue(), "M4_REVIEW_CHUYEN_DUNG\n")
+                for text in (raw, errors.getvalue()):
+                    self.assertNotIn("Traceback", text)
+                    self.assertNotIn("BI_MAT_DEMO_456", text)
+
+    def test_base_exception_khac_duoc_bao_loi_chung(self):
+        driver = Mock()
+        driver.connect.side_effect = BaseException("DETAIL: BI_MAT_DEMO_456")
+        errors = io.StringIO()
+        with patch.dict("sys.modules", {"psycopg": driver}), redirect_stderr(errors):
+            code, reports, raw = self.run_cli()
+        self.assertEqual(code, 1)
+        self.assertEqual(reports[-1]["ma_loi"], "M4_REVIEW_CHUYEN_LOI")
+        for text in (raw, errors.getvalue()):
+            self.assertNotIn("Traceback", text)
+            self.assertNotIn("BI_MAT_DEMO_456", text)
+
+    def test_logger_psycopg_warning_khong_ra_stderr(self):
+        driver = MagicMock()
+
+        def warning(*args, **kwargs):
+            logging.getLogger("psycopg").warning("DETAIL: BI_MAT_DEMO_456")
+            logging.getLogger("psycopg.connection").warning("DETAIL: BI_MAT_DEMO_456")
+            return {}
+
+        errors = io.StringIO()
+        with patch.dict("sys.modules", {"psycopg": driver}), \
+                patch.object(chuyen, "ghi_pg", side_effect=warning), redirect_stderr(errors):
+            code, _, _ = self.run_cli()
+        self.assertEqual(code, 0)
+        self.assertEqual(errors.getvalue(), "")
 
     def test_console_hong_khi_bao_loi_van_thoat_khong_lo_exception_goc(self):
         driver = Mock()

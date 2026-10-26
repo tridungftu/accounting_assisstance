@@ -13,6 +13,7 @@ import argparse
 import csv
 import hashlib
 import json
+import logging
 import sqlite3
 import sys
 import uuid
@@ -319,6 +320,11 @@ def doc_dsn(path):
 
 
 def main(argv=None):
+    # Chặn warning rollback của driver trước khi import/kết nối psycopg.
+    logger = logging.getLogger("psycopg")
+    if not any(isinstance(handler, logging.NullHandler) for handler in logger.handlers):
+        logger.addHandler(logging.NullHandler())
+    logger.propagate = False
     parser = argparse.ArgumentParser(description=__doc__)
     for name in ("nguon", "anh-xa", "dsn-tep", "nguon-id", "chup-luc"):
         parser.add_argument("--" + name, required=True)
@@ -356,7 +362,14 @@ def main(argv=None):
                        for t in BANG_NGUON},
               "tong_kiem_soat": totals})
         return 0
-    except Exception as exc:
+    except KeyboardInterrupt:
+        try:
+            sys.stderr.write("M4_REVIEW_CHUYEN_DUNG\n")
+            sys.stderr.flush()
+        except BaseException:
+            pass
+        return 130
+    except BaseException as exc:
         # Không xuất str(exc), traceback, DSN/path hay nội dung driver/SQL.
         try:
             code = exc.code if isinstance(exc, DataError) and exc.code.startswith("M4_REVIEW_") else "M4_REVIEW_CHUYEN_LOI"
