@@ -221,6 +221,8 @@ def chuan_hoa(loai: str, gia_tri: str) -> str:
     CCCD/MST bỏ khoảng trắng, dấu chấm/gạch; SĐT bỏ thêm ngoặc, giữ '+' đầu
     và mọi số 0 (không quy đổi +84/0). Email bỏ trắng hai đầu, casefold toàn
     địa chỉ; không gộp dấu chấm/plus alias. STK giữ đúng hợp đồng bank_account.
+    Theo quy ước nghiệp vụ, nhà cung cấp thư thực tế không phân biệt hoa/thường;
+    casefold toàn bộ email để tra cứu coi các cách viết đó là cùng một đối tác.
     """
     kind = _loai_du_lieu(loai)
     if not isinstance(gia_tri, str):
@@ -255,4 +257,4 @@ def che_hien_thi(loai: str, gia_tri: str) -> str:
         return masked + "@" + domain
     if kind == "SDT":
         return value[:3] + "***" + value[-3:] if len(value) > 6 else "***"
-    return "*" * (len(value) - 4) + value[-4:] if len(value) > 4 else "*" * len(value)
+    return "****" + value[-4:] if len(value) > 4 else "****"

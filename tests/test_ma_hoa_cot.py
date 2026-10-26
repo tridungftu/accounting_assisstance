@@ -83,8 +83,8 @@ class ChuanHoaTests(_CaTam):
 
     def test_che_hien_thi(self):
         cases = (
-            ("STK", "0012345678", "******5678"),
-            ("CCCD", "001234567890", "********7890"),
+            ("STK", "0012345678", "****5678"),
+            ("CCCD", "001234567890", "****7890"),
             ("EMAIL", "NguoiDung@Example.com", "n***g@example.com"),
             ("EMAIL", "ab@example.com", "***@example.com"),
             ("SDT", "0901234567", "090***567"),
@@ -94,6 +94,34 @@ class ChuanHoaTests(_CaTam):
         for kind, raw, expected in cases:
             with self.subTest(kind=kind):
                 self.assertEqual(mh.che_hien_thi(kind, raw), expected)
+
+    def test_che_stk_cccd_mst_giu_bon_dau_va_bon_ky_tu_cuoi(self):
+        for kind in ("STK", "CCCD", "MST"):
+            # bank_account chỉ chấp nhận STK từ 6 chữ số; giữ nguyên hợp đồng đó.
+            values = ("001234", "00123456781234") if kind == "STK" else (
+                "0", "00", "001", "0012", "01234", "001234", "00123456781234")
+            for raw in values:
+                with self.subTest(kind=kind, raw=raw):
+                    expected = "****" if len(raw) <= 4 else "****1234"
+                    self.assertEqual(mh.che_hien_thi(kind, raw), expected)
+
+    def test_che_hien_thi_do_dai_khong_phu_thuoc_phan_bi_che(self):
+        cases = (
+            ("STK", "001234", "00123456781234", "****1234"),
+            ("CCCD", "01234", "00123456781234", "****1234"),
+            ("MST", "01234", "00123456781234", "****1234"),
+            ("EMAIL", "abc@example.com", "abbbbbbbbbc@example.com", "a***c@example.com"),
+            ("EMAIL", "a@example.com", "ab@example.com", "***@example.com"),
+            ("SDT", "0901567", "090123456789567", "090***567"),
+            ("SDT", "1", "123456", "***"),
+        )
+        for kind, shorter, longer, expected in cases:
+            with self.subTest(kind=kind, shorter=shorter):
+                short_mask = mh.che_hien_thi(kind, shorter)
+                long_mask = mh.che_hien_thi(kind, longer)
+                self.assertEqual(short_mask, expected)
+                self.assertEqual(long_mask, expected)
+                self.assertEqual(len(short_mask), len(long_mask))
 
     def test_thieu_khoa_tra_dung_ma_ca_hai_loai(self):
         self.loi("MH_THIEU_KHOA", lambda: self.source.tham_so_ma_hoa(1))
