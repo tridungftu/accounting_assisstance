@@ -90,6 +90,30 @@ class SoDuSnapshotTests(unittest.TestCase):
         kq = tra_so_du("du no khoan vay A va A-1", self.snapshot)
         self.assertEqual([d["ma_khoan_vay"] for d in kq["dong"]], ["A", "A-1"])
 
+    def test_ma_truc_tiep_khong_khop_tien_to(self):
+        for cau in ("dư nợ A-10", "du no A/1", "du no A.1", "du no KHONG-CO",
+                    "du no A10", "du no A-10 tai NH B"):
+            with self.subTest(cau=cau):
+                kq = tra_so_du(cau, self.snapshot)
+                self.assertEqual(kq["trang_thai"], "KHONG_THAY_TRONG_SNAPSHOT")
+                self.assertEqual(kq["dong"], [])
+                self.kiem_moc(kq)
+        for cau, ma in (("dư nợ A", "A"), ("dư nợ a-1", "A-1")):
+            with self.subTest(cau=cau):
+                kq = tra_so_du(cau, self.snapshot)
+                self.assertEqual([d["ma_khoan_vay"] for d in kq["dong"]], [ma])
+                self.kiem_moc(kq)
+
+    def test_ten_co_so_khong_bi_hieu_la_ma_khoan_vay(self):
+        for truong, ten in (("ngan_hang", "NH DEMO-10"),
+                            ("phap_nhan", "Cong ty DEMO10")):
+            with self.subTest(truong=truong):
+                snapshot = deepcopy(self.snapshot)
+                snapshot["khoan_vay"][0][truong] = ten
+                kq = tra_so_du("du no " + ten, snapshot)
+                self.assertEqual([d["ma_khoan_vay"] for d in kq["dong"]], ["A"])
+                self.kiem_moc(kq)
+
     def test_ma_co_tien_to_trung_nhan_khong_bi_tach(self):
         for ma in ("MA-A", "NH-A", "MA/A", "NH.A", "CUA-A", "VA-A"):
             with self.subTest(ma=ma):
@@ -132,10 +156,36 @@ class SoDuSnapshotTests(unittest.TestCase):
         self.assertEqual(kq["dong"][-1]["gia_tri"], Decimal("0"))
         self.assertIn("0 VND", kq["tra_loi"])
 
+    def test_tong_du_no_khong_cong_khac_dong_tien(self):
+        kq = tra_so_du("tổng dư nợ", self.snapshot)
+        self.assertEqual([d["ma_khoan_vay"] for d in kq["dong"]], ["A", "A-1", "C"])
+        self.assertEqual([d["don_vi"] for d in kq["dong"]], ["VND", "USD", "VND"])
+        for so in ("123456789,12 VND", "1234,56 USD", "0 VND"):
+            self.assertIn(so, kq["tra_loi"])
+        self.assertNotIn("Tổng", kq["tra_loi"])
+        self.kiem_moc(kq)
+
     def test_cau_dieu_khoan_khong_tra_snapshot(self):
         for cau in ("phí trả nợ trước hạn", "phi tra no truoc han", "lãi suất theo hợp đồng", ""):
             with self.subTest(cau=cau):
                 self.assertIsNone(tra_so_du(cau, self.snapshot))
+
+    def test_so_lieu_theo_hop_dong_khong_tra_snapshot(self):
+        for cau in ("Theo hợp đồng, kỳ điều chỉnh khoản vay A là bao nhiêu?",
+                    "Hợp đồng quy định dư nợ khoản A là bao nhiêu?",
+                    "Điều khoản về ngày đáo hạn khoản A",
+                    "Quy định kỳ điều chỉnh khoản A",
+                    "Dư nợ khoản A theo Điều 3", "Du no A theo khoan 2",
+                    "THEO HOP DONG LAI SUAT HIEN HANH NH B"):
+            with self.subTest(cau=cau):
+                self.assertIsNone(tra_so_du(cau, self.snapshot))
+
+    def test_ky_dieu_chinh_tiep_theo_van_tra_snapshot(self):
+        kq = tra_so_du("kỳ điều chỉnh tiếp theo của khoản A", self.snapshot)
+        self.assertEqual(kq["trang_thai"], "TU_SNAPSHOT")
+        self.assertEqual([d["ma_khoan_vay"] for d in kq["dong"]], ["A"])
+        self.assertEqual(kq["dong"][0]["gia_tri"], date(2026, 11, 1))
+        self.kiem_moc(kq)
 
     def test_snapshot_rong_co_moc(self):
         kq = tra_so_du("du no khoan A", {**self.snapshot, "khoan_vay": []})

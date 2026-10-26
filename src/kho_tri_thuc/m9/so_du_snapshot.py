@@ -23,6 +23,10 @@ _DUNG = re.compile(
     r"(?<![\w./-])(?:la bao nhieu|bao nhieu|la gi|hien hanh|hien tai|hien nay|hom nay"
     r"|du no|so du|lai suat|ky dieu chinh|ngay dao han|cua|tai|thuoc)(?![\w./-])"
 )
+_HOP_DONG = re.compile(
+    r"(?<![\w./-])(?:theo hop dong|hop dong quy dinh|dieu khoan|quy dinh"
+    r"|(?:dieu|khoan) \d+(?:[./]\d+)*)(?![\w./-])"
+)
 
 
 def _chuan(chu: str) -> str:
@@ -76,6 +80,18 @@ def _bo_loc(cau: str, cac_khoan: list[dict]) -> dict[str, set[str]]:
                 d <= dau and c >= cuoi and (d, c) != (dau, cuoi)
                 for d, c, _ in khop
             )}
+    # Mã lạ không có nhãn cũng phải tạo bộ lọc, không rơi về cả danh mục.
+    # Loại tên ngân hàng/pháp nhân đã biết trước khi nhận diện token giống mã.
+    chu_ma = chu
+    for truong in ("ngan_hang", "phap_nhan"):
+        for ten in sorted(gia_tri[truong], key=len, reverse=True):
+            chu_ma = _mau(ten).sub(" ", chu_ma)
+    ma_truc_tiep = {tu for tu in chu_ma.split()
+                   if re.search(r"[a-z]", tu) and re.search(r"[\d./-]", tu)}
+    if ma_truc_tiep:
+        loc.setdefault("ma_khoan_vay", set()).update(
+            gia_tri["ma_khoan_vay"] & ma_truc_tiep,
+        )
     return loc
 
 
@@ -117,6 +133,8 @@ def tra_so_du(cau_hoi: str, snapshot: dict) -> dict | None:
     Ngoài các từ khóa hiện trạng thì trả None để tầng gọi xử lý hợp đồng.
     """
     cau = _chuan(cau_hoi)
+    if _HOP_DONG.search(cau):
+        return None
     truong_hoi = [(t, nhan) for t, tu_khoa, nhan in _TRUONG
                   if any(_mau(tu).search(cau) for tu in tu_khoa)]
     if not truong_hoi:
