@@ -178,6 +178,10 @@ class MtqCrmResolverPostgres(unittest.TestCase):
         lh = self.insert("master.loai_hinh_doanh_thu", phap_nhan_id=pn, ma=uuid.uuid4().hex, ten="Loại hình MTQ tổng hợp")
         da = self.insert("master.du_an", phap_nhan_id=pn, ma_junsky=uuid.uuid4().hex, ten="Dự án MTQ tổng hợp")
         kh = self.insert("master.doi_tac", phap_nhan_id=pn, ten_phap_ly="Khách MTQ tổng hợp", ten_chuan_hoa=uuid.uuid4().hex)
+        # hop_dong_kiem yêu cầu mapping đang mở đúng đối tác + pháp nhân,
+        # không chỉ doi_tac.phap_nhan_id; giữ mapping này suốt vòng đời G2/G3/G4.
+        self.insert("master.doi_tac_ma_junsky", doi_tac_id=kh, phap_nhan_id=pn,
+                    object_id_junsky="MTQ_TEST_" + uuid.uuid4().hex, ten_junsky="Khách MTQ tổng hợp")
         mau = self.insert("master.crm_mau", phap_nhan_id=pn, loai_hinh_id=lh, ma_mau=uuid.uuid4().hex, tao_boi=login)
         tep = self.insert("master.crm_mau_tep", phap_nhan_id=pn, raw_sha256=sha, byte_length=1,
                           object_key="crm-mau/" + sha, bo_doc="MTQ_TEST", facts=Jsonb({}),
