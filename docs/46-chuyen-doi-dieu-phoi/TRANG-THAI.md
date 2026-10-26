@@ -641,3 +641,26 @@ Chi tiết có tệp:dòng: `BANG-DIEU-KIEN-GO-LIVE.md`; quy trình: `CHECKLIST-
 - **Đang chạy (4 Codex):** 4i-b1 v3, 4f1c v2, 4b2b v3, XS-4c2 v3.
 - **Gate PG đang chạy:** BO-1a v2 → XS-2a (review tĩnh Đạt).
 - **Chờ Anh:** phiếu D1–D2.
+### 27/10 ~00:50 — gộp tới M0064: 4f1c, XS-2a/2a2/2b, BO-1a/1b, XS-4c2, XS-T1a; kiểm bản hợp nhất xanh
+- **Gộp** (migration cuối **M0064**):
+  - **BO-1a (M0059)**, **XS-2a (M0060)**, **4f1c (M0061)**, **XS-2a2 (M0062)**, **BO-1b (M0063)**, **XS-T1a (M0064)**;
+  - **XS-4c2**, **XS-2b** (Python).
+- **Kiểm xác suất trúng 4 lát**, Claude tự đọc:
+  - **XS-4c2 bắt được Chặn thật:** đọc thẳng bảng bị `REVOKE`, gọi `mtq_la_admin` không được cấp cho `app_web`. Test mock không thấy; nay bắt buộc có test PG dưới vai ứng dụng.
+  - BO-1b: Đạt.
+  - XS-2b: Đạt. Để sau: CHO tiêu lượt thử.
+  - XS-4c1 (trước đó): Đạt.
+  - **Lỗi quy trình lead:** 2 lần rút thăm và gộp cùng một lệnh (XS-4c1, XS-2b), nên kiểm sau khi đã gộp. Từ nay tách bước.
+- **Kiểm bản hợp nhất** (worktree tách `kiem-hop-nhat`, detached tại 731a62a): 7 module 176 ok, 0 mã mới.
+  - Trước đó phát hiện 2 lỗi do tương tác giữa các lát gộp:
+    - test XS-2a2 ghim migration cuối;
+    - test BO đọc hồ sơ dưới `app_web` sau RLS M0061.
+  - Lead sửa test.
+- **Sót tên tạm trong test khi đánh số:** 2 lần. Script gộp `gop_mig.py` nay tự đổi tên trong `tests/` và dừng nếu còn sót.
+- **Đang chờ gộp:**
+  - 4b2b (review đang chạy);
+  - 4i-b1 vòng 5 (review vòng 2 đang chạy);
+  - NEN-2c (giữ chờ: test va chạm UUID/instance còn trả khóa NGUON — nghi hàm ứng viên 4i-b1 sót trường hợp);
+  - 4d1b (vòng 2 đang chạy; còn lỗi fixture trùng tệp mẫu);
+  - XS-5a1 (review đang chạy).
+- **Chờ Anh:** phiếu dọn dẹp D1–D2.
