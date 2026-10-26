@@ -2,6 +2,8 @@
 
 Không có KHO_PG_DSN_TEST/psycopg thì skip PG, không mở dịch vụ.
 M2 chưa promote BAN_RA: chỉ thử candidate/FK/guard, không giả bản bán hợp lệ.
+M3-1c kiểm riêng trigger và SELECT trên bảng tạm không có FK/trigger nguồn;
+đây là test SQL cô lập, không phải xác minh luồng bán ra đầu-cuối của M2.
 """
 
 from __future__ import annotations
@@ -11,12 +13,15 @@ from decimal import Decimal
 import os
 from pathlib import Path
 import re
+from types import SimpleNamespace
 import unittest
 import uuid
 
 from kho_tri_thuc.ha_tang import postgres as pg
 from kho_tri_thuc.ha_tang import pg_migrations as registry
-from kho_tri_thuc.k2.sql_m3 import M3_CO_SO_SQL
+from kho_tri_thuc.k2.m3 import M3K2, tinh_ba_dang_thuc
+from kho_tri_thuc.k2.sql_m3 import M3_CO_SO_SQL, M3_CO_SO_B_SQL
+from tests.test_m3_dang_thuc import demo
 
 try:
     import psycopg
@@ -34,16 +39,24 @@ TABLES = ('hop_dong_co_so', 'hoa_don_hop_dong', 'policy_hinh_thuc_doanh_thu')
 ADMIN_DSN = os.environ.get('KHO_PG_DSN_TEST')
 
 
+def migration_b_index():
+    tail = REGISTRY.read_text(encoding='utf-8').split('# M3-1c — CD-013:', 1)[1]
+    name = re.search(r'^(\w+_M3_CO_SO_B) = M3_CO_SO_B_SQL$', tail, re.MULTILINE).group(1)
+    migration = getattr(registry, name)
+    return next(i for i, m in enumerate(registry.PG_MIGRATIONS) if m is migration)
+
+
 class M3SqlTinh(unittest.TestCase):
     def test_module_chi_hang_sql_literal(self):
         tree = ast.parse(MODULE.read_text(encoding='utf-8'))
-        self.assertEqual(len(tree.body), 2)
         self.assertIsInstance(tree.body[0], ast.Expr)  # docstring
-        assignment = tree.body[1]
-        self.assertIsInstance(assignment, ast.Assign)
-        self.assertEqual([x.id for x in assignment.targets], ['M3_CO_SO_SQL'])
-        self.assertEqual(ast.literal_eval(assignment.value), M3_CO_SO_SQL)
-        self.assertTrue(all(isinstance(s, str) and s.strip() for s in M3_CO_SO_SQL))
+        constants = {}
+        for assignment in tree.body[1:]:
+            self.assertIsInstance(assignment, ast.Assign)
+            self.assertEqual(len(assignment.targets), 1)
+            constants[assignment.targets[0].id] = ast.literal_eval(assignment.value)
+        self.assertEqual(constants, {'M3_CO_SO_SQL': M3_CO_SO_SQL, 'M3_CO_SO_B_SQL': M3_CO_SO_B_SQL})
+        self.assertTrue(all(isinstance(s, str) and s.strip() for statements in constants.values() for s in statements))
 
     def test_khong_co_cot_hay_literal_so_hach_toan(self):
         self.assertNotIn('tài khoản', DDL.lower())
@@ -62,6 +75,32 @@ class M3SqlTinh(unittest.TestCase):
         self.assertRegex(tail, r'PG_MIGRATIONS = \(\*PG_MIGRATIONS, \w+_M3_CO_SO\)')
         self.assertEqual(sum(m is M3_CO_SO_SQL for m in registry.PG_MIGRATIONS), 1)
         self.assertEqual(registry.PG_SCHEMA_VERSION, len(registry.PG_MIGRATIONS))
+
+    def test_migration_b_append_khong_ghim_so_hay_hash(self):
+        source = REGISTRY.read_text(encoding='utf-8')
+        marker = '# M3-1c — CD-013:'
+        self.assertEqual(source.count(marker), 1)
+        tail = source.split(marker, 1)[1]
+        self.assertIn('from ..k2.sql_m3 import M3_CO_SO_B_SQL', tail)
+        self.assertRegex(tail, r'PG_MIGRATIONS = \(\*PG_MIGRATIONS, \w+_M3_CO_SO_B\)')
+        migrations = registry.PG_MIGRATIONS
+        self.assertEqual(sum(m is M3_CO_SO_B_SQL for m in migrations), 1)
+        i = migration_b_index()
+        self.assertIs(migrations[i], M3_CO_SO_B_SQL)
+        self.assertIn(M3_CO_SO_SQL, registry.PG_MIGRATIONS[:i])
+
+    def test_migration_b_trigger_invoker_khoa_va_chi_xet_ban_hien_hanh(self):
+        ddl = '\n'.join(M3_CO_SO_B_SQL)
+        self.assertNotIn('CREATE UNIQUE INDEX', ddl)
+        self.assertNotIn('SECURITY DEFINER', ddl)
+        self.assertIn('SET search_path = pg_catalog, m3, pg_temp', ddl)
+        self.assertIn('BEFORE INSERT ON m3.hoa_don_hop_dong', ddl)
+        self.assertIn('pg_catalog.pg_advisory_xact_lock', ddl)
+        self.assertIn('pg_catalog.hashtextextended(NEW.hoa_don_id::text, 0)', ddl)
+        self.assertIn("IF NEW.trang_thai = 'DA_XAC_NHAN' THEN", ddl)
+        self.assertIn('l.khoa_lien_ket <> NEW.khoa_lien_ket', ddl)
+        self.assertIn('SELECT 1 FROM m3.hoa_don_hop_dong s WHERE s.thay_cho_id = l.id', ddl)
+        self.assertIn("ERRCODE = '23505'", ddl)
 
     def test_utf8_khong_bom_registry_lf(self):
         for path in (MODULE, REGISTRY, Path(__file__)):
@@ -99,6 +138,112 @@ class M3SqlTinh(unittest.TestCase):
         self.assertNotRegex(DDL, r'GRANT\s+(?:ALL|INSERT|UPDATE|DELETE)')
 
 
+class M31cDangThucThuan(unittest.TestCase):
+    """Gom test bổ sung tại đây để handoff chỉ đổi tổng cộng bốn tệp."""
+
+    def test_cau_hien_trung_tinh_ke_ca_cac_nhanh_thieu_can_cu(self):
+        for case in ('co_so', 'nguon', 'ung_vien', 'hoa_don', 'tien', 'thue', 'du_dot', 'trung'):
+            with self.subTest(case=case):
+                c, links, kw = demo()
+                if case == 'co_so':
+                    c['trang_thai'] = 'PENDING'
+                elif case == 'nguon':
+                    c['nguon'] = None
+                    links[0]['co_so_id'] = 'DEMO-khac'
+                elif case == 'ung_vien':
+                    links[0]['trang_thai'] = 'PENDING'
+                elif case == 'hoa_don':
+                    links[0]['hoa_don'] = None
+                elif case == 'tien':
+                    c['currency'] = None
+                    c['tong_thanh_toan'] = None
+                    links[0]['hoa_don']['currency'] = None
+                elif case == 'thue':
+                    kw['policy_thue'] = None
+                elif case == 'du_dot':
+                    kw['can_cu_du_dot'] = None
+                else:
+                    links.append(links[0])
+                reasons = '\n'.join(reason for r in tinh_ba_dang_thuc(c, links, **kw)
+                                    for reason in r.ra_man_hinh()['ly_do'])
+                self.assertTrue(reasons)
+                for token in ('Cần Anh', 'policy', '#7'):
+                    self.assertNotIn(token, reasons)
+
+    def test_thieu_don_vi_tien_va_khong_xem_duoc_khong_bao_khac_dong_tien(self):
+        for case in ('co_so', 'hoa_don', 'khong_xem_duoc'):
+            with self.subTest(case=case):
+                c, links, kw = demo()
+                if case == 'co_so':
+                    c['currency'] = None
+                    expected = 'đơn vị tiền của cơ sở hợp đồng'
+                elif case == 'hoa_don':
+                    links[0]['hoa_don']['currency'] = None
+                    expected = 'đơn vị tiền của hóa đơn'
+                else:
+                    links[0]['hoa_don'] = None
+                    expected = 'Không xem được hóa đơn'
+                for r in tinh_ba_dang_thuc(c, links, **kw):
+                    self.assertEqual(r.trang_thai, 'PENDING')
+                    self.assertTrue(any(expected in reason for reason in r.ly_do))
+                    self.assertFalse(any('đồng tiền khác nhau' in reason for reason in r.ly_do))
+
+    def test_thay_the_huy_hoac_mat_eligible_khong_cong_ban_ghim(self):
+        for changes in ({'eligible_content_id': 'DEMO-v2'}, {'eligible_content_id': None},
+                        {'co_ban_thay_the': True}, {'native_fiscal_status': 'CANCELLED'}):
+            with self.subTest(changes=changes):
+                c, links, kw = demo()
+                links[0]['hoa_don'].update(eligible_content_id=links[0]['hoa_don_phien_ban_id'])
+                links[0]['hoa_don'].update(changes)
+                for r, expected in zip(tinh_ba_dang_thuc(c, links, **kw), (54, 10, 40)):
+                    self.assertEqual(r.trang_thai, 'PENDING')
+                    self.assertEqual(r.ve_trai, Decimal(expected))
+                    self.assertIn('Hóa đơn đã được thay thế/điều chỉnh, cần xác nhận lại liên kết.', r.ly_do)
+                    self.assertFalse(next(n for n in r.nguon if n.id == links[0]['id']).duoc_tinh)
+                self.assertEqual(links[0]['hoa_don_phien_ban_id'], 'DEMO-hoa-don-1-v1')
+
+    def test_eligible_hien_hanh_duoc_tinh(self):
+        c, links, kw = demo()
+        for link in links:
+            link['hoa_don'].update(eligible_content_id=link['hoa_don_phien_ban_id'],
+                                  co_ban_thay_the=False, native_fiscal_status='UNKNOWN')
+        self.assertEqual([r.trang_thai for r in tinh_ba_dang_thuc(c, links, **kw)], ['KHOP'] * 3)
+
+    def test_reader_truyen_trang_thai_hien_hanh_vao_phep_tinh(self):
+        c, links, kw = demo()
+        link = links[0]
+        row = {**c, 'lien_ket_id': link['id'], 'lien_ket_revision': 1,
+               'lien_ket_trang_thai': 'DA_XAC_NHAN', 'lien_ket_nguon': 'DEMO',
+               'nguon_ref': 'DEMO', 'lien_ket_vi_tri': None, 'can_cu': 'DEMO',
+               **{k: link[k] for k in ('hoa_don_id', 'hoa_don_phien_ban_id', 'hoa_don_quan_sat_id')},
+               'chieu': 'BAN_RA', 'hoa_don_phien_ban': 1, 'tien_te': 'VND',
+               'eligible_content_id': link['hoa_don_phien_ban_id'],
+               'co_ban_thay_the': False, 'native_fiscal_status': 'UNKNOWN'}
+        calls = []
+
+        class Connection:
+            def execute(inner, query, params):
+                calls.append(query)
+                return SimpleNamespace(description=[SimpleNamespace(name=k) for k in row],
+                                       fetchall=lambda: [row])
+
+        reason = 'Hóa đơn đã được thay thế/điều chỉnh, cần xác nhận lại liên kết.'
+        for changes in ({}, {'eligible_content_id': 'DEMO-v2'}, {'eligible_content_id': None},
+                        {'co_ban_thay_the': True}, {'native_fiscal_status': 'CANCELLED'}):
+            with self.subTest(changes=changes):
+                original = dict(row)
+                row.update(changes)
+                result = M3K2(Connection()).ba_dang_thuc(
+                    c['phap_nhan_id'], c['hop_dong_id'], c['hop_dong_phien_ban_id'], pham_vi=c['pham_vi'])
+                self.assertEqual([reason in r.ly_do for r in result], [bool(changes)] * 3)
+                self.assertEqual([r.trang_thai for r in result], ['PENDING'] * 3)
+                self.assertEqual(next(n for n in result[0].nguon if n.loai == 'Hóa đơn').id,
+                                 link['hoa_don_phien_ban_id'])
+                row.update(original)
+        self.assertTrue(all('d.eligible_content_id' in query and 'successor.supersedes_id' in query
+                            and 'latest.native_fiscal_status' in query for query in calls))
+
+
 @unittest.skipUnless(ADMIN_DSN and psycopg is not None, 'Thiếu KHO_PG_DSN_TEST hoặc psycopg — bỏ qua PG')
 class M3Postgres(unittest.TestCase):
     @classmethod
@@ -109,7 +254,9 @@ class M3Postgres(unittest.TestCase):
         cls.addClassCleanup(cls._don_csdl)
         cls.c = psycopg.connect(make_conninfo(ADMIN_DSN, dbname=cls.db), autocommit=True)
         cls.addClassCleanup(cls.c.close)
-        pg.migrate(cls.c)
+        i = migration_b_index()
+        pg.migrate(cls.c, target=i)  # đúng tiền tố PG_MIGRATIONS[:i], kể cả khi lead thêm migration
+        pg.migrate(cls.c, target=i + 1)
 
     @classmethod
     def _don_csdl(cls):
@@ -223,6 +370,140 @@ class M3Postgres(unittest.TestCase):
         self.rejected('23514', lambda: self.insert('hoa_don_hop_dong', dict(phap_nhan_id=self.pn,
                       co_so_id=self.basis(), revision=1, nguon='M2 DEMO', nguon_ref='DEMO', tao_boi='DEMO',
                       hoa_don_id=invoice, hoa_don_phien_ban_id=uuid.uuid4(), hoa_don_quan_sat_id=uuid.uuid4())))
+
+    def mapping_snapshot(self):
+        # Cô lập trigger mới; giữ CHECK/index, không nới FK/guard M2 trên bảng gốc.
+        self.c.execute('CREATE TEMP TABLE m3c_lien_ket (LIKE m3.hoa_don_hop_dong INCLUDING DEFAULTS INCLUDING CONSTRAINTS INCLUDING INDEXES)')
+        for statement in M3_CO_SO_B_SQL:
+            self.c.execute(statement.replace('m3.hoa_don_hop_dong', 'pg_temp.m3c_lien_ket')
+                           .replace('m3.lien_ket_mot_xac_nhan', 'pg_temp.m3c_mot_xac_nhan'))
+        invoice, version, observation = (uuid.uuid4() for _ in range(3))
+
+        def add(basis, confirmed, *, chain=None, revision=1, replaces=None, invoice_version=version):
+            return self.c.execute("""INSERT INTO pg_temp.m3c_lien_ket
+                (phap_nhan_id,co_so_id,khoa_lien_ket,revision,thay_cho_id,
+                 hoa_don_id,hoa_don_phien_ban_id,hoa_don_quan_sat_id,
+                 nguon,nguon_ref,tao_boi,trang_thai,can_cu,xac_nhan_boi,xac_nhan_luc)
+                VALUES (%s,%s,%s,%s,%s,%s,%s,%s,'DEMO','DEMO','DEMO',%s,'DEMO',%s,%s) RETURNING id""",
+                (self.pn, basis, chain or uuid.uuid4(), revision, replaces, invoice, invoice_version, observation,
+                 'DA_XAC_NHAN' if confirmed else 'PENDING',
+                 'DEMO' if confirmed else None, '2026-01-01' if confirmed else None)).fetchone()[0]
+
+        return add
+
+    def test_cung_chuoi_revision_2_xac_nhan_lai_duoc(self):
+        add = self.mapping_snapshot()
+        basis, chain = uuid.uuid4(), uuid.uuid4()
+        old = add(basis, True, chain=chain)
+        new_version = uuid.uuid4()
+        new = add(basis, True, chain=chain, revision=2, replaces=old, invoice_version=new_version)
+        self.assertEqual(self.c.execute('SELECT id FROM pg_temp.m3c_lien_ket ORDER BY revision').fetchall(),
+                         [(old,), (new,)])
+        # Cùng chuỗi có thể chuyển tiếp sang revision mới của cơ sở hợp đồng.
+        add(uuid.uuid4(), True, chain=chain, revision=3, replaces=new, invoice_version=new_version)
+
+    def test_chuoi_cu_da_pending_chuoi_moi_xac_nhan_duoc(self):
+        add = self.mapping_snapshot()
+        basis, chain = uuid.uuid4(), uuid.uuid4()
+        old = add(basis, True, chain=chain)
+        add(basis, False, chain=chain, revision=2, replaces=old)
+        new = add(uuid.uuid4(), True)
+        self.assertEqual(self.c.execute("""SELECT id FROM pg_temp.m3c_lien_ket l
+            WHERE l.trang_thai='DA_XAC_NHAN' AND NOT EXISTS (
+                SELECT 1 FROM pg_temp.m3c_lien_ket s WHERE s.thay_cho_id=l.id)""").fetchall(), [(new,)])
+        self.assertEqual(self.c.execute('SELECT count(*) FROM pg_temp.m3c_lien_ket').fetchone()[0], 3)
+
+    def test_hai_chuoi_hien_hanh_cung_xac_nhan_bi_tu_choi(self):
+        add = self.mapping_snapshot()
+        bases = [uuid.uuid4(), uuid.uuid4()]
+        add(bases[0], True)
+        for basis in bases:
+            with self.subTest(basis=basis):
+                with self.assertRaises(psycopg.errors.UniqueViolation) as caught:
+                    with self.c.transaction():
+                        add(basis, True)
+                self.assertEqual(caught.exception.sqlstate, '23505')
+                self.assertIn('Hóa đơn đã có liên kết hiện hành được xác nhận', str(caught.exception))
+        self.assertEqual(self.c.execute('SELECT count(*) FROM pg_temp.m3c_lien_ket').fetchone()[0], 1)
+
+    def test_mot_hoa_don_hai_hop_dong_chi_ung_vien_duoc_trung(self):
+        add = self.mapping_snapshot()
+        bases = [uuid.uuid4(), uuid.uuid4()]
+        for basis in bases:
+            add(basis, False)
+        add(bases[0], True)
+        self.rejected('23505', lambda: add(bases[1], True))
+        add(bases[1], False)  # vẫn là ứng viên được, dù HĐ thứ nhất đã xác nhận
+        self.assertEqual(self.c.execute('SELECT count(*) FROM pg_temp.m3c_lien_ket').fetchone()[0], 4)
+
+    def test_trigger_moi_da_cai_tren_bang_goc(self):
+        definition, definer, config = self.c.execute("""SELECT pg_get_triggerdef(t.oid), p.prosecdef, p.proconfig
+            FROM pg_trigger t JOIN pg_proc p ON p.oid=t.tgfoid
+            WHERE t.tgrelid='m3.hoa_don_hop_dong'::regclass
+              AND t.tgname='hoa_don_hop_dong_mot_xac_nhan'""").fetchone()
+        self.assertIn('BEFORE INSERT ON m3.hoa_don_hop_dong', definition)
+        self.assertIn('m3.lien_ket_mot_xac_nhan()', definition)
+        self.assertFalse(definer)
+        self.assertIn('search_path=pg_catalog, m3, pg_temp', config)
+
+    def test_reader_pg_ban_ghim_khac_eligible_hoac_co_successor_pending(self):
+        # Thực thi SELECT của reader trên snapshot bảng tạm; không sửa CHECK,
+        # trigger hay dữ liệu M2 để dựng giả luồng promote bán ra đã chạy được.
+        tables = {'m3.hop_dong_co_so': 'm3c_co_so', 'master.hop_dong_phien_ban': 'm3c_pb',
+                  'm3.hoa_don_hop_dong': 'm3c_mapping', 'kho.hoa_don_phien_ban': 'm3c_version',
+                  'kho.hoa_don_danh_tinh': 'm3c_invoice', 'kho.hoa_don_quan_sat': 'm3c_observation'}
+        for original, temporary in tables.items():
+            self.c.execute(sql.SQL('CREATE TEMP TABLE {} AS SELECT * FROM {} WITH NO DATA').format(
+                sql.Identifier(temporary), sql.Identifier(*original.split('.'))))
+        basis = self.basis(currency='VND', gia_tri_truoc_vat=100, tong_gia_dat_duoc_tru=20,
+                           phan_chiu_thue=80, vat=8, tong_thanh_toan=108)
+        self.c.execute('INSERT INTO m3c_co_so SELECT * FROM m3.hop_dong_co_so WHERE id=%s', (basis,))
+        self.c.execute("UPDATE m3c_co_so SET trang_thai='DA_XAC_NHAN'")
+        self.c.execute('INSERT INTO m3c_pb SELECT * FROM master.hop_dong_phien_ban WHERE id=%s', (self.pb,))
+        self.c.execute("UPDATE m3c_pb SET trang_thai='DA_DUYET'")
+        invoice, version, observation, link = (uuid.uuid4() for _ in range(4))
+        self.c.execute("""INSERT INTO m3c_invoice (id,phap_nhan_id,chieu,eligible_content_id,latest_observation_id)
+            VALUES (%s,%s,'BAN_RA',%s,%s)""", (invoice, self.pn, version, observation))
+        self.c.execute("""INSERT INTO m3c_version (id,phap_nhan_id,hoa_don_id,phien_ban,tien_te,money_basis_state)
+            VALUES (%s,%s,%s,1,'VND','UNPROVEN_NO_MINOR')""", (version, self.pn, invoice))
+        self.c.execute("""INSERT INTO m3c_observation (id,phap_nhan_id,hoa_don_id,native_fiscal_status)
+            VALUES (%s,%s,%s,'UNKNOWN')""", (observation, self.pn, invoice))
+        self.c.execute("""INSERT INTO m3c_mapping
+            (id,khoa_lien_ket,revision,phap_nhan_id,co_so_id,hoa_don_id,hoa_don_phien_ban_id,
+             hoa_don_quan_sat_id,nguon,nguon_ref,can_cu,trang_thai)
+            VALUES (%s,%s,1,%s,%s,%s,%s,%s,'DEMO','DEMO','DEMO','DA_XAC_NHAN')""",
+            (link, uuid.uuid4(), self.pn, basis, invoice, version, observation))
+        connection = self.c
+
+        class SnapshotConnection:
+            def execute(inner, query, params):
+                for original, temporary in tables.items():
+                    query = query.replace(original, temporary)
+                return connection.execute(query, params)
+
+        def read():
+            return M3K2(SnapshotConnection()).ba_dang_thuc(
+                self.pn, self.hd, self.pb, pham_vi='DEMO toàn hợp đồng')
+
+        reason = 'Hóa đơn đã được thay thế/điều chỉnh, cần xác nhận lại liên kết.'
+        self.assertFalse(any(reason in r.ly_do for r in read()))
+        for case in ('eligible_khac', 'eligible_null', 'successor', 'huy'):
+            with self.subTest(case=case), self.c.transaction(force_rollback=True):
+                if case.startswith('eligible'):
+                    self.c.execute('UPDATE m3c_invoice SET eligible_content_id=%s',
+                                   (uuid.uuid4() if case == 'eligible_khac' else None,))
+                elif case == 'successor':
+                    self.c.execute("""INSERT INTO m3c_version (id,phap_nhan_id,hoa_don_id,supersedes_id,phien_ban)
+                        VALUES (%s,%s,%s,%s,2)""", (uuid.uuid4(), self.pn, invoice, version))
+                else:
+                    self.c.execute("UPDATE m3c_observation SET native_fiscal_status='CANCELLED'")
+                for r in read():
+                    self.assertEqual(r.trang_thai, 'PENDING')
+                    self.assertIn(reason, r.ly_do)
+                    self.assertIsNone(r.ve_trai)
+                    source = next(n for n in r.nguon if n.loai == 'Hóa đơn')
+                    self.assertEqual(source.id, str(version))
+                    self.assertFalse(source.duoc_tinh)
 
     def test_policy_theo_ngay_hieu_luc_va_pending(self):
         first = self.policy('2026-01-01', 'GHI_NHAN_LUON')

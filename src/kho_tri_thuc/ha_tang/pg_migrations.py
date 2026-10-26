@@ -12156,3 +12156,10 @@ from ..k2.sql_mtq_cong import MTQ_CONG_B_SQL  # noqa: E402 — chỉ hằng SQL
 M0043_MTQ_CONG_B = MTQ_CONG_B_SQL
 PG_MIGRATIONS = (*PG_MIGRATIONS, M0043_MTQ_CONG_B)
 PG_SCHEMA_VERSION = len(PG_MIGRATIONS)
+
+# M3-1c — CD-013: M0044 (lead đánh số khi gộp 26/10); một hóa đơn chỉ có một liên kết đã xác nhận; lead cấp ordinal khi gộp.
+from ..k2.sql_m3 import M3_CO_SO_B_SQL  # noqa: E402 — chỉ hằng SQL
+
+M0044_M3_CO_SO_B = M3_CO_SO_B_SQL
+PG_MIGRATIONS = (*PG_MIGRATIONS, M0044_M3_CO_SO_B)
+PG_SCHEMA_VERSION = len(PG_MIGRATIONS)

@@ -4,6 +4,9 @@
 kết có ``hoa_don`` chứa id/phien_ban_id/phien_ban/chieu/currency và ba khoản
 Decimal tong_thanh_toan/khong_chiu_thue/net_chiu_thue. Không nhận float,
 không tính lại khoản tiền từ dòng XML, VAT hay tổng khác.
+Snapshot thuần có thể dùng phien_ban_id làm bản hiện hành; adapter SQL luôn
+đọc eligible_content_id (kể cả NULL), co_ban_thay_the và native_fiscal_status
+từ M2. Không tự chuyển liên kết đã ghim sang nội dung mới.
 
 Căn cứ đủ đợt và policy thuế #7 là dữ liệu xác nhận từ tầng gọi tin cậy,
 không phải cờ do trình duyệt gửi. Cả hai phải có id/revision/nguon/co_so_id/
@@ -131,14 +134,14 @@ def tinh_ba_dang_thuc(
     reasons = []
     sources = [_nguon("Hợp đồng", c, phien_ban=c.get("hop_dong_phien_ban"))]
     if c.get("trang_thai") != "DA_XAC_NHAN" or c.get("crm_trang_thai") != "DA_DUYET":
-        reasons.append("Cần Anh xác nhận cơ sở hợp đồng và phiên bản hợp đồng đã duyệt.")
+        reasons.append("Chưa có cơ sở hợp đồng đã xác nhận và phiên bản hợp đồng đã duyệt.")
     if not all(c.get(k) for k in ("id", "revision", "phap_nhan_id", "hop_dong_id",
                                   "hop_dong_phien_ban_id", "pham_vi", "nguon")):
-        reasons.append("Cần Anh bổ sung nguồn, phiên bản và phạm vi cơ sở hợp đồng.")
+        reasons.append("Chưa đủ nguồn, phiên bản và phạm vi cơ sở hợp đồng để đối chiếu.")
     currency = c.get("currency")
     valid_currency = isinstance(currency, str) and len(currency) == 3 and currency.isascii() and currency.isupper() and currency.isalpha()
     if not valid_currency:
-        reasons.append("Cần Anh xác nhận đơn vị tiền của cơ sở hợp đồng.")
+        reasons.append("Chưa xác định được đơn vị tiền của cơ sở hợp đồng.")
         currency = None
     invoices = []
     seen = set()
@@ -148,11 +151,22 @@ def tinh_ba_dang_thuc(
         hd = link.get("hoa_don") or {}
         usable = confirmed
         if not confirmed:
-            reasons.append("Cần Anh xác nhận liên kết hóa đơn còn là ứng viên; ứng viên chưa được tính.")
+            reasons.append("Liên kết hóa đơn còn là ứng viên, chưa được xác nhận để tính.")
         if (_id(link.get("co_so_id")) != _id(c.get("id"))
                 or _id(link.get("phap_nhan_id")) != _id(c.get("phap_nhan_id"))):
             usable = False
-            reasons.append("Cần Anh kiểm tra liên kết đúng pháp nhân và cơ sở hợp đồng.")
+            reasons.append("Liên kết chưa khớp pháp nhân hoặc cơ sở hợp đồng.")
+        if confirmed and not hd:
+            usable = False
+            reasons.append("Không xem được hóa đơn đã liên kết để đối chiếu.")
+        # M3-1c — CD-013: NULL eligible cũng không còn là bản đủ điều kiện.
+        if confirmed and hd and (
+                _id(hd.get("eligible_content_id", hd.get("phien_ban_id")))
+                != _id(link.get("hoa_don_phien_ban_id"))
+                or hd.get("co_ban_thay_the")
+                or hd.get("native_fiscal_status") in ("CANCELLED", "HUY", "DA_HUY")):
+            usable = False
+            reasons.append("Hóa đơn đã được thay thế/điều chỉnh, cần xác nhận lại liên kết.")
         if confirmed and (not all(link.get(k) for k in ("id", "revision", "nguon", "can_cu",
                                                          "hoa_don_id", "hoa_don_phien_ban_id", "hoa_don_quan_sat_id"))
                           or hd.get("chieu") != "BAN_RA"
@@ -160,13 +174,20 @@ def tinh_ba_dang_thuc(
                           or _id(hd.get("phien_ban_id")) != _id(link.get("hoa_don_phien_ban_id"))
                           or hd.get("phien_ban") is None):
             usable = False
-            reasons.append("Cần Anh bổ sung hóa đơn bán, phiên bản, quan sát và căn cứ liên kết.")
-        if confirmed and (not currency or hd.get("currency") != currency):
+            reasons.append("Chưa đủ hóa đơn bán, phiên bản, quan sát và căn cứ liên kết.")
+        invoice_currency = hd.get("currency")
+        valid_invoice_currency = (isinstance(invoice_currency, str) and len(invoice_currency) == 3
+                                  and invoice_currency.isascii() and invoice_currency.isupper()
+                                  and invoice_currency.isalpha())
+        if confirmed and hd and not valid_invoice_currency:
+            usable = False
+            reasons.append("Chưa xác định được đơn vị tiền của hóa đơn.")
+        if confirmed and currency and valid_invoice_currency and invoice_currency != currency:
             mixed = True
-            reasons.append("Cần Anh xác nhận hóa đơn và hợp đồng cùng đơn vị tiền; chưa cộng các đồng tiền khác nhau.")
+            reasons.append("Hóa đơn và hợp đồng có đồng tiền khác nhau, chưa thể cộng để đối chiếu.")
         if usable and _id(hd.get("id")) in seen:
             usable = False
-            reasons.append("Cần Anh xác nhận phạm vi hoặc quan hệ phiên bản; một hóa đơn chỉ được tính một lần.")
+            reasons.append("Hóa đơn xuất hiện nhiều lần trong tập liên kết, chỉ được tính một lần.")
         if usable:
             seen.add(_id(hd.get("id")))
             invoices.append(hd)
@@ -176,7 +197,7 @@ def tinh_ba_dang_thuc(
                                  None, hd.get("nguon") or link.get("nguon"),
                                  hd.get("nguon_vi_tri"), usable and not mixed))
     if not invoices:
-        reasons.append("Cần Anh bổ sung tập hóa đơn đã liên kết xác nhận; chưa có số lũy kế.")
+        reasons.append("Chưa có hóa đơn đủ căn cứ với liên kết đã xác nhận để tính số lũy kế.")
     if mixed:
         sources = [replace(s, duoc_tinh=False) if s.duoc_tinh is not None else s for s in sources]
     fields = (("tong_thanh_toan", "tong_thanh_toan", "tổng thanh toán", "tổng thanh toán"),
@@ -194,13 +215,13 @@ def tinh_ba_dang_thuc(
         left = _tong_exact(amounts) if amounts and None not in amounts and not mixed and currency else None
         right = _so(c.get(right_field))
         if left is None:
-            why.append(f"Cần Anh bổ sung {left_label} trên hóa đơn và đơn vị tiền; số thiếu không được thay bằng 0.")
+            why.append(f"Chưa đủ căn cứ để đối chiếu {left_label} trên hóa đơn; số thiếu không được thay bằng 0.")
             provenance = [replace(s, duoc_tinh=False) if s.duoc_tinh is not None else s for s in provenance]
         if right is None:
-            why.append(f"Cần Anh bổ sung {right_label} của cơ sở hợp đồng.")
+            why.append(f"Chưa có {right_label} của cơ sở hợp đồng để đối chiếu.")
         if i in (2, 3):
             if not _can_cu(policy_thue, c):
-                why.append("Cần Anh xác nhận policy thuế số 7 về cơ sở thuế và cách thể hiện giá đất được trừ.")
+                why.append("Chưa có xác nhận cơ sở thuế của bộ phận thuế.")
             if policy_thue:
                 provenance.append(_nguon("Căn cứ cơ sở thuế", policy_thue))
         elif can_cu_du_dot:
@@ -208,7 +229,7 @@ def tinh_ba_dang_thuc(
         diff = _tong_exact([left, right.copy_negate()]) if left is not None and right is not None and currency else None
         status = "PENDING" if why else ("KHOP" if diff == 0 else "LECH")
         if i == 1 and not full:
-            why.append("Cần Anh xác nhận đã xuất đủ đợt cho đúng cơ sở và tập hóa đơn đang đối chiếu.")
+            why.append("Chưa có xác nhận đã xuất đủ đợt cho cơ sở và tập hóa đơn đang đối chiếu.")
             if status != "PENDING":
                 status = "CHUA_DU_DOT"
         results.append(DangThuc(i, left, right, diff, currency, status,
@@ -247,7 +268,14 @@ class M3K2:
                    l.nguon_ref, l.nguon_vi_tri AS lien_ket_vi_tri, l.can_cu,
                    l.hoa_don_id, l.hoa_don_phien_ban_id, l.hoa_don_quan_sat_id,
                    d.chieu, v.phien_ban AS hoa_don_phien_ban, v.tien_te,
-                   v.money_basis_state
+                   v.money_basis_state, d.eligible_content_id,
+                   latest.native_fiscal_status,
+                   EXISTS (
+                       SELECT 1 FROM kho.hoa_don_phien_ban successor
+                       WHERE successor.phap_nhan_id = c.phap_nhan_id
+                         AND successor.hoa_don_id = l.hoa_don_id
+                         AND successor.supersedes_id = l.hoa_don_phien_ban_id
+                   ) AS co_ban_thay_the
             FROM co_so c
             LEFT JOIN m3.hoa_don_hop_dong l ON l.co_so_id = c.id
               AND l.phap_nhan_id = c.phap_nhan_id
@@ -259,6 +287,8 @@ class M3K2:
               AND v.hoa_don_id = l.hoa_don_id AND v.phap_nhan_id = c.phap_nhan_id
             LEFT JOIN kho.hoa_don_danh_tinh d ON d.id = v.hoa_don_id
               AND d.phap_nhan_id = c.phap_nhan_id
+            LEFT JOIN kho.hoa_don_quan_sat latest ON latest.id = d.latest_observation_id
+              AND latest.hoa_don_id = d.id AND latest.phap_nhan_id = c.phap_nhan_id
             ORDER BY l.id
             """, (phap_nhan_id, hop_dong_id, hop_dong_phien_ban_id, pham_vi, revision, revision))
         names = [col.name for col in cur.description]
@@ -269,10 +299,13 @@ class M3K2:
             if r["lien_ket_id"] is None:
                 continue
             hd = None
-            if r["hoa_don_phien_ban_id"] is not None:
+            if r["hoa_don_phien_ban"] is not None and r["chieu"] is not None:
                 hd = {"id": r["hoa_don_id"], "phien_ban_id": r["hoa_don_phien_ban_id"],
                       "phien_ban": r["hoa_don_phien_ban"], "chieu": r["chieu"],
                       "currency": r["tien_te"], "nguon": r["lien_ket_nguon"],
+                      "eligible_content_id": r["eligible_content_id"],
+                      "co_ban_thay_the": r["co_ban_thay_the"],
+                      "native_fiscal_status": r["native_fiscal_status"],
                       "tong_thanh_toan": None, "khong_chiu_thue": None, "net_chiu_thue": None}
             links.append({"id": r["lien_ket_id"], "revision": r["lien_ket_revision"],
                           "co_so_id": r["id"], "phap_nhan_id": r["phap_nhan_id"],
