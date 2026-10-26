@@ -16,7 +16,7 @@ from unittest.mock import MagicMock, Mock
 
 from kho_tri_thuc.ha_tang.primitives import DataError
 from kho_tri_thuc.m4.review_data_pg import MA_HTTP
-from kho_tri_thuc.m4.review_dot_pg import ReviewDotPG, chuan_bi_dong, dto_dot
+from kho_tri_thuc.m4.review_dot_pg import ReviewDotPG, chuan_bi_dong, dto_dot, doc_lich_su_chep
 from kho_tri_thuc.m4.sql_review_chep import BANG_NGUON
 
 try:
@@ -428,6 +428,61 @@ class ReviewDotPGTests(unittest.TestCase):
 
     def _doc(self):
         return self.repo.doc_hien_hanh(self.hd, conn_phien=self.web)
+
+    def _phien_dl5b(self, name="XEM"):
+        # Cùng transaction đã ghi fixture; chuyển sang app_web để kiểm RLS
+        # thật. Quyền metadata giả lập chỉ trong CSDL kho_test_* và rollback.
+        self.con.execute("GRANT SELECT ON m4.review_chep_nguon TO app_web")
+        self.con.execute("CREATE POLICY dl5b_metadata_test ON m4.review_chep_nguon FOR SELECT TO app_web USING (true)")
+        self.con.execute("SET LOCAL ROLE app_web")
+        self.con.execute("""SELECT set_config('ktt.nguoi_dung_id',%s,true),
+            set_config('ktt.nguoi_dung_dang_nhap',%s,true)""", self.actors[name])
+
+    def test_dl5b_doc_cung_phien_rls_co_quyen(self):
+        self._ghi()
+        self.con.execute("""SELECT set_config('ktt.nguoi_dung_id',%s,true),
+            set_config('ktt.nguoi_dung_dang_nhap',%s,true)""", self.actors["XEM"])
+        history_owner = doc_lich_su_chep(self.con, self.hd)
+        self._phien_dl5b()
+        history = doc_lich_su_chep(self.con, self.hd)
+        self.assertEqual(history, history_owner)
+        self.assertEqual(history["dot"], [dict(dot=n, m4_dot_id=None, m4_so_dot=None) for n in (1, 2)])
+        self.assertEqual(history["dong"], [dict(dot=r["dot"], ma_hm=r["ma_hm"],
+                                                   kl_ky=r["kl_ky"], kl_luy_ke=r["kl_luy_ke"])
+                                          for r in _dto()["kl_thanh_toan"]])
+
+    def test_dl5b_khong_quyen_khong_lo_ca_chu_bang(self):
+        self._ghi()
+        self.con.execute("""SELECT set_config('ktt.nguoi_dung_id',%s,true),
+            set_config('ktt.nguoi_dung_dang_nhap',%s,true)""", self.actors["KHONG_QUYEN"])
+        self.assertIsNone(doc_lich_su_chep(self.con, self.hd))
+        self._phien_dl5b("KHONG_QUYEN")
+        self.assertIsNone(doc_lich_su_chep(self.con, self.hd))
+        self.assertEqual(self.con.execute("SELECT count(*) FROM m4.review_chep_dot_thanh_toan WHERE hop_dong_id=%s", (self.hd,)).fetchone()[0], 0)
+
+    def test_dl5b_thieu_grant_metadata_khong_doc_bang_owner(self):
+        self._ghi()
+        self.assertIsNone(doc_lich_su_chep(self.web, self.hd))
+
+    def test_dl5b_ba_trang_thai_null_khong_lui_ve_nguon_cu(self):
+        self._phien_dl5b()
+        self.assertIsNone(doc_lich_su_chep(self.con, self.hd))
+        self.con.execute("RESET ROLE")
+        empty = {t: [] for t in _demo()}
+        base = {t: [] for t in _base()}
+        dl3 = {t: [] for t in _dl3()}
+        self._ghi(empty, base=base, dl3=dl3, anh_xa={})
+        self.con.execute("SET LOCAL ROLE app_web")
+        self.assertIsNone(doc_lich_su_chep(self.con, self.hd))
+        self.con.execute("RESET ROLE")
+        self._ghi(nguon_id=self.source + "-co", chup_luc="2026-10-27T07:00:00+07:00")
+        self.con.execute("SET LOCAL ROLE app_web")
+        self.assertIsNotNone(doc_lich_su_chep(self.con, self.hd))
+        self.con.execute("RESET ROLE")
+        self._ghi(empty, base=base, dl3=dl3, anh_xa={}, nguon_id=self.source + "-xoa",
+                  chup_luc="2026-10-28T07:00:00+07:00")
+        self.con.execute("SET LOCAL ROLE app_web")
+        self.assertIsNone(doc_lich_su_chep(self.con, self.hd))
 
     def test_ghi_doc_du_nam_bang_va_orphan(self):
         self.assertEqual(self._ghi(), 20)

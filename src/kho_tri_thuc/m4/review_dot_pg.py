@@ -67,6 +67,44 @@ def _rows(conn, query, params=()):
     return [dict(r) if isinstance(r, Mapping) else dict(zip(names, r)) for r in cur.fetchall()]
 
 
+def doc_lich_su_chep(conn_phien, hop_dong_id):
+    """Đọc trên đúng connection/transaction bên gọi, không mở đường owner.
+
+    02C đang dùng transaction chủ bảng có danh tính phiên: kiểm XEM tường
+    minh cả khi owner bỏ qua RLS. Login thường vẫn chịu RLS. Metadata nguồn
+    hiện chưa grant app_web: thiếu quyền SQL trả None, không thử đọc thay
+    bằng connection khác. Ba trạng thái NULL của bản hiện hành đều là None.
+    Không trả đường dẫn nguồn, không suy trạng thái đã duyệt.
+    """
+    allowed = _rows(conn_phien, """SELECT EXISTS (
+        SELECT 1 FROM master.hop_dong h WHERE h.id=%s::uuid
+          AND h.module_chu='M4' AND master.m4_duoc(h.du_an_id,'XEM')
+        ) AS duoc""", (hop_dong_id,))
+    if not allowed or not allowed[0]["duoc"]:
+        return None
+    tables = ("review_chep_nguon", "review_chep_hop_dong",
+              "review_chep_dot_thanh_toan", "review_chep_kl_thanh_toan")
+    for table in tables:
+        access = _rows(conn_phien, """SELECT CASE WHEN to_regclass(%s) IS NULL THEN false
+            ELSE has_table_privilege(to_regclass(%s), 'SELECT') END AS duoc""",
+                       ("m4." + table, "m4." + table))
+        if not access[0]["duoc"]:
+            return None
+    source = _rows(conn_phien, "SELECT m4.review_chep_hien_hanh(%s::uuid) AS nguon_id", (hop_dong_id,))
+    if not source or source[0]["nguon_id"] is None:
+        return None
+    params = (source[0]["nguon_id"], hop_dong_id)
+    dots = _rows(conn_phien, """SELECT d.dot, d.m4_dot_id, m.so_dot AS m4_so_dot
+        FROM m4.review_chep_dot_thanh_toan d LEFT JOIN m4.dot m
+          ON m.id=d.m4_dot_id AND m.hop_dong_id=d.hop_dong_id
+        WHERE d.nguon_id=%s AND d.hop_dong_id=%s::uuid ORDER BY d.dot""", params)
+    rows = _rows(conn_phien, """SELECT k.dot,k.ma_hm,k.kl_ky,k.kl_luy_ke
+        FROM m4.review_chep_kl_thanh_toan k JOIN m4.review_chep_dot_thanh_toan d
+          ON (d.nguon_id,d.ma_hd,d.dot)=(k.nguon_id,k.ma_hd,k.dot)
+        WHERE d.nguon_id=%s AND d.hop_dong_id=%s::uuid ORDER BY k.dot,k.ma_hm""", params)
+    return {"dot": dots, "dong": rows}
+
+
 def chuan_bi_dong(du_lieu, contracts):
     """Chuẩn hóa đủ năm bảng, FK nguồn và hash; không sửa dict đầu vào.
 
