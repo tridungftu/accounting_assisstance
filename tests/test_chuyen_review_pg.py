@@ -520,6 +520,12 @@ class PGGiaDoiChieu:
                 for key, value in row.items():
                     if type(value) is float:
                         row[key] = Decimal(repr(value))
+        contracts = {r["ma_hd"] for r in self.data["hop_dong"]}
+        for rows in self.data.values():
+            for row in rows:
+                if "ma_hd" in row:
+                    row["hop_dong_id"] = uuid.UUID(int=1) if row["ma_hd"] in contracts else None
+        self.mo_ta = "sha256:" + chuyen.sha256_tep(source)
         self.queries = []
 
     def transaction(self):
@@ -531,9 +537,9 @@ class PGGiaDoiChieu:
             return None
         if params != ("DEMO-CD2",):
             raise AssertionError("Mọi SELECT phải ghim nguon_id")
-        if query == "SELECT chup_luc FROM m4.review_chep_nguon WHERE id=%s":
-            rows = [{"chup_luc": datetime.fromisoformat(CHUP)}]
-            columns = ["chup_luc"]
+        if query == "SELECT chup_luc,mo_ta FROM m4.review_chep_nguon WHERE id=%s":
+            rows = [{"chup_luc": datetime.fromisoformat(CHUP), "mo_ta": self.mo_ta}]
+            columns = ["chup_luc", "mo_ta"]
         else:
             columns = query.split("SELECT ", 1)[1].split(" FROM ", 1)[0].split(",")
             table = query.split("m4.review_chep_", 1)[1].split(" ", 1)[0]
@@ -574,6 +580,64 @@ class DoiChieuReviewTinhTests(unittest.TestCase):
         self.assertEqual(chuyen.sha256_tep(self.source), before)
         self.assertEqual(len(self.pg.queries), 14)
         self.assertTrue(self.pg.queries[0][0].startswith("SET TRANSACTION"))
+
+    def test_dem_mo_coi_ke_ca_ma_null_rong_va_hd_da_xoa(self):
+        deleted = "DEMO_HD_DA_XOA"
+        self.doi_nguon("INSERT INTO canh_bao(id,ma_hd) VALUES(3,?)", (deleted,))
+        self.doi_nguon("INSERT INTO nhat_ky(id,ma_hd) VALUES(3,?)", (deleted,))
+        self.doi_nguon("INSERT INTO khop_hang_muc(ma_hd,khoa_hstt,ma_hm) VALUES(?,'DEMO','DEMO')", (deleted,))
+        self.pg = PGGiaDoiChieu(self.source)
+        report = self.report()
+        self.assertTrue(report["khop"])
+        for table in dc._COT:
+            if "ma_hd" in dc._COT[table]:
+                expected = {"canh_bao": 2, "nhat_ky": 2, "khop_hang_muc": 1}.get(table, 0)
+                self.assertEqual(report["bang"][table]["so_dong_mo_coi"], {"sqlite": expected, "pg": expected})
+
+    def test_gan_hd_sai_ke_ca_mo_coi_va_thieu_lien_ket(self):
+        for table, index, value in (("canh_bao", 1, uuid.UUID(int=1)),
+                                     ("nhat_ky", 0, uuid.UUID(int=99)),
+                                     ("khop_hang_muc", 0, None)):
+            with self.subTest(table=table):
+                self.pg = PGGiaDoiChieu(self.source)
+                self.pg.data[table][index]["hop_dong_id"] = value
+                report = self.report()
+                self.assertFalse(report["khop"])
+                self.assertEqual([(r["bang"], r["ma_loi"]) for r in report["dong_loi"]], [(table, "GAN_HD_SAI")])
+
+    def test_tong_lech_doc_lap_du_tung_o_khop(self):
+        source = dc._doc_sqlite(self.source)
+        totals = dc._thong_ke(source, {MA_HD: "HD0001"})
+        for kind in ("tung_hd", "tung_dot"):
+            changed = copy.deepcopy(totals)
+            field = "gia_tri_hd" if kind == "tung_hd" else "gt_ky"
+            changed[kind][0][field]["tong"] = "999"
+            with self.subTest(kind=kind), patch.object(dc, "_doc_sqlite", return_value=source), \
+                    patch.object(dc, "_thong_ke", side_effect=[totals, changed]):
+                report = self.report()
+            self.assertFalse(report["khop"])
+            self.assertTrue(report["sha256_khop"])
+            self.assertEqual(report["so_dong_loi"], 0)
+            expected = {"khoa": "HD0001", "chi_tieu": field + ".tong",
+                        "tong_sqlite": totals[kind][0][field]["tong"], "tong_pg": "999"}
+            if kind == "tung_dot":
+                expected["dot"] = 1
+            self.assertEqual(report["tong_lech_hd" if kind == "tung_hd" else "tong_lech_dot"], [expected])
+            for secret in (TEN_GIA, SO_HD, MA_HD):
+                self.assertNotIn(secret, json.dumps(report))
+
+    def test_sha_khac_thieu_va_nguon_doi_trong_khi_doc(self):
+        for mo_ta in (None, "sha256:" + "0" * 64):
+            with self.subTest(mo_ta=mo_ta):
+                self.pg.mo_ta = mo_ta
+                report = self.report()
+                self.assertFalse(report["sha256_khop"])
+                self.assertFalse(report["khop"])
+                self.assertEqual(report["so_dong_loi"], 0)
+        self.pg = PGGiaDoiChieu(self.source)
+        digest = chuyen.sha256_tep(self.source)
+        with patch.object(dc, "_sha256_tep", side_effect=[digest, "0" * 64]):
+            self.assertFalse(self.report()["sha256_khop"])
 
     def test_nguon_chi_doc_va_khong_tao_file_sai(self):
         real_connect = sqlite3.connect
@@ -740,6 +804,38 @@ class DoiChieuReviewTinhTests(unittest.TestCase):
         for secret in (TEN_GIA, "DEMO_DSN_BI_MAT", "Traceback"):
             self.assertNotIn(secret, output.getvalue() + errors.getvalue())
 
+    def test_cli_thong_bao_dung_giai_doan_va_hoan_tat_truoc_doi_chieu(self):
+        config, mapping = self.root / "ket-noi.json", self.root / "anh-xa.csv"
+        config.write_text(json.dumps({"admin_dsn": "DEMO_DSN_BI_MAT"}), encoding="utf-8")
+        mapping.write_text("ma_hd,hop_dong_id,du_an_id\n" + MA_HD + "," + ",".join(MAPPING[MA_HD]) + "\n", encoding="utf-8")
+        base = ["--nguon", str(self.source), "--dsn-tep", str(config), "--nguon-id", "DEMO-CD2", "--doi-chieu"]
+        nap = [*base, "--anh-xa", str(mapping), "--chup-luc", CHUP]
+        for phase, args in (("NAP", nap), ("DOI_CHIEU", nap), ("DOI_CHIEU", base)):
+            output = io.StringIO()
+            counts = {t: {"da_ghi_moi": len(rows), "da_co_dich": len(rows)} for t, rows in self.pg.data.items()}
+
+            def fail_comparison(*args, **kwargs):
+                if "--anh-xa" in current_args:
+                    self.assertEqual(json.loads(output.getvalue().splitlines()[-1])["trang_thai"], "HOAN_TAT")
+                raise RuntimeError(TEN_GIA)
+
+            current_args = args
+            with self.subTest(phase=phase, nap="--anh-xa" in args), \
+                    patch.dict("sys.modules", {"psycopg": MagicMock()}), redirect_stdout(output), \
+                    patch.object(chuyen, "ghi_pg", side_effect=RuntimeError(TEN_GIA) if phase == "NAP" else None,
+                                 return_value=counts), \
+                    patch.object(chuyen, "doi_chieu", side_effect=fail_comparison):
+                self.assertEqual(chuyen.main(args), 1)
+            reports = [json.loads(line) for line in output.getvalue().splitlines()]
+            error = reports[-1]
+            self.assertEqual(error["giai_doan"], phase)
+            self.assertEqual(error["thong_bao"], "Nạp không hoàn tất; không ghi gì (đã hoàn tác)." if phase == "NAP" else
+                             "Đối chiếu không hoàn tất; dữ liệu đã nạp vẫn được giữ.")
+            self.assertEqual(sum(r.get("trang_thai") == "HOAN_TAT" for r in reports),
+                             int(phase == "DOI_CHIEU" and "--anh-xa" in args))
+            self.assertNotIn(TEN_GIA, output.getvalue())
+            output.getvalue().encode("ascii")
+
 
 @unittest.skipUnless(DSN and psycopg is not None, "Thiếu KHO_PG_DSN_TEST/psycopg — PG do lead chạy (NOT_RUN)")
 class ChuyenReviewPGTests(unittest.TestCase):
@@ -771,7 +867,7 @@ class ChuyenReviewPGTests(unittest.TestCase):
         self.nguon_id = code
 
     def ghi(self, data=None, **changes):
-        args = dict(nguon_id=self.nguon_id, chup_luc=CHUP)
+        args = dict(nguon_id=self.nguon_id, chup_luc=CHUP, sha256_nguon=self.sha)
         args.update(changes)
         return chuyen.ghi_pg(self.con, self.data if data is None else data, self.mapping, **args)
 
@@ -802,6 +898,79 @@ class ChuyenReviewPGTests(unittest.TestCase):
         for secret in (TEN_GIA, SO_HD, MA_HD):
             self.assertNotIn(secret, raw)
 
+    def gan_canh_bao_sai_trong_csdl_test(self, row_id, hd):
+        # Fixture hỏng có chủ đích: chỉ trong kho_test_* tự tạo. FK/append-only
+        # bình thường chặn UPDATE; replica chỉ hiệu lực trong transaction này.
+        self.assertTrue(self.db.startswith("kho_test_"))
+        with self.con.transaction():
+            self.con.execute("SET LOCAL session_replication_role = replica")
+            self.con.execute("UPDATE m4.review_chep_canh_bao SET hop_dong_id=%s,du_an_id=%s WHERE nguon_id=%s AND id=%s",
+                             (hd, self.da, self.nguon_id, row_id))
+
+    def test_cd2_canh_bao_mo_coi_bi_gan_hd(self):
+        with closing(sqlite3.connect(self.source)) as con:
+            con.execute("INSERT INTO canh_bao(id,ma_hd) VALUES(3,'DEMO_HD_DA_XOA')")
+            con.commit()
+        self.data, self.sha = chuyen.doc_nguon(self.source)
+        self.ghi()
+        self.gan_canh_bao_sai_trong_csdl_test(3, self.hd)
+        report = dc.doi_chieu(self.source, self.con, nguon_id=self.nguon_id)
+        self.assertFalse(report["khop"])
+        self.assertTrue(report["sha256_khop"])
+        self.assertEqual([(r["bang"], r["ma_loi"]) for r in report["dong_loi"]], [("canh_bao", "GAN_HD_SAI")])
+        self.assertEqual(report["bang"]["canh_bao"]["so_dong_mo_coi"], {"sqlite": 2, "pg": 1})
+
+    def test_cd2_canh_bao_gan_nham_hd_khac_cung_lan_chup(self):
+        second = "DEMO_HD_THU_HAI"
+        code = "DEMO-CD2b-" + uuid.uuid4().hex
+        hd2 = self.con.execute("""INSERT INTO master.hop_dong
+            (phap_nhan_id,du_an_id,loai,module_chu,ma_noi_bo,so_hop_dong,trang_thai)
+            VALUES (%s,%s,'XAY_DUNG','M4',%s,%s,'SOAN_THAO') RETURNING id""",
+                               (self.pn, self.da, code, code)).fetchone()[0]
+        self.con.execute("""INSERT INTO m4.ho_so_hop_dong (hop_dong_id,phap_nhan_id,du_an_id,ten,tao_boi)
+            VALUES (%s,%s,%s,'DEMO CD2b','MO_PHONG_DEMO')""", (hd2, self.pn, self.da))
+        with closing(sqlite3.connect(self.source)) as con:
+            con.execute("INSERT INTO hop_dong(ma_hd,so_hd) VALUES(?,?)", (second, second))
+            con.commit()
+        self.mapping[second] = (str(hd2), str(self.da))
+        self.data, self.sha = chuyen.doc_nguon(self.source)
+        self.ghi()
+        self.gan_canh_bao_sai_trong_csdl_test(1, hd2)
+        report = dc.doi_chieu(self.source, self.con, nguon_id=self.nguon_id)
+        self.assertFalse(report["khop"])
+        self.assertTrue(report["sha256_khop"])
+        self.assertEqual([(r["bang"], r["ma_loi"]) for r in report["dong_loi"]], [("canh_bao", "GAN_HD_SAI")])
+
+    def test_cd2_sha_khac_metadata_du_tung_o_khop(self):
+        self.ghi(sha256_nguon="0" * 64)
+        report = dc.doi_chieu(self.source, self.con, nguon_id=self.nguon_id)
+        self.assertFalse(report["sha256_khop"])
+        self.assertFalse(report["khop"])
+        self.assertEqual(report["so_dong_loi"], 0)
+        self.assertEqual(report["tong_sqlite"], report["tong_pg"])
+
+    def test_cd2_cli_loi_doi_chieu_da_in_hoan_tat_va_giu_du_lieu(self):
+        config, mapping = Path(self.temp) / "ket-noi.json", Path(self.temp) / "anh-xa.csv"
+        config.write_text(json.dumps({"admin_dsn": self.dsn}), encoding="utf-8")
+        mapping.write_text("ma_hd,hop_dong_id,du_an_id\n" + MA_HD + "," + ",".join(self.mapping[MA_HD]) + "\n", encoding="utf-8")
+        output = io.StringIO()
+
+        def fail_comparison(*args, **kwargs):
+            self.assertEqual(json.loads(output.getvalue().splitlines()[-1])["trang_thai"], "HOAN_TAT")
+            self.assertEqual(self.counts(), {**{t: len(rows) for t, rows in self.data.items()}, "nguon": 1})
+            raise RuntimeError(TEN_GIA)
+
+        with redirect_stdout(output), patch.object(chuyen, "doi_chieu", side_effect=fail_comparison):
+            code = chuyen.main(["--nguon", str(self.source), "--dsn-tep", str(config), "--nguon-id", self.nguon_id,
+                                "--anh-xa", str(mapping), "--chup-luc", CHUP, "--doi-chieu"])
+        self.assertEqual(code, 1)
+        reports = [json.loads(line) for line in output.getvalue().splitlines()]
+        self.assertEqual([r.get("trang_thai") for r in reports], [None, "HOAN_TAT", "LOI"])
+        self.assertEqual(reports[-1]["giai_doan"], "DOI_CHIEU")
+        self.assertEqual(self.counts(), {**{t: len(rows) for t, rows in self.data.items()}, "nguon": 1})
+        self.assertTrue(dc.doi_chieu(self.source, self.con, nguon_id=self.nguon_id)["khop"])
+        self.assertNotIn(TEN_GIA, output.getvalue())
+
     def test_cd2_nguon_khac_boq_phat_hien_dung_hd(self):
         self.ghi()
         # Đích append-only; dùng nguồn giả khác sau nạp, không tắt trigger PG.
@@ -827,7 +996,7 @@ class ChuyenReviewPGTests(unittest.TestCase):
         self.con.execute("""INSERT INTO m4.ho_so_hop_dong (hop_dong_id,phap_nhan_id,du_an_id,ten,tao_boi)
             VALUES (%s,%s,%s,'DEMO CD2','MO_PHONG_DEMO')""", (hd2, self.pn, self.da))
         self.mapping[second] = (str(hd2), str(self.da))
-        self.data, _ = chuyen.doc_nguon(self.source)
+        self.data, self.sha = chuyen.doc_nguon(self.source)
         self.ghi()
         with closing(sqlite3.connect(self.source)) as con:
             con.execute("UPDATE hop_dong SET gia_tri_hd=gia_tri_hd+10 WHERE ma_hd=?", (MA_HD,))

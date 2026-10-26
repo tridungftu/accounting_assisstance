@@ -1,6 +1,6 @@
 """M4-CD2: đối chiếu owner snapshot với SQLite chỉ đọc, độc lập công cụ nạp.
 
-Không dùng hash, bộ chuyển kiểu hay tổng kiểm soát của CD1/DL2 làm bằng chứng.
+Không dùng hash dòng, bộ chuyển kiểu hay tổng kiểm soát của CD1/DL2 làm bằng chứng.
 So từng ô nguồn để bắt cả lệch bù trừ trong một HĐ/đợt. Tổng BOQ là số ghi
 theo thao tác, không cộng thay đổi PL thành BOQ hiệu lực. NULL khác số 0.
 Kết quả chỉ có thống kê và mã thay thế, không trả khóa/ngữ liệu nguồn.
@@ -9,6 +9,7 @@ Caller cấp owner connection sạch; mọi SELECT PG ở cùng snapshot read-on
 
 from __future__ import annotations
 
+import hashlib
 import sqlite3
 from collections import Counter
 from collections.abc import Mapping
@@ -115,6 +116,42 @@ def _doc_pg(con, query, params):
     return [dict(r) if isinstance(r, Mapping) else dict(zip(names, r)) for r in cur.fetchall()]
 
 
+def _sha256_tep(path):
+    digest = hashlib.sha256()
+    with Path(path).open("rb") as stream:
+        for block in iter(lambda: stream.read(1024 * 1024), b""):
+            digest.update(block)
+    return digest.hexdigest()
+
+
+def _tong_lech(left, right, *, theo_dot=False):
+    """Chỉ trả khóa thay thế, chỉ tiêu và hai tổng; không lấy nội dung nguồn."""
+    def leaves(item, prefix=""):
+        result = {}
+        for key, value in item.items():
+            if key in ("khoa", "dot"):
+                continue
+            name = prefix + key
+            if isinstance(value, dict):
+                result.update(leaves(value, name + "."))
+            else:
+                result[name] = value
+        return result
+
+    def key(row):
+        return (row["khoa"], row["dot"]) if theo_dot else (row["khoa"],)
+
+    a, b = ({key(row): leaves(row) for row in rows} for rows in (left, right))
+    result = []
+    for code in sorted(a.keys() | b.keys()):
+        x, y = a.get(code, {}), b.get(code, {})
+        for field in sorted(x.keys() | y.keys()):
+            if field not in x or field not in y or x[field] != y[field]:
+                result.append({"khoa": code[0], **({"dot": code[1]} if theo_dot else {}),
+                               "chi_tieu": field, "tong_sqlite": x.get(field), "tong_pg": y.get(field)})
+    return result
+
+
 def _thong_ke(data, codes):
     contracts, dots = [], []
     for code in codes:
@@ -142,14 +179,27 @@ def doi_chieu(nguon_sqlite, con, *, nguon_id):
     Cờ DL3 xét tại ngày chup_luc, ổn định khi chạy lại, không dùng ngày máy.
     Các mã HD/K chỉ có nghĩa trong báo cáo này; không xuất mã nguồn thô.
     """
+    digest = _sha256_tep(nguon_sqlite)
     source = _doc_sqlite(nguon_sqlite)
+    sha256_on_dinh = digest == _sha256_tep(nguon_sqlite)
     with con.transaction():
         con.execute("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ, READ ONLY")
-        metadata = _doc_pg(con, "SELECT chup_luc FROM m4.review_chep_nguon WHERE id=%s", (nguon_id,))
+        metadata = _doc_pg(con, "SELECT chup_luc,mo_ta FROM m4.review_chep_nguon WHERE id=%s", (nguon_id,))
         if len(metadata) != 1:
             raise DataError("M4_REVIEW_KHONG_THAY", "Khong thay lan chup can doi chieu.")
-        target = {t: _doc_pg(con, f"SELECT {','.join(cols)} FROM m4.review_chep_{t} WHERE nguon_id=%s", (nguon_id,))
-                  for t, cols in _COT.items()}
+        target = {}
+        for table, columns in _COT.items():
+            if "ma_hd" in columns and table != "kl_thanh_toan":
+                columns += ("hop_dong_id",)
+            target[table] = _doc_pg(con, f"SELECT {','.join(columns)} FROM m4.review_chep_{table} WHERE nguon_id=%s",
+                                    (nguon_id,))
+    # KL không có cột hop_dong_id: lấy qua đợt cha trong cùng snapshot/nguon_id.
+    dot_hd = {(r["ma_hd"], r["dot"]): r["hop_dong_id"] for r in target["dot_thanh_toan"]}
+    for row in target["kl_thanh_toan"]:
+        row["hop_dong_id"] = dot_hd.get((row["ma_hd"], row["dot"]))
+    source_hd = {r["ma_hd"] for r in source["hop_dong"]}
+    target_hd = {r["ma_hd"]: r["hop_dong_id"] for r in target["hop_dong"]}
+    sha256_khop = sha256_on_dinh and metadata[0]["mo_ta"] == "sha256:" + digest
     contracts = {r["ma_hd"] for data in (source, target) for r in data["hop_dong"]}
     all_codes = {r["ma_hd"] for data in (source, target) for rows in data.values()
                  for r in rows if r.get("ma_hd") not in (None, "")}
@@ -170,6 +220,15 @@ def doi_chieu(nguon_sqlite, con, *, nguon_id):
                     _sai()
                 aliases[key]["dot"] = row["dot"]
         bad = []
+        if "ma_hd" in _COT[table]:
+            for row in target[table]:
+                code, actual = row["ma_hd"], row["hop_dong_id"]
+                expected = target_hd.get(code)
+                orphan = code not in source_hd
+                if ((orphan and actual is not None) or
+                        (not orphan and (actual is None or expected is None or actual != expected))):
+                    key = tuple(row[c] for c in _PK[table])
+                    bad.append({**aliases[key], "ma_loi": "GAN_HD_SAI"})
         for key in keys:
             if key not in left or key not in right:
                 bad.append({**aliases[key], "ma_loi": "THIEU_PG" if key in left else "THIEU_SQLITE"})
@@ -194,6 +253,10 @@ def doi_chieu(nguon_sqlite, con, *, nguon_id):
                          "thieu_pg": [aliases[k] for k in keys if k not in right],
                          "thieu_sqlite": [aliases[k] for k in keys if k not in left],
                          "so_dong_loi": len(bad) + duplicate, "so_trung_khoa": duplicate}
+        if "ma_hd" in _COT[table]:
+            tables[table]["so_dong_mo_coi"] = {
+                "sqlite": sum(r["ma_hd"] not in source_hd for r in source[table]),
+                "pg": sum(r["hop_dong_id"] is None for r in target[table])}
         errors.extend(dict(bang=table, **row) for row in bad)
     cutoff = metadata[0]["chup_luc"].date().isoformat()
     flagged = sum(boq_tai_ngay(
@@ -201,6 +264,10 @@ def doi_chieu(nguon_sqlite, con, *, nguon_id):
         [r for r in target["boq_dong"] if r["ma_hd"] == hd["ma_hd"]], cutoff)["can_xem_lai"]
         for hd in target["hop_dong"])
     count = sum(t["so_dong_loi"] for t in tables.values())
-    return {"khop": count == 0, "don_vi_tien": "VND", "bang": tables,
+    tong_sqlite, tong_pg = _thong_ke(source, codes), _thong_ke(target, codes)
+    return {"khop": count == 0 and tong_sqlite == tong_pg and sha256_khop,
+            "sha256_khop": sha256_khop, "don_vi_tien": "VND", "bang": tables,
             "so_dong_loi": count, "dong_loi": errors, "so_hd_can_xem_lai": flagged,
-            "tong_sqlite": _thong_ke(source, codes), "tong_pg": _thong_ke(target, codes)}
+            "tong_sqlite": tong_sqlite, "tong_pg": tong_pg,
+            "tong_lech_hd": _tong_lech(tong_sqlite["tung_hd"], tong_pg["tung_hd"]),
+            "tong_lech_dot": _tong_lech(tong_sqlite["tung_dot"], tong_pg["tung_dot"], theo_dot=True)}
