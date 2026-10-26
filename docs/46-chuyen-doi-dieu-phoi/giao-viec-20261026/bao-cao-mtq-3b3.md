@@ -1,0 +1,5 @@
+- Đã nối bộ chọn 2 nhóm DEMO, đổi Admin/vai thường, chống bấm đúp và hủy phản hồi cũ.
+- Sửa đúng 3 tệp: `app.js`, `khung_luoi_async.cjs`, `test_mtq_demo_phien.py`; UTF-8 không BOM.
+- CJS: **18/23 bộ đạt**; 5 bộ đỏ đều tái hiện trên `lat/ui-ky`, không lỗi mới. Khung: **51/51 ca đạt**.
+- Python: **12 đạt, 2 PG skip**; chưa kiểm PG thật. Không sửa server, mở server hay commit.
+- Thông điệp đề xuất: `[MTQ-3b3] Thêm bộ chọn vai DEMO trên ma trận thẩm quyền`.

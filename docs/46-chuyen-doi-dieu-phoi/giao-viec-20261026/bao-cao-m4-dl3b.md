@@ -1,0 +1,5 @@
+- Đã sửa DTO, NULL/thông báo DL2, lý do có số PL; công khai hai hàm và giữ alias cũ.
+- Đúng 3 tệp được sửa; UTF-8 không BOM, chữ ký hàm ghi giữ nguyên.
+- `git diff --check`: đạt.
+- Unittest: **NOT_RUN**, Python bị `Access is denied`; chưa xác định lỗi mới so nền.
+- Không commit, không mở PostgreSQL. Thông điệp commit: `[M4-DL3b] Làm rõ DTO phụ lục và công khai hàm đọc Review`.
