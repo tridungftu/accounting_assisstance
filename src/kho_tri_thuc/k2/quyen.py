@@ -9,6 +9,7 @@ trình chọn vai DEMO KHÔNG phải hệ đăng nhập production (TL40 §8 cò
 from __future__ import annotations
 
 import json
+import logging
 from decimal import Decimal, InvalidOperation
 from uuid import UUID
 
@@ -185,7 +186,8 @@ def kiem_tham_quyen(conn, hanh_dong_ky_thuat, doi_tuong, ngu_canh_tin_cay):
                     UUID(q["dong_id"])
             return q
         except Exception:
-            chan("MTQ_LOI_QUYET_DINH", "Không xác định được thẩm quyền; thao tác bị chặn. Cần Anh kiểm tra cổng quyền.")
+            logging.getLogger(__name__).error("MTQ_LOI_QUYET_DINH hành động=%s", hanh_dong_ky_thuat, exc_info=True)
+            chan("MTQ_LOI_QUYET_DINH", "Không xác định được thẩm quyền; thao tác bị chặn. Báo quản trị.")
 
     q = hoi()
     try:
@@ -223,14 +225,15 @@ def kiem_tham_quyen(conn, hanh_dong_ky_thuat, doi_tuong, ngu_canh_tin_cay):
     except (ValueError, TypeError, InvalidOperation):
         tien = None
     except Exception:
-        chan("MTQ_LOI_QUYET_DINH", "Không đọc được căn cứ tiền đã khóa; thao tác bị chặn. Cần Anh kiểm tra.")
+        logging.getLogger(__name__).error("MTQ_LOI_QUYET_DINH đọc tiền hành động=%s", hanh_dong_ky_thuat, exc_info=True)
+        chan("MTQ_LOI_QUYET_DINH", "Không đọc được căn cứ tiền đã khóa; thao tác bị chặn. Báo quản trị.")
     q = hoi()
     if q["nguon"] != "MA_TRAN":
         chan("MTQ_LOI_QUYET_DINH", "Chế độ thẩm quyền thay đổi trong thao tác; không thực hiện.")
     if not q["cho_phep"]:
         chan(q["ma"], q["ly_do"])
     if can_tien and tien is None:
-        chan("MTQ_THIEU_CO_SO_TIEN", "Chưa có tổng giá trị hợp đồng VND từ phiên bản đã khóa. Cần Anh bổ sung căn cứ tiền.")
+        chan("MTQ_THIEU_CO_SO_TIEN", "Chưa có tổng giá trị hợp đồng VND từ phiên bản đã khóa; chưa thể duyệt.")
     try:
         han_muc = None if q.get("gioi_han_vnd") is None else Decimal(str(q["gioi_han_vnd"]))
         if han_muc is not None and (not han_muc.is_finite() or han_muc < 0):
