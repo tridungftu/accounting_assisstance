@@ -49,11 +49,29 @@ _CHO_CONTEXT = "Chờ ngữ cảnh đọc hóa đơn còn thiếu theo bộ đ�
 _KHONG_DOC_DUOC = "Bộ đọc không đọc được tệp hóa đơn trong phạm vi hỗ trợ."
 
 
-# None ở cột mã: DataError đã có mã ổn định, giữ nguyên exc.code.
+# Rà toàn bộ hoa_don_xml và lời gọi primitives:
+# - Đầu vào có thể raise: INPUT_NOT_BYTES (_bytes), INPUT_NAME_TYPE (_ten),
+#   CONTEXT_FIELD_TYPE (_context/_tuple và kiểm DTO/context).
+# - Nội bộ, phải nổi lên: FIELD_VALUE_INVARIANT, DECIMAL_INVARIANT,
+#   RESULT_INVARIANT và ISSUE_SEVERITY (bộ đọc tự dựng issue/DTO).
+# - CONTEXT_FORBIDDEN_FIELD/CONTEXT_UNKNOWN_FIELD chỉ ở tu_dict/_keys;
+#   hai reader nhận DTO sẵn, không gọi các factory này nên không ánh xạ.
+# - AMBIGUOUS_DATE/INVALID_DATE từ date_iso đã bị reader bắt thành issues.
+# XML/ZIP hỏng, thiếu field/context, profile không hỗ trợ cũng trả DTO/issues,
+# không raise DataError; giữ quyết định trạng thái của _trang_thai_xml/zip.
+ANH_XA_MA_DATAERROR_HOA_DON = MappingProxyType({
+    "INPUT_NOT_BYTES": (TrangThaiEngine.LOI, "INPUT_NOT_BYTES",
+                        "Đầu vào bộ đọc hóa đơn chưa hợp lệ."),
+    "INPUT_NAME_TYPE": (TrangThaiEngine.LOI, "INPUT_NAME_TYPE",
+                        "Đầu vào bộ đọc hóa đơn chưa hợp lệ."),
+    "CONTEXT_FIELD_TYPE": (TrangThaiEngine.LOI, "CONTEXT_FIELD_TYPE",
+                           "Đầu vào bộ đọc hóa đơn chưa hợp lệ."),
+})
+
+
 # XML parse, ZIP hỏng/CRC, giải mã tên ZIP đã thành issues trong reader.
 # ZIP dùng LZMA có thể để lọt LZMAError khi dữ liệu nén hỏng.
 ANH_XA_NGOAI_LE_HOA_DON = MappingProxyType({
-    DataError: (TrangThaiEngine.LOI, None, "Đầu vào bộ đọc hóa đơn chưa hợp lệ."),
     LZMAError: (TrangThaiEngine.LOI, "HOADON_ZIP_LZMA_HONG",
                 "Dữ liệu nén trong gói hóa đơn không hợp lệ."),
 })
@@ -104,12 +122,19 @@ class EngineHoaDon(Engine):
             else:
                 contexts = () if dau_vao.context is None else dau_vao.context
                 result = doc_goi_hoa_don_zip(dau_vao.raw, contexts, archive_name=dau_vao.ten_tep)
+        except DataError as exc:
+            # Không suy loại từ tên mã: chỉ nhận đúng lớp và mã đầu vào đã rà.
+            # Bare raise giữ nguyên exception, locator và traceback của lỗi nội bộ/lạ.
+            if type(exc) is not DataError or exc.code not in ANH_XA_MA_DATAERROR_HOA_DON:
+                raise
+            trang_thai, ma, ly_do = ANH_XA_MA_DATAERROR_HOA_DON[exc.code]
+            return KetQuaXuLy(trang_thai, ma, ly_do)
         except tuple(ANH_XA_NGOAI_LE_HOA_DON) as exc:
             # Chỉ ánh xạ đúng lớp đã công bố; lớp con chưa biết cũng nổi lên.
             if type(exc) not in ANH_XA_NGOAI_LE_HOA_DON:
                 raise
             trang_thai, ma, ly_do = ANH_XA_NGOAI_LE_HOA_DON[type(exc)]
-            return KetQuaXuLy(trang_thai, exc.code if ma is None else ma, ly_do)
+            return KetQuaXuLy(trang_thai, ma, ly_do)
         trang_thai, ma, ly_do = (_trang_thai_xml(result) if dau_vao.dinh_dang == "XML"
                                 else _trang_thai_zip(result))
         return KetQuaXuLy(trang_thai, ma, ly_do, asdict(result))

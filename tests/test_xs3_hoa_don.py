@@ -16,7 +16,8 @@ import zipfile
 from kho_tri_thuc.ha_tang.danh_ba_engine import DanhBaEngine
 from kho_tri_thuc.ha_tang.engine import TrangThaiEngine, hash_du_lieu
 from kho_tri_thuc.ha_tang.engine_hoa_don import (
-    ANH_XA_NGOAI_LE_HOA_DON, DauVaoHoaDon, EngineHoaDon, dang_ky_engine_hoa_don,
+    ANH_XA_MA_DATAERROR_HOA_DON, ANH_XA_NGOAI_LE_HOA_DON,
+    DauVaoHoaDon, EngineHoaDon, dang_ky_engine_hoa_don,
 )
 from kho_tri_thuc.nguon.hoa_don_xml import (
     CompanyFact, IDENTITY_PROFILE_REF, InvoiceReadContext, MEDIA_XML,
@@ -171,8 +172,6 @@ class HoaDonTests(unittest.TestCase):
 
     def test_ngoai_le_giu_loai_goc_khong_lo_noi_dung(self):
         cac_loi = {
-            DataError: (DataError("INPUT_NOT_BYTES", "DEMO_NOI_DUNG_HOA_DON"),
-                        "INPUT_NOT_BYTES", "Đầu vào bộ đọc hóa đơn chưa hợp lệ."),
             LZMAError: (LZMAError("DEMO_NOI_DUNG_HOA_DON"), "HOADON_ZIP_LZMA_HONG",
                         "Dữ liệu nén trong gói hóa đơn không hợp lệ."),
         }
@@ -183,12 +182,63 @@ class HoaDonTests(unittest.TestCase):
                     "kho_tri_thuc.ha_tang.engine_hoa_don." + reader, side_effect=exc
                 ):
                     self.assertEqual(ANH_XA_NGOAI_LE_HOA_DON[loai],
-                                     (TrangThaiEngine.LOI, None if loai is DataError else code, ly_do))
+                                     (TrangThaiEngine.LOI, code, ly_do))
                     actual = self.engine.chay(DauVaoHoaDon(_RAW, dinh_dang=format_))
                     self.assertEqual((actual.trang_thai, actual.ma), (TrangThaiEngine.LOI, code))
                     self.assertEqual(actual.ly_do, ly_do)
                     self.assertIsNone(actual.du_lieu)
                     self.assertNotIn("DEMO_NOI_DUNG_HOA_DON", repr(actual))
+
+    def test_moi_ma_dataerror_dau_vao_duoc_anh_xa_khong_lo_noi_dung(self):
+        self.assertEqual(set(ANH_XA_MA_DATAERROR_HOA_DON),
+                         {"INPUT_NOT_BYTES", "INPUT_NAME_TYPE", "CONTEXT_FIELD_TYPE"})
+        for format_, reader in (("XML", "doc_hoa_don_xml"), ("ZIP", "doc_goi_hoa_don_zip")):
+            for code, mapping in ANH_XA_MA_DATAERROR_HOA_DON.items():
+                exc = DataError(code, "DEMO_NOI_DUNG_HOA_DON", "DEMO_LOCATOR")
+                with self.subTest(format_=format_, code=code), patch(
+                    "kho_tri_thuc.ha_tang.engine_hoa_don." + reader, side_effect=exc
+                ):
+                    self.assertEqual(mapping, (TrangThaiEngine.LOI, code,
+                                               "Đầu vào bộ đọc hóa đơn chưa hợp lệ."))
+                    actual = self.engine.chay(DauVaoHoaDon(_RAW, dinh_dang=format_))
+                    self.assertEqual((actual.trang_thai, actual.ma, actual.ly_do), mapping)
+                    self.assertIsNone(actual.du_lieu)
+                    self.assertNotIn("DEMO_NOI_DUNG_HOA_DON", repr(actual))
+                    self.assertNotIn("DEMO_LOCATOR", repr(actual))
+
+    def test_moi_ma_dataerror_dau_vao_thuc_tu_reader(self):
+        for format_, raw in (("XML", _RAW), ("ZIP", _goi(("DEMO.xml", _RAW)))):
+            for code, data in (
+                ("INPUT_NOT_BYTES", DauVaoHoaDon("DEMO", dinh_dang=format_)),
+                ("INPUT_NAME_TYPE", DauVaoHoaDon(raw, ten_tep=123, dinh_dang=format_)),
+                ("CONTEXT_FIELD_TYPE", DauVaoHoaDon(raw, context="DEMO", dinh_dang=format_)),
+            ):
+                with self.subTest(format_=format_, code=code):
+                    with self.assertRaises(DataError) as caught:
+                        if format_ == "XML":
+                            doc_hoa_don_xml(data.raw, data.context, artifact_name=data.ten_tep)
+                        else:
+                            doc_goi_hoa_don_zip(data.raw, () if data.context is None else data.context,
+                                              archive_name=data.ten_tep)
+                    self.assertEqual(caught.exception.code, code)
+                    actual = self.engine.chay(data)
+                    self.assertEqual((actual.trang_thai, actual.ma, actual.ly_do),
+                                     ANH_XA_MA_DATAERROR_HOA_DON[code])
+                    self.assertIsNone(actual.du_lieu)
+
+    def test_dataerror_bat_bien_va_ma_la_noi_len_nguyen_ven(self):
+        for format_, reader in (("XML", "doc_hoa_don_xml"), ("ZIP", "doc_goi_hoa_don_zip")):
+            for code in ("DECIMAL_INVARIANT", "FIELD_VALUE_INVARIANT", "RESULT_INVARIANT",
+                         "ISSUE_SEVERITY", "DEMO_INVARIANT", "DEMO_MA_LA",
+                         "CONTEXT_FORBIDDEN_FIELD", "CONTEXT_UNKNOWN_FIELD",
+                         "AMBIGUOUS_DATE", "INVALID_DATE"):
+                exc = DataError(code, "DEMO_LOI_NOI_BO", "DEMO_LOCATOR")
+                with self.subTest(format_=format_, code=code), patch(
+                    "kho_tri_thuc.ha_tang.engine_hoa_don." + reader, side_effect=exc
+                ), self.assertRaises(DataError) as caught:
+                    self.engine.chay(DauVaoHoaDon(_RAW, dinh_dang=format_))
+                self.assertIs(caught.exception, exc)
+                self.assertEqual(caught.exception.locator, "DEMO_LOCATOR")
 
     def test_ngoai_le_ngoai_bang_noi_len(self):
         class LoiDataChuaBiet(DataError):
@@ -197,7 +247,8 @@ class HoaDonTests(unittest.TestCase):
         for format_, reader in (("XML", "doc_hoa_don_xml"), ("ZIP", "doc_goi_hoa_don_zip")):
             for exc in (TypeError("DEMO_LOI_LAP_TRINH"), AttributeError("DEMO_LOI_LAP_TRINH"),
                         RuntimeError("DEMO_NOI_DUNG_HOA_DON"), ValueError("DEMO_LOI_LAP_TRINH"),
-                        LoiDataChuaBiet("DEMO_CHUA_BIET", "DEMO_NOI_DUNG_HOA_DON")):
+                        LoiDataChuaBiet("DEMO_CHUA_BIET", "DEMO_NOI_DUNG_HOA_DON"),
+                        LoiDataChuaBiet("INPUT_NOT_BYTES", "DEMO_NOI_DUNG_HOA_DON")):
                 with self.subTest(format_=format_, loai=type(exc)), patch(
                     "kho_tri_thuc.ha_tang.engine_hoa_don." + reader, side_effect=exc
                 ), self.assertRaises(type(exc)) as caught:
