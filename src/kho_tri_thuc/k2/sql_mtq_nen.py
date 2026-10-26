@@ -98,3 +98,74 @@ MTQ_NEN_A_SQL = (
         END IF;
         END $$""",
 )
+
+
+MTQ_NEN_B_SQL = (
+    # MTQ-NEN-2b: giữ lõi thuần M0054, chỉ tổng hợp quyết định trên tập PN.
+    # CREATE OR REPLACE giữ nguyên ACL của hàm đọc, không mở hàm nội bộ.
+    """CREATE OR REPLACE FUNCTION master.mtq_duoc_doc(p_hanh_dong text, p_doi_tuong jsonb,
+        p_so_tien numeric DEFAULT NULL) RETURNS boolean
+        LANGUAGE plpgsql STABLE SECURITY DEFINER
+        SET search_path = pg_catalog, master, nhat_ky, pg_temp AS $$
+        DECLARE
+            login text := master.ktt_danh_tinh(); ai uuid; giai jsonb; tap jsonb;
+            pn uuid; phong uuid; hd uuid; da uuid; lh uuid; khach uuid;
+            scope_id uuid; khoa text; scope_loai text; n bigint;
+            so_pn bigint := 0; so_bat bigint := 0;
+        BEGIN
+            SELECT id INTO ai FROM master.nguoi_dung
+                WHERE dang_nhap = login AND trang_thai = 'HOAT_DONG';
+            IF ai IS NULL THEN RETURN false; END IF;
+            tap := master.mtq_giai_doi_tuong_tap(p_hanh_dong, p_doi_tuong);
+            IF jsonb_typeof(tap) IS DISTINCT FROM 'array' THEN RETURN false; END IF;
+            -- Giữ M0054: đầu vào/PN không hợp lệ luôn chặn, kể cả khi tắt.
+            FOR giai IN SELECT value FROM jsonb_array_elements(tap)
+                    ORDER BY (value->>'pn')::uuid LOOP
+                IF (giai->>'hop_le')::boolean IS DISTINCT FROM true THEN RETURN false; END IF;
+                pn := (giai->>'pn')::uuid;
+                IF pn IS NULL OR NOT EXISTS (SELECT 1 FROM master.phap_nhan WHERE id = pn) THEN
+                    RETURN false;
+                END IF;
+                so_pn := so_pn + 1;
+                IF EXISTS (SELECT 1 FROM master.mtq_kich_hoat WHERE phap_nhan_id = pn AND bat) THEN
+                    so_bat := so_bat + 1;
+                END IF;
+            END LOOP;
+            IF so_pn = 0 THEN RETURN false; END IF;
+            IF so_bat = 0 THEN RETURN NULL; END IF;
+            -- Hỗn hợp không được fallback quyền cũ cho PN chưa bật.
+            IF so_bat <> so_pn THEN RETURN false; END IF;
+            IF so_pn > 1 AND p_doi_tuong->>'phong_id' IS NOT NULL THEN RETURN false; END IF;
+            FOR giai IN SELECT value FROM jsonb_array_elements(tap)
+                    ORDER BY (value->>'pn')::uuid LOOP
+                pn := (giai->>'pn')::uuid; hd := (giai->>'hd')::uuid;
+                da := (giai->>'da')::uuid; lh := (giai->>'lh')::uuid;
+                khach := (giai->>'khach')::uuid; phong := (giai->>'phong')::uuid;
+                -- Mỗi PN chọn phòng/phạm vi riêng, không giữ biến vòng trước.
+                scope_id := NULL; khoa := NULL; scope_loai := NULL;
+                SELECT count(*), (array_agg(g.phong_id))[1] INTO n, phong
+                    FROM master.mtq_gan_vai g
+                    JOIN master.mtq_phong p ON p.id = g.phong_id AND p.phap_nhan_id = g.phap_nhan_id AND p.hoat_dong
+                    WHERE g.nguoi_dung_id = ai AND g.phap_nhan_id = pn AND g.thu_hoi_luc IS NULL
+                        AND (phong IS NULL OR g.phong_id = phong);
+                IF n > 1 THEN RETURN false; END IF;
+                SELECT s.id, s.khoa, s.loai INTO scope_id, khoa, scope_loai
+                    FROM master.mtq_pham_vi s JOIN master.mtq_gan_vai g ON g.id = s.gan_vai_id
+                    WHERE g.nguoi_dung_id = ai AND g.phap_nhan_id = pn AND g.phong_id = phong
+                        AND g.thu_hoi_luc IS NULL AND s.phap_nhan_id = pn AND s.thu_hoi_luc IS NULL
+                        AND ((s.loai = 'PHAP_NHAN' AND s.khoa = pn::text)
+                            OR (s.loai = 'HOP_DONG' AND s.khoa = hd::text)
+                            OR (s.loai = 'DU_AN' AND s.khoa = da::text)
+                            OR (s.loai = 'LOAI_HINH' AND s.khoa = lh::text)
+                            OR (s.loai = 'KHACH' AND s.khoa = khach::text))
+                    ORDER BY CASE s.loai WHEN 'HOP_DONG' THEN 1 WHEN 'DU_AN' THEN 2
+                        WHEN 'LOAI_HINH' THEN 3 WHEN 'KHACH' THEN 4 ELSE 5 END, s.id LIMIT 1;
+                -- Cùng số tiền, từng PN phải cho phép; NULL không thành quyền.
+                -- STABLE: chỉ đọc snapshot, dùng được trong READ ONLY và RLS.
+                IF master.mtq_tinh_doc(pn, phong, p_hanh_dong, giai->>'loai',
+                    ((p_doi_tuong->>'id')::uuid)::text, khoa, scope_loai, p_so_tien, scope_id)
+                        IS DISTINCT FROM true THEN RETURN false; END IF;
+            END LOOP;
+            RETURN true;
+        END $$""",
+)
