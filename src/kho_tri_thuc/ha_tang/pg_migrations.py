@@ -12080,3 +12080,10 @@ M0036_KY_DOCX = (
 
 PG_MIGRATIONS = (*PG_MIGRATIONS, M0036_KY_DOCX)
 PG_SCHEMA_VERSION = len(PG_MIGRATIONS)
+
+# MTQ-1 — append; lead đánh số khi gộp. Chưa nối quyền cũ, mặc định tắt.
+from ..k2.sql_ma_tran_tham_quyen import MA_TRAN_THAM_QUYEN_SQL  # noqa: E402 — chỉ hằng SQL
+
+M00xx_MA_TRAN_THAM_QUYEN = MA_TRAN_THAM_QUYEN_SQL
+PG_MIGRATIONS = (*PG_MIGRATIONS, M00xx_MA_TRAN_THAM_QUYEN)
+PG_SCHEMA_VERSION = len(PG_MIGRATIONS)
