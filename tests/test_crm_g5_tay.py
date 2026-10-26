@@ -254,8 +254,17 @@ class G5TayPg(unittest.TestCase):
 
     def test_p03_vai_ban_hang_ngoai_pn_va_thu_hoi_truoc_replay(self):
         d = self.tao_ky("quyen")
-        for login in (KYH.BH, KYH.KT_NO_CRM, KYH.CFO_B):
-            self.assertIn(self.xac_nhan(d, login)[0], (403, 404))
+        # crm_demo: KT thiếu module CRM ở PN A và KT chỉ thuộc PN B.
+        for login in (KYH.BH, "MO_PHONG_KT_KHONG_CRM_A", "MO_PHONG_KT_B", KYH.CFO_B):
+            with self.subTest(login=login):
+                # Cấp phiên riêng, tránh GET /api/crm nạp toàn bộ dashboard
+                # trước khi đổi vai; danh tính vẫn được xác thực qua HTTP.
+                with self.app.mutation_lock:
+                    sid, _, _ = self.app.crm_phien(None, tao=True)
+                st, r, _ = self.goi("/api/crm/danh-tinh", {"dang_nhap": login}, sid)
+                self.assertEqual((st, r), (200, {"dang_nhap": login}))
+                self.s.setdefault("sid", {})[login] = sid
+                self.assertIn(self.xac_nhan(d, login)[0], (403, 404))
         self.assertEqual(self.xac_nhan(d)[0], 200)
         self.admin.execute("UPDATE master.crm_kiem_pham_vi SET thu_hoi_luc = now(), thu_hoi_boi = 'TEST', thu_hoi_ly_do = 'DEMO thu hồi' WHERE id = %s", (d["pv"],))
         self.assertEqual(self.xac_nhan(d)[0], 403)
