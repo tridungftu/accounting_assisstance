@@ -512,3 +512,4 @@ H3 phân loại 36 đầu việc: 19 gói đã nhập `hop-nhat`, 13 xung đột
   - M9-3b (gọi Google Sheets) cần chốt cách ký JWT tài khoản dịch vụ: thêm thư viện hay tự cài thuần Python;
   - các hàng đợi M3/M10/M2/M4-CD3/UI0/nạp thật đã ghi trước.
 - **Theo dõi:** `test_chay_test_pg_demo...timeout_giet_ca_chau` chạy lại khi máy rảnh.
+- 19:45: chạy lại `test_chay_test_pg_demo` khi máy rảnh (0 tiến trình Codex) → 51/51 đạt. Xác nhận chập chờn do máy tải nặng; không phải lỗi mã.
