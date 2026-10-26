@@ -588,3 +588,36 @@ Chi tiết có tệp:dòng: `BANG-DIEU-KIEN-GO-LIVE.md`; quy trình: `CHECKLIST-
 - **Bài học lead:**
   - ký tự `\` trong chuỗi Python viết qua heredoc bị biến thành ký tự điều khiển (2 lần sửa) → ghi tài liệu bằng công cụ Write;
   - không `cd` trần ở lệnh nền.
+### 26/10 ~22:50 — gộp XS-3b, XS-3d, MTQ-4f1b (M0055), XS-4b (M0056), NEN-2a (M0057), MH-1, KK-DON-DEP
+- **Gộp** (mỗi lát có review Codex; Claude rút thăm ~1/4):
+  - **XS-3b**: E-OCR/E-AI qua cổng sẵn có. Lead làm rõ hash_ra AI theo từng lượt.
+  - **XS-3d**: E-HOADON bọc bộ đọc XML/ZIP. Review chặn: bắt cả lỗi bất biến → vòng 3 chỉ ánh xạ mã lỗi đầu vào tường minh.
+  - **MTQ-4f1b (M0055)**: M4 · Nghiệm thu & chi phí dự án, ma trận cho 14 lệnh hồ sơ M17. B6 chuyển sang 4f1c; vòng 2 bỏ khóa kỹ thuật khỏi thông báo.
+  - **XS-4b (M0056)**: công tắc module × pháp nhân (S1–S5). Review chặn: lộ người thử qua nhật ký → vòng 2. Lead bỏ kiểm CRLF trong test (repo `core.autocrlf=true`).
+  - **NEN-2a (M0057)**: cổng phiên kiểm mọi pháp nhân (QD-10). Vòng 1 mất `$$` do worker ghi qua PowerShell → 27 ERROR; vòng 2 sửa. PG 20 module 625 ok.
+  - **MH-1**: cổng khóa DPAPI + HMAC tra cứu. Rút thăm trúng, Claude tự đọc: Đạt.
+  - **KK-DON-DEP**: phiếu D1–D2 đã gửi Anh.
+  - **Migration cuối = M0057.**
+- **Danh bạ engine (CD-017 mục 6):**
+
+| Engine | Phiên bản | Module dùng | Trạng thái |
+|---|---|---|---|
+| Khung hợp đồng + danh bạ | — | — | XS-3a 19 ok |
+| E-OCR | v1 | M9 (đích M4, CRM) | XS-3b đã gộp; chưa đăng ký ở runtime |
+| E-AI | v1 (hash_ra theo từng lượt) | M9 (đích mọi module dùng AI) | XS-3b đã gộp; chưa đăng ký ở runtime |
+| E-HOADON | v1 | M2 (đích M3) | XS-3d đã gộp; XS-3e cắm vào M2 rồi M3 sau pilot |
+
+- **Đang chạy (4 Codex):**
+  - CRM 4b2b vòng 2 (lead quyết ghim `quan_he` B3);
+  - SL-1 vòng 3 (review chặn: biên bản có thể ghi vào bản mã);
+  - NEN-2b (`mtq_duoc_doc` dùng tập PN);
+  - BO-1a (BOQ "bỏ dòng" + đọc BOQ hiệu lực theo ngày).
+- **Hàng chờ:**
+  - 4i-b1 (sau NEN-2b);
+  - BO-1b (writer BO);
+  - XS-4c (máy chủ kiểm công tắc, đụng `server.py`);
+  - XS-2a;
+  - 4f1c (đọc/master + B6);
+  - 4d1b;
+  - review NEN-2b, BO-1a.
+- **Chờ Anh:** phiếu dọn dẹp D1–D2 (`CAN-ANH-CHOT-DON-DEP.md`).
