@@ -25,13 +25,17 @@ class MtqCongTinh(unittest.TestCase):
     def test_module_chi_chua_hang_sql(self):
         path = ROOT / "src/kho_tri_thuc/k2/sql_mtq_cong.py"
         tree = ast.parse(path.read_text(encoding="utf-8"))
-        self.assertEqual(len(tree.body), 2)
+        # Lát sau chỉ được nối thêm hằng SQL; hai hằng đã phát hành giữ đầu tệp.
+        self.assertGreaterEqual(len(tree.body), 2)
         for assignment, name, value in zip(
                 tree.body, ("MTQ_CONG_SQL", "MTQ_CONG_B_SQL"),
                 (MTQ_CONG_SQL, MTQ_CONG_B_SQL)):
-            self.assertIsInstance(assignment, ast.Assign)
             self.assertEqual([t.id for t in assignment.targets], [name])
             self.assertEqual(ast.literal_eval(assignment.value), value)
+        for assignment in tree.body:
+            self.assertIsInstance(assignment, ast.Assign)
+            self.assertRegex(assignment.targets[0].id, r"^MTQ_CONG_[A-Z_]*SQL$")
+            value = ast.literal_eval(assignment.value)
             self.assertTrue(all(isinstance(s, str) and s.strip() for s in value))
 
     def test_m0041_da_phat_hanh_khong_doi_noi_dung_sql(self):
@@ -43,7 +47,7 @@ class MtqCongTinh(unittest.TestCase):
         source = (ROOT / "src/kho_tri_thuc/k2/sql_mtq_cong.py").read_text(encoding="utf-8")
         for newline in ("\n", "\r\n"):
             tree = ast.parse(source.replace("\n", newline))
-            self.assertEqual([ast.literal_eval(a.value) for a in tree.body],
+            self.assertEqual([ast.literal_eval(a.value) for a in tree.body][:2],
                              [MTQ_CONG_SQL, MTQ_CONG_B_SQL])
 
     def test_definer_search_path_chu_ky_khong_nhan_danh_tinh(self):
