@@ -16,6 +16,7 @@
   `M2_XML_CONTENT_V1` = sha256(canonical_json(envelope)); hash raw/container/content/registry payload tách riêng.
 - Crosswalk dòng chỉ theo fact tường minh (artifact SHA + locator + ordinal + identity tự dẫn xuất); không suy từ MaHang/STT.
 - Không DB/seed/route/actor/API/UI/L11/ghi nhận nghiệp vụ; `native_fiscal_status` UNKNOWN, `business_promotion` NOT_PERFORMED.
+- Hóa đơn có TTHDLQuan/TToan vẫn ngoài envelope V1; lát đưa hóa đơn bán ra vào K2 phải chốt envelope V2.
 """
 
 from __future__ import annotations
@@ -25,7 +26,7 @@ import re
 import zipfile
 import zlib
 from dataclasses import dataclass, fields as _dc_fields, is_dataclass
-from decimal import Decimal
+from decimal import Decimal, localcontext
 from typing import Any
 from xml.etree import ElementTree as ET
 
@@ -453,7 +454,11 @@ class InvoiceTaxComponent:
 
 @dataclass(frozen=True)
 class InvoiceMoney:
-    """Chỉ số nguồn, chưa phải minor/cơ sở thuế đã duyệt; không cộng/trừ/suy số thiếu."""
+    """Giữ số nguồn; chỉ đối chiếu tổng, không tính lại/thay số hoặc suy số thiếu.
+
+    net_amount = TgTCThue gồm cả phần không chịu thuế; lát nối sang M3 không được
+    gán thẳng vào "net chịu thuế". Chưa phải minor/cơ sở thuế đã duyệt.
+    """
     state: str = "HOLD"
     fields: tuple = ()
     currency: str | None = None
@@ -745,6 +750,20 @@ def _component_number(field, g, issues):
     return fact
 
 
+def _check_money_total(parts, target, comparison, path, g, issues):
+    """Chỉ đối chiếu khi đủ số nguồn; cộng exact, không phụ thuộc precision mặc định."""
+    if not parts or target.exact_value is None or any(p.exact_value is None for p in parts):
+        return
+    values = [p.exact_value for p in parts]
+    with localcontext() as ctx:
+        # Đủ toàn bộ chữ số từ hàng lớn nhất đến scale nhỏ nhất, cộng thêm carry.
+        ctx.prec = max(1, max(v.adjusted() for v in values) - min(v.as_tuple().exponent for v in values)
+                       + len(str(len(values))) + 1)
+        matches = sum(values, Decimal(0)) == target.exact_value
+    if not matches:
+        issues.append(g.issue("MONEY_TOTAL_CONFLICT", path, f"{comparison}: tổng và chi tiết lệch; HOLD, giữ nguyên số nguồn."))
+
+
 def _read_money(tt, nd, raw, g):
     path = _PATH_NDHDON + "/TToan"
     sections = _children(nd, "TToan")
@@ -790,6 +809,9 @@ def _read_money(tt, nd, raw, g):
         components.append(InvoiceTaxComponent(loc, fs, rate, base, vat))
         if rate == "KCT":
             non_taxable.append(base)
+    _check_money_total([c.net_amount for c in components], net, "Σ ThTien = TgTCThue", path, g, issues)
+    _check_money_total([c.tax_amount for c in components], tax, "Σ TThue = TgTThue", path, g, issues)
+    _check_money_total([net, tax], total, "TgTCThue + TgTThue = TgTTTBSo", path, g, issues)
     # TGTKCThue hoặc đúng một dòng KCT là số nguồn tường minh, không suy từ tổng.
     explicit = fd["TGTKCThue"].occurrences[0].state != "ABSENT"
     if explicit:
@@ -811,7 +833,11 @@ def _read_money(tt, nd, raw, g):
 
 def _read_relations(tt, raw, g):
     items, all_issues = [], []
-    for i, el in enumerate(_children(tt[0], "TTHDLQuan"), 1):
+    elements = _children(tt[0], "TTHDLQuan")
+    if len(elements) > 1:
+        all_issues.append(g.issue("RELATION_MULTIPLE", _PATH_TTCHUNG + "/TTHDLQuan",
+                                  "Nhiều TTHDLQuan trong một hóa đơn; HOLD, giữ từng quan hệ nguồn."))
+    for i, el in enumerate(elements, 1):
         loc = f"{_PATH_TTCHUNG}/TTHDLQuan[{i}]"
         issues = []
         _component_structure(el, loc, g, issues)
