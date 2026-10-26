@@ -12219,3 +12219,10 @@ M0050_MTQ_CRM_A = (
 )
 PG_MIGRATIONS = (*PG_MIGRATIONS, M0050_MTQ_CRM_A)
 PG_SCHEMA_VERSION = len(PG_MIGRATIONS)
+
+# XS-1a — CD-017: bus outbox/inbox; tên tạm, lead đánh số khi gộp.
+from ..k2.sql_bus_su_kien import BUS_SU_KIEN_SQL  # noqa: E402 — chỉ hằng SQL
+
+M00xx_BUS_SU_KIEN = BUS_SU_KIEN_SQL
+PG_MIGRATIONS = (*PG_MIGRATIONS, M00xx_BUS_SU_KIEN)
+PG_SCHEMA_VERSION = len(PG_MIGRATIONS)
