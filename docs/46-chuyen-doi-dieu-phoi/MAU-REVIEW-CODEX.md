@@ -78,6 +78,7 @@ Lead đọc review Codex và **lọc**:
 - Ghi vào tệp `review-<mã>.md`: bản đã lọc, kèm dòng "lead lọc: bỏ N điểm ngoài phạm vi, hạ M điểm".
 
 ## C. Điểm nóng phải soi (bài học review 26/10)
+- Thân hàm PL/pgSQL: dấu `$` đơn thay cho `$$` (worker ghi tệp qua PowerShell) — migration không áp được; lead thấy qua PG nhưng review tĩnh nên soi trước.
 
 - **Quyền làm rộng hoặc fallback:**
   - resolver/cổng quyền nhận đối tượng ngoài module, ví dụ liên kết VAY/L11 lọt vào M1 (MTQ-4a3a);

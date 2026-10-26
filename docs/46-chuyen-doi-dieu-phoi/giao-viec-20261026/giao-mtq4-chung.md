@@ -1,7 +1,7 @@
 # Phần chung cho các lát MTQ-4 sau chốt QD-20261026-08 (đọc trước phần riêng của lát)
 
 Bạn là worker Codex, chạy không tương tác. **Làm ngay.**
-- Ghi UTF-8 không BOM. `pg_migrations.py` giữ LF. Không commit. Không mở server/PostgreSQL DEMO. Không xóa file. Không đọc `var\`, tệp bí mật, dữ liệu thật.
+- Ghi UTF-8 không BOM. `pg_migrations.py` giữ LF. **Ghi/sửa tệp bằng apply_patch hoặc công cụ sửa tệp, KHÔNG qua chuỗi PowerShell nháy kép** (`$$` của PL/pgSQL bị PowerShell hiểu thành biến — NEN-2a 26/10 hỏng 27 ERROR vì vậy); tự kiểm mỗi thân hàm mở `AS $$` và đóng `$$`. Không commit. Không mở server/PostgreSQL DEMO. Không xóa file. Không đọc `var\`, tệp bí mật, dữ liệu thật.
 - **Chỗ chưa rõ hoặc có thể làm rộng quyền: dừng, ghi "Cần lead"; không đoán.** Môi trường không có `python` thì ghi NOT_RUN; lead chạy test và PG.
 - Test PG tự tạo CSDL `kho_test_*` từ DSN quản trị, không đọc `KHO_PG_DEMO_*`. Dữ liệu giả phải đúng mọi trigger/ràng buộc thật: đọc định nghĩa trigger trước khi dựng fixture (bài học MTQ-4b1a: đối tác phải gắn pháp nhân). Không tắt trigger trừ khi bắt buộc.
 - **Migration:** chỉ **thêm** migration mới, tên tạm `M00xx_<TÊN>`, có dòng đánh dấu `# <MÃ LÁT> — CD-012:`. Lead đánh số khi gộp. **Không sửa** hằng/migration cũ (M0039…M0053). Test không ghim migration cuối hay hash byte tệp.
