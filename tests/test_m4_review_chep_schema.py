@@ -30,6 +30,8 @@ ROOT = Path(__file__).resolve().parents[1]
 SQL_PATH = ROOT / "src/kho_tri_thuc/m4/sql_review_chep.py"
 SQL = S.M4_REVIEW_CHEP_SQL
 TOAN = "\n".join(SQL)
+SQL_B = S.M4_REVIEW_CHEP_B_SQL
+TOAN_B = "\n".join(SQL_B)
 DSN = os.environ.get("KHO_PG_DSN_TEST")
 
 
@@ -173,7 +175,7 @@ class ReviewChepThuan(unittest.TestCase):
             self.assertRegex(_ddl(t), rf"\b{c} numeric\b")
         self.assertNotIn("double precision", TOAN)
         self.assertIn("Decimal(repr(x))", S.__doc__)
-        self.assertIn("ORDER BY n.nhap_luc DESC, n.id DESC LIMIT 1", S.__doc__)
+        self.assertIn("ORDER BY n.chup_luc DESC, n.id DESC LIMIT 1", S.__doc__)
         self.assertIn("một transaction", S.__doc__)
 
     def test_chi_hang_sql_va_registry_append_khong_ghim_ordinal(self):
@@ -193,6 +195,49 @@ class ReviewChepThuan(unittest.TestCase):
         exec(compile(prefix, str(path), "exec"), ns)
         self.assertEqual(PM.PG_MIGRATIONS[:idx], ns["PG_MIGRATIONS"])
 
+    def test_dl1b_chi_sql_va_khong_doi_byte_migration_da_phat_hanh(self):
+        self.assertTrue(all(isinstance(s, str) and s.strip() for s in SQL_B))
+        # Ghim tiền tố đã phát hành, chỉ bỏ docstring được phép cập nhật.
+        prefix = SQL_PATH.read_bytes().split("\n# M4-DL1b — CD-011:".encode())[0]
+        prefix = prefix[prefix.index(b"BANG_NGUON ="):]
+        self.assertEqual(hashlib.sha256(prefix).hexdigest(),
+                         "d5ffb04f5e1124ae939872fe1a9e1ddb8a8a7e3cc8f5d986b3d3253d48528eae")
+        path = ROOT / "src/kho_tri_thuc/ha_tang/pg_migrations.py"
+        raw = path.read_bytes()
+        self.assertNotIn(b"\r", raw)
+        self.assertFalse(raw.startswith(b"\xef\xbb\xbf"))
+        marker = "# M4-DL1b — CD-011:"
+        self.assertEqual(raw.decode().count(marker), 1)
+        baseline = raw.split(("\n" + marker).encode())[0]
+        self.assertEqual(hashlib.sha256(baseline).hexdigest(),
+                         "8a745b54043dd1e35a7add918a1b4b050b2f72997fecfc778f7bdb086d1f8c5e")
+        ns = {"__package__": "kho_tri_thuc.ha_tang", "__name__": "kho_tri_thuc.ha_tang._dl1b_baseline"}
+        exec(compile(baseline, str(path), "exec"), ns)
+        idx = next(i for i, migration in enumerate(PM.PG_MIGRATIONS) if migration is SQL_B)
+        self.assertGreater(idx, next(i for i, migration in enumerate(PM.PG_MIGRATIONS) if migration is SQL))
+        self.assertEqual(PM.PG_MIGRATIONS[:idx], ns["PG_MIGRATIONS"])
+        self.assertEqual(PM.PG_MIGRATIONS[idx:], (SQL_B,))
+        self.assertEqual(sum(m is SQL_B for m in PM.PG_MIGRATIONS), 1)
+
+    def test_dl1b_khoa_thoi_diem_chup_va_ham_doc_khong_noi_quyen(self):
+        self.assertIn("UNIQUE (nguon_id, hop_dong_id)", TOAN_B)
+        self.assertIn("ADD COLUMN chup_luc timestamptz NOT NULL", SQL_B[2])
+        self.assertNotIn("DEFAULT", SQL_B[2])
+        self.assertIn("(chup_luc DESC, id DESC)", TOAN_B)
+        self.assertIn("LOCK TABLE m4.review_chep_nguon IN ACCESS EXCLUSIVE MODE", SQL_B[0])
+        self.assertIn("IF EXISTS (SELECT 1 FROM m4.review_chep_nguon)", SQL_B[0])
+        self.assertIn("RAISE EXCEPTION 'M4_REVIEW_CHEP_B_NGUON_DA_CO_DONG:", SQL_B[0])
+        function = next(q for q in SQL_B if q.startswith("CREATE FUNCTION"))
+        self.assertIn("review_chep_hien_hanh(p_hop_dong_id uuid)", function)
+        self.assertIn("RETURNS text", function)
+        self.assertIn("LANGUAGE sql STABLE SECURITY INVOKER", function)
+        self.assertLess(function.index("ORDER BY n.chup_luc DESC, n.id DESC LIMIT 1"),
+                        function.index("h.hop_dong_id = p_hop_dong_id"))
+        self.assertNotRegex(TOAN_B, r"(?i)\b(?:INSERT INTO|UPDATE|DELETE|DROP|GRANT|DISABLE TRIGGER|SECURITY DEFINER)\b")
+        self.assertNotIn("file_nguon", TOAN_B)
+        self.assertIn("DL2: DTO", S.__doc__)
+        self.assertIn("Cần Anh: nếu có nhiều CSDL Review", S.__doc__)
+
 
 @unittest.skipUnless(DSN and psycopg is not None, "Thiếu KHO_PG_DSN_TEST/psycopg — PG do lead chạy (NOT_RUN)")
 class ReviewChepPG(unittest.TestCase):
@@ -209,14 +254,20 @@ class ReviewChepPG(unittest.TestCase):
         cls.pn = cls.con.execute("INSERT INTO master.phap_nhan (ma,ten) VALUES ('DEMO_DL1','Pháp nhân DEMO DL1') RETURNING id").fetchone()[0]
         cls.da = cls.con.execute("INSERT INTO master.du_an (phap_nhan_id,ma_junsky,ten) VALUES (%s,'DEMO_DL1','Dự án DEMO DL1') RETURNING id", (cls.pn,)).fetchone()[0]
 
+    def setUp(self):
+        # Bản mới nhất là toàn bộ CSDL; không để lần chụp của test khác xen vào.
+        self.enterContext(self.con.transaction(force_rollback=True))
+
     def _insert(self, table, row, *, replay=False):
         query = sql.SQL("INSERT INTO {} ({}) VALUES ({})" + (" ON CONFLICT DO NOTHING" if replay else ""))
         self.con.execute(query.format(sql.Identifier(*table.split(".")), sql.SQL(",").join(map(sql.Identifier, row)),
                                       sql.SQL(",").join(sql.Placeholder() for _ in row)), [Decimal(repr(v)) if isinstance(v, float) else v for v in row.values()])
 
-    def _fixture(self, *, hd=None, originals=None, nhap_luc="2026-10-26T07:00:00+07:00", lien_ket_log=False):
-        source = "DEMO-DL1-" + uuid.uuid4().hex
-        self._insert("m4.review_chep_nguon", dict(id=source, mo_ta="DEMO giả", nhap_boi="MO_PHONG_NHAP", nhap_luc=nhap_luc))
+    def _fixture(self, *, hd=None, originals=None, nhap_luc="2026-10-26T07:00:00+07:00",
+                 chup_luc="2026-10-26T07:00:00+07:00", source=None, lien_ket_log=False):
+        source = "DEMO-DL1-" + uuid.uuid4().hex if source is None else source
+        self._insert("m4.review_chep_nguon", dict(id=source, mo_ta="DEMO giả", nhap_boi="MO_PHONG_NHAP",
+                                                nhap_luc=nhap_luc, chup_luc=chup_luc))
         hd = self._master_hd() if hd is None else hd
         originals = _demo() if originals is None else originals
         rows = {}
@@ -248,6 +299,88 @@ class ReviewChepPG(unittest.TestCase):
             with self.con.transaction():
                 self._insert(table, row)
 
+    def test_dl1b_trung_master_hd_trong_cung_lan_chup_bi_chan(self):
+        _, _, _, rows = self._fixture()
+        # Khác cả PK ma_hd và so_hd: chỉ UQ mới có thể bắt được lỗi này.
+        duplicate = dict(rows["hop_dong"], ma_hd="DEMO-HD-TRUNG", so_hd="DEMO/SO-KHAC")
+        self._loi(psycopg.errors.UniqueViolation, _bang("hop_dong"), duplicate)
+
+    def test_dl1b_chup_luc_bat_buoc_khong_default_va_index(self):
+        row = dict(id="DEMO-THIEU-CHUP", nhap_boi="MO_PHONG_NHAP")
+        self._loi(psycopg.errors.NotNullViolation, "m4.review_chep_nguon", row)
+        self._loi(psycopg.errors.NotNullViolation, "m4.review_chep_nguon", dict(row, chup_luc=None))
+        self.assertEqual(self.con.execute("""SELECT is_nullable,column_default
+            FROM information_schema.columns WHERE table_schema='m4'
+            AND table_name='review_chep_nguon' AND column_name='chup_luc'""").fetchone(), ("NO", None))
+        index = self.con.execute("""SELECT indexdef FROM pg_indexes WHERE schemaname='m4'
+            AND indexname='review_chep_nguon_chup_idx'""").fetchone()[0]
+        self.assertIn("(chup_luc DESC, id DESC)", index)
+
+    def test_dl1b_hien_hanh_hd_da_xoa_khong_lui_ban_cu(self):
+        deleted, kept = self._master_hd(), self._master_hd()
+        self.assertIsNone(self.con.execute("SELECT m4.review_chep_hien_hanh(%s)", (deleted,)).fetchone()[0])
+        source1, _, _, _ = self._fixture(hd=deleted, originals={"hop_dong": _demo()["hop_dong"]})
+        kept_row = dict(_demo()["hop_dong"], nguon_id=source1, ma_hd="DEMO-KEPT", so_hd="DEMO/KEPT",
+                        hop_dong_id=kept, du_an_id=self.da, dong_sha256="a" * 64, nhap_boi="MO_PHONG_NHAP")
+        self._insert(_bang("hop_dong"), kept_row)
+        self.assertEqual(self.con.execute("SELECT m4.review_chep_hien_hanh(%s)", (deleted,)).fetchone()[0], source1)
+        # Lần chụp mới nhất chỉ còn HĐ kept; không lùi lại source1 cho deleted.
+        source2, _, _, _ = self._fixture(hd=kept, originals={"hop_dong": _demo()["hop_dong"]},
+                                       chup_luc="2026-10-27T07:00:00+07:00")
+        self.assertIsNone(self.con.execute("SELECT m4.review_chep_hien_hanh(%s)", (deleted,)).fetchone()[0])
+        self.assertEqual(self.con.execute("SELECT m4.review_chep_hien_hanh(%s)", (kept,)).fetchone()[0], source2)
+        # Lần chụp đủ nhưng rỗng: mọi HĐ đều đã mất, vẫn không lấy bản cũ.
+        self._fixture(originals={}, chup_luc="2026-10-28T07:00:00+07:00")
+        self.assertIsNone(self.con.execute("SELECT m4.review_chep_hien_hanh(%s)", (kept,)).fetchone()[0])
+
+    def test_dl1b_nap_bu_ban_cu_khong_doi_ban_hien_hanh(self):
+        source, hd, _, _ = self._fixture(chup_luc="2026-10-27T07:00:00+07:00")
+        self._fixture(hd=hd, chup_luc="2026-10-25T07:00:00+07:00", nhap_luc="2026-10-28T07:00:00+07:00")
+        self.assertEqual(self.con.execute("SELECT m4.review_chep_hien_hanh(%s)", (hd,)).fetchone()[0], source)
+
+    def test_dl1b_trung_chup_luc_id_phan_xu_va_van_tinh_xoa(self):
+        # Nạp id lớn trước, cùng thời điểm chụp: id DESC thắng thứ tự nạp.
+        high, hd, _, _ = self._fixture(source="DEMO-Z", nhap_luc="2026-10-25T07:00:00+07:00")
+        self._fixture(hd=hd, source="DEMO-A", nhap_luc="2026-10-28T07:00:00+07:00")
+        self.assertEqual(self.con.execute("SELECT m4.review_chep_hien_hanh(%s)", (hd,)).fetchone()[0], high)
+        self._fixture(source="DEMO-ZZ", originals={})
+        self.assertIsNone(self.con.execute("SELECT m4.review_chep_hien_hanh(%s)", (hd,)).fetchone()[0])
+
+    def test_dl1b_app_web_khong_ghi_va_ham_khong_vuot_quyen_doc(self):
+        source, hd, _, rows = self._fixture()
+        self.assertEqual(self.con.execute("""SELECT prosecdef,provolatile FROM pg_proc
+            WHERE oid='m4.review_chep_hien_hanh(uuid)'::regprocedure""").fetchone(), (False, "s"))
+        with self.con.transaction(force_rollback=True):
+            self.con.execute("SET LOCAL ROLE app_web")
+            self._loi(psycopg.errors.InsufficientPrivilege, _bang("hop_dong"), rows["hop_dong"])
+            self._loi(psycopg.errors.InsufficientPrivilege, "m4.review_chep_nguon",
+                      dict(id="DEMO-WEB", nhap_boi="MO_PHONG_NHAP", chup_luc="2026-10-26T07:00:00+07:00"))
+            for query in ("UPDATE m4.review_chep_nguon SET chup_luc=now() WHERE id=%s",
+                          "DELETE FROM m4.review_chep_nguon WHERE id=%s"):
+                with self.assertRaises(psycopg.errors.InsufficientPrivilege):
+                    with self.con.transaction():
+                        self.con.execute(query, (source,))
+            # Metadata nguồn vẫn owner-only; hàm INVOKER không mở đường vòng.
+            with self.assertRaises(psycopg.errors.InsufficientPrivilege):
+                with self.con.transaction():
+                    self.con.execute("SELECT m4.review_chep_hien_hanh(%s)", (hd,))
+
+    def test_dl1b_migration_dung_khi_da_co_dong_nguon(self):
+        from kho_tri_thuc.ha_tang import postgres as pg
+        db = "kho_test_m4_dl1b_" + uuid.uuid4().hex[:12]
+        with psycopg.connect(DSN, autocommit=True) as admin:
+            admin.execute(sql.SQL("CREATE DATABASE {} ENCODING 'UTF8' TEMPLATE template0").format(sql.Identifier(db)))
+        idx = next(i for i, migration in enumerate(PM.PG_MIGRATIONS) if migration is SQL_B)
+        with psycopg.connect(conninfo.make_conninfo(DSN, dbname=db), autocommit=True) as con:
+            pg.migrate(con, target=idx)
+            con.execute("INSERT INTO m4.review_chep_nguon (id,nhap_boi) VALUES ('DEMO-CU','MO_PHONG_NHAP')")
+            with self.assertRaisesRegex(psycopg.errors.RaiseException, "M4_REVIEW_CHEP_B_NGUON_DA_CO_DONG"):
+                pg.migrate(con)
+            self.assertEqual(pg.schema_version(con), idx)
+            self.assertEqual(con.execute("SELECT id FROM m4.review_chep_nguon").fetchall(), [("DEMO-CU",)])
+            self.assertEqual(con.execute("""SELECT count(*) FROM information_schema.columns
+                WHERE table_schema='m4' AND table_name='review_chep_nguon' AND column_name='chup_luc'""").fetchone()[0], 0)
+
     def test_migrate_sach_va_chay_lai_migration(self):
         from kho_tri_thuc.ha_tang import postgres as pg
         self.assertEqual(self.version, PM.PG_SCHEMA_VERSION)
@@ -270,17 +403,14 @@ class ReviewChepPG(unittest.TestCase):
         new["phu_luc"]["so_pl"] = "DEMO-PL-id-dùng-lại"
         new["boq_dong"]["ma_hm"] = "DEMO-HM-id-dùng-lại"
         new["tham_so_nguon"] = None  # đã xóa ở nguồn; không DELETE bản cũ
-        source2, same_hd, _, _ = self._fixture(hd=hd, originals=new, nhap_luc="2026-10-27T07:00:00+07:00")
+        source2, same_hd, _, _ = self._fixture(hd=hd, originals=new, chup_luc="2026-10-27T07:00:00+07:00")
         self.assertEqual(same_hd, hd)
         for t in NGUON:
             with self.subTest(bang=t):
                 q = sql.SQL("SELECT nguon_id FROM {} WHERE nguon_id IN (%s,%s)").format(sql.Identifier(*_bang(t).split(".")))
                 sources = {r[0] for r in self.con.execute(q, (source1, source2))}
                 self.assertEqual(sources, {source1} if new[t] is None else {source1, source2})
-        # Đúng công thức docstring: chọn lần chụp của HĐ trước, rồi lọc bảng con.
-        current = self.con.execute("""SELECT h.nguon_id FROM m4.review_chep_hop_dong h
-            JOIN m4.review_chep_nguon n ON n.id=h.nguon_id WHERE h.hop_dong_id=%s
-            ORDER BY n.nhap_luc DESC, n.id DESC LIMIT 1""", (hd,)).fetchone()[0]
+        current = self.con.execute("SELECT m4.review_chep_hien_hanh(%s)", (hd,)).fetchone()[0]
         self.assertEqual(current, source2)
         values = dict(self.con.execute("""SELECT nguon_id,gia_tri FROM m4.review_chep_tham_so
             WHERE nguon_id IN (%s,%s)""", (source1, source2)).fetchall())
@@ -389,7 +519,7 @@ class ReviewChepPG(unittest.TestCase):
             for privilege in ("INSERT", "UPDATE", "DELETE", "TRUNCATE"):
                 self.assertFalse(self.con.execute("SELECT has_table_privilege('app_web',%s,%s)", ("m4." + t, privilege)).fetchone()[0])
         # SET LOCAL ROLE chỉ trong DB test riêng; không tạo login/danh tính giả.
-        with self.con.transaction():
+        with self.con.transaction(force_rollback=True):
             self.con.execute("SET LOCAL ROLE app_web")
             for t in S.BANG_BO_SUNG:
                 if t in ("review_chep_nguon", "review_chep_che_do"):
@@ -419,7 +549,7 @@ class ReviewChepPG(unittest.TestCase):
         review = {"hop_dong", "tham_so", "phu_luc", "thay_doi_tham_so", "boq_dong", "tham_so_nguon"}
 
         def check(vai, revoked=False):
-            with self.con.transaction():
+            with self.con.transaction(force_rollback=True):
                 self.con.execute("SET LOCAL ROLE app_web")
                 self.con.execute("SELECT set_config('ktt.nguoi_dung_id',%s,true), set_config('ktt.nguoi_dung_dang_nhap',%s,true)", actors[vai])
                 for t in NGUON.keys() - {"che_do"}:

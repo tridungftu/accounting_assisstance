@@ -14,14 +14,19 @@ SQLite cố định; lần chạy sau dùng nguon_id mới. Khóa mọi bảng c
 (nguon_id, PK SQLite); dòng sửa/xóa/id dùng lại ở lần sau không đè lần trước.
 Replay cùng lần chụp chỉ ON CONFLICT DO NOTHING sau khi đối chiếu dong_sha256;
 không dùng SHA file DB làm khóa, không ON CONFLICT DO UPDATE.
-Công cụ nạp toàn bộ lần chụp trong một transaction; nguon.nhap_luc là thời
-điểm lần chụp (tăng theo thời gian chụp, kể cả khi nạp bù bản cũ).
-Bản hiện hành của HĐ: chọn h.nguon_id từ review_chep_hop_dong h JOIN
-review_chep_nguon n ON n.id = h.nguon_id WHERE h.hop_dong_id = :hop_dong_id
-ORDER BY n.nhap_luc DESC, n.id DESC LIMIT 1 (id phân xử khi trùng thời điểm).
+Công cụ nạp toàn bộ lần chụp trong một transaction; nguon.chup_luc là thời
+điểm chụp tệp nguồn do công cụ nạp truyền vào, bắt buộc và không có DEFAULT.
+nguon.nhap_luc chỉ là thời điểm nạp, có thể khác thứ tự khi nạp bù bản cũ.
+Mỗi lần chụp là bản sao đủ của CÙNG MỘT CSDL Review. Bản hiện hành của HĐ:
+m4.review_chep_hien_hanh(:hop_dong_id) chọn lần chụp mới nhất TOÀN BỘ trước
+(ORDER BY n.chup_luc DESC, n.id DESC LIMIT 1), rồi kiểm HĐ trong lần chụp đó.
+HĐ vắng mặt trả NULL (đã xóa ở nguồn), không lùi về lần chụp cũ hơn có HĐ.
 Sau đó lấy bảng con với nguon_id đó và khóa HĐ tương ứng (qua PL/đợt nếu cần);
-không chọn dòng mới nhất riêng từng khóa, vì dòng đã xóa ở lần chụp mới phải
-biến mất khỏi bản hiện hành.
+không chọn dòng mới nhất riêng từng khóa. Hàm đọc theo quyền/RLS của bên gọi;
+bảng nguồn vẫn chỉ chủ bảng đọc, không mở thêm quyền cho app_web.
+Cần Anh: nếu có nhiều CSDL Review (ví dụ mỗi pháp nhân một tệp), cần chốt
+cột phân biệt nguồn trước khi dùng quy tắc mới nhất toàn bộ; chưa tự thêm.
+DL2: DTO chỉ xuất định danh tệp được quản lý, không lộ file_nguon/đường dẫn.
 Điều kiện trước khi nạp: người chốt bảng ánh xạ ma_hd → master.hop_dong /
 pháp nhân / dự án; không suy từ chuỗi nguồn. Không chép che_do.sua thành quyền.
 REAL -> numeric: công cụ nạp truyền Decimal(repr(x)), giữ NULL; không truyền
@@ -216,4 +221,33 @@ M4_REVIEW_CHEP_SQL = (
                 USING (master.m4_duoc(du_an_id, 'XEM'){" OR master.m4_duoc(du_an_id, 'REVIEW')" if t in _BANG_REVIEW else ''});
         END IF;
     END $$""" for t in BANG_BO_SUNG if t not in ("review_chep_nguon", "review_chep_che_do")),
+)
+
+# M4-DL1b — CD-011: chỉ bổ sung, giữ nguyên toàn bộ SQL M0038 bên trên.
+M4_REVIEW_CHEP_B_SQL = (
+    # Giữ khóa tới hết transaction migration, không cho INSERT chen giữa kiểm
+    # rỗng và ADD NOT NULL; tuyệt đối không suy thời điểm chụp từ nhap_luc.
+    """DO $$
+    BEGIN
+        LOCK TABLE m4.review_chep_nguon IN ACCESS EXCLUSIVE MODE;
+        IF EXISTS (SELECT 1 FROM m4.review_chep_nguon) THEN
+            RAISE EXCEPTION 'M4_REVIEW_CHEP_B_NGUON_DA_CO_DONG: bảng nguồn đã có dòng; cần chốt chup_luc của tệp nguồn trước khi nâng lược đồ, không tự điền thời điểm chụp';
+        END IF;
+    END $$""",
+    "ALTER TABLE m4.review_chep_hop_dong ADD CONSTRAINT review_chep_hop_dong_nguon_hd_uq UNIQUE (nguon_id, hop_dong_id)",
+    "ALTER TABLE m4.review_chep_nguon ADD COLUMN chup_luc timestamptz NOT NULL",
+    "CREATE INDEX review_chep_nguon_chup_idx ON m4.review_chep_nguon (chup_luc DESC, id DESC)",
+    """CREATE FUNCTION m4.review_chep_hien_hanh(p_hop_dong_id uuid)
+    RETURNS text
+    LANGUAGE sql STABLE SECURITY INVOKER
+    AS $$
+        SELECT n.id FROM (
+            SELECT n.id FROM m4.review_chep_nguon n
+            ORDER BY n.chup_luc DESC, n.id DESC LIMIT 1
+        ) n
+        WHERE EXISTS (
+            SELECT 1 FROM m4.review_chep_hop_dong h
+            WHERE h.nguon_id = n.id AND h.hop_dong_id = p_hop_dong_id
+        )
+    $$""",
 )

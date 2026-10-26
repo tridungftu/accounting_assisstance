@@ -12128,3 +12128,10 @@ from ..k2.sql_ma_tran_tham_quyen import MA_TRAN_THAM_QUYEN_SQL  # noqa: E402 —
 M0039_MA_TRAN_THAM_QUYEN = MA_TRAN_THAM_QUYEN_SQL
 PG_MIGRATIONS = (*PG_MIGRATIONS, M0039_MA_TRAN_THAM_QUYEN)
 PG_SCHEMA_VERSION = len(PG_MIGRATIONS)
+
+# M4-DL1b — CD-011: thời điểm chụp và bản hiện hành có tính HĐ đã xóa.
+from ..m4.sql_review_chep import M4_REVIEW_CHEP_B_SQL  # noqa: E402 — chỉ hằng SQL
+
+M00xx_M4_REVIEW_CHEP_B = M4_REVIEW_CHEP_B_SQL
+PG_MIGRATIONS = (*PG_MIGRATIONS, M00xx_M4_REVIEW_CHEP_B)
+PG_SCHEMA_VERSION = len(PG_MIGRATIONS)
