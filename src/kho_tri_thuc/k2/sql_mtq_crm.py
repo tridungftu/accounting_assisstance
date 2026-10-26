@@ -179,3 +179,94 @@ MTQ_CRM_A_SQL = (
                         ELSE master.crm_g_chuan_doc_duoc(pn) END;
         END $$""",
 )
+
+
+MTQ_CRM_B_SQL = (
+    # Chỉ dùng nội bộ G2/G3; không thay helper nhóm mà G4/tỷ giá còn dùng.
+    """CREATE FUNCTION master.crm_gk_ghim_quyen(p_pn uuid) RETURNS void
+        LANGUAGE plpgsql SET search_path = master, pg_temp AS $$
+        BEGIN
+            PERFORM pg_advisory_xact_lock_shared(742601, 1);
+            IF EXISTS (SELECT 1 FROM master.mtq_kich_hoat WHERE phap_nhan_id = p_pn AND bat) THEN
+                PERFORM 1 FROM master.nguoi_dung n WHERE n.id = master.crm_g_ai_id() FOR SHARE;
+            ELSE
+                PERFORM master.crm_g_ghim_quyen(p_pn);
+            END IF;
+        END $$""",
+    "REVOKE ALL ON FUNCTION master.crm_gk_ghim_quyen(uuid) FROM PUBLIC",
+    """CREATE OR REPLACE FUNCTION master.crm_gk_dich(p_hanh_dong text, p_dich uuid, OUT pn uuid, OUT loai uuid)
+        LANGUAGE plpgsql SET search_path = master, pg_temp AS $$
+        DECLARE nhom text; bang text; lenh text; q jsonb;
+        BEGIN
+            PERFORM pg_advisory_xact_lock_shared(742601, 1);
+            IF p_hanh_dong = 'CRM_BAO_GIA_TAO' THEN
+                SELECT l.phap_nhan_id, l.id INTO pn, loai FROM master.loai_hinh_doanh_thu l WHERE l.id = p_dich AND l.valid_to IS NULL;
+                nhom := 'CRM_BAO_GIA'; bang := 'master.loai_hinh_doanh_thu'; lenh := 'CRM:G2_BAO_GIA:LAP';
+            ELSIF p_hanh_dong IN ('CRM_BAO_GIA_LUU','CRM_BAO_GIA_HUY','CRM_BAO_GIA_IN','CRM_BAO_GIA_CHUYEN') THEN
+                SELECT b.phap_nhan_id, b.loai_hinh_id INTO pn, loai FROM master.crm_bao_gia b WHERE b.id = p_dich;
+                nhom := 'CRM_BAO_GIA'; bang := 'master.crm_bao_gia';
+                lenh := CASE p_hanh_dong WHEN 'CRM_BAO_GIA_LUU' THEN 'CRM:G2_BAO_GIA:SUA'
+                    WHEN 'CRM_BAO_GIA_HUY' THEN 'CRM:G2_BAO_GIA:HUY'
+                    WHEN 'CRM_BAO_GIA_IN' THEN 'CRM:G2_BAO_GIA:XEM' ELSE 'CRM:G3_G4_SOAN_KY:LAP' END;
+            ELSIF p_hanh_dong IN ('CRM_SOAN_LUU','CRM_SOAN_XUAT') THEN
+                SELECT s.phap_nhan_id, s.loai_hinh_id INTO pn, loai FROM master.crm_hd_soan s WHERE s.id = p_dich;
+                nhom := 'CRM_SOAN'; bang := 'master.crm_hd_soan';
+                lenh := CASE p_hanh_dong WHEN 'CRM_SOAN_LUU' THEN 'CRM:G3_G4_SOAN_KY:SUA' ELSE 'CRM:G3_G4_SOAN_KY:XEM' END;
+            ELSE
+                RAISE EXCEPTION 'CRM_G_HANH_DONG_SAI: hành động không hợp lệ' USING ERRCODE = 'P0001';
+            END IF;
+            IF pn IS NOT NULL AND EXISTS (SELECT 1 FROM master.mtq_kich_hoat WHERE phap_nhan_id = pn AND bat) THEN
+                PERFORM master.crm_gk_ghim_quyen(pn);
+                q := master.mtq_quyet_dinh_phien(lenh, jsonb_build_object('bang', bang, 'id', p_dich), NULL);
+                IF q->>'nguon' IS DISTINCT FROM 'MA_TRAN' OR q->'cho_phep' IS DISTINCT FROM 'true'::jsonb THEN
+                    RAISE EXCEPTION '%: không có quyền hiện hành cho %', coalesce(q->>'ma', 'MTQ_TU_CHOI'), lenh USING ERRCODE = 'P0001';
+                END IF;
+                RETURN;
+            END IF;
+            -- CU: giữ cả thứ tự kiểm và mã lỗi M0021; không thêm XEM cho lệnh ghi.
+            IF pn IS NULL OR NOT master.ktt_duoc(pn, 'CRM') THEN
+                RAISE EXCEPTION 'CRM_G_KHONG_THAY: không thấy đối tượng (hoặc ngoài phạm vi)' USING ERRCODE = 'P0001';
+            END IF;
+            IF NOT master.crm_gk_duoc(nhom, pn) OR (p_hanh_dong = 'CRM_BAO_GIA_CHUYEN' AND NOT master.crm_gk_duoc('CRM_SOAN', pn)) THEN
+                RAISE EXCEPTION 'CRM_G_KHONG_CO_QUYEN: phiên không có quyền hiện hành cho %', p_hanh_dong USING ERRCODE = 'P0001';
+            END IF;
+        END $$""",
+    # Cờ/đọc có locator, chỉ gọi trên đường chủ bảng. Cổng boolean READ ONLY
+    # của A3 thuộc MTQ-NEN; không gọi resolver nội bộ để tự dựng quyết định.
+    """CREATE FUNCTION master.crm_gk_xem(p_bang text, p_id uuid, p_pn uuid) RETURNS boolean
+        LANGUAGE plpgsql SET search_path = master, pg_temp AS $$
+        DECLARE pn uuid; loai uuid; nhom text; lenh text; q jsonb;
+        BEGIN
+            PERFORM pg_advisory_xact_lock_shared(742601, 1);
+            IF p_bang = 'master.crm_bao_gia' THEN
+                SELECT b.phap_nhan_id INTO pn FROM master.crm_bao_gia b WHERE b.id = p_id;
+                nhom := 'CRM_BAO_GIA'; lenh := 'CRM:G2_BAO_GIA:XEM';
+            ELSIF p_bang = 'master.crm_hd_soan' THEN
+                SELECT s.phap_nhan_id INTO pn FROM master.crm_hd_soan s WHERE s.id = p_id;
+                nhom := 'CRM_SOAN'; lenh := 'CRM:G3_G4_SOAN_KY:XEM';
+            ELSIF p_bang = 'master.crm_gk_xuat' THEN
+                SELECT x.phap_nhan_id, CASE x.loai WHEN 'BAO_GIA' THEN 'CRM_BAO_GIA' WHEN 'HOP_DONG' THEN 'CRM_SOAN' END
+                    INTO pn, nhom FROM master.crm_gk_xuat x WHERE x.id = p_id;
+                lenh := CASE nhom WHEN 'CRM_BAO_GIA' THEN 'CRM:G2_BAO_GIA:XEM' WHEN 'CRM_SOAN' THEN 'CRM:G3_G4_SOAN_KY:XEM' END;
+            ELSIF p_bang = 'master.loai_hinh_doanh_thu' THEN
+                SELECT l.phap_nhan_id INTO pn FROM master.loai_hinh_doanh_thu l WHERE l.id = p_id;
+                nhom := 'CRM_BAO_GIA'; lenh := 'CRM:G2_BAO_GIA:XEM';
+            ELSIF p_bang = 'master.crm_mau_phien_ban' THEN
+                SELECT v.phap_nhan_id, v.loai_hinh_id INTO pn, loai FROM master.crm_mau_phien_ban v WHERE v.id = p_id;
+                lenh := 'CRM:G1_MAU:XEM';
+            ELSE
+                RETURN false;
+            END IF;
+            IF pn IS NULL OR pn IS DISTINCT FROM p_pn OR lenh IS NULL THEN RETURN false; END IF;
+            IF EXISTS (SELECT 1 FROM master.mtq_kich_hoat WHERE phap_nhan_id = pn AND bat) THEN
+                PERFORM master.crm_gk_ghim_quyen(pn);
+                q := master.mtq_quyet_dinh_phien(lenh, jsonb_build_object('bang', p_bang, 'id', p_id), NULL);
+                RETURN coalesce(q->>'nguon' = 'MA_TRAN' AND q->'cho_phep' = 'true'::jsonb, false);
+            END IF;
+            IF p_bang = 'master.crm_mau_phien_ban' THEN
+                RETURN master.crm_g_mau_doc(pn, loai) IS NOT NULL;
+            END IF;
+            RETURN master.crm_gk_duoc(nhom, pn);
+        END $$""",
+    "REVOKE ALL ON FUNCTION master.crm_gk_xem(text, uuid, uuid) FROM PUBLIC",
+)

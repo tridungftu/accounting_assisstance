@@ -17,7 +17,7 @@ import unittest
 import uuid
 
 from kho_tri_thuc.ha_tang import pg_migrations as PM
-from kho_tri_thuc.k2.sql_mtq_crm import MTQ_CRM_A_SQL
+from kho_tri_thuc.k2.sql_mtq_crm import MTQ_CRM_A_SQL, MTQ_CRM_B_SQL
 from tests import test_mtq_sql as nen
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -128,8 +128,9 @@ class MtqCrmSqlTinh(unittest.TestCase):
             self.assertNotIn("\ufffd", raw.decode("utf-8"))
         self.assertNotIn(b"\r", paths[1].read_bytes())
         tree = ast.parse(paths[0].read_text(encoding="utf-8"))
-        self.assertEqual(len(tree.body), 1)
+        self.assertEqual(len(tree.body), 2)
         self.assertEqual(ast.literal_eval(tree.body[0].value), MTQ_CRM_A_SQL)
+        self.assertEqual(ast.literal_eval(tree.body[1].value), MTQ_CRM_B_SQL)
 
 
 @unittest.skipUnless(DSN and psycopg is not None, "NOT_RUN: cần KHO_PG_DSN_TEST + psycopg; lead chạy PG")
@@ -488,6 +489,384 @@ class MtqCrmSqlPostgres(unittest.TestCase):
         self.loi("permission denied", lambda: self.c.execute(
             "SELECT master.crm_g_chuan_lap('LAP',%s,%s,'TEST','[]'::jsonb)", (self.digest, self.f["da"])))
         self.loi("permission denied", lambda: self.c.execute("SELECT master.crm_g_chuan_xem(%s,false)", (self.f["da"],)))
+        self.c.execute("RESET ROLE")
+
+
+B_POSITION = next(i for i, m in enumerate(PM.PG_MIGRATIONS) if m[:len(MTQ_CRM_B_SQL)] == MTQ_CRM_B_SQL)
+B_MIGRATION = PM.PG_MIGRATIONS[B_POSITION]
+B_BEFORE = definitions(PM.PG_MIGRATIONS[:B_POSITION])
+B_AFTER = definitions((B_MIGRATION,))
+B_COMMANDS = {
+    "CRM_BAO_GIA_TAO": ("lh", "CRM:G2_BAO_GIA:LAP"),
+    "CRM_BAO_GIA_LUU": ("bg", "CRM:G2_BAO_GIA:SUA"),
+    "CRM_BAO_GIA_HUY": ("bg", "CRM:G2_BAO_GIA:HUY"),
+    "CRM_BAO_GIA_IN": ("bg", "CRM:G2_BAO_GIA:XEM"),
+    "CRM_BAO_GIA_CHUYEN": ("sbg", "CRM:G3_G4_SOAN_KY:LAP"),
+    "CRM_SOAN_LUU": ("s", "CRM:G3_G4_SOAN_KY:SUA"),
+    "CRM_SOAN_XUAT": ("s", "CRM:G3_G4_SOAN_KY:XEM"),
+}
+B_ACTIONS = {action for _, action in B_COMMANDS.values()} | {"CRM:G1_MAU:XEM"}
+B_COMMAND_FUNCTIONS = {
+    "master.crm_gk_tra", "master.crm_gk_dat_lan", "master.crm_gk_bao_gia_luu",
+    "master.crm_gk_bao_gia_huy", "master.crm_gk_chuyen", "master.crm_gk_soan_luu",
+    "master.crm_gk_xuat_ghi",
+}
+B_READ_FUNCTIONS = {
+    "master.crm_gk_ghim_mau", "master.crm_gk_mau_ghim",
+    "master.crm_gk_mau_hieu_luc", "master.crm_gk_tep",
+}
+
+
+class MtqCrmBGSqlTinh(unittest.TestCase):
+    def test_append_khong_doi_migration_truoc(self):
+        source = Path(PM.__file__).read_text(encoding="utf-8")
+        marker = "# MTQ-4b2a — CD-012:"
+        self.assertEqual(source.count(marker), 1)
+        old = {"__name__": PM.__name__, "__package__": PM.__package__}
+        exec(compile(source.split(marker, 1)[0], PM.__file__, "exec"), old)
+        self.assertEqual(PM.PG_MIGRATIONS[:B_POSITION], old["PG_MIGRATIONS"])
+        self.assertEqual(B_MIGRATION[:len(MTQ_CRM_B_SQL)], MTQ_CRM_B_SQL)
+        self.assertEqual(sum(m is B_MIGRATION for m in PM.PG_MIGRATIONS), 1)
+        self.assertEqual(PM.PG_SCHEMA_VERSION, len(PM.PG_MIGRATIONS))
+
+    def test_pham_vi_chi_g2_g3_khong_doi_helper_dung_chung_g4_ty_gia(self):
+        self.assertEqual(set(B_AFTER), B_COMMAND_FUNCTIONS | B_READ_FUNCTIONS | {
+            "master.crm_gk_dich", "master.crm_gk_ghim_quyen", "master.crm_gk_xem"})
+        sql = "\n".join(B_MIGRATION)
+        self.assertNotRegex(sql, r"\b(?:ALTER TABLE|CREATE POLICY|ALTER POLICY|DROP |GRANT )")
+        self.assertNotRegex(sql, r"CREATE(?: OR REPLACE)? FUNCTION master\.(?:ktt_|crm_ky_|crm_kiem_|crm_g5_)")
+        self.assertNotIn("CRM:TY_GIA", sql)
+        self.assertNotIn("CRM:BAN_KY", sql)
+        self.assertNotIn("EXCEPTION WHEN", sql)
+
+    def test_giu_than_lenh_cas_hash_bat_bien_va_guard_chu_bang(self):
+        for name in B_COMMAND_FUNCTIONS:
+            old, new = B_BEFORE[name], B_AFTER[name]
+            self.assertEqual(old.count("PERFORM master.crm_g_ghim_quyen("), 1, name)
+            self.assertEqual(new, old.replace("PERFORM master.crm_g_ghim_quyen(",
+                                              "PERFORM master.crm_gk_ghim_quyen(", 1), name)
+            self.assertIn("master.la_chu_bang(", new, name)
+            self.assertLess(new.index("master.crm_gk_dich("), new.index("master.crm_g_bn_tra("), name)
+
+    def test_cu_guard_giu_nguyen_kiem_quyen_va_ma_loi(self):
+        old = B_BEFORE["master.crm_gk_dich"]
+        # Từ kiểm quyền cũ đến cuối hàm phải nguyên văn, có cả kiểm kép lúc chuyển.
+        start = "            IF pn IS NULL OR NOT master.ktt_duoc(pn, 'CRM') THEN"
+        self.assertEqual(B_AFTER["master.crm_gk_dich"].split(start, 1)[1], old.split(start, 1)[1])
+        self.assertIn("RETURN;", B_AFTER["master.crm_gk_dich"].split(start, 1)[0])
+
+    def test_chu_ky_security_definer_acl_va_volatility(self):
+        for name in B_AFTER.keys() & B_BEFORE.keys():
+            old, new = B_BEFORE[name], B_AFTER[name]
+            self.assertEqual(new.split("\n", 1)[0], old.split("\n", 1)[0], name)
+            self.assertEqual("SECURITY DEFINER" in new, "SECURITY DEFINER" in old, name)
+            self.assertEqual(re.search(r"SET search_path = ([^\n]+)", new).group(1),
+                             re.search(r"SET search_path = ([^\n]+)", old).group(1), name)
+        for name in B_READ_FUNCTIONS | {"master.crm_gk_dich", "master.crm_gk_xem"}:
+            self.assertNotIn("LANGUAGE plpgsql STABLE", B_AFTER[name], name)
+            self.assertIn("pg_advisory_xact_lock_shared(742601, 1)", B_AFTER[name], name)
+        self.assertIn("REVOKE ALL ON FUNCTION master.crm_gk_xem(text, uuid, uuid) FROM PUBLIC", B_MIGRATION)
+        self.assertIn("REVOKE ALL ON FUNCTION master.crm_gk_ghim_quyen(uuid) FROM PUBLIC", B_MIGRATION)
+
+
+@unittest.skipUnless(DSN and psycopg is not None, "NOT_RUN: cần KHO_PG_DSN_TEST + psycopg; lead chạy PG")
+class MtqCrmBGSqlPostgres(unittest.TestCase):
+    nguoi = nen.MtqPostgres.nguoi
+    actor = nen.MtqPostgres.actor
+    ghi = nen.MtqPostgres.ghi
+    nhap = nen.MtqPostgres.nhap
+    sua_nhap = nen.MtqPostgres.sua_nhap
+    san_sang = nen.MtqPostgres.san_sang
+    loi = nen.MtqPostgres.loi
+    insert = MtqCrmSqlPostgres.insert
+    insert_dong = MtqCrmSqlPostgres.insert_dong
+    setUp = MtqCrmSqlPostgres.setUp
+    policies = classmethod(MtqCrmSqlPostgres.policies.__func__)
+
+    @classmethod
+    def metadata(cls):
+        return cls.c.execute(
+            "SELECT oid::regprocedure::text,proowner,proacl::text,prosecdef,proconfig "
+            "FROM pg_proc WHERE pronamespace='master'::regnamespace "
+            "AND proname LIKE 'crm_gk_%' AND proname NOT IN ('crm_gk_xem','crm_gk_ghim_quyen') ORDER BY oid"
+        ).fetchall()
+
+    @classmethod
+    def setUpClass(cls):
+        from psycopg import sql
+        from psycopg.conninfo import make_conninfo
+        from kho_tri_thuc.ha_tang import postgres
+
+        cls.db = "kho_test_mtq_crm_g2g3_" + uuid.uuid4().hex[:12]
+        with psycopg.connect(DSN, autocommit=True) as c:
+            c.execute("DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname='app_web') "
+                      "THEN CREATE ROLE app_web NOLOGIN; END IF; END $$")
+            c.execute(sql.SQL("CREATE DATABASE {} ENCODING 'UTF8' TEMPLATE template0").format(sql.Identifier(cls.db)))
+        cls.c = psycopg.connect(make_conninfo(DSN, dbname=cls.db), autocommit=True)
+        cls.addClassCleanup(cls.c.close)
+        postgres.migrate(cls.c, target=B_POSITION)
+        cls.acl_before, cls.rls_before = cls.metadata(), cls.policies()
+        postgres.migrate(cls.c, target=B_POSITION + 1)
+        cls.acl_after, cls.rls_after = cls.metadata(), cls.policies()
+        postgres.migrate(cls.c)
+
+    def fixture(self, pn):
+        from psycopg.types.json import Jsonb
+
+        f = MtqCrmSqlPostgres.fixture(self, pn)
+        sha, login = f["sha"], self.admin[1]
+        # Đã đối chiếu hop_dong_kiem, crm_*_kiem/bat_bien/ky_khoa và FK thật.
+        # Đối tác gắn PN và mapping hiện hành; không tắt bất kỳ trigger nào.
+        kh = self.insert("master.doi_tac", phap_nhan_id=pn, ten_phap_ly="Khách G2/G3 tổng hợp", ten_chuan_hoa=uuid.uuid4().hex)
+        self.insert("master.doi_tac_ma_junsky", phap_nhan_id=pn, doi_tac_id=kh,
+                    object_id_junsky="MTQ_TEST_" + uuid.uuid4().hex, ten_junsky="Khách G2/G3 tổng hợp")
+        ax = self.insert("master.crm_mau_anh_xa", phap_nhan_id=pn, phien_ban_id=f["mv"], revision=1,
+                         ban_do=Jsonb([]), ban_do_sha256=sha, danh_muc_digest=f["digest"], canh_bao=Jsonb([]),
+                         so_chua_anh_xa=0, so_sai_kieu=0, tao_boi=login)
+        kt = self.insert("master.crm_mau_kiem_tra", phap_nhan_id=pn, phien_ban_id=f["mv"], anh_xa_id=ax,
+                         raw_sha256=sha, facts_sha256=sha, danh_muc_digest=f["digest"], ban_do_sha256=sha,
+                         ket_qua="DAT", kiem_boi=login)
+        self.c.execute("UPDATE master.crm_mau_phien_ban SET trang_thai='HIEU_LUC',valid_from=%s,"
+                       "anh_xa_hien_hanh=%s,kiem_hien_hanh=%s WHERE id=%s", (date(2026, 1, 1), ax, kt, f["mv"]))
+        self.c.execute("UPDATE master.loai_hinh_doanh_thu SET cau_hinh=%s WHERE id=%s",
+                       (Jsonb({"loai_hop_dong": "THUE_DAT"}), f["lh"]))
+        # Hai báo giá: một NHAP để test lệnh ghi, một nguồn đã chuyển của bản soạn.
+        for key, number in (("bg", "00001"), ("sbg", "00002")):
+            f[key] = self.insert("master.crm_bao_gia", phap_nhan_id=pn, loai_hinh_id=f["lh"],
+                                 so_bao_gia="BG-2026-" + number, ngay=date(2026, 10, 26), tao_boi=login,
+                                 trang_thai="NHAP", revision_hien_hanh=1)
+            self.insert("master.crm_bao_gia_rev", phap_nhan_id=pn, bao_gia_id=f[key], revision=1,
+                        du_an_id=f["da"], doi_tac_id=kh, du_lieu=Jsonb({}), du_lieu_sha256=sha,
+                        tinh=Jsonb({}), tao_boi=login)
+        hd = self.insert("master.hop_dong", phap_nhan_id=pn, du_an_id=f["da"], loai_hinh_dt_id=f["lh"],
+                         doi_tac_id=kh, loai="THUE_DAT", ma_noi_bo=uuid.uuid4().hex, so_hop_dong=uuid.uuid4().hex,
+                         trang_thai="SOAN_THAO", crm_giao_ket="SOAN_THAO")
+        f["s"] = self.insert("master.crm_hd_soan", phap_nhan_id=pn, hop_dong_id=hd, bao_gia_id=f["sbg"],
+                             bao_gia_revision=1, loai_hinh_id=f["lh"], revision_hien_hanh=1,
+                             trang_thai="SOAN_THAO", tao_boi=login)
+        self.insert("master.crm_hd_soan_rev", phap_nhan_id=pn, soan_id=f["s"], revision=1, nguon="MAU",
+                    mau_phien_ban_id=f["mv"], anh_xa_id=ax, kiem_id=kt, raw_sha256=sha, byte_length=1,
+                    facts_sha256=sha, ban_do_sha256=sha, danh_muc_ref="MTQ_TEST", danh_muc_rev=1,
+                    danh_muc_digest=f["digest"], profile_phien_ban=1, profile_sha256=sha,
+                    renderer="MTQ_TEST", du_lieu=Jsonb({}), du_lieu_sha256=sha, tao_boi=login)
+        self.c.execute("UPDATE master.crm_bao_gia SET trang_thai='DA_CHUYEN',hop_dong_id=%s WHERE id=%s", (hd, f["sbg"]))
+        for key, kind, target in (("xb", "BAO_GIA", "bao_gia_id"), ("xs", "HOP_DONG", "soan_id")):
+            f[key] = self.insert("master.crm_gk_xuat", phap_nhan_id=pn, loai=kind,
+                                 **{target: f["bg" if key == "xb" else "s"]}, revision=1,
+                                 input_sha256=sha, docx_sha256=sha, docx_len=1, trang_thai="PDF_CHUA_SAN_SANG",
+                                 engine="MTQ_TEST", kiem_pdf=Jsonb({}), tao_boi=login)
+        f.update(kh=kh, hd=hd)
+        return f
+
+    def cau_hinh(self, actions=B_ACTIONS, scope="PHAP_NHAN", key=None):
+        return MtqCrmSqlPostgres.cau_hinh(self, actions, scope, key)
+
+    def legacy(self, who=None, pn=None):
+        self.c.execute("INSERT INTO master.phan_quyen(nguoi_dung_id,phap_nhan_id,module) VALUES (%s,%s,ARRAY['CRM'])",
+                       ((who or self.user)[0], pn or self.pn))
+
+    def dich(self, command, fixture=None, target=None):
+        f = fixture or self.f
+        return self.c.execute("SELECT * FROM master.crm_gk_dich(%s,%s)",
+                              (command, target or f[B_COMMANDS[command][0]])).fetchone()
+
+    def tra(self, command, fixture=None):
+        f = fixture or self.f
+        return self.c.execute("SELECT master.crm_gk_tra(%s,'MTQ_REPLAY',%s,%s)",
+                              (command, f[B_COMMANDS[command][0]], self.digest)).fetchone()[0]
+
+    def test_tung_lenh_tick_bat_khong_can_vai_cu_hoac_tick_xem_kem(self):
+        for action in sorted({a for _, a in B_COMMANDS.values()}):
+            with self.subTest(action=action), self.c.transaction(force_rollback=True):
+                self.cau_hinh(actions={action})
+                for command, (_, expected) in B_COMMANDS.items():
+                    if action == expected:
+                        self.assertEqual(self.dich(command)[0], self.pn)
+                    else:
+                        self.loi("MTQ_CHUA_TICK", lambda: self.dich(command))
+
+    def test_tick_tat_chan_vai_cu_va_assignment_cu(self):
+        self.user = self.nguoi("BAN_HANG")
+        self.legacy()
+        for group in ("CRM_BAO_GIA", "CRM_SOAN"):
+            self.insert("master.phan_cong_hanh_dong", nguoi_dung_id=self.user[0], phap_nhan_id=self.pn,
+                        module="CRM", hanh_dong=group, cap_boi=self.admin[1])
+        self.cau_hinh(actions=())
+        for command in B_COMMANDS:
+            self.loi("MTQ_CHUA_TICK", lambda: self.dich(command))
+        self.loi("CRM_G_KHONG_THAY", lambda: self.c.execute("SELECT master.crm_gk_tep(%s)", (self.f["xb"],)))
+
+    def test_scope_sai_thieu_id_va_helper_khong_nhan_pn_gia(self):
+        other = self.insert("master.du_an", phap_nhan_id=self.pn, ma_junsky=uuid.uuid4().hex, ten="Ngoài scope G2/G3")
+        self.cau_hinh(scope="DU_AN", key=other)
+        for command in B_COMMANDS:
+            self.loi("MTQ_PHAM_VI", lambda: self.dich(command))
+            self.loi("CRM_G_KHONG_THAY", lambda: self.dich(command, target=uuid.uuid4()))
+        for table, key in (("master.crm_bao_gia", "bg"), ("master.crm_hd_soan", "s"),
+                           ("master.crm_gk_xuat", "xb"), ("master.crm_mau_phien_ban", "mv")):
+            self.assertFalse(self.c.execute("SELECT master.crm_gk_xem(%s,%s,%s)", (table, self.f[key], self.pn)).fetchone()[0])
+            self.assertFalse(self.c.execute("SELECT master.crm_gk_xem(%s,%s,%s)", (table, self.f[key], self.pn2)).fetchone()[0])
+        self.assertFalse(self.c.execute("SELECT master.crm_gk_xem('master.doi_tac',%s,%s)", (self.f["kh"], self.pn)).fetchone()[0])
+
+    def test_thieu_scope_chan_tat_ca_lenh_ke_ca_nguoi_co_tick(self):
+        self.cau_hinh(scope=None)
+        for command in B_COMMANDS:
+            self.loi("MTQ_PHAM_VI", lambda: self.dich(command))
+
+    def test_xem_tach_bao_gia_soan_mau_va_ban_xuat(self):
+        for action in ("CRM:G2_BAO_GIA:XEM", "CRM:G3_G4_SOAN_KY:XEM", "CRM:G1_MAU:XEM"):
+            with self.subTest(action=action), self.c.transaction(force_rollback=True):
+                self.cau_hinh(actions={action})
+                for table, key, allowed in (
+                    ("master.crm_bao_gia", "bg", action == "CRM:G2_BAO_GIA:XEM"),
+                    ("master.crm_hd_soan", "s", action == "CRM:G3_G4_SOAN_KY:XEM"),
+                    ("master.crm_gk_xuat", "xb", action == "CRM:G2_BAO_GIA:XEM"),
+                    ("master.crm_gk_xuat", "xs", action == "CRM:G3_G4_SOAN_KY:XEM"),
+                    ("master.crm_mau_phien_ban", "mv", action == "CRM:G1_MAU:XEM")):
+                    self.assertEqual(self.c.execute("SELECT master.crm_gk_xem(%s,%s,%s)",
+                                                    (table, self.f[key], self.pn)).fetchone()[0], allowed)
+                picker = self.c.execute("SELECT master.crm_gk_mau_hieu_luc(%s)", (self.f["lh"],)).fetchone()[0]
+                self.assertEqual(bool(picker), action == "CRM:G1_MAU:XEM")
+                for key, expected in (("xb", "CRM:G2_BAO_GIA:XEM"), ("xs", "CRM:G3_G4_SOAN_KY:XEM")):
+                    if action == expected:
+                        self.assertEqual(self.c.execute("SELECT master.crm_gk_tep(%s)", (self.f[key],)).fetchone()[0]["docx_sha256"], self.f["sha"])
+                    else:
+                        self.loi("CRM_G_KHONG_THAY", lambda: self.c.execute("SELECT master.crm_gk_tep(%s)", (self.f[key],)))
+
+    def test_mau_lich_su_ghim_theo_soan_khong_mo_picker(self):
+        self.c.execute("UPDATE master.crm_mau_phien_ban SET valid_to=%s WHERE id=%s", (date(2026, 2, 1), self.f["mv"]))
+        self.cau_hinh(actions={"CRM:G3_G4_SOAN_KY:XEM"})
+        pin = self.c.execute("SELECT master.crm_gk_mau_ghim(%s,1)", (self.f["s"],)).fetchone()[0]
+        self.assertEqual(pin["mau_phien_ban_id"], str(self.f["mv"]))
+        self.assertEqual(self.c.execute("SELECT master.crm_gk_mau_hieu_luc(%s)", (self.f["lh"],)).fetchone()[0], [])
+        self.loi("CRM_G_KHONG_THAY", lambda: self.c.execute("SELECT master.crm_gk_ghim_mau(%s,%s,%s)",
+                                                           (self.pn, self.f["lh"], self.f["mv"])))
+        self.loi("CRM_G_KHONG_THAY", lambda: self.c.execute("SELECT master.crm_gk_mau_ghim(%s,99)", (self.f["s"],)))
+
+    def test_chon_mau_moi_can_g1_xem_va_giu_hieu_luc_pn_loai(self):
+        self.cau_hinh(actions={"CRM:G1_MAU:XEM"})
+        pin = self.c.execute("SELECT master.crm_gk_ghim_mau(%s,%s,%s)", (self.pn, self.f["lh"], self.f["mv"])).fetchone()[0]
+        self.assertEqual(pin["mau_phien_ban_id"], str(self.f["mv"]))
+        self.loi("CRM_G_KHONG_THAY", lambda: self.c.execute("SELECT master.crm_gk_ghim_mau(%s,%s,%s)",
+                                                           (self.pn2, self.f["lh"], self.f["mv"])))
+        self.loi("CRM_G_KHONG_THAY", lambda: self.c.execute("SELECT master.crm_gk_ghim_mau(NULL,%s,%s)",
+                                                           (self.f["lh"], self.f["mv"])))
+        self.loi("CRM_GK_MAU_KHONG_HIEU_LUC", lambda: self.c.execute("SELECT master.crm_gk_ghim_mau(%s,NULL,%s)",
+                                                                 (self.pn, self.f["mv"])))
+        self.c.execute("UPDATE master.crm_mau_phien_ban SET valid_to=%s WHERE id=%s", (date(2026, 2, 1), self.f["mv"]))
+        self.loi("CRM_GK_MAU_KHONG_HIEU_LUC", lambda: self.c.execute("SELECT master.crm_gk_ghim_mau(%s,%s,%s)",
+                                                                 (self.pn, self.f["lh"], self.f["mv"])))
+
+    def test_thu_hoi_truoc_replay_dat_lan_cong_bo_va_tra_hash(self):
+        grants = self.cau_hinh()
+        for command, key in (("CRM_BAO_GIA_IN", "bg"), ("CRM_SOAN_XUAT", "s")):
+            self.assertTrue(self.c.execute("SELECT master.crm_gk_dat_lan(%s,'PHA_A',%s,%s,1,%s)",
+                                           (command, self.f[key], self.digest, self.f["sha"])).fetchone()[0]["moi"])
+        for command, (key, _) in B_COMMANDS.items():
+            self.c.execute("SELECT master.crm_g_bn_ghi(%s,%s,'MTQ_REPLAY',%s,'{}'::jsonb)", (self.pn, command, self.digest))
+            self.assertTrue(self.tra(command)["lap_lai"])
+        self.actor(self.admin)
+        self.ghi("THU_HOI_VAI", {"id": grants[0]["id"]}, grants[0]["revision"])
+        self.actor(self.user)
+        for command in B_COMMANDS:
+            self.loi("MTQ_GAN_VAI", lambda: self.tra(command))
+        for command, key in (("CRM_BAO_GIA_IN", "bg"), ("CRM_SOAN_XUAT", "s")):
+            self.loi("MTQ_GAN_VAI", lambda: self.c.execute("SELECT master.crm_gk_dat_lan(%s,'MTQ_REPLAY',%s,%s,1,%s)",
+                                                          (command, self.f[key], self.digest, self.f["sha"])))
+            self.loi("MTQ_GAN_VAI", lambda: self.c.execute(
+                "SELECT master.crm_gk_xuat_ghi('PHA_A',%s,%s,%s,1,%s,%s,1,NULL,NULL,'PDF_CHUA_SAN_SANG','MTQ_TEST',NULL,'{}'::jsonb)",
+                (self.digest, command, self.f[key], self.f["sha"], self.f["sha"])))
+        for key in ("xb", "xs"):
+            self.loi("CRM_G_KHONG_THAY", lambda: self.c.execute("SELECT master.crm_gk_tep(%s)", (self.f[key],)))
+        self.assertEqual(self.c.execute("SELECT count(*) FROM master.crm_gk_lan WHERE trang_thai='DANG_RENDER'").fetchone()[0], 2)
+        self.assertEqual(self.c.execute("SELECT count(*) FROM master.crm_gk_xuat").fetchone()[0], 2)
+
+    def test_chuyen_chi_can_g3_lap_va_g1_xem_khong_them_g2_sua(self):
+        self.cau_hinh(actions={"CRM:G3_G4_SOAN_KY:LAP", "CRM:G1_MAU:XEM"})
+        result = self.c.execute("SELECT master.crm_gk_chuyen('CHUYEN',%s,%s,1,%s,'{}'::jsonb,'MTQ_TEST')",
+                                (self.digest, self.f["bg"], self.f["mv"])).fetchone()[0]["ket_qua"]
+        self.assertEqual(result["trang_thai"], "SOAN_THAO")
+        self.loi("MTQ_CHUA_TICK", lambda: self.dich("CRM_BAO_GIA_LUU"))
+
+    def test_lenh_ghi_truc_tiep_cas_va_bat_bien_khong_can_xem(self):
+        self.cau_hinh(actions={"CRM:G2_BAO_GIA:SUA", "CRM:G2_BAO_GIA:HUY", "CRM:G3_G4_SOAN_KY:SUA"})
+        args = (self.digest, self.f["bg"], self.f["lh"], self.f["da"], self.f["kh"])
+        result = self.c.execute("SELECT master.crm_gk_bao_gia_luu('LUU',%s,%s,%s,1,%s,%s,'{}'::jsonb,'{}'::jsonb,NULL,NULL,NULL,NULL)", args).fetchone()[0]
+        self.assertEqual(result["ket_qua"]["revision"], 2)
+        self.loi("CRM_GK_REVISION_CU", lambda: self.c.execute("SELECT master.crm_gk_bao_gia_huy('HUY_CU',%s,%s,1,'Test CAS')", (self.digest, self.f["bg"])))
+        self.loi("CRM_GK_REVISION_CU", lambda: self.c.execute("SELECT master.crm_gk_soan_luu('SOAN_CU',%s,%s,99,'{}'::jsonb,NULL,NULL,'MTQ_TEST')", (self.digest, self.f["s"])))
+        self.loi("CRM_G_BAT_BIEN", lambda: self.c.execute("UPDATE master.crm_bao_gia_rev SET tinh='{}'::jsonb WHERE bao_gia_id=%s", (self.f["bg"],)))
+        result = self.c.execute("SELECT master.crm_gk_soan_luu('SOAN',%s,%s,1,'{}'::jsonb,NULL,NULL,'MTQ_TEST')", (self.digest, self.f["s"])).fetchone()[0]
+        self.assertEqual(result["ket_qua"]["revision"], 2)
+
+    def test_dat_lan_cong_bo_dung_tick_xem_giu_revision_va_hash(self):
+        self.cau_hinh(actions={"CRM:G2_BAO_GIA:XEM", "CRM:G3_G4_SOAN_KY:XEM"})
+        for command, key in (("CRM_BAO_GIA_IN", "bg"), ("CRM_SOAN_XUAT", "s")):
+            with self.subTest(command=command):
+                self.loi("CRM_GK_REVISION_CU", lambda: self.c.execute("SELECT master.crm_gk_dat_lan(%s,'CU',%s,%s,99,%s)",
+                                                                    (command, self.f[key], self.digest, self.f["sha"])))
+                made = self.c.execute("SELECT master.crm_gk_dat_lan(%s,'XUAT',%s,%s,1,%s)",
+                                      (command, self.f[key], self.digest, self.f["sha"])).fetchone()[0]
+                self.assertTrue(made["moi"])
+                result = self.c.execute(
+                    "SELECT master.crm_gk_xuat_ghi('XUAT',%s,%s,%s,1,%s,%s,1,NULL,NULL,'PDF_CHUA_SAN_SANG','MTQ_TEST',NULL,'{}'::jsonb)",
+                    (self.digest, command, self.f[key], self.f["sha"], self.f["sha"])).fetchone()[0]["ket_qua"]
+                self.assertEqual(result["docx_sha256"], self.f["sha"])
+                self.assertEqual(self.c.execute("SELECT master.crm_gk_tep(%s)", (result["xuat_id"],)).fetchone()[0]["docx_len"], 1)
+
+    def test_cu_oracle_bat_a_khong_doi_pn_b_tat_ca_cho_chan_va_ma(self):
+        f2 = self.fixture(self.pn2)
+        allowed = self.nguoi("BAN_HANG")
+        self.legacy(allowed, self.pn2)
+        actors = (allowed, self.user, self.nguoi("CFO"))
+        self.legacy(actors[2], self.pn2)
+
+        def capture():
+            result = {}
+            for who in actors:
+                self.actor(who)
+                calls = {command: ("SELECT * FROM master.crm_gk_dich(%s,%s)", (command, f2[key]))
+                         for command, (key, _) in B_COMMANDS.items()}
+                calls.update({
+                    "picker": ("SELECT master.crm_gk_mau_hieu_luc(%s)", (f2["lh"],)),
+                    "pin": ("SELECT master.crm_gk_ghim_mau(%s,%s,%s)", (self.pn2, f2["lh"], f2["mv"])),
+                    "ghim": ("SELECT master.crm_gk_mau_ghim(%s,1)", (f2["s"],)),
+                    "xb": ("SELECT master.crm_gk_tep(%s)", (f2["xb"],)),
+                    "xs": ("SELECT master.crm_gk_tep(%s)", (f2["xs"],)),
+                    "missing": ("SELECT * FROM master.crm_gk_dich('CRM_SOAN_LUU',%s)", (uuid.UUID(int=0),)),
+                })
+                for name, (sql, args) in calls.items():
+                    try:
+                        with self.c.transaction():
+                            row = ("CHO", self.c.execute(sql, args).fetchone())
+                    except psycopg.Error as exc:
+                        self.assertEqual(exc.sqlstate, "P0001")
+                        self.assertRegex(exc.diag.message_primary, r"^CRM_G_(?:KHONG_THAY|KHONG_CO_QUYEN):")
+                        row = ("CHAN", exc.sqlstate, exc.diag.message_primary)
+                    result[who[0], name] = row
+            return result
+
+        with self.c.transaction(force_rollback=True):
+            for name in B_AFTER.keys() & B_BEFORE.keys():
+                self.c.execute(B_BEFORE[name])
+            oracle = capture()
+        self.assertEqual({r[0] for r in oracle.values()}, {"CHO", "CHAN"})
+        self.assertEqual(capture(), oracle)
+        self.cau_hinh()
+        self.assertFalse(self.c.execute("SELECT EXISTS (SELECT 1 FROM master.mtq_kich_hoat WHERE phap_nhan_id=%s AND bat)", (self.pn2,)).fetchone()[0])
+        self.assertEqual(capture(), oracle)
+
+    def test_acl_rls_chu_bang_giu_nguyen(self):
+        self.assertEqual(self.acl_before, self.acl_after)
+        self.assertEqual(self.rls_before, self.rls_after)
+        self.cau_hinh()
+        self.c.execute("SET LOCAL ROLE app_web")
+        for sql, args in (
+            ("SELECT master.crm_gk_dich('CRM_SOAN_LUU',%s)", (self.f["s"],)),
+            ("SELECT master.crm_gk_xem('master.crm_hd_soan',%s,%s)", (self.f["s"], self.pn)),
+            ("SELECT master.crm_gk_ghim_quyen(%s)", (self.pn,)),
+            ("SELECT master.crm_gk_tep(%s)", (self.f["xs"],))):
+            self.loi("permission denied", lambda: self.c.execute(sql, args))
         self.c.execute("RESET ROLE")
 
 
