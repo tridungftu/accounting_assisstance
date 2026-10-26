@@ -75,10 +75,10 @@ async function cases(T) {
       const hoSo = confirmed(); hoSo.nguon.tep_can_cu = []; hoSo.quyen.tai_pdf = taiPdf;
       const P = await open(data(), null, {hoSo});
       const text = card(P).textContent;
-      assert.ok(text.includes("Chưa có tệp căn cứ cho đối chiếu hóa đơn"));
-      assert.ok(text.includes("Đề nghị phòng dự án bổ sung tệp vào hồ sơ nghiệm thu"));
-      assert.ok(text.includes("làm mới hồ sơ và tải lại căn cứ đối chiếu"));
-      assert.ok(text.includes("chưa có luồng “Yêu cầu bổ sung” gửi phòng dự án"));
+      assert.ok(text.includes("Chưa có tệp căn cứ cho đối chiếu hóa đơn. Đề nghị phòng dự án bổ sung tệp vào hồ sơ nghiệm thu, sau đó bấm Làm mới."));
+      assert.ok(!text.includes("Màn kế toán hiện chưa có luồng"));
+      assert.ok(!text.includes("làm mới hồ sơ và tải lại căn cứ đối chiếu"));
+      assert.ok(!text.includes("chưa có luồng “Yêu cầu bổ sung” gửi phòng dự án"));
       assert.strictEqual(P.nutKt("Yêu cầu bổ sung"), null, "03A chưa có luồng gửi yêu cầu, không tạo nút giả");
       assert.strictEqual(timTatCa(P.vungKt(), e => e.tagName === "INPUT" && (e.type === "file" || e.attrs.type === "file")).length, 0);
       assert.strictEqual(timTatCa(P.vungKt(), e => e.tagName === "BUTTON" && /tải tệp|tải lên|upload/i.test(e.textContent)).length, 0);
