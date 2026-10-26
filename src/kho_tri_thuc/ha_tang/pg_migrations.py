@@ -12110,3 +12110,14 @@ _M37_KIEM_HO_SO_KIEM = _m36_thay(_m37_ham("master.crm_kiem_ho_so_kiem"), *G6_KIE
 M0037_CRM_G5_TAY = (*CRM_G5_TAY_SQL, _M37_KIEM_G5_XET, _M37_KIEM_VIEC_KIEM, _M37_KIEM_HO_SO_KIEM)
 PG_MIGRATIONS = (*PG_MIGRATIONS, M0037_CRM_G5_TAY)
 PG_SCHEMA_VERSION = len(PG_MIGRATIONS)
+
+# ---------------------------------------------------------------------------
+# M4-DL1 — CD-011: chứng cứ nguồn Review SQLite; M0038 (lead đánh số khi gộp 26/10).
+# Chỉ append, không đổi migration đã phát hành.
+# Lát chưa gộp: vòng 2 sửa trực tiếp SQL sang lần chụp riêng, không thêm migration.
+# ---------------------------------------------------------------------------
+from ..m4.sql_review_chep import M4_REVIEW_CHEP_SQL  # noqa: E402 — chỉ hằng SQL
+
+M0038_M4_REVIEW_CHEP = M4_REVIEW_CHEP_SQL
+PG_MIGRATIONS = (*PG_MIGRATIONS, M0038_M4_REVIEW_CHEP)
+PG_SCHEMA_VERSION = len(PG_MIGRATIONS)
