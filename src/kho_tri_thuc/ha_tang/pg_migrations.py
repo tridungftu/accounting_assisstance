@@ -12170,3 +12170,10 @@ from ..k2.sql_mtq_cong import MTQ_CONG_C_SQL  # noqa: E402 — chỉ hằng SQL
 M0045_MTQ_CONG_C = MTQ_CONG_C_SQL
 PG_MIGRATIONS = (*PG_MIGRATIONS, M0045_MTQ_CONG_C)
 PG_SCHEMA_VERSION = len(PG_MIGRATIONS)
+
+# M3-1d — CD-013: tiền tố khóa advisory cho xác nhận hóa đơn; lead đánh số khi gộp.
+from ..k2.sql_m3 import M3_CO_SO_C_SQL  # noqa: E402 — chỉ hằng SQL
+
+M0046_M3_CO_SO_C = M3_CO_SO_C_SQL
+PG_MIGRATIONS = (*PG_MIGRATIONS, M0046_M3_CO_SO_C)
+PG_SCHEMA_VERSION = len(PG_MIGRATIONS)

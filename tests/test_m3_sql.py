@@ -20,7 +20,7 @@ import uuid
 from kho_tri_thuc.ha_tang import postgres as pg
 from kho_tri_thuc.ha_tang import pg_migrations as registry
 from kho_tri_thuc.k2.m3 import M3K2, tinh_ba_dang_thuc
-from kho_tri_thuc.k2.sql_m3 import M3_CO_SO_SQL, M3_CO_SO_B_SQL
+from kho_tri_thuc.k2.sql_m3 import M3_CO_SO_SQL, M3_CO_SO_B_SQL, M3_CO_SO_C_SQL
 from tests.test_m3_dang_thuc import demo
 
 try:
@@ -46,6 +46,13 @@ def migration_b_index():
     return next(i for i, m in enumerate(registry.PG_MIGRATIONS) if m is migration)
 
 
+def migration_c_index():
+    tail = REGISTRY.read_text(encoding='utf-8').split('# M3-1d — CD-013:', 1)[1]
+    name = re.search(r'^(\w+_M3_CO_SO_C) = M3_CO_SO_C_SQL$', tail, re.MULTILINE).group(1)
+    migration = getattr(registry, name)
+    return next(i for i, m in enumerate(registry.PG_MIGRATIONS) if m is migration)
+
+
 class M3SqlTinh(unittest.TestCase):
     def test_module_chi_hang_sql_literal(self):
         tree = ast.parse(MODULE.read_text(encoding='utf-8'))
@@ -55,7 +62,8 @@ class M3SqlTinh(unittest.TestCase):
             self.assertIsInstance(assignment, ast.Assign)
             self.assertEqual(len(assignment.targets), 1)
             constants[assignment.targets[0].id] = ast.literal_eval(assignment.value)
-        self.assertEqual(constants, {'M3_CO_SO_SQL': M3_CO_SO_SQL, 'M3_CO_SO_B_SQL': M3_CO_SO_B_SQL})
+        self.assertEqual(constants, {'M3_CO_SO_SQL': M3_CO_SO_SQL, 'M3_CO_SO_B_SQL': M3_CO_SO_B_SQL,
+                                     'M3_CO_SO_C_SQL': M3_CO_SO_C_SQL})
         self.assertTrue(all(isinstance(s, str) and s.strip() for statements in constants.values() for s in statements))
 
     def test_khong_co_cot_hay_literal_so_hach_toan(self):
@@ -101,6 +109,26 @@ class M3SqlTinh(unittest.TestCase):
         self.assertIn('l.khoa_lien_ket <> NEW.khoa_lien_ket', ddl)
         self.assertIn('SELECT 1 FROM m3.hoa_don_hop_dong s WHERE s.thay_cho_id = l.id', ddl)
         self.assertIn("ERRCODE = '23505'", ddl)
+
+    def test_migration_c_append_sau_b_khong_ghim_so_hay_hash(self):
+        source = REGISTRY.read_text(encoding='utf-8')
+        marker = '# M3-1d — CD-013:'
+        self.assertEqual(source.count(marker), 1)
+        tail = source.split(marker, 1)[1]
+        self.assertIn('from ..k2.sql_m3 import M3_CO_SO_C_SQL', tail)
+        self.assertRegex(tail, r'PG_MIGRATIONS = \(\*PG_MIGRATIONS, \w+_M3_CO_SO_C\)')
+        self.assertEqual(sum(m is M3_CO_SO_C_SQL for m in registry.PG_MIGRATIONS), 1)
+        self.assertGreater(migration_c_index(), migration_b_index())
+
+    def test_migration_c_chi_them_tien_to_khoa_giu_nguyen_b(self):
+        old = M3_CO_SO_B_SQL[0]
+        self.assertIn('hashtextextended(NEW.hoa_don_id::text, 0)', old)
+        self.assertNotIn('M3_HD_XAC_NHAN|', old)
+        self.assertEqual(M3_CO_SO_C_SQL, (
+            old.replace('CREATE FUNCTION', 'CREATE OR REPLACE FUNCTION', 1)
+               .replace('hashtextextended(NEW.hoa_don_id::text, 0)',
+                        "hashtextextended('M3_HD_XAC_NHAN|' || NEW.hoa_don_id::text, 0)"),))
+        self.assertIn("'M3_HD_XAC_NHAN|'", M3_CO_SO_C_SQL[0])
 
     def test_utf8_khong_bom_registry_lf(self):
         for path in (MODULE, REGISTRY, Path(__file__)):
@@ -257,6 +285,11 @@ class M3Postgres(unittest.TestCase):
         i = migration_b_index()
         pg.migrate(cls.c, target=i)  # đúng tiền tố PG_MIGRATIONS[:i], kể cả khi lead thêm migration
         pg.migrate(cls.c, target=i + 1)
+        i = migration_c_index()
+        pg.migrate(cls.c, target=i)
+        cls.function_before_c = cls.c.execute("""SELECT oid, proowner, proacl, prosecdef, proconfig
+            FROM pg_proc WHERE oid='m3.lien_ket_mot_xac_nhan()'::regprocedure""").fetchone()
+        pg.migrate(cls.c, target=i + 1)
 
     @classmethod
     def _don_csdl(cls):
@@ -374,7 +407,7 @@ class M3Postgres(unittest.TestCase):
     def mapping_snapshot(self):
         # Cô lập trigger mới; giữ CHECK/index, không nới FK/guard M2 trên bảng gốc.
         self.c.execute('CREATE TEMP TABLE m3c_lien_ket (LIKE m3.hoa_don_hop_dong INCLUDING DEFAULTS INCLUDING CONSTRAINTS INCLUDING INDEXES)')
-        for statement in M3_CO_SO_B_SQL:
+        for statement in (*M3_CO_SO_B_SQL, *M3_CO_SO_C_SQL):
             self.c.execute(statement.replace('m3.hoa_don_hop_dong', 'pg_temp.m3c_lien_ket')
                            .replace('m3.lien_ket_mot_xac_nhan', 'pg_temp.m3c_mot_xac_nhan'))
         invoice, version, observation = (uuid.uuid4() for _ in range(3))
@@ -445,6 +478,47 @@ class M3Postgres(unittest.TestCase):
         self.assertIn('m3.lien_ket_mot_xac_nhan()', definition)
         self.assertFalse(definer)
         self.assertIn('search_path=pg_catalog, m3, pg_temp', config)
+
+    def test_migration_c_ham_da_co_tien_to_giu_quyen_va_search_path(self):
+        definition = self.c.execute("SELECT pg_get_functiondef('m3.lien_ket_mot_xac_nhan()'::regprocedure)").fetchone()[0]
+        self.assertIn("'M3_HD_XAC_NHAN|'", definition)
+        self.assertEqual(self.c.execute("""SELECT oid, proowner, proacl, prosecdef, proconfig
+            FROM pg_proc WHERE oid='m3.lien_ket_mot_xac_nhan()'::regprocedure""").fetchone(),
+            self.function_before_c)
+
+    def test_hai_giao_dich_cung_hoa_don_hai_hop_dong_bi_tu_choi(self):
+        # Bảng dùng chung để hai connection thấy cùng dữ liệu; vẫn là SQL cô lập
+        # như mapping_snapshot, không giả luồng promote BAN_RA đầu-cuối của M2.
+        dsn = make_conninfo(ADMIN_DSN, dbname=self.db)
+        with psycopg.connect(dsn, autocommit=True) as first, psycopg.connect(dsn, autocommit=True) as second:
+            first.execute('CREATE TABLE m3.m3d_lien_ket (LIKE m3.hoa_don_hop_dong INCLUDING DEFAULTS INCLUDING CONSTRAINTS INCLUDING INDEXES)')
+            for statement in (*M3_CO_SO_B_SQL, *M3_CO_SO_C_SQL):
+                first.execute(statement.replace('m3.hoa_don_hop_dong', 'm3.m3d_lien_ket')
+                              .replace('m3.lien_ket_mot_xac_nhan', 'm3.m3d_mot_xac_nhan'))
+            second.execute("SET lock_timeout = '500ms'")
+            invoice, version, observation = (uuid.uuid4() for _ in range(3))
+
+            def confirm(connection, basis):
+                connection.execute("""INSERT INTO m3.m3d_lien_ket
+                    (phap_nhan_id,co_so_id,khoa_lien_ket,revision,
+                     hoa_don_id,hoa_don_phien_ban_id,hoa_don_quan_sat_id,
+                     nguon,nguon_ref,tao_boi,trang_thai,can_cu,xac_nhan_boi,xac_nhan_luc)
+                    VALUES (%s,%s,%s,1,%s,%s,%s,'DEMO','DEMO','DEMO','DA_XAC_NHAN','DEMO','DEMO','2026-01-01')""",
+                    (self.pn, basis, uuid.uuid4(), invoice, version, observation))
+
+            bases = [uuid.uuid4(), uuid.uuid4()]
+            with first.transaction():
+                confirm(first, bases[0])
+                # Khóa UUID trần của miền khác không bị khóa M3 giữ chỗ.
+                self.assertTrue(second.execute('SELECT pg_try_advisory_xact_lock(hashtextextended(%s, 0))',
+                                               (str(invoice),)).fetchone()[0])
+                with self.assertRaises(psycopg.errors.LockNotAvailable):
+                    confirm(second, bases[1])
+            with self.assertRaises(psycopg.errors.UniqueViolation) as caught:
+                confirm(second, bases[1])
+            self.assertEqual(caught.exception.sqlstate, '23505')
+            self.assertIn('Hóa đơn đã có liên kết hiện hành được xác nhận', str(caught.exception))
+            self.assertEqual(first.execute('SELECT count(*) FROM m3.m3d_lien_ket').fetchone()[0], 1)
 
     def test_reader_pg_ban_ghim_khac_eligible_hoac_co_successor_pending(self):
         # Thực thi SELECT của reader trên snapshot bảng tạm; không sửa CHECK,
