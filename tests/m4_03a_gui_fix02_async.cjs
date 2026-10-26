@@ -5,7 +5,7 @@
 // Cùng pattern FIX01 (tests/m4_03a_gui_fix01_async.cjs — KHÔNG sửa): đọc tests/m4_03a_async.cjs GỐC bất biến, kiểm SHA-256
 // fcf93d9f2c7c6a1552d9924d5ac950e0b3643dd1c78e4140f665c08f2f809daa (lệch → SETUP lỗi, không chạy), áp ĐÚNG 2 dòng delta title-reflection của El giả đã chốt
 // ở FIX01 (inverse: bỏ hai mệnh đề `if (k === "title") …`), chèn MỘT lời gọi ca FIX02 trước khối INTEGRATION của main() gốc. 32 ca gốc chạy nguyên
-// assertion/body golden; tệp gốc không bị ghi.
+// assertion/body golden, trừ 2 kỳ vọng nhãn AP theo DS-4 (6d4d4a6); tệp gốc không bị ghi.
 //
 // Fixture THỦ CÔNG literal theo contract/producer (trang_thai:"CAN_KIEM_LAI" của trang_thai_dong) — bằng chứng UI/route trên fakeDOM; KHÔNG gọi
 // producer/PG/browser thật; enum kỳ vọng viết literal, không đọc từ code sản phẩm.
@@ -143,17 +143,23 @@ async function fix02(T) {
 (function chayGoc() {
   let raw;
   try { raw = fs.readFileSync(GOC); } catch (e) { console.log("SETUP FIX02_GOC_KHONG_DOC: " + e.message); process.exitCode = 1; return; }
-  const sha = crypto.createHash("sha256").update(raw).digest("hex");
+  // Pin gốc tính trên LF; CRLF do checkout không phải thay đổi nội dung.
+  const lf = raw.toString("utf8").replace(/\r\n/g, "\n");
+  const sha = crypto.createHash("sha256").update(lf).digest("hex");
   if (sha !== SHA_GOC) { console.log("SETUP FIX02_GOC_SAI_HASH: " + sha + " ≠ " + SHA_GOC + " — không chạy (bản gốc phải bất biến)"); process.exitCode = 1; return; }
-  let src = raw.toString("utf8").replace(/^﻿/, "");
+  let src = lf.replace(/^﻿/, "");
   for (const [cu, moi] of DELTA) {
     if (demLan(src, cu) !== 1) { console.log("SETUP FIX02_DELTA_KHONG_KHOP: " + cu.trim()); process.exitCode = 1; return; }
     src = src.replace(cu, () => moi);
   }
+  // 6d4d4a6: chỉ đổi nhãn hiển thị, không đổi trạng thái AP hay kiểm body/lệnh.
+  const nhanApCu = '"Chưa triển khai (M4-03B)"';
+  if (demLan(src, nhanApCu) !== 2) { console.log("SETUP FIX02_NHAN_AP_KHONG_KHOP"); process.exitCode = 1; return; }
+  src = src.replaceAll(nhanApCu, '"Chưa ghi công nợ/AP"');
   if (demLan(src, MOC) !== 1) { console.log("SETUP FIX02_MOC_INTEGRATION"); process.exitCode = 1; return; }
   const i = src.indexOf(MOC);
   src = src.slice(0, i) + CHEN + src.slice(i);
-  console.log("FIX02 harness: bản gốc sha256 " + sha + " + delta title-reflection (2 dòng El giả, như FIX01) + ca FIX02 chèn trước INTEGRATION");
+  console.log("FIX02 harness: bản gốc sha256 " + sha + " + delta title-reflection (2 dòng El giả, như FIX01) + nhãn AP DS-4 (2 kỳ vọng) + ca FIX02 chèn trước INTEGRATION");
   const fn = vm.runInThisContext("(function (require, module, exports, __filename, __dirname, __FIX02) {" + src + "\n})", {filename: GOC});
   fn(require, module, exports, GOC, path.dirname(GOC), fix02);
 })();

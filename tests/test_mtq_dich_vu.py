@@ -21,7 +21,7 @@ sys.path.insert(0, str(ROOT / 'src'))
 from kho_tri_thuc.ha_tang.primitives import DataError
 from kho_tri_thuc.k2.ma_tran_tham_quyen import (
     MaTranThamQuyenK2, VAI, O_HOP_LE, MAX_DONG_LUU, MAX_O_LUU,
-    MA_LOI_NHAT_KY, LOI_NHAT_KY, _payload,
+    MA_LOI_NHAT_KY, LOI_NHAT_KY, LOI_CAU_HINH, LOI_THAY_DOI, LOI_PHONG_NGUNG, THONG_BAO, _payload,
 )
 from kho_tri_thuc.giao_dien import ma_tran_tham_quyen as HTTP
 
@@ -40,6 +40,8 @@ class Connection:
     """Seam driver có rollback; không mô phỏng lại lệnh cấu hình SQL."""
     def __init__(self):
         self.admin = True
+        self.recipient = {'trang_thai': 'HOAT_DONG'}
+        self.room = {'phap_nhan_id': PN, 'hoat_dong': True}
         self.receipt = None
         self.calls = []
         self.journal = []
@@ -60,7 +62,11 @@ class Connection:
             r.fetchone.return_value = None
         elif 'FROM master.mtq_phien_ban WHERE id=' in sql:
             r.fetchone.return_value = dict(VERSION)
+        elif 'FROM master.nguoi_dung WHERE id=' in sql:
+            r.fetchone.return_value = self.recipient
         elif 'FROM master.mtq_phong WHERE id=' in sql:
+            r.fetchone.return_value = self.room
+        elif 'SELECT phap_nhan_id FROM master.mtq_gan_vai WHERE id=' in sql:
             r.fetchone.return_value = {'phap_nhan_id': PN}
         elif 'LEFT JOIN master.mtq_o' in sql:
             r.__iter__.return_value = copy.deepcopy(self.state)
@@ -197,6 +203,7 @@ class MtqMock(unittest.TestCase):
         p = payload(phien_ban_id=PB, expected_revision=10)
         status, result = http(self.svc, HTTP.PREFIX + 'luu-nhap', p, post=True)
         self.assertEqual((status, result['error']), (409, 'MTQ_REVISION'))
+        self.assertEqual(result['message'], 'Bản nháp đã thay đổi; tải lại trước khi lưu.')
         self.svc._sql.assert_not_called()
         self.assertEqual(self.mau.c.journal, [])
 
@@ -290,6 +297,7 @@ class MtqMock(unittest.TestCase):
         self.svc._many = MagicMock(return_value=[])
         result = self.svc.ma_tran(DT['dang_nhap'], cua_toi=True)
         self.assertFalse(result['admin'])
+        self.assertIs(result['la_admin'], False)
         self.assertEqual(result['phien_ban'], [])
         sql, args = self.svc._many.call_args_list[0].args[1:]
         for required in ('g.nguoi_dung_id=%s::uuid', 'g.thu_hoi_luc IS NULL', 'k.bat', 'g.vai=d.vai', 'g.phong_id=d.phong_id'):
@@ -301,7 +309,10 @@ class MtqMock(unittest.TestCase):
         self.assertTrue(self.svc.ma_tran(DT['dang_nhap'])['admin'])
         self.assertTrue(any('SELECT * FROM master.mtq_phien_ban' in str(x) for x in self.svc._many.call_args_list))
         self.svc._many.reset_mock()
-        self.assertFalse(self.svc.ma_tran(DT['dang_nhap'], cua_toi=True)['admin'])
+        mine = http(self.svc, HTTP.PREFIX + 'cua-toi')[1]
+        self.assertFalse(mine['admin'])
+        self.assertIs(mine['la_admin'], True)
+        self.assertTrue(any('mtq_la_admin()' in sql for sql, _ in self.mau.c.calls))
         self.assertFalse(any('SELECT * FROM master.mtq_phien_ban' in str(x) for x in self.svc._many.call_args_list))
 
     def test_get_ma_tran_nonadmin_403_truoc_doc_du_lieu(self):
@@ -524,6 +535,277 @@ class MtqMock(unittest.TestCase):
             self.assertNotIn('\ufffd', raw.decode('utf-8'))
 
 
+def quan_tri_payload(route, *, thu_hoi=False, **kwargs):
+    fields = {
+        'phong': {'thao_tac': 'TAO', 'phap_nhan_id': PN, 'ma': 'KT', 'ten': 'Kế toán DEMO'},
+        'gan-vai': {'thao_tac': 'CAP', 'nguoi_dung_id': USER, 'phong_id': ROOM, 'vai': 'CFO'},
+        'pham-vi': {'thao_tac': 'CAP', 'gan_vai_id': DONG, 'loai': 'PHAP_NHAN', 'khoa_pham_vi': PN},
+        'admin': {'thao_tac': 'CAP', 'nguoi_dung_id': USER},
+    }[route]
+    if thu_hoi:
+        fields = {'thao_tac': 'THU_HOI', 'id': DONG}
+    return {'expected_revision': 0, 'ly_do': 'Quản trị DEMO', 'khoa': str(uuid.uuid4()), **fields, **kwargs}
+
+
+class MtqQuanTriMock(unittest.TestCase):
+    ROUTES = ('phong', 'gan-vai', 'pham-vi', 'admin')
+
+    def setUp(self):
+        self.mau = Infrastructure()
+        self.svc = MaTranThamQuyenK2(self.mau)
+        self.svc._sql = MagicMock(return_value={'id': DONG, 'phap_nhan_id': PN, 'revision': 1})
+
+    def post(self, route, body, **kwargs):
+        return http(self.svc, HTTP.PREFIX + route, body, post=True, **kwargs)
+
+    def variants(self):
+        for route in self.ROUTES:
+            yield route, quan_tri_payload(route), route.upper().replace('-', '_')
+        update = quan_tri_payload('phong', thao_tac='SUA', id=ROOM, expected_revision=1, hoat_dong=False)
+        for key in ('ma', 'phap_nhan_id'):
+            update.pop(key)
+        yield 'phong', update, 'PHONG'
+        for route, command in (('gan-vai', 'THU_HOI_VAI'), ('pham-vi', 'THU_HOI_PHAM_VI'), ('admin', 'THU_HOI_ADMIN')):
+            yield route, quan_tri_payload(route, thu_hoi=True, expected_revision=1), command
+
+    def test_admin_cap_thu_hoi_dung_lenh_va_suy_phap_nhan(self):
+        for route, original, command in self.variants():
+            with self.subTest(route=route, command=command):
+                p = dict(original)
+                self.svc._sql.return_value = {'id': DONG, 'revision': 1}
+                if route != 'admin':
+                    self.svc._sql.return_value['phap_nhan_id'] = PN
+                status, result = self.post(route, p)
+                self.assertEqual(status, 200)
+                self.assertFalse(result['lap_lai'])
+                call = self.svc._sql.call_args.args
+                self.assertEqual((call[1], call[2], call[4], call[5]),
+                                 (p['khoa'], command, p['expected_revision'], p['ly_do']))
+                data = call[3]
+                self.assertNotIn('actor', data)
+                self.assertNotIn('thao_tac', data)
+                if command in ('GAN_VAI', 'PHAM_VI'):
+                    self.assertEqual(data['phap_nhan_id'], PN)
+                    self.assertNotIn('phap_nhan_id', p)
+                if command == 'PHAM_VI':
+                    self.assertEqual((data['khoa'], data['quan_he']), (PN, {}))
+                receipt = self.mau.c.journal[-1]
+                self.assertEqual(receipt[0:2], (p['khoa'], None if route == 'admin' else PN))
+                self.assertIsNone(receipt[3])  # id quản trị không phải id phiên bản.
+                self.assertEqual(receipt[7:9], (ADMIN, DT['dang_nhap']))
+
+    def test_nonadmin_403_truoc_sql_va_ghi_tu_choi_sau_rollback(self):
+        self.mau.c.admin = False
+        for route in self.ROUTES:
+            with self.subTest(route=route):
+                status, result = self.post(route, quan_tri_payload(route))
+                self.assertEqual((status, result['error']), (403, 'MTQ_CHI_ADMIN'))
+                self.assertEqual(self.mau.trace[-2:], [('begin', DT, False), 'commit'])
+                self.assertIn('rollback', self.mau.trace)
+                self.assertEqual(self.mau.c.denials[-1][-2:], ('MTQ_CHI_ADMIN', 'Chỉ quản trị đang hoạt động được sửa ma trận.'))
+        self.svc._sql.assert_not_called()
+
+    def test_cas_409_tat_ca_route(self):
+        error = RuntimeError('Chi tiết DEMO')
+        error.diag = type('Diag', (), {'message_primary': 'MTQ_REVISION: cũ'})()
+        self.svc._sql.side_effect = error
+        for route in self.ROUTES:
+            with self.subTest(route=route):
+                status, result = self.post(route, quan_tri_payload(route, expected_revision=99))
+                self.assertEqual((status, result['error'], result['message']),
+                                 (409, 'MTQ_REVISION', LOI_THAY_DOI))
+        self.assertEqual(self.mau.c.journal, [])
+
+    def test_replay_ben_khong_ghi_trung_va_noi_dung_khac_409(self):
+        for route in self.ROUTES:
+            with self.subTest(route=route):
+                self.mau.c.receipt = None
+                p = quan_tri_payload(route)
+                first = self.post(route, p)[1]
+                receipt = self.mau.c.journal[-1]
+                self.mau.c.receipt = {'actor_id': ADMIN, 'doi_tuong': json.loads(receipt[2]),
+                    'loai_su_kien': receipt[5], 'sau': json.loads(receipt[6])}
+                before = len(self.mau.c.journal)
+                self.svc._sql.reset_mock()
+                fresh = MaTranThamQuyenK2(self.mau)
+                fresh._sql = self.svc._sql
+                status, replay = http(fresh, HTTP.PREFIX + route, p, post=True)
+                self.assertEqual((status, replay['ket_qua'], replay['lap_lai']), (200, first['ket_qua'], True))
+                self.svc._sql.assert_not_called()
+                self.assertEqual(len(self.mau.c.journal), before)
+                status, result = self.post(route, {**p, 'ly_do': 'Nội dung khác'})
+                self.assertEqual((status, result['message']), (409, THONG_BAO['MTQ_IDEMPOTENCY_KHAC']))
+                self.mau.c.admin = False
+                self.assertEqual(self.post(route, p)[0], 403)
+                self.mau.c.admin = True
+
+    def test_than_la_400_truoc_khoa_va_ket_noi(self):
+        for route in self.ROUTES:
+            p = quan_tri_payload(route)
+            bad = [None, [], {**p, 'actor_id': ADMIN}, {**p, 'diff': {}}, {**p, 'quan_he': {}},
+                   {**p, 'expected_revision': True}, {**p, 'expected_revision': '0'},
+                   {**p, 'expected_revision': -1}, {**p, 'expected_revision': 2**63},
+                   {**p, 'ly_do': ' '}, {**p, 'ly_do': 'x' * 2001}, {**p, 'khoa': 'sai'},
+                   {**p, 'thao_tac': []}, {**p, 'thao_tac': 'DELETE'}]
+            bad += [{k: v for k, v in p.items() if k != field}
+                    for field in ('khoa', 'ly_do', 'expected_revision', 'thao_tac')]
+            if route != 'phong':
+                bad.append({**p, 'phap_nhan_id': PN2})
+            for body in bad:
+                with self.subTest(route=route, body=body):
+                    app = App()
+                    app.mutation_lock = MagicMock()
+                    self.assertEqual(self.post(route, body, app=app)[0], 400)
+                    app.mutation_lock.__enter__.assert_not_called()
+                    app.crm_phien.assert_not_called()
+                    app.crm.assert_not_called()
+                    app._m5_ket_noi_chu.assert_not_called()
+        self.svc._sql.assert_not_called()
+
+    def test_tham_so_nghiep_vu_sai_va_khong_tron_cap_thu_hoi(self):
+        cases = [('phong', {'ma': ' '}), ('phong', {'ten': 5}),
+                 ('gan-vai', {'vai': 'ADMIN'}), ('gan-vai', {'nguoi_dung_id': 'sai'}),
+                 ('pham-vi', {'loai': 'TU_Y'}), ('pham-vi', {'khoa_pham_vi': 'sai'}),
+                 ('admin', {'nguoi_dung_id': None}), ('admin', {'id': DONG})]
+        for route, changes in cases:
+            with self.subTest(route=route, changes=changes):
+                self.assertEqual(self.post(route, quan_tri_payload(route, **changes))[0], 400)
+        self.assertEqual(self.post('phong', {'thao_tac': 'SUA', 'id': ROOM, 'hoat_dong': 'false',
+            'expected_revision': 1, 'khoa': str(uuid.uuid4()), 'ly_do': 'DEMO'})[0], 400)
+        for route in ('gan-vai', 'pham-vi', 'admin'):
+            p = quan_tri_payload(route, thu_hoi=True, nguoi_dung_id=USER)
+            self.assertEqual(self.post(route, p)[0], 400)
+        self.svc._sql.assert_not_called()
+
+    def test_phong_gan_vai_khong_con_hoat_dong_khong_cap(self):
+        with patch.object(self.svc, '_one', side_effect=[None, None, None, None]):
+            for route in ('gan-vai', 'pham-vi'):
+                self.assertEqual(self.post(route, quan_tri_payload(route))[0], 400)
+        self.svc._sql.assert_not_called()
+
+    def test_admin_cuoi_409_va_cau_goc_trong_ly_do(self):
+        self.svc._sql.side_effect = DataError('MTQ_ADMIN_CUOI', 'Chi tiết DEMO')
+        status, result = self.post('admin', quan_tri_payload('admin', thu_hoi=True, expected_revision=1))
+        self.assertEqual((status, result['error'], result['message']),
+                         (409, 'MTQ_ADMIN_CUOI', THONG_BAO['MTQ_ADMIN_CUOI']))
+        self.assertEqual(self.mau.c.denials[-1][-2:], ('MTQ_ADMIN_CUOI', 'Chi tiết DEMO'))
+        self.assertEqual(self.mau.c.journal, [])
+
+    def test_8_cau_theo_ma_va_ma_khac_cau_chung(self):
+        expected = {
+            'MTQ_THIEU_DONG': 'Chưa đủ 5 vai cho mỗi phòng đang dùng; bổ sung trước khi công bố.',
+            'MTQ_CHUA_NOI_MTQ4': 'Chưa bật được: các phân hệ chưa nối xong với ma trận.',
+            'MTQ_REVISION': 'Dữ liệu đã thay đổi; tải lại trước khi thao tác.',
+            'MTQ_ADMIN_CUOI': 'Không thể thu hồi Admin hoạt động cuối cùng; cấp thêm Admin trước khi thu hồi.',
+            'MTQ_PHAM_VI': 'Phạm vi không hợp lệ, khác pháp nhân hoặc gán vai đã bị thu hồi; kiểm tra lại.',
+            'MTQ_CHI_ADMIN': 'Chỉ Admin đang hoạt động được quản trị ma trận thẩm quyền.',
+            'MTQ_BAT_BIEN': 'Bản đã công bố hoặc lịch sử cấp quyền không thể sửa; hãy tạo bản mới.',
+            'MTQ_IDEMPOTENCY_KHAC': 'Yêu cầu này đã được gửi với nội dung khác; tải lại rồi thử lại.',
+        }
+        for code, message in {**expected, 'MTQ_KHAC': LOI_CAU_HINH}.items():
+            with self.subTest(code=code):
+                error = RuntimeError('Nội dung SQL DEMO không được lộ')
+                error.diag = type('Diag', (), {'message_primary': code + ': nội bộ'})()
+                self.svc._sql.side_effect = error
+                result = self.post('phong', quan_tri_payload('phong'))[1]
+                self.assertEqual(result, {'error': code, 'message': message})
+                self.assertEqual(self.mau.c.denials[-1][-2:], (code, code + ': nội bộ'))
+
+    def test_token_va_phien_bat_buoc_tung_route(self):
+        for route in self.ROUTES:
+            with self.subTest(route=route):
+                p = quan_tri_payload(route)
+                self.assertEqual(self.post(route, p, token=False)[0], 403)
+                app = App()
+                app.crm_phien.side_effect = DataError('CRM_PHIEN', 'Không có phiên')
+                self.assertEqual(self.post(route, p, app=app)[0], 403)
+        self.svc._sql.assert_not_called()
+
+    def test_nhat_ky_loi_503_tung_route(self):
+        for route in self.ROUTES:
+            with self.subTest(route=route):
+                self.mau.c.fail_audit = RuntimeError('DEMO lỗi ghi')
+                self.assertEqual(self.post(route, quan_tri_payload(route)),
+                                 (503, {'error': MA_LOI_NHAT_KY, 'message': LOI_NHAT_KY}))
+                self.assertEqual(self.mau.c.journal, [])
+                self.assertEqual(self.mau.trace[-1], 'rollback')
+                self.mau.c.admin = False
+                self.mau.c.fail_denial = RuntimeError('DEMO lỗi ghi từ chối')
+                self.assertEqual(self.post(route, quan_tri_payload(route))[0], 503)
+                self.mau.c.admin = True
+
+    def test_trung_va_khoa_ngoai_chuyen_ma_khong_lo_chi_tiet(self):
+        messages = {'MTQ_DA_CAP': 'Đã cấp trước đó; tải lại để xem bản hiện hành.',
+                    'MTQ_KHONG_THAY': 'Pháp nhân, phòng hoặc người dùng không tồn tại.'}
+        for route in self.ROUTES:
+            for state, code, status in (('23505', 'MTQ_DA_CAP', 409),
+                                        ('23503', 'MTQ_KHONG_THAY', 400)):
+                with self.subTest(route=route, state=state):
+                    error = RuntimeError('DETAIL: dữ liệu hồ sơ DEMO')
+                    error.sqlstate = state
+                    primary = 'duplicate key violates unique constraint' if state == '23505' else 'insert violates foreign key constraint'
+                    error.diag = type('Diag', (), {'message_primary': primary,
+                        'message_detail': 'dữ liệu hồ sơ DEMO'})()
+                    self.svc._sql.side_effect = error
+                    self.assertEqual(self.post(route, quan_tri_payload(route)),
+                                     (status, {'error': code, 'message': messages[code]}))
+                    self.assertEqual(self.mau.c.denials[-1][-2:], (code, primary))
+                    self.assertIn('rollback', self.mau.trace)
+                    self.assertEqual(self.mau.trace[-1], 'commit')
+        self.assertEqual(self.mau.c.journal, [])
+
+    def test_nguoi_nhan_mat_hoac_ngung_khong_thanh_loi_nguoi_thao_tac(self):
+        messages = {'MTQ_KHONG_THAY': 'Pháp nhân, phòng hoặc người dùng không tồn tại.',
+                    'MTQ_NGUOI_NHAN_NGUNG': 'Người được cấp không còn hoạt động.'}
+        for route in ('gan-vai', 'admin'):
+            for recipient, code in ((None, 'MTQ_KHONG_THAY'),
+                                    ({'trang_thai': 'DUNG'}, 'MTQ_NGUOI_NHAN_NGUNG')):
+                with self.subTest(route=route, recipient=recipient):
+                    self.mau.c.recipient = recipient
+                    self.assertEqual(self.post(route, quan_tri_payload(route)),
+                                     (400, {'error': code, 'message': messages[code]}))
+                    self.assertEqual(self.mau.c.denials[-1][-2:], (code, messages[code]))
+        self.svc._sql.assert_not_called()
+        calls = [sql for sql, _ in self.mau.c.calls]
+        self.assertLess(next(i for i, sql in enumerate(calls) if 'pg_advisory_xact_lock' in sql),
+                        next(i for i, sql in enumerate(calls) if 'FOR SHARE' in sql))
+        self.mau.c.recipient = {'trang_thai': 'HOAT_DONG'}
+        self.svc._sql.side_effect = DataError('MTQ_DANH_TINH', 'Người thao tác DEMO')
+        self.assertEqual(self.post('admin', quan_tri_payload('admin')),
+                         (403, {'error': 'MTQ_DANH_TINH', 'message': THONG_BAO['MTQ_DANH_TINH']}))
+
+    def test_phong_mat_va_phong_ngung_co_cau_rieng(self):
+        for room, code, message in ((None, 'MTQ_KHONG_THAY', THONG_BAO['MTQ_KHONG_THAY']),
+                                   ({'phap_nhan_id': PN, 'hoat_dong': False}, 'MTQ_PHAM_VI', LOI_PHONG_NGUNG)):
+            with self.subTest(room=room):
+                self.mau.c.room = room
+                self.assertEqual(self.post('gan-vai', quan_tri_payload('gan-vai')),
+                                 (400, {'error': code, 'message': message}))
+                self.assertEqual(self.mau.c.denials[-1][-2:], (code, message))
+        self.svc._sql.assert_not_called()
+
+    def test_thu_hoi_revision_cu_khong_noi_ban_nhap(self):
+        self.svc._sql.side_effect = DataError('MTQ_REVISION', 'Bản ghi cũ DEMO')
+        for route in ('gan-vai', 'admin', 'pham-vi'):
+            with self.subTest(route=route):
+                self.assertEqual(self.post(route, quan_tri_payload(route, thu_hoi=True, expected_revision=1)),
+                                 (409, {'error': 'MTQ_REVISION', 'message': LOI_THAY_DOI}))
+
+    def test_sql_chi_co_ma_van_ghi_ly_do_co_nghia(self):
+        error = RuntimeError('MTQ_REVISION')
+        error.diag = type('Diag', (), {'message_primary': 'MTQ_REVISION'})()
+        self.svc._sql.side_effect = error
+        self.assertEqual(self.post('phong', quan_tri_payload('phong', expected_revision=99))[0], 409)
+        self.assertEqual(self.mau.c.denials[-1][-2:], ('MTQ_REVISION', LOI_THAY_DOI))
+
+    def test_khoi_phuc_de_lat_sau_khong_mo_route(self):
+        from kho_tri_thuc.k2.sql_ma_tran_tham_quyen import MA_TRAN_THAM_QUYEN_SQL
+        sql = next(s for s in MA_TRAN_THAM_QUYEN_SQL if s.startswith('CREATE FUNCTION master.mtq_cau_hinh_ghi('))
+        self.assertNotIn("'KHOI_PHUC'", sql)
+        self.assertEqual(self.post('khoi-phuc', {})[0], 404)
+        self.svc._sql.assert_not_called()
+
+
 try:
     import psycopg
 except ImportError:
@@ -626,6 +908,178 @@ class MtqPG(unittest.TestCase):
         self.assertEqual(mine['phien_ban'], [])
         self.assertNotIn(v['id'], json.dumps(mine))
         self.assertTrue(any(x['id'] == v['id'] for x in self.svc.ma_tran(self.admin[1])['phien_ban']))
+
+    def post(self, route, p, *, login=None):
+        return http(self.svc, HTTP.PREFIX + route, p, post=True, app=App(login or self.admin[1]))
+
+    def count_log(self, key):
+        return self.c.execute('SELECT count(*) AS n FROM nhat_ky.mtq_thay_doi WHERE request_id=%s::uuid', (key,)).fetchone()['n']
+
+    def assert_denied(self, route, p, status, code, message):
+        self.assertEqual(self.post(route, p), (status, {'error': code, 'message': message}))
+        self.assertEqual(self.count_log(p['khoa']), 0)
+        denial = self.c.execute('SELECT ma,ly_do FROM nhat_ky.mtq_tu_choi WHERE request_id=%s::uuid',
+                                (p['khoa'],)).fetchone()
+        self.assertEqual(denial['ma'], code)
+        self.assertTrue(denial['ly_do'])
+        self.assertNotEqual(denial['ly_do'], code)
+
+    def test_loi_trung_sql_that_409_va_audit(self):
+        assignment = self.svc.gan_vai(self.admin[1], quan_tri_payload('gan-vai',
+            nguoi_dung_id=self.user[0], phong_id=self.room))['ket_qua']
+        scope = quan_tri_payload('pham-vi', gan_vai_id=assignment['id'], khoa_pham_vi=self.pn)
+        self.svc.pham_vi(self.admin[1], scope)
+        cases = (
+            ('phong', quan_tri_payload('phong', phap_nhan_id=self.pn, ma='KT')),
+            ('gan-vai', quan_tri_payload('gan-vai', nguoi_dung_id=self.user[0], phong_id=self.room)),
+            ('gan-vai', quan_tri_payload('gan-vai', nguoi_dung_id=self.user[0], phong_id=self.room, vai='NGUOI_XEM')),
+            ('pham-vi', {**scope, 'khoa': str(uuid.uuid4())}),
+            ('admin', quan_tri_payload('admin', nguoi_dung_id=self.admin[0])),
+        )
+        for route, p in cases:
+            with self.subTest(route=route, vai=p.get('vai')):
+                self.assert_denied(route, p, 409, 'MTQ_DA_CAP',
+                                   'Đã cấp trước đó; tải lại để xem bản hiện hành.')
+
+    def test_doi_tuong_mat_va_nguoi_nhan_ngung_sql_that_400(self):
+        missing = str(uuid.uuid4())
+        cases = (
+            ('phong', quan_tri_payload('phong', phap_nhan_id=missing)),
+            ('gan-vai', quan_tri_payload('gan-vai', nguoi_dung_id=missing, phong_id=self.room)),
+            ('gan-vai', quan_tri_payload('gan-vai', nguoi_dung_id=self.user[0], phong_id=missing)),
+            ('admin', quan_tri_payload('admin', nguoi_dung_id=missing)),
+        )
+        for route, p in cases:
+            with self.subTest(route=route, p=p):
+                self.assert_denied(route, p, 400, 'MTQ_KHONG_THAY',
+                                   'Pháp nhân, phòng hoặc người dùng không tồn tại.')
+        stopped = self.c.execute("""INSERT INTO master.nguoi_dung
+            (ten,dang_nhap,vai_tro,mo_phong,trang_thai) VALUES ('DEMO ngừng',%s,'XEM',true,'DUNG')
+            RETURNING id""", ('MO_PHONG_MTQ2D_' + uuid.uuid4().hex,)).fetchone()
+        for route, extra in (('admin', {}), ('gan-vai', {'phong_id': self.room})):
+            with self.subTest(route=route):
+                p = quan_tri_payload(route, nguoi_dung_id=str(stopped['id']), **extra)
+                self.assert_denied(route, p, 400, 'MTQ_NGUOI_NHAN_NGUNG',
+                                   'Người được cấp không còn hoạt động.')
+
+    def test_cau_theo_ngu_canh_sql_that(self):
+        assignment = self.svc.gan_vai(self.admin[1], quan_tri_payload('gan-vai',
+            nguoi_dung_id=self.user[0], phong_id=self.room))['ket_qua']
+        admin = self.c.execute('SELECT id,revision FROM master.mtq_admin WHERE nguoi_dung_id=%s::uuid AND thu_hoi_luc IS NULL',
+                               (self.admin[0],)).fetchone()
+        for route, item in (('gan-vai', assignment), ('admin', admin)):
+            with self.subTest(route=route):
+                p = quan_tri_payload(route, thu_hoi=True, id=str(item['id']), expected_revision=item['revision'] - 1)
+                self.assert_denied(route, p, 409, 'MTQ_REVISION',
+                                   'Dữ liệu đã thay đổi; tải lại trước khi thao tác.')
+        self.svc.phong(self.admin[1], {'thao_tac': 'SUA', 'id': self.room, 'hoat_dong': False,
+            'expected_revision': 1, 'ly_do': 'DEMO ngừng phòng', 'khoa': str(uuid.uuid4())})
+        self.assert_denied('gan-vai', quan_tri_payload('gan-vai', nguoi_dung_id=self.admin[0], phong_id=self.room),
+                           400, 'MTQ_PHAM_VI', LOI_PHONG_NGUNG)
+        status, result = http(self.svc, HTTP.PREFIX + 'ma-tran', app=App(self.user[1]))
+        self.assertEqual(status, 403)
+        self.assertIn('xem Quyền của tôi', result['message'])
+
+    def test_la_admin_theo_phien_va_thu_hoi_sql_that(self):
+        def mine(login):
+            status, result = http(self.svc, HTTP.PREFIX + 'cua-toi', app=App(login))
+            self.assertEqual(status, 200)
+            self.assertIs(result['admin'], False)
+            return result['la_admin']
+        self.assertIs(mine(self.admin[1]), True)
+        self.assertIs(mine(self.user[1]), False)
+        login = 'MO_PHONG_MTQ2D_' + uuid.uuid4().hex
+        other = self.c.execute("INSERT INTO master.nguoi_dung (ten,dang_nhap,vai_tro,mo_phong) VALUES ('DEMO MTQ2d',%s,'XEM',true) RETURNING id",
+                               (login,)).fetchone()
+        granted = self.svc.admin(self.admin[1], quan_tri_payload('admin', nguoi_dung_id=str(other['id'])))['ket_qua']
+        try:
+            self.assertIs(mine(login), True)
+        finally:
+            self.svc.admin(self.admin[1], quan_tri_payload('admin', thu_hoi=True,
+                id=granted['id'], expected_revision=granted['revision']))
+        self.assertIs(mine(login), False)
+
+    def check_route(self, route, p):
+        """Đi qua HTTP/service và master.mtq_cau_hinh_ghi thật, không mock SQL."""
+        self.assertEqual(self.post(route, p, login=self.user[1])[0], 403)
+        self.assertEqual(self.post(route, {**p, 'expected_revision': 999})[0], 409)
+        self.assertEqual(self.count_log(p['khoa']), 0)
+        self.assertEqual(self.post(route, {**p, 'actor_id': self.admin[0]})[0], 400)
+        status, result = self.post(route, p)
+        self.assertEqual(status, 200, result)
+        count = self.count_log(p['khoa'])
+        self.assertGreaterEqual(count, 2)  # Diff trigger + biên nhận HTTP.
+        replay_status, replay = self.post(route, p)
+        self.assertEqual((replay_status, replay['ket_qua'], replay['lap_lai']), (200, result['ket_qua'], True))
+        self.assertEqual(self.count_log(p['khoa']), count)
+        self.assertEqual(self.post(route, {**p, 'ly_do': 'Nội dung khác DEMO'})[0], 409)
+        receipts = self.c.execute("SELECT actor_id,actor_login,phien_ban_id FROM nhat_ky.mtq_thay_doi WHERE request_id=%s::uuid AND doi_tuong_bang='HTTP'", (p['khoa'],)).fetchall()
+        self.assertEqual(len(receipts), 1)
+        self.assertEqual((str(receipts[0]['actor_id']), receipts[0]['actor_login'], receipts[0]['phien_ban_id']),
+                         (self.admin[0], self.admin[1], None))
+        changes = self.c.execute("SELECT actor_id,actor_login,truoc,sau FROM nhat_ky.mtq_thay_doi WHERE request_id=%s::uuid AND doi_tuong_bang<>'HTTP'", (p['khoa'],)).fetchall()
+        self.assertTrue(changes)
+        for change in changes:
+            self.assertEqual((str(change['actor_id']), change['actor_login']), (self.admin[0], self.admin[1]))
+            self.assertEqual(str(change['sau']['id']), result['ket_qua']['id'])
+            if p['thao_tac'] in ('CAP', 'TAO'):
+                self.assertIsNone(change['truoc'])
+            else:
+                self.assertEqual(change['sau']['revision'], change['truoc']['revision'] + 1)
+        return result['ket_qua']
+
+    def test_route_phong_tao_sua_cas_replay_403_than_la(self):
+        p = quan_tri_payload('phong', phap_nhan_id=self.pn, ma='KT2')
+        room = self.check_route('phong', p)
+        update = {'id': room['id'], 'thao_tac': 'SUA', 'ten': 'Kế toán mới DEMO', 'hoat_dong': False,
+                  'expected_revision': room['revision'], 'ly_do': 'Ngừng phòng DEMO', 'khoa': str(uuid.uuid4())}
+        changed = self.check_route('phong', update)
+        self.assertEqual((changed['ten'], changed['hoat_dong'], changed['revision']),
+                         ('Kế toán mới DEMO', False, room['revision'] + 1))
+
+    def test_route_gan_vai_pham_vi_cap_thu_hoi_cas_replay_403_than_la(self):
+        assignment = self.check_route('gan-vai', quan_tri_payload('gan-vai', nguoi_dung_id=self.user[0], phong_id=self.room))
+        self.assertEqual(assignment['phap_nhan_id'], self.pn)
+        scope = self.check_route('pham-vi', quan_tri_payload('pham-vi', gan_vai_id=assignment['id'], khoa_pham_vi=self.pn))
+        self.assertEqual(scope['phap_nhan_id'], self.pn)
+        for route, item in (('pham-vi', scope), ('gan-vai', assignment)):
+            p = quan_tri_payload(route, thu_hoi=True, id=item['id'], expected_revision=item['revision'])
+            revoked = self.check_route(route, p)
+            self.assertIsNotNone(revoked['thu_hoi_luc'])
+            self.assertEqual(revoked['thu_hoi_boi'], self.admin[0])
+            self.assertEqual(revoked['revision'], item['revision'] + 1)
+
+    def test_route_admin_cap_thu_hoi_va_admin_cuoi_bi_chan(self):
+        current = self.c.execute('SELECT id,revision FROM master.mtq_admin WHERE nguoi_dung_id=%s::uuid AND thu_hoi_luc IS NULL', (self.admin[0],)).fetchone()
+        last = quan_tri_payload('admin', thu_hoi=True, id=str(current['id']), expected_revision=current['revision'])
+        status, result = self.post('admin', last)
+        self.assertEqual((status, result['error'], result['message']), (409, 'MTQ_ADMIN_CUOI', THONG_BAO['MTQ_ADMIN_CUOI']))
+        self.assertEqual(self.count_log(last['khoa']), 0)
+        denial = self.c.execute('SELECT ma,ly_do FROM nhat_ky.mtq_tu_choi WHERE request_id=%s::uuid', (last['khoa'],)).fetchone()
+        self.assertEqual((denial['ma'], denial['ly_do']), ('MTQ_ADMIN_CUOI', 'MTQ_ADMIN_CUOI: không được thu hồi Admin hoạt động cuối'))
+        # Danh tính mới riêng, không để người thử 403 trở thành Admin.
+        login = 'MO_PHONG_MTQ2C_' + uuid.uuid4().hex
+        other = self.c.execute("INSERT INTO master.nguoi_dung (ten,dang_nhap,vai_tro,mo_phong) VALUES ('DEMO MTQ2c',%s,'XEM',true) RETURNING id", (login,)).fetchone()
+        granted = self.check_route('admin', quan_tri_payload('admin', nguoi_dung_id=str(other['id'])))
+        try:
+            p = quan_tri_payload('admin', thu_hoi=True, id=granted['id'], expected_revision=granted['revision'])
+            revoked = self.check_route('admin', p)
+            self.assertIsNotNone(revoked['thu_hoi_luc'])
+        finally:
+            # Chỉ thu hồi qua lệnh thật nếu một assertion trước thu hồi thất bại.
+            row = self.c.execute('SELECT revision FROM master.mtq_admin WHERE id=%s::uuid AND thu_hoi_luc IS NULL', (granted['id'],)).fetchone()
+            if row is not None:
+                self.svc.admin(self.admin[1], quan_tri_payload('admin', thu_hoi=True,
+                    id=granted['id'], expected_revision=row['revision']))
+
+    def test_route_pham_vi_sai_phap_nhan_giu_ma_goc(self):
+        assignment = self.svc.gan_vai(self.admin[1], quan_tri_payload('gan-vai', nguoi_dung_id=self.user[0], phong_id=self.room))['ket_qua']
+        p = quan_tri_payload('pham-vi', gan_vai_id=assignment['id'], khoa_pham_vi=PN2)
+        status, result = self.post('pham-vi', p)
+        self.assertEqual((status, result['error'], result['message']), (400, 'MTQ_PHAM_VI', THONG_BAO['MTQ_PHAM_VI']))
+        self.assertEqual(self.count_log(p['khoa']), 0)
+        denial = self.c.execute('SELECT ma,ly_do FROM nhat_ky.mtq_tu_choi WHERE request_id=%s::uuid', (p['khoa'],)).fetchone()
+        self.assertEqual((denial['ma'], denial['ly_do']), ('MTQ_PHAM_VI', 'MTQ_PHAM_VI: sai pháp nhân'))
 
 
 if __name__ == '__main__':

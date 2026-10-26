@@ -1,17 +1,19 @@
 """M4-DL2: chỉ dữ liệu DEMO; PG do lead cấp DSN, không mở server/xóa DB.
 
-PG tạo kho_test_* riêng, migrate sạch; giữ DB để lead kiểm/dọn ngoài sandbox.
+PG tạo kho_test_* riêng, migrate sạch; login app_web thường, không SET ROLE.
+Giữ DB/role DEMO để lead kiểm/dọn ngoài sandbox.
 """
 
 from __future__ import annotations
 
 import copy
 import os
+import secrets
 import unittest
 import uuid
 from datetime import datetime, timezone
 from decimal import Decimal, localcontext
-from unittest.mock import Mock
+from unittest.mock import MagicMock, Mock, patch
 
 from kho_tri_thuc.ha_tang.primitives import DataError
 from kho_tri_thuc.m4.review_data_pg import (
@@ -85,6 +87,12 @@ class ReviewDataTinh(unittest.TestCase):
         self.assertEqual(expected, dong_sha256({"DEMO": Decimal("123456789012345678901234567890.12")}))
         self.assertNotEqual(dong_sha256({"DEMO": "é"}), dong_sha256({"DEMO": "e\u0301"}))
 
+    def test_hash_am_zero_cung_hash_zero(self):
+        expected = dong_sha256({"DEMO": Decimal("0")})
+        for value in (Decimal("-0"), Decimal("-0.000"), Decimal("0E+8"), -0.0, 0.0):
+            with self.subTest(value=repr(value)):
+                self.assertEqual(dong_sha256({"DEMO": value}), expected)
+
     def test_real_decimal_repr_giu_am_zero_null(self):
         for value in (0.1, 0.1 + 0.2, -1234.125, -0.0):
             self.assertEqual(real_sang_decimal(value).as_tuple(), Decimal(repr(value)).as_tuple())
@@ -128,8 +136,20 @@ class ReviewDataTinh(unittest.TestCase):
             for key, value in actual.items():
                 self.assertEqual(value, original[key])
         self.assertEqual(dto_man_hinh(data["hop_dong"][0], [], [])["tham_so"], [])
-        self.assertEqual(dto_man_hinh(None, [], []), {
-            "trang_thai": "DA_XOA_O_NGUON", "hop_dong": None, "tham_so": [], "tham_so_nguon": []})
+
+    def test_dto_null_bat_buoc_phan_biet_ba_trang_thai(self):
+        messages = {
+            "CHUA_CO_LAN_CHUP": "Chưa nạp dữ liệu Review.",
+            "CHUA_CO_TRONG_NGUON": "Hợp đồng chưa có trong dữ liệu Review.",
+            "DA_XOA_O_NGUON": "Hợp đồng đã bị xóa ở dữ liệu Review (lần chụp mới nhất).",
+        }
+        for state, message in messages.items():
+            with self.subTest(state=state):
+                self.assertEqual(dto_man_hinh(None, [], [], trang_thai=state), {
+                    "trang_thai": state, "thong_bao": message,
+                    "hop_dong": None, "tham_so": [], "tham_so_nguon": []})
+        with self.assertRaises(DataError):
+            dto_man_hinh(None, [], [])
 
     def test_chuan_bi_hash_gom_anh_xa_khong_sua_input(self):
         data = _demo()
@@ -151,6 +171,88 @@ class ReviewDataTinh(unittest.TestCase):
         self.assertEqual(caught.exception.code, "M4_REVIEW_THIEU_ANH_XA")
         conn.transaction.assert_not_called()
         conn.execute.assert_not_called()
+
+    def test_hai_ma_hd_trung_hop_dong_id_dung_truoc_giao_dich(self):
+        conn, data = Mock(), _demo()
+        data["hop_dong"].append(dict(data["hop_dong"][0], ma_hd="DEMO-KHAC", so_hd="DEMO/02"))
+        mapping = dict(ANH_XA_DEMO, **{"DEMO-KHAC": tuple(str(v) for v in ANH_XA_DEMO["DEMO-HD"])})
+        with self.assertRaisesRegex(DataError, "Hai ma_hd ánh xạ vào cùng hop_dong_id") as caught:
+            ReviewDataPG(conn).ghi_lan_chup(data, nguon_id="DEMO", chup_luc=CHUP,
+                                           nhap_boi="DEMO", anh_xa=mapping)
+        self.assertEqual(caught.exception.code, "M4_REVIEW_DU_LIEU_SAI")
+        conn.transaction.assert_not_called()
+        conn.execute.assert_not_called()
+
+    def test_doc_bat_buoc_phien_va_chan_truoc_doc_chu_bang(self):
+        owner, session = Mock(), Mock()
+        repo = ReviewDataPG(owner)
+        with self.assertRaises(TypeError):
+            repo.doc_hien_hanh(uuid.UUID(int=1))
+        for denied in (None, owner, session):
+            for result in ((False,), {"duoc": False}):
+                session.execute.return_value.fetchone.return_value = result
+                with self.subTest(denied=denied, result=result), self.assertRaises(DataError) as caught:
+                    repo.doc_hien_hanh(uuid.UUID(int=1), conn_phien=denied)
+                self.assertEqual(caught.exception.code, "404")
+                self.assertEqual(str(caught.exception), "Không tìm thấy hợp đồng.")
+        query, params = session.execute.call_args.args
+        self.assertIn("master.hop_dong", query)
+        self.assertIn("master.m4_duoc(h.du_an_id, 'XEM')", query)
+        self.assertIn("master.m4_duoc(h.du_an_id, 'REVIEW')", query)
+        self.assertEqual(params, (str(uuid.UUID(int=1)),))
+        owner.transaction.assert_not_called()
+        owner.execute.assert_not_called()
+
+    def test_doc_null_hai_exists_cung_giao_dich_sau_kiem_quyen(self):
+        for session_result in ((True,), {"duoc": True}):
+            for co_nguon, co_hd, state in (
+                (False, False, "CHUA_CO_LAN_CHUP"),
+                (True, False, "CHUA_CO_TRONG_NGUON"),
+                (True, True, "DA_XOA_O_NGUON"),
+            ):
+                owner, session = MagicMock(), Mock()
+                session.execute.return_value.fetchone.return_value = session_result
+                repo, active = ReviewDataPG(owner), []
+                owner.transaction.return_value.__enter__.side_effect = lambda: active.append(True)
+                owner.transaction.return_value.__exit__.side_effect = lambda *args: active.pop() and False
+                values = iter(([{"nguon_id": None}], [{"co": co_nguon}], [{"co": co_hd}]))
+
+                def read(query, params=()):
+                    self.assertEqual(active, [True])
+                    session.execute.assert_called_once()
+                    return next(values)
+
+                with self.subTest(state=state, session_result=session_result), patch.object(repo, "_rows", side_effect=read) as rows:
+                    result = repo.doc_hien_hanh(uuid.UUID(int=1), conn_phien=session)
+                self.assertEqual(result, dto_man_hinh(None, [], [], trang_thai=state))
+                self.assertEqual(rows.call_count, 3)
+                self.assertIn("SELECT EXISTS (SELECT 1 FROM m4.review_chep_nguon)", rows.call_args_list[1].args[0])
+                self.assertIn("WHERE hop_dong_id=%s::uuid", rows.call_args_list[2].args[0])
+                self.assertEqual(rows.call_args_list[2].args[1], (str(uuid.UUID(int=1)),))
+                self.assertEqual(active, [])
+
+    def test_replay_bao_ro_truong_khac_khong_ghi(self):
+        for field in ("chup_luc", "nhap_boi", "mo_ta", "dong_sha256", "hop_dong_id", "du_an_id"):
+            owner = MagicMock()
+            repo = ReviewDataPG(owner)
+            prepared = repo._chuan_bi(_demo(), ANH_XA_DEMO)
+            metadata = {"mo_ta": None, "chup_luc": datetime(2026, 10, 26, tzinfo=timezone.utc), "nhap_boi": "DEMO"}
+            if field in metadata:
+                metadata[field] = None if field == "chup_luc" else "DEMO khác"
+            responses = [[metadata]]
+            if field not in metadata:
+                for table in ("che_do", "hop_dong"):
+                    rows = [dict(r) for r in prepared[table].values()]
+                    if table == "hop_dong":
+                        rows[0][field] = "b" * 64 if field == "dong_sha256" else str(uuid.UUID(int=9))
+                    responses.append(rows)
+            with self.subTest(field=field), patch.object(repo, "_rows", side_effect=responses):
+                with self.assertRaises(DataError) as caught:
+                    repo.ghi_lan_chup(_demo(), nguon_id="DEMO", chup_luc=CHUP,
+                                       nhap_boi="DEMO", anh_xa=ANH_XA_DEMO)
+                self.assertEqual(caught.exception.code, "M4_REVIEW_REPLAY_KHAC")
+                self.assertIn(field, str(caught.exception))
+                self.assertEqual(owner.execute.call_count, 1)  # chỉ khóa tư vấn, chưa INSERT
 
     def test_khong_tu_suy_timezone_hay_bo_cot_bang_la(self):
         conn = Mock()
@@ -194,13 +296,38 @@ class ReviewDataPGTests(unittest.TestCase):
         pg.migrate(cls.con)
         cls.pn = cls.con.execute("INSERT INTO master.phap_nhan (ma,ten) VALUES ('DEMO_DL2','Pháp nhân DEMO DL2') RETURNING id").fetchone()[0]
         cls.da = cls.con.execute("INSERT INTO master.du_an (phap_nhan_id,ma_junsky,ten) VALUES (%s,'DEMO_DL2','Dự án DEMO DL2') RETURNING id", (cls.pn,)).fetchone()[0]
+        cls.da_khac = cls.con.execute("INSERT INTO master.du_an (phap_nhan_id,ma_junsky,ten) VALUES (%s,'DEMO_DL2_KHAC','Dự án DEMO khác') RETURNING id", (cls.pn,)).fetchone()[0]
+        cls.actors = {}
+        for name, project, permission in (("XEM", cls.da, "XEM"), ("REVIEW", cls.da, "REVIEW"), ("KHAC", cls.da_khac, "XEM")):
+            login = "MO_PHONG_DL2_" + name
+            actor = cls.con.execute("""INSERT INTO master.nguoi_dung (ten,dang_nhap,vai_tro)
+                VALUES (%s,%s,'XEM') RETURNING id""", (login, login)).fetchone()[0]
+            cls.con.execute("INSERT INTO master.phan_quyen (nguoi_dung_id,phap_nhan_id,module) VALUES (%s,%s,ARRAY['M4'])", (actor, cls.pn))
+            cls.con.execute("""INSERT INTO m4.quyen_du_an (nguoi_dung_id,phap_nhan_id,du_an_id,vai)
+                VALUES (%s,%s,%s,%s)""", (actor, cls.pn, project, permission))
+            cls.actors[name] = (str(actor), login)
+        cls.role, password = "ktt_test_dl2_" + uuid.uuid4().hex[:12], secrets.token_hex(16)
+        cls.con.execute(sql.SQL("CREATE ROLE {} LOGIN PASSWORD {} NOSUPERUSER NOBYPASSRLS NOCREATEDB NOCREATEROLE IN ROLE app_web").format(
+            sql.Identifier(cls.role), sql.Literal(password)))
+        cls.web = psycopg.connect(conninfo.make_conninfo(cls.dsn, user=cls.role, password=password), autocommit=True)
+        cls.addClassCleanup(cls.web.close)
 
     def setUp(self):
-        self.enterContext(self.con.transaction(force_rollback=True))
         self.repo = ReviewDataPG(self.con)
+        # Master HĐ phải hiển thị trên login thường trước giao dịch chép rollback.
         self.hd = self._master_hd()
+        self.enterContext(self.con.transaction(force_rollback=True))
+        self.enterContext(self.web.transaction(force_rollback=True))
+        self._phien("XEM")
         self.mapping = {"DEMO-HD": (self.hd, self.da)}
         self.source = "DEMO-DL2-" + uuid.uuid4().hex
+
+    def _phien(self, name):
+        self.web.execute("""SELECT set_config('ktt.nguoi_dung_id',%s,true),
+            set_config('ktt.nguoi_dung_dang_nhap',%s,true)""", self.actors[name])
+
+    def _doc(self, hop_dong_id=None):
+        return self.repo.doc_hien_hanh(self.hd if hop_dong_id is None else hop_dong_id, conn_phien=self.web)
 
     def _master_hd(self):
         code = "DEMO-DL2-" + uuid.uuid4().hex
@@ -222,7 +349,7 @@ class ReviewDataPGTests(unittest.TestCase):
 
     def test_ghi_doc_du_37_tham_so_va_decimal(self):
         self.assertEqual(self._ghi(), 77)
-        dto = self.repo.doc_hien_hanh(self.hd)
+        dto = self._doc()
         self.assertEqual(dto["trang_thai"], "HIEN_HANH")
         self.assertEqual(len(dto["tham_so"]), 37)
         self.assertEqual(len(dto["tham_so_nguon"]), 37)
@@ -240,30 +367,36 @@ class ReviewDataPGTests(unittest.TestCase):
 
     def test_cung_khoa_khac_hash_khong_ghi_de(self):
         self._ghi()
-        before = self.repo.doc_hien_hanh(self.hd)
+        before = self._doc()
         data = _demo()
         data["tham_so_nguon"][0]["da_xac_nhan"] = 1
         with self.assertRaises(DataError) as caught:
             self._ghi(data)
         self.assertEqual(caught.exception.code, "M4_REVIEW_REPLAY_KHAC")
-        self.assertEqual(self.repo.doc_hien_hanh(self.hd), before)
+        self.assertIn("dong_sha256", str(caught.exception))
+        self.assertEqual(self._doc(), before)
         self.assertEqual(self._counts()["tham_so_nguon"], 37)
 
     def test_replay_khong_cho_them_bot_dong_hay_doi_metadata(self):
         self._ghi()
         before = self._counts()
-        for change in ("them", "bot", "metadata", "anh_xa"):
+        for change in ("them", "bot", "chup_luc", "anh_xa", "nhap_boi"):
             data, args = _demo(), {}
             if change == "them":
                 data["tham_so"].append(dict(data["tham_so"][0], ma_ts="Y-DEMO-38"))
             elif change == "bot":
                 data["tham_so"] = data["tham_so"][:-1]
-            elif change == "metadata":
+            elif change == "chup_luc":
                 args["chup_luc"] = "2026-10-27T07:00:00+07:00"
-            else:
+            elif change == "anh_xa":
                 args["anh_xa"] = {"DEMO-HD": (self._master_hd(), self.da)}
-            with self.subTest(change=change), self.assertRaises(DataError):
+            else:
+                args["nhap_boi"] = "MO_PHONG_DEMO_KHAC"
+            with self.subTest(change=change), self.assertRaises(DataError) as caught:
                 self._ghi(data, **args)
+            expected = "tập khóa" if change in ("them", "bot") else "ánh xạ" if change == "anh_xa" else change
+            self.assertEqual(caught.exception.code, "M4_REVIEW_REPLAY_KHAC")
+            self.assertIn(expected, str(caught.exception))
             self.assertEqual(self._counts(), before)
 
     def test_thieu_anh_xa_dung_ca_lan_chup_khong_ghi(self):
@@ -277,13 +410,57 @@ class ReviewDataPGTests(unittest.TestCase):
         self._ghi()
         empty = {t: [] for t in _demo()}
         self._ghi(empty, nguon_id="DEMO-MOI", chup_luc="2026-10-27T07:00:00+07:00")
-        self.assertEqual(self.repo.doc_hien_hanh(self.hd), dto_man_hinh(None, [], []))
+        self.assertEqual(self._doc(), dto_man_hinh(None, [], [], trang_thai="DA_XOA_O_NGUON"))
         self.assertEqual(self._counts()["hop_dong"], 1)
+
+    def test_chua_co_lan_chup(self):
+        self.assertEqual(self._doc(), dto_man_hinh(None, [], [], trang_thai="CHUA_CO_LAN_CHUP"))
+
+    def test_hop_dong_chua_tung_co_trong_nguon(self):
+        self._ghi({t: [] for t in _demo()})
+        self.assertEqual(self._doc(), dto_man_hinh(None, [], [], trang_thai="CHUA_CO_TRONG_NGUON"))
+
+    def test_khong_quyen_du_an_tra_404_khong_lo_hop_dong(self):
+        self._ghi()
+        self._phien("KHAC")  # Có XEM + module M4, nhưng thuộc dự án khác.
+        errors = []
+        with patch.object(self.repo, "_rows", wraps=self.repo._rows) as rows:
+            for hd in (self.hd, uuid.uuid4()):
+                with self.assertRaises(DataError) as caught:
+                    self._doc(hd)
+                errors.append((caught.exception.code, str(caught.exception)))
+            rows.assert_not_called()
+        self.assertEqual(errors, [("404", "Không tìm thấy hợp đồng.")] * 2)
+
+    def test_co_xem_doc_duoc_bang_login_thuong(self):
+        self._ghi()
+        self.assertEqual(self.web.execute("SELECT current_user").fetchone()[0], self.role)
+        self.assertTrue(self.web.execute("SELECT master.m4_duoc(%s,'XEM')", (self.da,)).fetchone()[0])
+        self.assertEqual(self._doc()["trang_thai"], "HIEN_HANH")
+        # Quyền đọc bảng nguồn vẫn không cấp cho app_web.
+        with self.assertRaises(psycopg.errors.InsufficientPrivilege):
+            with self.web.transaction():
+                self.web.execute("SELECT * FROM m4.review_chep_nguon")
+
+    def test_chi_co_review_van_doc_duoc(self):
+        self._ghi()
+        self._phien("REVIEW")
+        self.assertFalse(self.web.execute("SELECT master.m4_duoc(%s,'XEM')", (self.da,)).fetchone()[0])
+        self.assertTrue(self.web.execute("SELECT master.m4_duoc(%s,'REVIEW')", (self.da,)).fetchone()[0])
+        self.assertEqual(self._doc()["trang_thai"], "HIEN_HANH")
+
+    def test_anh_xa_trung_hop_dong_id_la_data_error(self):
+        data = _demo()
+        data["hop_dong"].append(dict(data["hop_dong"][0], ma_hd="DEMO-KHAC", so_hd="DEMO/02"))
+        mapping = dict(self.mapping, **{"DEMO-KHAC": (self.hd, self.da)})
+        with self.assertRaisesRegex(DataError, "cùng hop_dong_id"):
+            self._ghi(data, anh_xa=mapping)
+        self.assertEqual(set(self._counts().values()), {0})
 
     def test_xac_nhan_tung_o_khong_bi_suy_tu_trang_thai_hd(self):
         data = _demo()
         self._ghi(data)
-        actual = {r["ma_ts"]: r for r in self.repo.doc_hien_hanh(self.hd)["tham_so_nguon"]}
+        actual = {r["ma_ts"]: r for r in self._doc()["tham_so_nguon"]}
         for row in data["tham_so_nguon"]:
             for key, value in actual[row["ma_ts"]].items():
                 self.assertEqual(value, row[key], (row["ma_ts"], key))
@@ -304,28 +481,28 @@ class ReviewDataPGTests(unittest.TestCase):
         data["hop_dong"][0]["gia_tri_hd"] = None
         data["hop_dong"][0]["vat"] = None
         self._ghi(data, nguon_id="DEMO-CU", chup_luc="2026-10-25T07:00:00+07:00")
-        self.assertEqual(self.repo.doc_hien_hanh(self.hd)["hop_dong"]["gia_tri_hd"], Decimal("-1234.125"))
+        self.assertEqual(self._doc()["hop_dong"]["gia_tri_hd"], Decimal("-1234.125"))
         self._ghi(data, nguon_id="DEMO-MOI", chup_luc="2026-10-27T07:00:00+07:00")
-        hd = self.repo.doc_hien_hanh(self.hd)["hop_dong"]
+        hd = self._doc()["hop_dong"]
         self.assertIsNone(hd["gia_tri_hd"])
         self.assertIsNone(hd["vat"])
 
     def test_dict_row_va_real_repr_toi_numeric(self):
         # Một connection riêng chứng minh đường top-level transaction + dict_row.
-        # HĐ của setUp chưa commit, nên tạo HĐ DEMO riêng ngay trên connection đó.
+        # Master HĐ commit trước để login thường thấy; bản chép vẫn rollback.
         with psycopg.connect(self.dsn, autocommit=True, row_factory=dict_row) as con:
+            code = "DEMO-DICT-" + uuid.uuid4().hex
+            hd = con.execute("""INSERT INTO master.hop_dong
+                (phap_nhan_id,du_an_id,loai,module_chu,ma_noi_bo,so_hop_dong,trang_thai)
+                VALUES (%s,%s,'XAY_DUNG','M4',%s,%s,'SOAN_THAO') RETURNING id""", (self.pn, self.da, code, code)).fetchone()["id"]
+            con.execute("""INSERT INTO m4.ho_so_hop_dong (hop_dong_id,phap_nhan_id,du_an_id,ten,tao_boi)
+                VALUES (%s,%s,%s,'DEMO dict','MO_PHONG_DEMO')""", (hd, self.pn, self.da))
             with con.transaction(force_rollback=True):
-                code = "DEMO-DICT-" + uuid.uuid4().hex
-                hd = con.execute("""INSERT INTO master.hop_dong
-                    (phap_nhan_id,du_an_id,loai,module_chu,ma_noi_bo,so_hop_dong,trang_thai)
-                    VALUES (%s,%s,'XAY_DUNG','M4',%s,%s,'SOAN_THAO') RETURNING id""", (self.pn, self.da, code, code)).fetchone()["id"]
-                con.execute("""INSERT INTO m4.ho_so_hop_dong (hop_dong_id,phap_nhan_id,du_an_id,ten,tao_boi)
-                    VALUES (%s,%s,%s,'DEMO dict','MO_PHONG_DEMO')""", (hd, self.pn, self.da))
                 repo, data = ReviewDataPG(con), _demo()
                 data["hop_dong"][0]["gia_tri_hd"] = 0.1 + 0.2
                 repo.ghi_lan_chup(data, nguon_id="DEMO-DICT", chup_luc=CHUP,
                                   nhap_boi="MO_PHONG_DEMO", anh_xa={"DEMO-HD": (hd, self.da)})
-                self.assertEqual(repo.doc_hien_hanh(hd)["hop_dong"]["gia_tri_hd"], Decimal(repr(0.1 + 0.2)))
+                self.assertEqual(repo.doc_hien_hanh(hd, conn_phien=self.web)["hop_dong"]["gia_tri_hd"], Decimal(repr(0.1 + 0.2)))
 
 
 if __name__ == "__main__":

@@ -104,6 +104,7 @@ HTTP_400 = frozenset({"CRM_PHIEN", "M2_00B_CHON_SAI", "M2_00B_KHOA_SAI", "M2_00B
 _KHOI_TAO = threading.Lock()
 _KHOI_DONG = threading.Lock()
 CANH_BAO_DUNG = "Đã hủy hàng đợi nhưng bộ tải chưa xác nhận dừng"
+MA_TREO = frozenset({"KHACH_QUA_HAN", "KHACH_KHONG_KET_NOI"})
 
 
 # ---------------------------------------------------------------------------------------------- cấu hình + dịch vụ
@@ -400,27 +401,35 @@ class DieuPhoiApp(DieuPhoiTaiHoaDon):
                 with self._khoa:
                     chu = self._phien(sid)
                     _, login = chu
+                    with self._guard(login) as (_, _, conn, truoc):
+                        self._kiem_quyen_khoi_dong_lai(conn, truoc)
+                q = self._hang_doi
+                if q and q["dang_chay"]:
+                    # Worker lấy khoa_job trước khóa hàng đợi: chỉ thử, tuyệt đối không chờ.
+                    if not q["khoa_job"].acquire(blocking=False):
+                        raise DataError("M2K_DANG_KHOI_DONG", "Bộ tải đang nhận lệnh. Đợi phản hồi rồi khởi động lại.")
+                    khoa_job = q["khoa_job"]
+                # RPC chỉ giữ khóa hàng đợi/job, không giữ khóa app hay giao dịch PG.
+                phan_hoi = False
+                try:
+                    running = self._khach().config()["running"]
+                    phan_hoi = True
+                except LoiKhach as exc:
+                    if exc.ma not in MA_TREO:
+                        raise DataError("M2_00B_" + exc.ma, "Chưa xác nhận được trạng thái bộ tải. Kiểm tra rồi thử lại.") from None
+                except DataError as exc:
+                    if exc.code != "M2_00B_NODE_CHUA_SAN_SANG":
+                        raise
+                with self._khoa:
+                    if self._phien(sid) != chu:
+                        raise DataError("M2_00B_PHIEN_DOI", "Phiên đã đổi trong lúc kiểm tra bộ tải. Chưa dừng bộ tải.")
                     with self._guard(login) as (_, crm, conn, dt):
                         pn = self._kiem_quyen_khoi_dong_lai(conn, dt)
-                        q = self._hang_doi
-                        if q and q["dang_chay"]:
-                            # Không chờ đảo thứ tự khóa với worker đang gửi lệnh/mở lại Node.
-                            if not q["khoa_job"].acquire(blocking=False):
-                                raise DataError("M2K_DANG_KHOI_DONG", "Bộ tải đang nhận lệnh. Đợi phản hồi rồi khởi động lại.")
-                            khoa_job = q["khoa_job"]
-                        # Cờ giao diện có thể cũ: kiểm phản hồi trực tiếp trước khi dừng.
-                        # Hàng đợi vẫn bận giữa hai job; không cắt cả lần tải của chính phiên này.
-                        try:
-                            running = self._khach().config()["running"]
-                        except LoiKhach as exc:
-                            if exc.ma not in {"KHACH_QUA_HAN", "KHACH_KHONG_KET_NOI"}:
-                                raise DataError("M2_00B_" + exc.ma, "Chưa xác nhận được trạng thái bộ tải. Kiểm tra rồi thử lại.") from None
-                        except DataError as exc:
-                            if exc.code != "M2_00B_NODE_CHUA_SAN_SANG":
-                                raise
-                        else:
-                            if running or self._dang_chay or (q and q["dang_chay"]):
-                                raise DataError("M2K_DANG_TAI", "Bộ tải vẫn đang phản hồi và có lần tải hoặc hàng đợi đang chạy. Đợi tải xong rồi khởi động lại.")
+                        if dt["id"] != truoc["id"]:
+                            raise DataError("M2_00B_DANH_TINH_DOI", "Danh tính đã đổi. Chưa dừng bộ tải.")
+                        # Hàng đợi vẫn bận giữa hai job; kiểm lại trạng thái dưới khóa chung.
+                        if phan_hoi and (running or self._dang_chay or (q and q["dang_chay"])):
+                            raise DataError("M2K_DANG_TAI", "Bộ tải vẫn đang phản hồi và có lần tải hoặc hàng đợi đang chạy. Đợi tải xong rồi khởi động lại.")
                         runs = [self._dang_chay] if self._dang_chay else []
                         if khoa_job is not None:
                             runs.extend(m["run_handle"] for m in q["muc"]
@@ -854,7 +863,7 @@ def _trang_thai(h, app, query):
         return _gui(h, 200, {"phien_ban": PHIEN_BAN, "cau_hinh": False, "ma": exc.code, "ly_do": str(exc), "goi_y": goi_y_ma(exc.code),
                              "bo_tai": {"san_sang": False, "trang_thai": None}, "muc": []}, cookie)
     bo_tai = _bo_tai(dv)
-    if any((m.get("ly_do") or "").startswith("NODE_KHACH_") for m in muc):
+    if any(m.get("ly_do") in {"NODE_" + ma for ma in MA_TREO} for m in muc):
         bo_tai["treo"] = True
     return _gui(h, 200, {"phien_ban": PHIEN_BAN, "cau_hinh": True, "bo_tai": bo_tai,
                         "duoc_khoi_dong_lai": dv.duoc_khoi_dong_lai(sid), "hang_doi": dv.trang_thai_hang_doi(sid, profiles=muc), "muc": [
