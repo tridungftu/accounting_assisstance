@@ -419,3 +419,23 @@ H3 phân loại 36 đầu việc: 19 gói đã nhập `hop-nhat`, 13 xung đột
 - M4-CD2: review Opus đang chạy (công cụ chạy trên dữ liệu thật) → gộp nếu Đạt.
 - **4 Codex đang chạy:** M4-DL5a (giao lại sau "at capacity"), **MTQ-4a3a** (migration resolver SQL cho 9 điểm CRM/M1 — giữ `pg_migrations.py`), **M4-DL5b** (lịch sử đợt chép cạnh lũy kế đã duyệt, không vào căn cứ review), **M9-1a** (đọc DOCX + cắt điều/khoản, thuần, không AI).
 - Hàng đợi tiếp: MTQ-4a3b (nối Python 9 điểm, sau 4a3a), M3-1d (cần migration — chờ 4a3a nhả `pg_migrations.py`), M4-UI0, M9-1b (lưu tệp + phiên bản + Hot Folder), M2-BR….
+### 26/10 ~15:45 — gộp M4-CD2 (Opus Đạt), M4-CD2b, M9-1a/1b/1c; MTQ-4a3a và M4-DL5a cần sửa
+- Gộp hợp nhất:
+  - ecb3c03 **M4-CD2**: review Opus Đạt, PG 128 ok.
+  - edadc5a **M4-CD2b**: PG 88 ok / 0 lỗi / 0 skip.
+  - fec33cc **M9-1a**: đọc DOCX + cắt điều/khoản.
+  - b80d4f3 **M9-1b**: đếm trang đôi, câu lỗi trung tính.
+  - eb85348 **M9-1c**: OCR Hot Folder M9, test giả lập.
+- **MTQ-4a3a** (M0045, resolver SQL 9 điểm CRM/M1): review Opus **Cần sửa**. Chặn: `kho.lien_ket_chung_tu` nhận cả liên kết `VAY_TIEN` (M9) và L11 `HD_PHIEU_KHO`. PG: 0 mã mới so v4, 1 lỗi test mới (dữ liệu giả lô M5 bị trigger chặn). Vòng 2 đang chạy. `pg_migrations.py` vẫn do lát này giữ.
+- **M4-DL5a**: review Opus **Cần sửa** (`review-m4-dl5a.md`):
+  - 02C/03A/03B vỡ với vai DUYET/KE_TOAN;
+  - câu "Cần Anh" nằm trong `ly_do` bất biến;
+  - PG có **8 mã lỗi mới** `test_m4_02b_k2` do `_tx_review`.
+
+  Vòng 2 đã soạn, chờ suất Codex.
+- **M4-DL5b**: PG 0 mã mới; review Opus đang chạy.
+- **Codex đang chạy:** M9-2b (hỏi đáp qua cổng AI, loại việc `HOI_DAP_VAY` chỉ Local), MTQ-4a3a v2, M9-4a (báo cáo lãi suất), M9-2a v2 (lead thử thật: câu hỏi tự nhiên bị bỏ sót do hư từ).
+- **Chờ sau MTQ-4a3a:** MTQ-4a3b (nối Python 9 điểm), M3-1d (tiền tố khóa). **Tạm giữ:** M4-UI0, vì đụng khai báo trang chủ đang chờ Anh ở cổng A dòng giao diện.
+- **Cần Anh (thêm):**
+  - M4-DL5b: lịch sử đợt chép có tính vào lũy kế chính thức?
+  - M9-1c: gộp sổ đếm trang ABBYY của M9 với Review?
