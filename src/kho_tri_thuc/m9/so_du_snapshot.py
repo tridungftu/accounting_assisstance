@@ -9,10 +9,9 @@ import unicodedata
 
 _TRUONG = (
     ("du_no", ("du no", "so du"), "Dư nợ"),
-    ("lai_suat_nam", ("lai suat hien hanh", "lai suat hien tai",
-                      "lai suat hien nay", "lai suat dang ap dung"), "Lãi suất hiện hành"),
+    ("lai_suat_nam", ("lai suat",), "Lãi suất hiện hành"),
     ("ky_dieu_chinh_ke_tiep", ("ky dieu chinh",), "Kỳ điều chỉnh kế tiếp"),
-    ("ngay_dao_han", ("ngay dao han",), "Ngày đáo hạn"),
+    ("ngay_dao_han", ("dao han",), "Ngày đáo hạn"),
 )
 _DINH_DANH = ("ma_khoan_vay", "ngan_hang", "phap_nhan")
 _NHAN = re.compile(
@@ -21,8 +20,12 @@ _NHAN = re.compile(
 )
 _DUNG = re.compile(
     r"(?<![\w./-])(?:la bao nhieu|bao nhieu|la gi|hien hanh|hien tai|hien nay|hom nay"
-    r"|du no|so du|lai suat|ky dieu chinh|ngay dao han|cua|tai|thuoc)(?![\w./-])"
+    r"|bay gio|dang|du no|so du|lai suat|ky dieu chinh|ngay dao han|dao han|cua|tai|thuoc)(?![\w./-])"
 )
+_HIEN_TAI = re.compile(
+    r"(?<![\w./-])(?:hien nay|hien tai|hien hanh|bay gio|dang)(?![\w./-])"
+)
+# Chỉ khoản đánh số là dấu hiệu hợp đồng; mã như A, A-1 để bộ lọc snapshot xử lý.
 _HOP_DONG = re.compile(
     r"(?<![\w./-])(?:theo hop dong|hop dong quy dinh|dieu khoan|quy dinh"
     r"|(?:dieu|khoan) \d+(?:[./]\d+)*)(?![\w./-])"
@@ -130,7 +133,8 @@ def tra_so_du(cau_hoi: str, snapshot: dict) -> dict | None:
 
     Snapshot phải là đầu ra lap_snapshot (Sheet, mốc và các dòng chuẩn hóa).
     Thiếu số/ngày/đồng tiền thì báo thiếu; không chuyển float hay suy đoán.
-    Ngoài các từ khóa hiện trạng thì trả None để tầng gọi xử lý hợp đồng.
+    Lãi suất cần từ chỉ hiện tại hoặc định danh khớp snapshot.
+    Dấu hiệu hợp đồng tường minh luôn trả None để tầng gọi xử lý hợp đồng.
     """
     cau = _chuan(cau_hoi)
     if _HOP_DONG.search(cau):
@@ -144,6 +148,10 @@ def tra_so_du(cau_hoi: str, snapshot: dict) -> dict | None:
     cac_khoan = [k for k in snapshot["khoan_vay"] if all(
         isinstance(k.get(t), str) and _chuan(k[t]) in ds for t, ds in loc.items()
     )]
+    if not _HIEN_TAI.search(cau) and not (loc and cac_khoan):
+        truong_hoi = [(t, nhan) for t, nhan in truong_hoi if t != "lai_suat_nam"]
+        if not truong_hoi:
+            return None
     dong = []
     cau_tra_loi = []
     for khoan in cac_khoan:

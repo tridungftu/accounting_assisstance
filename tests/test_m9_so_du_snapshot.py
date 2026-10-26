@@ -72,6 +72,55 @@ class SoDuSnapshotTests(unittest.TestCase):
                 self.assertIn("7,25 %/năm", kq["tra_loi"])
                 self.kiem_moc(kq)
 
+    def test_lai_suat_khop_dinh_danh_khong_can_tu_hien_tai(self):
+        for cau, ma in (("lãi suất khoản A", ["A"]),
+                        ("lãi suất khoản vay A", ["A"]),
+                        ("lãi suất khoản A-1", ["A-1"]),
+                        ("lãi suất khoản vay A-1", ["A-1"]),
+                        ("lãi suất A", ["A"]),
+                        ("lãi suất NH B", ["A", "A-1"]),
+                        ("lai suat phap nhan Cong ty KHAC", ["C"])):
+            with self.subTest(cau=cau):
+                kq = tra_so_du(cau, self.snapshot)
+                self.assertEqual(kq["trang_thai"], "TU_SNAPSHOT")
+                self.assertEqual([d["ma_khoan_vay"] for d in kq["dong"]], ma)
+                self.assertTrue(all(d["truong"] == "lai_suat_nam" for d in kq["dong"]))
+                self.kiem_moc(kq)
+        self.assertEqual(tra_so_du("lãi suất khoản A", self.snapshot)["dong"][0]["gia_tri"],
+                         Decimal("8.5"))
+
+    def test_lai_suat_tu_hien_tai_o_moi_vi_tri(self):
+        for tu in ("hiện nay", "hiện tại", "hiện hành", "bây giờ", "đang"):
+            for mau in ("{} lãi suất NH B", "lãi suất {} của NH B",
+                        "lãi suất NH B {}", "lãi suất khoản {} A"):
+                cau = mau.format(tu)
+                with self.subTest(cau=cau):
+                    kq = tra_so_du(cau, self.snapshot)
+                    self.assertEqual(kq["trang_thai"], "TU_SNAPSHOT")
+                    ma = ["A"] if "khoản" in cau else ["A", "A-1"]
+                    self.assertEqual([d["ma_khoan_vay"] for d in kq["dong"]], ma)
+                    self.kiem_moc(kq)
+
+    def test_so_lieu_khop_dinh_danh_khong_can_tu_hien_tai(self):
+        for tu, truong in (("dư nợ", "du_no"), ("lãi suất", "lai_suat_nam"),
+                          ("kỳ điều chỉnh", "ky_dieu_chinh_ke_tiep"),
+                          ("đáo hạn", "ngay_dao_han")):
+            with self.subTest(tu=tu):
+                kq = tra_so_du(tu + " khoản A", self.snapshot)
+                self.assertEqual(kq["trang_thai"], "TU_SNAPSHOT")
+                self.assertEqual([(d["ma_khoan_vay"], d["truong"]) for d in kq["dong"]],
+                                 [("A", truong)])
+                self.kiem_moc(kq)
+
+    def test_lai_suat_thieu_dinh_danh_va_ma_la(self):
+        for cau in ("lãi suất", "lãi suất khoản A-10"):
+            with self.subTest(cau=cau):
+                self.assertIsNone(tra_so_du(cau, self.snapshot))
+        kq = tra_so_du("lãi suất khoản A-10 hiện nay", self.snapshot)
+        self.assertEqual(kq["trang_thai"], "KHONG_THAY_TRONG_SNAPSHOT")
+        self.assertEqual(kq["dong"], [])
+        self.kiem_moc(kq)
+
     def test_ngay_va_ky_dieu_chinh(self):
         for tu in ("kỳ điều chỉnh", "ky dieu chinh", "ngày đáo hạn", "ngay dao han"):
             with self.subTest(tu=tu):
@@ -176,7 +225,13 @@ class SoDuSnapshotTests(unittest.TestCase):
                     "Điều khoản về ngày đáo hạn khoản A",
                     "Quy định kỳ điều chỉnh khoản A",
                     "Dư nợ khoản A theo Điều 3", "Du no A theo khoan 2",
-                    "THEO HOP DONG LAI SUAT HIEN HANH NH B"):
+                    "THEO HOP DONG LAI SUAT HIEN HANH NH B",
+                    "lãi suất theo khoản 3 của hợp đồng",
+                    "lãi suất khoản A theo Khoản 2.1",
+                    "lãi suất NH B hiện nay theo hợp đồng",
+                    "lãi suất khoản A theo Điều 3",
+                    "hợp đồng quy định lãi suất khoản A",
+                    "điều khoản lãi suất khoản A", "quy định lãi suất khoản A"):
             with self.subTest(cau=cau):
                 self.assertIsNone(tra_so_du(cau, self.snapshot))
 
