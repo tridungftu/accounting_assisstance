@@ -1,13 +1,13 @@
 """XS-4c2: HTTP công tắc; Admin MTQ toàn hệ thống quản trị mọi pháp nhân."""
 
 from contextlib import contextmanager
+import re
 from urllib.parse import parse_qs, urlsplit
 
 from ..ha_tang.primitives import DataError
 from ..k2.ma_tran_tham_quyen import MA_403
 from ..k2.module import CongTacModuleK2, _THONG_BAO, _payload
 from . import ma_tran_tham_quyen as mtq_http
-from .khung_khai_bao import VAI
 
 PREFIX = '/api/cong-tac-module/'
 GET = frozenset(PREFIX + x for x in ('trang-thai', 'nguoi-thu'))
@@ -26,32 +26,18 @@ def la_route(post, path):
 
 class _CongTacHttpK2(CongTacModuleK2):
     def kiem_danh_muc(self, me, module):
-        if not isinstance(module, str) or not module or module != module.strip():
+        # Chỉ kiểm định dạng; danh mục thuộc các hàm SECURITY DEFINER M0056.
+        if not isinstance(module, str) or re.fullmatch(r'[A-Z0-9_]+', module) is None:
             raise DataError('MODULE_DAU_VAO', 'Cần chọn chức năng trong danh mục.')
-
-        def doc(conn):
-            if conn.execute('SELECT ma FROM master.module_danh_muc WHERE ma = %s',
-                            (module,)).fetchone() is None:
-                raise DataError('MODULE_DAU_VAO', 'Chức năng chưa có trong danh mục.')
-
-        self._run(me, doc)
 
     def phap_nhan(self, me, module, *, quan_tri=False):
         dt = self.mau.danh_tinh(me)
         with self.mau._tx(dt, rr=True) as conn:
             conn.execute('SET TRANSACTION READ ONLY')
-            if quan_tri:
-                # Kiểm cả khi danh sách PN rỗng; SQL M0056 kiểm lại từng lệnh.
-                if not conn.execute('SELECT master.mtq_la_admin() AS duoc').fetchone()['duoc']:
-                    raise DataError('MODULE_CHI_ADMIN', _THONG_BAO['MODULE_CHI_ADMIN'])
-                rows = conn.execute('SELECT id, ten FROM master.phap_nhan ORDER BY ma, id')
-            else:
-                # Cùng nguồn/predicate với CrmKhungK2.quyen; khung chưa có hàm liệt kê PN.
-                vai = dt['vai_tro']
-                rows = conn.execute('''SELECT p.id, p.ten FROM master.phap_nhan p
-                    WHERE master.ktt_duoc(p.id, %s)
-                      AND master.ktt_co_vai(p.id, %s::text[], NULL)
-                    ORDER BY p.ma, p.id''', (module, [vai] if vai in VAI else []))
+            # Cùng phạm vi PN cho mọi GET; hàm M0056 tự kiểm Admin khi đọc người thử.
+            rows = conn.execute('''SELECT p.id, p.ten FROM master.phap_nhan p
+                WHERE p.id IN (SELECT master.ktt_pn_cho_phep())
+                ORDER BY p.ma, p.id''')
             return [{'phap_nhan_id': str(r['id']), 'ten_phap_nhan': r['ten']} for r in rows]
 
 

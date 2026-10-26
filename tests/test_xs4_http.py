@@ -1,19 +1,33 @@
-"""XS-4c2: gọi Handler trực tiếp, không cổng mạng/CSDL/tệp tạm hoặc thao tác xóa."""
+"""XS-4c2: Handler trực tiếp, kiểm tĩnh và PG tùy chọn trên CSDL giả mới.
 
+PG chỉ dùng KHO_PG_DSN_TEST; giữ CSDL cho lead, không có thao tác xóa.
+"""
+
+import ast
 from contextlib import contextmanager
 import io
 import json
+import os
+from pathlib import Path
+import re
 import threading
 from types import SimpleNamespace
 import unittest
 from unittest.mock import Mock, patch
 from urllib.parse import parse_qs, urlsplit
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from kho_tri_thuc.giao_dien import module_cong_tac as http
 from kho_tri_thuc.giao_dien.server import Handler
 from kho_tri_thuc.ha_tang.primitives import DataError
 
+try:
+    import psycopg
+except ImportError:
+    psycopg = None
+
+ROOT = Path(__file__).resolve().parents[1]
+DSN = os.environ.get('KHO_PG_DSN_TEST')
 PN_A = '00000000-0000-0000-0000-000000000001'
 PN_B = '00000000-0000-0000-0000-000000000002'
 TESTER = '00000000-0000-0000-0000-000000000003'
@@ -27,6 +41,9 @@ FLAGS = {
            'cho_ghi': False, 'cho_xuat_ngoai': False, 'cong_bo_chinh_thuc': False,
            'dai_dang_thu': False},
 }
+FLAGS_TAT = {'che_do': 'TAT', 'revision': 0, 'hien_luoi': False, 'cho_xem': True,
+             'cho_ghi': False, 'cho_xuat_ngoai': False, 'cong_bo_chinh_thuc': False,
+             'dai_dang_thu': False}
 
 
 class Rows(list):
@@ -42,7 +59,6 @@ class ModuleHttpTests(unittest.TestCase):
         self.app._crm_db = Mock(side_effect=lambda fn, *a: fn(*a))
         self.admin = True
         self.allowed = [PN_A, PN_B]
-        self.all_pn = [PN_A, PN_B]
         self.catalog = set(CATALOG)
         self.error = None
         self.events = []
@@ -82,27 +98,22 @@ class ModuleHttpTests(unittest.TestCase):
     def sql(self, sql, args=()):
         if sql == 'SET TRANSACTION READ ONLY':
             return Rows()
-        if 'FROM master.module_danh_muc' in sql:
-            return Rows([{'ma': args[0]}] if args[0] in self.catalog else [])
-        if sql == 'SELECT master.mtq_la_admin() AS duoc':
-            return Rows([{'duoc': self.admin}])
         if 'FROM master.phap_nhan' in sql:
-            if 'master.ktt_duoc' in sql:
-                self.assertIn('master.ktt_co_vai(p.id, %s::text[], NULL)', sql)
-                self.assertIn(args[0], self.catalog)
-                self.assertEqual(args[1], ['KE_TOAN'])
-                ids = self.allowed
-            else:
-                self.assertTrue(self.admin)
-                ids = self.all_pn
-            return Rows([{'id': UUID(pn), 'ten': 'Pháp nhân giả ' + pn[-1]} for pn in ids])
+            self.assertIn('p.id IN (SELECT master.ktt_pn_cho_phep())', sql)
+            self.assertNotIn('master.ktt_duoc', sql)
+            self.assertNotIn('master.ktt_co_vai', sql)
+            self.assertEqual(args, ())
+            return Rows([{'id': UUID(pn), 'ten': 'Pháp nhân giả ' + pn[-1]}
+                         for pn in self.allowed])
         if sql.startswith('SELECT master.module_trang_thai('):
-            return Rows([{'r': dict(FLAGS[args[1]])}])
+            return Rows([{'r': dict(FLAGS[args[1]] if args[0] in self.catalog else FLAGS_TAT)}])
         if 'master.module_' in sql:
             if not self.admin:
                 self.deny('MODULE_CHI_ADMIN')
             if self.error:
                 self.deny(self.error)
+            if args[0] not in self.catalog:
+                self.deny('MODULE_DAU_VAO')
             if 'module_doi_che_do' in sql:
                 if args[-1] != FLAGS[args[1]]['revision']:
                     self.deny('MODULE_REVISION')
@@ -156,13 +167,39 @@ class ModuleHttpTests(unittest.TestCase):
     def test_khong_tra_pn_ngoai_pham_vi(self):
         self.admin = False
         self.allowed = [PN_B]
-        self.assertEqual([r['phap_nhan_id'] for r in self.call()[1]], [PN_B])
+        status, rows = self.call()
+        self.assertEqual(status, 200)
+        self.assertEqual([r['phap_nhan_id'] for r in rows], [PN_B])
         calls = [c.args[1] for c in self.conn.execute.call_args_list if 'module_trang_thai(' in c.args[0]]
         self.assertEqual(calls, [('CRM', PN_B)])
 
+    def test_du_an_co_m4_tai_pn_a_doc_trang_thai(self):
+        self.admin = False
+        self.allowed = [PN_A]
+        self.mau.danh_tinh.return_value['vai_tro'] = 'DU_AN'
+        status, rows = self.call('trang-thai?module=M4')
+        self.assertEqual(status, 200)
+        self.assertEqual(rows, [{**FLAGS[PN_A], 'phap_nhan_id': PN_A,
+                                'ten_phap_nhan': 'Pháp nhân giả 1'}])
+        self.conn.execute.assert_any_call(
+            'SELECT master.module_trang_thai(%s,%s::uuid) AS r', ('M4', PN_A))
+
+    def test_pham_vi_pn_khong_loc_theo_module(self):
+        self.admin = False
+        self.allowed = [PN_A]
+        self.mau.danh_tinh.return_value['vai_tro'] = 'DU_AN'
+        for module in CATALOG:
+            with self.subTest(module=module):
+                status, rows = self.call('trang-thai?module=' + module)
+                self.assertEqual(status, 200)
+                self.assertEqual([r['phap_nhan_id'] for r in rows], [PN_A])
+
     def test_khong_co_pn_tra_danh_sach_rong(self):
+        self.admin = False
         self.allowed = []
         self.assertEqual(self.call(), (200, []))
+        self.assertFalse(any('module_trang_thai(' in c.args[0]
+                             for c in self.conn.execute.call_args_list))
 
     def test_module_tu_danh_muc_khong_hardcode_crm(self):
         for module in CATALOG:
@@ -172,14 +209,28 @@ class ModuleHttpTests(unittest.TestCase):
         self.allowed = []
         self.assertEqual(self.call('trang-thai?module=MODULE_KHAI_BAO_MOI'), (200, []))
 
+    def test_get_module_chua_khai_bao_tra_tat_tu_ham_sql(self):
+        self.admin = False
+        status, rows = self.call('trang-thai?module=CHUA_KHAI_BAO')
+        self.assertEqual(status, 200)
+        self.assertEqual(rows, [{**FLAGS_TAT, 'phap_nhan_id': pn,
+                                'ten_phap_nhan': 'Pháp nhân giả ' + pn[-1]}
+                               for pn in self.allowed])
+        self.conn.execute.assert_any_call(
+            'SELECT master.module_trang_thai(%s,%s::uuid) AS r', ('CHUA_KHAI_BAO', PN_A))
+
     def test_query_sai_bi_chan_ke_ca_pn_rong_va_lap(self):
         queries = ('', '?module=CRM&phap_nhan_id=' + PN_A, '?module=CRM&phap_nhan_id=',
-                   '?module=CRM&module=', '?module=', '?module=crm', '?module=SAI',
+                   '?module=CRM&module=', '?module=', '?module=crm', '?module=CRM-M2',
+                   '?module=CR%20M', '?module=CRM%20', '?module=CRM%0A', '?module=%C4%90',
                    '?module=%20CRM', '?module=CRM&actor=gia', '?module=' + '&x=1' * 11)
         for route in ('trang-thai', 'nguoi-thu'):
-            for query in queries:
-                with self.subTest(route=route, query=query):
-                    self.assertEqual(self.call(route + query)[0], 400)
+            for empty in (False, True):
+                self.allowed = [] if empty else [PN_A, PN_B]
+                for query in queries:
+                    with self.subTest(route=route, empty=empty, query=query):
+                        self.assertEqual(self.call(route + query)[0], 400)
+        self.conn.execute.assert_not_called()
 
     def test_query_pn_bi_chan_khi_goi_module_truc_tiep(self):
         self.assertEqual(self.call('trang-thai?module=CRM&phap_nhan_id=', direct=True)[0], 400)
@@ -208,7 +259,9 @@ class ModuleHttpTests(unittest.TestCase):
         bad = [self.command(revision=x) for x in (True, -1, 2 ** 63, '2', None)]
         bad += [self.command(che_do='SAI'), self.command(ly_do=' '),
                 self.command(phap_nhan_id='SAI'), self.command(actor='gia'),
-                self.command(expected_revision=2), self.command(module=' CRM')]
+                self.command(expected_revision=2)]
+        bad += [self.command(module=module) for module in
+                (' CRM', 'CRM ', 'CRM\n', 'CR M', 'crm', 'CRM-M2', 'Đ', '', None, 1, [])]
         p = self.command()
         p.pop('revision')
         bad += [p, {}, []]
@@ -218,8 +271,11 @@ class ModuleHttpTests(unittest.TestCase):
         self.conn.execute.assert_not_called()
 
     def test_post_module_la_400(self):
-        self.assertEqual(self.call('che-do', self.command(module='SAI'), post=True)[0], 400)
-        self.assertFalse(any('module_doi_che_do(' in c.args[0] for c in self.conn.execute.call_args_list))
+        status, result = self.call('che-do', self.command(module='SAI'), post=True)
+        self.assertEqual((status, result['error']), (400, 'MODULE_DAU_VAO'))
+        self.assertEqual(result['message'], http._THONG_BAO['MODULE_DAU_VAO'])
+        self.assertTrue(any('module_doi_che_do(' in c.args[0] for c in self.conn.execute.call_args_list))
+        self.assertEqual(self.events[-1], 'rollback')
 
     def test_post_khong_nhan_query(self):
         for route in http.POST:
@@ -237,22 +293,27 @@ class ModuleHttpTests(unittest.TestCase):
                     self.assertEqual(status, 200 if admin else 403)
                     self.assertEqual(result.get('id'), TESTER if admin else None)
 
-    def test_nguoi_thu_xem_toan_he_thong_chi_admin(self):
+    def test_nguoi_thu_trong_pham_vi_pn_chi_admin(self):
         self.allowed = [PN_A]
         self.admin = False
         self.assertEqual(self.call('nguoi-thu?module=CRM')[0], 403)
         self.admin = True
         status, rows = self.call('nguoi-thu?module=CRM')
         self.assertEqual(status, 200)
-        self.assertEqual([r['phap_nhan_id'] for r in rows], self.all_pn)
+        self.assertEqual([r['phap_nhan_id'] for r in rows], self.allowed)
         self.assertTrue(all(r['nguoi_dung_id'] == TESTER for r in rows))
+        calls = [c.args[1] for c in self.conn.execute.call_args_list
+                 if 'module_danh_sach_nguoi_thu(' in c.args[0]]
+        self.assertEqual(calls, [('CRM', PN_A), ('CRM', PN_A)])
 
-    def test_xem_nguoi_thu_van_kiem_admin_khi_khong_co_pn(self):
-        self.all_pn = []
-        self.admin = False
-        self.assertEqual(self.call('nguoi-thu?module=CRM')[0], 403)
-        self.admin = True
-        self.assertEqual(self.call('nguoi-thu?module=CRM'), (200, []))
+    def test_xem_nguoi_thu_khong_co_pn_tra_rong_khong_lo_thong_tin(self):
+        self.allowed = []
+        for admin in (False, True):
+            with self.subTest(admin=admin):
+                self.admin = admin
+                self.assertEqual(self.call('nguoi-thu?module=CRM'), (200, []))
+        self.assertFalse(any('module_danh_sach_nguoi_thu(' in c.args[0]
+                             for c in self.conn.execute.call_args_list))
 
     def test_nguoi_thu_than_sai_400(self):
         for route in ('nguoi-thu/cap', 'nguoi-thu/thu-hoi'):
@@ -350,6 +411,37 @@ class ModuleHttpTests(unittest.TestCase):
 
 
 class FactoryTests(unittest.TestCase):
+    table_read = re.compile(
+        r'\b(?:FROM|JOIN)\s+(?:ONLY\s+)?master\.module_[A-Z0-9_]+\b(?!\s*\()',
+        re.IGNORECASE)
+
+    def test_mau_doc_bang_phan_biet_loi_goi_ham(self):
+        for clause in ('FROM', 'JOIN'):
+            for spacing in ('', ' ', '\n\t'):
+                with self.subTest(clause=clause, spacing=spacing):
+                    self.assertIsNone(self.table_read.search(
+                        f'SELECT * {clause} master.module_danh_sach_nguoi_thu{spacing}(%s)'))
+            for suffix in ('', ' AS m', '\nWHERE true'):
+                with self.subTest(clause=clause, suffix=suffix):
+                    self.assertIsNotNone(self.table_read.search(
+                        f'SELECT * {clause} master.module_nguoi_thu{suffix}'))
+
+    def test_http_va_dich_vu_khong_select_truc_tiep_bang_module(self):
+        for relative in ('giao_dien/module_cong_tac.py', 'k2/module.py'):
+            with self.subTest(file=relative):
+                tree = ast.parse((ROOT / 'src/kho_tri_thuc' / relative).read_text(encoding='utf-8'))
+                for node in ast.walk(tree):
+                    if isinstance(node, ast.Constant) and isinstance(node.value, str):
+                        self.assertIsNone(self.table_read.search(node.value),
+                                          f'{relative}:{node.lineno}: FROM/JOIN master.module_ bị cấm')
+
+    def test_http_va_dich_vu_khong_goi_mtq_la_admin(self):
+        forbidden = re.compile(r'\bmtq_la_admin\s*\(', re.IGNORECASE)
+        for relative in ('giao_dien/module_cong_tac.py', 'k2/module.py'):
+            with self.subTest(file=relative):
+                source = (ROOT / 'src/kho_tri_thuc' / relative).read_text(encoding='utf-8')
+                self.assertIsNone(forbidden.search(source), relative)
+
     def test_tai_dung_factory_mtq_va_dong_ket_noi_khi_loi(self):
         mau, events = object(), []
 
@@ -367,6 +459,129 @@ class FactoryTests(unittest.TestCase):
                     self.assertIs(svc.mau, mau)
                     raise RuntimeError('Thử lỗi')
         self.assertEqual(events, ['open', 'close'])
+
+
+@unittest.skipUnless(DSN and psycopg is not None,
+                     'NOT_RUN: cần KHO_PG_DSN_TEST + psycopg; lead chạy PG')
+class ModuleHttpPostgres(unittest.TestCase):
+    # Tái dùng Handler/serializer thật, chỉ thay factory bằng dịch vụ PG test.
+    handler = ModuleHttpTests.handler
+    call = ModuleHttpTests.call
+    command = ModuleHttpTests.command
+
+    @classmethod
+    def setUpClass(cls):
+        from psycopg import sql
+        from psycopg.conninfo import make_conninfo
+        from psycopg.rows import dict_row
+        from kho_tri_thuc.ha_tang import postgres
+        from kho_tri_thuc.k2.crm_mau import CrmMauK2
+
+        cls.db = 'kho_test_xs4c2_' + uuid4().hex[:12]
+        with psycopg.connect(DSN, autocommit=True) as admin:
+            admin.execute("DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname='app_web') "
+                          "THEN CREATE ROLE app_web NOLOGIN NOINHERIT; END IF; END $$")
+            admin.execute(sql.SQL("CREATE DATABASE {} ENCODING 'UTF8' TEMPLATE template0")
+                          .format(sql.Identifier(cls.db)))
+        test_dsn = make_conninfo(DSN, dbname=cls.db)
+        owner = psycopg.connect(test_dsn, autocommit=True, row_factory=dict_row)
+        cls.addClassCleanup(owner.close)
+        postgres.migrate(owner)
+        with owner.transaction():
+            cls.login = 'MO_PHONG_XS4C2_' + uuid4().hex
+            actor = owner.execute(
+                "INSERT INTO master.nguoi_dung (ten,dang_nhap,vai_tro,mo_phong) "
+                "VALUES ('Admin giả XS4c2',%s,'XEM',true) RETURNING id",
+                (cls.login,)).fetchone()['id']
+            owner.execute("SELECT master.mtq_bootstrap_admin(%s::uuid,%s::uuid,'Admin giả XS4c2')",
+                          (actor, uuid4()))
+            owner.execute("SELECT set_config('ktt.nguoi_dung_id',%s,true),"
+                          "set_config('ktt.nguoi_dung_dang_nhap',%s,true)",
+                          (str(actor), cls.login))
+            cls.pn = str(owner.execute(
+                "INSERT INTO master.phap_nhan (ma,ten) VALUES (%s,'Pháp nhân giả XS4c2') RETURNING id",
+                (uuid4().hex,)).fetchone()['id'])
+            owner.execute("INSERT INTO master.phan_quyen (nguoi_dung_id,phap_nhan_id,module) "
+                          "VALUES (%s,%s::uuid,ARRAY['CRM'])", (actor, cls.pn))
+            cls.other_login = 'MO_PHONG_XS4C2_' + uuid4().hex
+            other = owner.execute(
+                "INSERT INTO master.nguoi_dung (ten,dang_nhap,vai_tro,mo_phong) "
+                "VALUES ('Người dùng giả XS4c2',%s,'XEM',true) RETURNING id",
+                (cls.other_login,)).fetchone()['id']
+            owner.execute("INSERT INTO master.phan_quyen (nguoi_dung_id,phap_nhan_id,module) "
+                          "VALUES (%s,%s::uuid,ARRAY['CRM'])", (other, cls.pn))
+        cls.c = psycopg.connect(test_dsn, autocommit=True, row_factory=dict_row)
+        cls.addClassCleanup(cls.c.close)
+        # SET ROLE theo phiên để danh_tinh lẫn mọi _tx đều chạy dưới app_web.
+        cls.c.execute('SET ROLE app_web')
+        cls.mau = CrmMauK2(cls.c, ROOT, conn_tin_cay=cls.c)
+        cls.svc = http._CongTacHttpK2(cls.mau)
+
+    def setUp(self):
+        self.app = SimpleNamespace(mutation_lock=threading.Lock(), token='TOKEN-DEMO-XS4C2-PG',
+                                   CRM_COOKIE='CRM_DEMO', is_that=False)
+        self.app.crm_phien = Mock(return_value=('sid-demo', self.login, False))
+        self.app._crm_db = Mock(side_effect=lambda fn, *a: fn(*a))
+
+        @contextmanager
+        def service(app):
+            self.assertIs(app, self.app)
+            self.assertTrue(app.mutation_lock.locked())
+            yield self.svc
+
+        factory_patch = patch.object(http, 'dich_vu', side_effect=service)
+        factory_patch.start()
+        self.addCleanup(factory_patch.stop)
+
+    def test_app_web_doc_phap_nhan_trang_thai_va_admin_post_khong_loi_quyen(self):
+        self.assertEqual(self.c.execute('SELECT current_user AS vai').fetchone()['vai'], 'app_web')
+        self.assertFalse(self.c.execute(
+            "SELECT has_function_privilege(current_user,'master.mtq_la_admin()','EXECUTE') AS duoc"
+        ).fetchone()['duoc'])
+        for table in ('module_danh_muc', 'module_cong_tac', 'module_nguoi_thu'):
+            with self.subTest(table=table):
+                self.assertFalse(self.c.execute(
+                    "SELECT has_table_privilege(current_user,%s,'SELECT') AS duoc",
+                    ('master.' + table,)).fetchone()['duoc'])
+        self.svc.kiem_danh_muc(self.login, 'CRM')
+        for quan_tri in (False, True):
+            with self.subTest(quan_tri=quan_tri):
+                rows = self.svc.phap_nhan(self.login, 'CRM', quan_tri=quan_tri)
+                self.assertIn(self.pn, [r['phap_nhan_id'] for r in rows])
+        before = self.svc.trang_thai(self.login, 'CRM', self.pn)
+        self.assertEqual((before['che_do'], before['revision']), ('VAN_HANH', 0))
+        status, rows = self.call()
+        self.assertEqual(status, 200)
+        self.assertIn(self.pn, [r['phap_nhan_id'] for r in rows])
+        with patch.object(self.svc, 'danh_sach_nguoi_thu',
+                          wraps=self.svc.danh_sach_nguoi_thu) as danh_sach:
+            self.assertEqual(self.call('nguoi-thu?module=CRM')[0], 200)
+            danh_sach.assert_any_call(self.login, 'CRM', self.pn)
+        self.assertEqual(self.call('che-do', self.command(phap_nhan_id=self.pn, revision=0), post=True),
+                         (200, {'revision': 1}))
+        after = self.svc.trang_thai(self.login, 'CRM', self.pn)
+        self.assertEqual((after['che_do'], after['revision']), ('THU', 1))
+        self.assertTrue(after['cho_ghi'])
+        self.assertFalse(after['cho_xuat_ngoai'])
+        status, rows = self.call('trang-thai?module=CHUA_KHAI_BAO')
+        self.assertEqual(status, 200)
+        self.assertTrue(rows)
+        for row in rows:
+            self.assertEqual({key: row[key] for key in FLAGS_TAT}, FLAGS_TAT)
+        status, result = self.call('che-do', self.command(
+            module='CHUA_KHAI_BAO', phap_nhan_id=self.pn, revision=0), post=True)
+        self.assertEqual((status, result['error']), (400, 'MODULE_DAU_VAO'))
+        self.assertEqual(result['message'], http._THONG_BAO['MODULE_DAU_VAO'])
+
+    def test_app_web_khong_admin_xem_nguoi_thu_403_trang_thai_200(self):
+        self.assertEqual(self.c.execute('SELECT current_user AS vai').fetchone()['vai'], 'app_web')
+        self.app.crm_phien.return_value = ('sid-demo', self.other_login, False)
+        status, rows = self.call()
+        self.assertEqual(status, 200)
+        self.assertIn(self.pn, [r['phap_nhan_id'] for r in rows])
+        status, result = self.call('nguoi-thu?module=CRM')
+        self.assertEqual((status, result['error']), (403, 'MODULE_CHI_ADMIN'))
+        self.assertEqual(result['message'], http._THONG_BAO['MODULE_CHI_ADMIN'])
 
 
 if __name__ == '__main__':
