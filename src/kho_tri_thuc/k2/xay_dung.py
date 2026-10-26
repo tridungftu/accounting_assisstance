@@ -696,8 +696,7 @@ class XayDungK2:
                 c.execute("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ")
             c.execute("SELECT set_config('ktt.nguoi_dung_id', %s, true), set_config('ktt.nguoi_dung_dang_nhap', %s, true), "
                       "set_config('ktt.ngay_hieu_luc', %s, true)", (dt["id"], dt["dang_nhap"], self.hom_nay().isoformat()))
-            with self._tx(dt):  # phiên thường mang danh tính, DL2 kiểm quyền trước đọc owner
-                yield c
+            yield c
 
     @staticmethod
     def _r1(c, sql, params=()):
@@ -731,7 +730,7 @@ class XayDungK2:
         finally:
             c.execute("SELECT pg_advisory_unlock(hashtextextended(%s, 0))", (k,))
 
-    def _co_so(self, c, *, conn_phien=None, du_an: str, tep: str, dot: str | None, che_do: str, o_dich) -> dict:
+    def _co_so(self, c, *, du_an: str, tep: str, dot: str | None, che_do: str, o_dich) -> dict:
         """Basis ĐẦY ĐỦ chụp từ PG (gọi trong giao dịch của người gọi): tệp + raw, đợt + nộp, HĐ + revision/tham số 37 mã (trạng thái typed)/lần
         trích/xác nhận + digest hiện tại, mọi phụ lục, BOQ hiện hành từng nguồn (TẤT CẢ dòng, không LIMIT GUI), ghép tay hiện hành THẤY ĐƯỢC theo
         quyền phiên, các đợt của HĐ và trạng thái nguồn đợt trước đã duyệt (chưa có ở gói này). Không nhận dữ kiện máy từ trình duyệt."""
@@ -787,7 +786,7 @@ class XayDungK2:
             "trang_thai": "CHUA_CO_NGUON",
             "ly_do": "Gói M4-02A chưa có lịch sử đợt trước đã được reviewer duyệt (DA_NOP chỉ là đã nộp) — không suy từ số đợt/vắng dữ "
                      "liệu, không coi vắng là 0; nối khi có quyết định duyệt bất biến"}
-        return NR.chup_review_l2(co, c, conn_phien=conn_phien)
+        return NR.chup_review_l2(co, c)
 
     @staticmethod
     def _sha_co_so(co: dict) -> str:
@@ -851,7 +850,7 @@ class XayDungK2:
             thu_muc.mkdir(parents=True, exist_ok=False)  # đường dẫn riêng, tạo mới cho đúng lần chạy này (không ghi đè lần khác)
             chep = co.get("review_chep") or {}
             if chep.get("can_xem_lai"):
-                raise DataError("M4_REVIEW_CAN_XEM_LAI", "Cần xem lại: " + " ".join(chep["ly_do"]) + " Cần Anh/lead chốt nguồn; chưa tính.")
+                raise DataError("M4_REVIEW_CAN_XEM_LAI", "Cần xem lại nguồn phụ lục/BOQ: " + " ".join(chep["ly_do"]) + " Chưa tính.")
             raw = self._raw(tep["raw_sha256"], tep["byte_length"])
             xlsx = NR.ban_lam_viec(raw, self.root / "m4-lam-viec", ".xlsx")
             vao = {"run_id": run_id, "basis": co, "basis_sha256": sha_co_so, "xlsx": str(xlsx), "raw_sha256": tep["raw_sha256"], "che_do": che_do,
@@ -953,11 +952,13 @@ class XayDungK2:
                 if dot:  # ổn định basis trong giao dịch công bố: mọi lệnh M4 sửa HĐ/đợt/BOQ/PL/tham số/ghép tay đều cần FOR UPDATE hàng này
                     c.execute("""SELECT 1 FROM m4.ho_so_hop_dong WHERE hop_dong_id = (SELECT hop_dong_id FROM m4.dot WHERE id = %s::uuid) FOR SHARE""", (dot,))
                 c.execute("SELECT m4.review_kiem(%s::uuid, %s::uuid, %s::uuid)", (du_an, dot, tep))
-                sha_nay = self._sha_co_so(self._co_so(c, conn_phien=self.conn, du_an=du_an, tep=tep, dot=dot, che_do=che_do, o_dich=o_dich))
+                # FAILED không công bố kết quả tính; không đọc lại nguồn đang lỗi
+                # ở lần đóng dự phòng (NULL không được dùng như một basis đã kiểm).
+                sha_nay = None if tt == "FAILED" else self._sha_co_so(self._co_so(c, du_an=du_an, tep=tep, dot=dot, che_do=che_do, o_dich=o_dich))
                 r = self._r1(c, "SELECT m4.review_cong_bo(%s::uuid, %s::jsonb, %s, %s::jsonb, %s, %s, %s::jsonb, %s) AS r",
                              (run_id, kq_j, kq_sha, json.dumps(kq.get("coverage") or {}, ensure_ascii=False), tt, sha_nay, art_j, ly_do))["r"]
-        except psycopg.Error as exc:
-            ma = ((getattr(getattr(exc, "diag", None), "message_primary", "") or "").split(":", 1)[0]).strip()
+        except (psycopg.Error, DataError) as exc:
+            ma = getattr(exc, "code", None) or ((getattr(getattr(exc, "diag", None), "message_primary", "") or "").split(":", 1)[0]).strip()
             if ma in ("M4_KHONG_CO_QUYEN_DU_AN", "M4_REVIEW_PHAM_VI", "M4_DANH_TINH"):
                 with self._tx_review(dt) as c:
                     c.execute("SELECT m4.review_huy(%s::uuid, %s, %s::jsonb, %s::jsonb)",
@@ -969,7 +970,7 @@ class XayDungK2:
                     return self._review_cong_bo(dt, run_id, {"trang_thai": "FAILED", "loi": f"Công bố lỗi ({ma or type(exc).__name__})"}, art,
                                                 f"Công bố kết quả lỗi ({ma or type(exc).__name__}) — đóng FAILED, giữ bằng chứng",
                                                 du_an=du_an, tep=tep, dot=dot, che_do=che_do, o_dich=o_dich)
-                except psycopg.Error:
+                except (psycopg.Error, DataError):
                     pass
             raise
         return {**r["ket_qua"], "lap_lai": bool(r["lap_lai"])}
@@ -985,7 +986,7 @@ class XayDungK2:
                 return {**g["ket_qua"], "lap_lai": True}
             with self._tx_review(dt, rr=True) as c:  # (2) một snapshot RR: quyền → basis → CAS expected → tạo lần chạy
                 c.execute("SELECT m4.review_kiem(%s::uuid, %s::uuid, %s::uuid)", (du_an, dot, tep))
-                co = self._co_so(c, conn_phien=self.conn, du_an=du_an, tep=tep, dot=dot, che_do=che_do, o_dich=o_dich)
+                co = self._co_so(c, du_an=du_an, tep=tep, dot=dot, che_do=che_do, o_dich=o_dich)
                 sha = self._sha_co_so(co)
                 if sha != exp:
                     raise DataError("M4_REVIEW_CO_SO_DOI", "Căn cứ (tệp/đợt/HĐ/tham số/PL/BOQ/ghép tay) đã đổi so với lúc xem — tải lại danh sách Review rồi chạy.")
@@ -1063,7 +1064,7 @@ class XayDungK2:
                               (khoa, p["du_an_id"], p["dot_id"], p["tep_id"], yc_j))["r"]
                 if cu is not None:
                     return {**cu, "lap_lai": True}
-                co = self._co_so(c, conn_phien=self.conn, du_an=p["du_an_id"], tep=p["tep_id"], dot=p["dot_id"], che_do=p["che_do"], o_dich=p["o_dich"])
+                co = self._co_so(c, du_an=p["du_an_id"], tep=p["tep_id"], dot=p["dot_id"], che_do=p["che_do"], o_dich=p["o_dich"])
                 if self._sha_co_so(co) != exp:
                     raise DataError("M4_REVIEW_CO_SO_DOI", "Căn cứ đã đổi so với lúc xem — tải lại rồi ghép.")
                 dich = self._dich_hieu_luc(co, ma_hm)  # FIX01 R6: đúng dòng nguồn engine dùng tại ngày NT (cùng snapshot, trước mọi hiệu lực)
@@ -1136,7 +1137,7 @@ class XayDungK2:
                 mode = che_do or ("L1_L2" if dot else "L1")
                 with self._tx_review(dt, rr=True) as c:
                     q = self._r1(c, "SELECT m4.review_kiem(%s::uuid, %s::uuid, %s::uuid) AS q", (t["du_an_id"], dot, tep))["q"]
-                    co = self._co_so(c, conn_phien=self.conn, du_an=t["du_an_id"], tep=tep, dot=dot, che_do=mode, o_dich=o)
+                    co = self._co_so(c, du_an=t["du_an_id"], tep=tep, dot=dot, che_do=mode, o_dich=o)
                 co_so = {"san_sang": True, "basis_sha256": self._sha_co_so(co), "quyen": q, "che_do": mode, "o_dich": o, "du_an_id": t["du_an_id"],
                          "phu_thuoc": RC.phu_thuoc(co) if mode == "L1_L2" else {}, "so_ghep_tay": len(co.get("manual_map") or []),
                          "ngay_nghiem_thu": (co.get("dot") or {}).get("ngay_nghiem_thu"), "engine": NR.ENGINE_REVIEW}
@@ -1248,7 +1249,7 @@ class XayDungK2:
         if r.get("engine_sha256") != NR.ENGINE_REVIEW_SHA:
             khac = ["engine_sha256"]
         else:
-            hien = self._co_so(c, conn_phien=self.conn, du_an=d["du_an_id"], tep=r["tep_id"], dot=dot, che_do="L1_L2", o_dich=r.get("o_dich"))
+            hien = self._co_so(c, du_an=d["du_an_id"], tep=r["tep_id"], dot=dot, che_do="L1_L2", o_dich=r.get("o_dich"))
             a, b = self._l2_phan_phu_thuoc(cu), self._l2_phan_phu_thuoc(hien)
             khac = sorted(k for k in a if canonical_json(a[k]) != canonical_json(b[k]))
         if khac:

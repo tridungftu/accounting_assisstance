@@ -601,82 +601,118 @@ def ma_hd_projection(hop_dong_id: str) -> str:
     return "M4" + str(hop_dong_id).replace("-", "").upper()
 
 
-def chup_review_l2(co_so: dict, conn_tin_cay, *, conn_phien):
-    """Bổ sung basis nội bộ trong transaction RR của K2; không đọc nếu thiếu phiên.
+_COT_TINH_REVIEW = {
+    "phu_luc": ("id", "so_pl", "ngay_ky", "ngay_hieu_luc", "loai", "doi_boq",
+                "gt_truoc_vat", "gt_sau_vat", "gt_hd_sau_pl", "noi_dung", "can_cu", "trang_thai"),
+    "thay_doi_tham_so": ("pl_id", "ma_ts", "gia_tri_cu", "gia_tri_moi", "trich_dan"),
+    "boq_dong": ("pl_id", "thao_tac", "ma_hm", "stt", "nhom", "ten", "dvt", "kl", "don_gia",
+                 "thanh_tien_ghi", "khoa", "vi_tri_nguon", "ma_rieng"),
+}
 
-    DTO DL3 cố ý bỏ ID/khóa/lịch sử thô nên compute đọc cột nguồn bằng cùng
-    kiểm quyền và bộ chọn bản hiện hành DL2. Không đọc lại PG trong worker.
-    Các dòng đánh dấu review_chep chỉ là dữ liệu tính, không là BOQ đã duyệt.
+
+def chup_review_l2(co_so: dict, c):
+    """Caller đã chạy cổng *_kiem và đặt danh tính trên giao dịch c.
+
+    Kiểm lại mọi vai M4 trên CHÍNH snapshot đó trước khi đọc bản hiện hành;
+    không mở giao dịch/kết nối phiên khác, không đọc PG trong worker.
     """
-    if conn_phien is None or not co_so.get("hop_dong"):
+    if not co_so.get("hop_dong"):
         return co_so
     from .review_data_pg import ReviewDataPG
-    from .review_phu_luc_pg import _COT, _rows
+    from .review_phu_luc_pg import _rows
 
-    reader = ReviewDataPG(conn_tin_cay)
-    hd = reader._kiem_quyen_doc(co_so["hop_dong"]["id"], conn_phien=conn_phien)
-    with conn_tin_cay.transaction():
-        source, _state = reader._nguon_hien_hanh(hd)
-        if source is None:  # giữ nguyên cả basis/hash cũ cho ba trạng thái NULL
-            return co_so
-        data = {"nguon_id": source, "trang_thai": "HIEN_HANH"}
-        for table, columns in _COT.items():
-            if table == "thay_doi_tham_so":
-                query = """SELECT t.* FROM m4.review_chep_thay_doi_tham_so t
-                    JOIN m4.review_chep_phu_luc p ON (p.nguon_id,p.id)=(t.nguon_id,t.pl_id)
-                    WHERE p.nguon_id=%s AND p.hop_dong_id=%s::uuid ORDER BY t.pl_id,t.ma_ts"""
-            else:
-                query = f"SELECT * FROM m4.review_chep_{table} WHERE nguon_id=%s AND hop_dong_id=%s::uuid ORDER BY id"
-            data[table] = [{k: r[k] for k in columns} for r in _rows(conn_tin_cay, query, (source, hd))]
+    hd = co_so["hop_dong"]["id"]
+    allowed = _rows(c, """SELECT EXISTS (SELECT 1 FROM master.hop_dong h
+        WHERE h.id=%s::uuid AND h.module_chu='M4'
+          AND (master.m4_duoc(h.du_an_id, 'XEM') OR master.m4_duoc(h.du_an_id, 'REVIEW')
+               OR master.m4_duyet_duoc(h.du_an_id) OR master.m4_kt_duoc(h.du_an_id))) AS duoc""", (hd,))
+    if not allowed[0]["duoc"]:
+        _loi("M4_REVIEW_PHAM_VI", "Không có quyền đọc căn cứ hợp đồng hiện hành.")
+    source, _state = ReviewDataPG(c)._nguon_hien_hanh(hd)
+    if source is None:  # giữ nguyên cả byte basis/hash cũ cho ba trạng thái NULL
+        return co_so
+    data = {"trang_thai": "HIEN_HANH"}
+    for table, columns in _COT_TINH_REVIEW.items():
+        if table == "thay_doi_tham_so":
+            query = f"""SELECT {','.join('t.' + col for col in columns)} FROM m4.review_chep_thay_doi_tham_so t
+                JOIN m4.review_chep_phu_luc p ON (p.nguon_id,p.id)=(t.nguon_id,t.pl_id)
+                WHERE p.nguon_id=%s AND p.hop_dong_id=%s::uuid ORDER BY t.pl_id,t.ma_ts"""
+        else:
+            query = f"SELECT {','.join(columns)} FROM m4.review_chep_{table} WHERE nguon_id=%s AND hop_dong_id=%s::uuid ORDER BY id"
+        data[table] = _rows(c, query, (source, hd))
     return _basis_review_l2(co_so, data)
 
 
 def _basis_review_l2(co_so, data):
-    """Giữ metadata PL/BOQ trong basis để coverage cũ không bỏ qua PL chép.
-
-    Khóa có namespace riêng; không coi khóa INTEGER nguồn là UUID vận hành.
-    Bản thô bất biến giữ đủ cột/NULL cho projection; không hợp nhất khi trùng.
-    """
+    """PL/BOQ chép chỉ lưu một lần trong tập gộp; khóa cục bộ không mang ID nguồn."""
     data = _json_an_toan(data)
-    co_so = dict(co_so, review_chep=data)
     pls = list(co_so.get("phu_luc") or [])
     boq = list(co_so.get("boq") or [])
     reasons = []
-    ngay = (co_so.get("dot") or {}).get("ngay_nghiem_thu")
-    if ngay:
-        from .review_phu_luc_pg import _phu_luc_tai_ngay
-        operational = [dict(p, trang_thai=_TT_PL_REVIEW.get(p["trang_thai"], p["trang_thai"])) for p in pls]
-        _, reasons = _phu_luc_tai_ngay(operational + data["phu_luc"], str(ngay)[:10])
+    operational = [p for p in pls if p["trang_thai"] == "DA_KY"]
     for p in data["phu_luc"]:
-        if any(p["so_pl"].strip().casefold() == q["so_pl"].strip().casefold() for q in pls):
+        if p["trang_thai"] != "Đã ký":
+            continue
+        if any(p["so_pl"].strip().casefold() == q["so_pl"].strip().casefold() for q in operational):
             reasons.append("Trùng số phụ lục chép Review và phụ lục vận hành.")
-    if any(b.get("phu_luc_id") is None for b in boq) and any(r["pl_id"] is None for r in data["boq_dong"]):
-        reasons.append("BOQ gốc có cả nguồn Review và nguồn vận hành; cần chốt nguồn.")
-    co_so["review_chep"]["can_xem_lai"] = bool(reasons)
-    co_so["review_chep"]["ly_do"] = reasons
-    pl_ids = {p["id"]: f"review:{data['nguon_id']}:{p['id']}" for p in data["phu_luc"]}
+        if any(str(p["ngay_hieu_luc"])[:10] == str(q["ngay_hieu_luc"])[:10] for q in operational):
+            reasons.append("Trùng ngày hiệu lực phụ lục chép Review và phụ lục vận hành.")
+    if any(b["phu_luc_id"] is None and b["trang_thai"] == "DA_MAP" for b in boq) and any(r["pl_id"] is None for r in data["boq_dong"]):
+        reasons.append("BOQ gốc có cả nguồn Review và nguồn vận hành; cần xem lại nguồn.")
+    pl_ids = {p["id"]: f"review:pl:{i}" for i, p in enumerate(data["phu_luc"], 1)}
     reverse_tt = {v: k for k, v in _TT_PL_REVIEW.items()}
-    pls += [dict(p, id=pl_ids[p["id"]], trang_thai=reverse_tt.get(p["trang_thai"], "CHUA_RO"), review_chep=True)
-            for p in data["phu_luc"]]
+    for p in data["phu_luc"]:
+        row = {k: p.get(k) for k in _COT_TINH_REVIEW["phu_luc"]}
+        row.update(id=pl_ids[p["id"]], trang_thai=reverse_tt.get(p["trang_thai"], p["trang_thai"]), review_chep=True)
+        pls.append(row)
     groups = {}
-    for r in data["boq_dong"]:
-        groups.setdefault(r["pl_id"], []).append(dict(r, dong=r["id"], thanh_tien=r.get("thanh_tien_ghi")))
+    for i, r in enumerate(data["boq_dong"], 1):
+        row = {k: r.get(k) for k in _COT_TINH_REVIEW["boq_dong"] if k not in ("pl_id", "thanh_tien_ghi")}
+        # Vị trí ô vẫn cần cho parity/đối chiếu; chỉ giữ tên tệp, bỏ đường dẫn.
+        if row["vi_tri_nguon"]:
+            row["vi_tri_nguon"] = str(row["vi_tri_nguon"]).replace("\\", "/").rsplit("/", 1)[-1]
+        row.update(dong=i, thanh_tien=r.get("thanh_tien_ghi"))
+        groups.setdefault(r["pl_id"], []).append(row)
     for pl, rows in groups.items():
-        boq.append({"id": f"review:{data['nguon_id']}:boq:{pl}", "phu_luc_id": pl_ids.get(pl),
+        boq.append({"id": f"review:boq:{len(boq) + 1}", "phu_luc_id": pl_ids.get(pl),
                     "trang_thai": "DA_MAP", "sheet": "Review", "dong": rows, "review_chep": True})
-    return dict(co_so, phu_luc=pls, boq=boq)
+    # Cùng thứ tự áp dụng của vendor; kiểm thao tác trên TOÀN tập gộp để
+    # THAY/BO không khớp không bị vendor bỏ qua im lặng. Không kiểm trùng ngày
+    # nội bộ nguồn chép như DL3 (vendor tự xếp ngay_ky, so_pl).
+    ngay = str((co_so.get("dot") or {}).get("ngay_nghiem_thu") or "")[:10]
+    codes = {r["ma_hm"] for b in boq if b["phu_luc_id"] is None and b["trang_thai"] == "DA_MAP" for r in b["dong"]}
+    active = sorted((p for p in pls if p["trang_thai"] == "DA_KY" and ngay and str(p["ngay_hieu_luc"])[:10] <= ngay),
+                    key=lambda p: (str(p["ngay_hieu_luc"])[:10], str(p["ngay_ky"])[:10], p["so_pl"]))
+    for p in active:
+        for b in boq:
+            if b["phu_luc_id"] != p["id"] or b["trang_thai"] != "DA_MAP":
+                continue
+            for r in b["dong"]:
+                op, code = r["thao_tac"], r["ma_hm"]
+                if op == "THEM" and code not in codes:
+                    codes.add(code)
+                elif op == "THAY" and code in codes:
+                    pass
+                elif op == "BO" and code in codes:
+                    codes.remove(code)
+                else:
+                    reasons.append("Thao tác BOQ không khớp hạng mục đang hiệu lực.")
+    changes = [dict({k: r.get(k) for k in _COT_TINH_REVIEW["thay_doi_tham_so"]}, pl_id=pl_ids[r["pl_id"]])
+               for r in data["thay_doi_tham_so"]]
+    return dict(co_so, phu_luc=pls, boq=boq, review_chep={"trang_thai": "HIEN_HANH", "thay_doi_tham_so": changes,
+                "can_xem_lai": bool(reasons), "ly_do": list(dict.fromkeys(reasons))})
 
 
 def projection_l2(co_so: dict):
     """L2: projection SQLite :memory: theo đúng SCHEMA nguồn, nạp từ MỘT basis đã chụp từ PG (không mo_csdl/nap_master/nap_dot, không DB nguồn,
     không SQL translator). Chỉ nạp phần có căn cứ typed: tham số CO_GIA_TRI; PL metadata (GT/tham số đổi theo PL CHƯA có kiểu ở M17 → NULL,
     coverage xử lý); BOQ gốc + BOQ PL đã map (THEM/THAY; BO chưa có kiểu); ghép tay hiện hành của HĐ. dot_thanh_toan/kl_thanh_toan để TRỐNG vì
-    chưa có lịch sử đợt đã được reviewer duyệt (DA_NOP không phải 'đã duyệt'). Bản review_chep đã qua kiểm quyền phiên lúc chụp basis được nạp đủ
+    chưa có lịch sử đợt đã được reviewer duyệt (DA_NOP không phải 'đã duyệt'). Bản review_chep đã qua kiểm quyền trên giao dịch chụp basis được nạp đủ
     PL/thay đổi tham số/BOQ theo schema nguồn. Không đọc lại PG ở bước tính. Nạp xong bật query_only; người gọi đóng sau khi tính + ghi báo cáo.
     Trả (con, ban_do) với ban_do = khóa HĐ cục bộ + nguồn từng mã HM về ID PG ổn định."""
     imported = co_so.get("review_chep") or {}
     if imported.get("can_xem_lai"):
-        _loi("M4_REVIEW_CAN_XEM_LAI", "Cần xem lại: " + " ".join(imported["ly_do"]) + " Cần Anh/lead chốt nguồn; chưa tính.")
+        _loi("M4_REVIEW_CAN_XEM_LAI", "Cần xem lại nguồn phụ lục/BOQ: " + " ".join(imported["ly_do"]) + " Chưa tính.")
     cs, mh = _m("csdl_hop_dong"), _m("master_hd")
     hd = co_so["hop_dong"]
     ma_hd = ma_hd_projection(hd["id"])
@@ -697,14 +733,18 @@ def projection_l2(co_so: dict):
                 con.execute("INSERT INTO tham_so (ma_hd, ma_ts, gia_tri, don_vi, trang_thai) VALUES (?,?,?,?,?)",
                             (ma_hd, t["ma"], t["gia_tri"], t.get("don_vi"), "CO_GIA_TRI"))
         pl_so = {}
-        for i, p in enumerate((p for p in co_so.get("phu_luc") or [] if not p.get("review_chep")), 1):
-            con.execute("INSERT INTO phu_luc (id, ma_hd, so_pl, ngay_ky, ngay_hieu_luc, doi_boq, trang_thai) VALUES (?,?,?,?,?,?,?)",
-                        (i, ma_hd, p["so_pl"], str(p["ngay_ky"])[:10], str(p["ngay_hieu_luc"])[:10], 1 if p["doi_boq"] else 0, _TT_PL_REVIEW[p["trang_thai"]]))
+        for i, p in enumerate(co_so.get("phu_luc") or [], 1):
+            if p.get("review_chep"):
+                from .review_phu_luc_pg import _NUMERIC
+                row = {k: _so_thuc(p.get(k)) if k in _NUMERIC else p.get(k) for k in _COT_TINH_REVIEW["phu_luc"]}
+                row.update(id=i, ma_hd=ma_hd, trang_thai=_TT_PL_REVIEW.get(p["trang_thai"], p["trang_thai"]))
+                con.execute(f"INSERT INTO phu_luc ({','.join(row)}) VALUES ({','.join('?' for _ in row)})", tuple(row.values()))
+            else:
+                con.execute("INSERT INTO phu_luc (id, ma_hd, so_pl, ngay_ky, ngay_hieu_luc, doi_boq, trang_thai) VALUES (?,?,?,?,?,?,?)",
+                            (i, ma_hd, p["so_pl"], str(p["ngay_ky"])[:10], str(p["ngay_hieu_luc"])[:10], 1 if p["doi_boq"] else 0, _TT_PL_REVIEW[p["trang_thai"]]))
             pl_so[str(p["id"])] = i
         nguon_boq = {}
         for b in co_so.get("boq") or []:
-            if b.get("review_chep"):
-                continue
             if b["trang_thai"] != "DA_MAP":
                 continue
             pl = None if b["phu_luc_id"] is None else pl_so.get(str(b["phu_luc_id"]))
@@ -712,33 +752,18 @@ def projection_l2(co_so: dict):
                 continue
             for r in b["dong"]:
                 thao_tac = "GOC" if pl is None else r["thao_tac"]
-                khoa = mh.khoa({"nhom": r.get("nhom") or "", "ten": r["ten"], "dvt": r["dvt"]})
+                khoa = r.get("khoa") if b.get("review_chep") else mh.khoa({"nhom": r.get("nhom") or "", "ten": r["ten"], "dvt": r["dvt"]})
+                vi_tri = r.get("vi_tri_nguon") if b.get("review_chep") else f"{b['sheet']}!dòng {r['dong']}"
                 con.execute("""INSERT INTO boq_dong (ma_hd, pl_id, thao_tac, ma_hm, stt, nhom, ten, dvt, kl, don_gia, thanh_tien_ghi, khoa, vi_tri_nguon, ma_rieng)
                                VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
                             (ma_hd, pl, thao_tac, r["ma_hm"], r.get("stt"), r.get("nhom"), r["ten"], r["dvt"], _so_thuc(r.get("kl")),
-                             _so_thuc(r.get("don_gia")), _so_thuc(r.get("thanh_tien")), khoa, f"{b['sheet']}!dòng {r['dong']}", r.get("ma_rieng")))
-                nguon_boq.setdefault(r["ma_hm"], []).append({"boq_id": b["id"], "dong": r["dong"], "phu_luc_id": b["phu_luc_id"], "thao_tac": thao_tac})
+                             _so_thuc(r.get("don_gia")), _so_thuc(r.get("thanh_tien")), khoa, vi_tri, r.get("ma_rieng")))
+                if not b.get("review_chep"):
+                    nguon_boq.setdefault(r["ma_hm"], []).append({"boq_id": b["id"], "dong": r["dong"], "phu_luc_id": b["phu_luc_id"], "thao_tac": thao_tac})
         if imported.get("trang_thai") == "HIEN_HANH":
-            from .review_phu_luc_pg import _COT, _NUMERIC
-            source_pl = {}
-            for table in ("phu_luc", "thay_doi_tham_so", "boq_dong"):
-                columns = _COT[table]
-                for original in imported[table]:
-                    row = {k: original.get(k) for k in columns}
-                    if "ma_hd" in row:
-                        row["ma_hd"] = ma_hd
-                    if table == "phu_luc":
-                        local_id = len(pl_so) + 1
-                        source_pl[row["id"]] = local_id
-                        identity = f"review:{imported['nguon_id']}:{row['id']}"
-                        pl_so[identity] = row["id"] = local_id
-                    elif row.get("pl_id") is not None:
-                        row["pl_id"] = source_pl[row["pl_id"]]
-                    if table == "boq_dong":
-                        row.pop("id")  # PK cục bộ, vẫn giữ thứ tự dòng nguồn
-                    for k in row.keys() & _NUMERIC:
-                        row[k] = _so_thuc(row[k])
-                    con.execute(f"INSERT INTO {table} ({','.join(row)}) VALUES ({','.join('?' for _ in row)})", tuple(row.values()))
+            for original in imported["thay_doi_tham_so"]:
+                row = dict(original, pl_id=pl_so[original["pl_id"]])
+                con.execute(f"INSERT INTO thay_doi_tham_so ({','.join(row)}) VALUES ({','.join('?' for _ in row)})", tuple(row.values()))
         for m in co_so.get("manual_map") or []:
             con.execute("INSERT INTO khop_hang_muc (ma_hd, khoa_hstt, ma_hm, cach_khop, nguoi_xac_nhan, ngay) VALUES (?,?,?,?,?,?)",
                         (ma_hd, m["khoa_hstt"], m["ma_hm"], "ghép tay", m.get("tao_boi"), str(m.get("tao_luc") or "")[:19]))
