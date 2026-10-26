@@ -3,20 +3,21 @@
 GET ma-tran/cua-toi/nhat-ky; POST cấu hình, phòng, vai, phạm vi, Admin. Không có
 bootstrap hoặc lệnh SQL tùy ý. Gọi authorize của Handler hiện có, không tạo
 server/router mới. Revision KICH_HOAT thuộc con trỏ (0 khi chưa có).
+Khôi phục ghép được từ NHAP (sao chép bản đã công bố) + CONG_BO;
+route khoi-phuc để lát sau.
 """
 
 from contextlib import contextmanager
 from urllib.parse import parse_qs, urlsplit
 
 from ..ha_tang.primitives import DataError
-from ..k2.ma_tran_tham_quyen import MA_403, MA_409, MA_LOI_NHAT_KY, QUAN_TRI, THONG_BAO, MaTranThamQuyenK2, _payload
+from ..k2.ma_tran_tham_quyen import MA_403, MA_409, MA_LOI_NHAT_KY, QUAN_TRI, MaTranThamQuyenK2, _payload
 
 PREFIX = '/api/tham-quyen/'
 GET = frozenset(PREFIX + x for x in ('ma-tran', 'cua-toi', 'nhat-ky'))
 POST = {PREFIX + 'luu-nhap': 'luu_nhap', PREFIX + 'cong-bo': 'cong_bo', PREFIX + 'kich-hoat': 'kich_hoat',
         PREFIX + 'phong': 'phong', PREFIX + 'gan-vai': 'gan_vai',
         PREFIX + 'pham-vi': 'pham_vi', PREFIX + 'admin': 'admin'}
-# M0039 chưa có lệnh KHOI_PHUC; không mở route phục hồi bằng SQL tự bổ sung.
 ROUTE = GET | POST.keys()
 
 
@@ -62,6 +63,7 @@ def dieu_huong(h, app, post, path, query):
     except DataError as exc:
         status = (403 if exc.code in MA_403 else 409 if exc.code in MA_409 else
                   503 if exc.code in {MA_LOI_NHAT_KY, 'CRM_G_CHUA_SAN_SANG', 'PG_KHONG_KET_NOI', 'CRM_CHUA_CAU_HINH', 'CRM_SCHEMA_KHONG_KHOP'} else 400)
-        return h.send_content(status, {'error': exc.code, 'message': THONG_BAO.get(exc.code, str(exc))})
+        # Service đã chọn câu theo thao tác; giữ cả gợi ý GET Quyền của tôi.
+        return h.send_content(status, {'error': exc.code, 'message': str(exc)})
     except (ValueError, TypeError, KeyError, RecursionError):
         return h.send_content(400, {'error': 'MTQ_DAU_VAO', 'message': 'Thông tin gửi lên không hợp lệ.'})

@@ -45,6 +45,25 @@ class MtqHttpDispatchTests(unittest.TestCase):
     def test_post_luu_nhap_chuyen_module_khong_giu_khoa(self):
         self.dispatch(True, "/api/tham-quyen/luu-nhap")
 
+    def test_csrf_am_chan_truoc_module_tung_route(self):
+        for post, paths in ((False, mtq_http.GET), (True, mtq_http.POST)):
+            for path in paths:
+                for invalid in ('thieu_token', 'origin_la'):
+                    with self.subTest(post=post, path=path, invalid=invalid):
+                        h = self.handler(path)
+                        if invalid == 'thieu_token':
+                            h.headers.pop('X-KTT-Token')
+                            code = 'SESSION_TOKEN'
+                        else:
+                            h.headers['Origin'] = 'https://example.invalid'
+                            code = 'CROSS_ORIGIN'
+                        with patch.object(mtq_http, 'dieu_huong') as route:
+                            (h.do_POST if post else h.do_GET)()
+                        route.assert_not_called()
+                        h.send_response.assert_called_once_with(403)
+                        self.assertEqual(json.loads(h.wfile.getvalue())['error'], code)
+                        self.assertFalse(self.app.mutation_lock.locked())
+
     def test_bootstrap_qua_module_tra_404(self):
         for post in (False, True):
             with self.subTest(post=post):
