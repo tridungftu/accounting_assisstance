@@ -102,3 +102,56 @@
 - Nhật ký CD-003 đủ từng lát (worker, model, giờ, vòng review, test).
 **05:45 viết `docs\46-chuyen-doi-dieu-phoi\bao-cao-ngay\BAO-CAO-DEM-20261026.md`:** §1 Kết luận (≤ 5 dòng) · §2 Đã xong (lát, commit, test so nền, gộp chưa) · §3 Chưa xong / bị chặn + lý do · §4 Cần Anh quyết · §5 Anh kiểm gì lúc 6h (cổng A nào, DEMO cổng nào, phiếu nào) · §6 Số liệu (giờ chạy từng khối, số worker cao nhất, Claude/Codex, model, vòng review, `/usage` nếu có). Cập nhật dòng Trạng thái của CD-005…CD-008.
 **Trạng thái:** XONG 26/10 05:36 — báo cáo `docs\46-chuyen-doi-dieu-phoi\bao-cao-ngay\BAO-CAO-DEM-20261026.md`; DEMO cổng 8798; phiếu cổng A lần 2 `PHIEU-CONG-A-BAO-GIA-LAN-2.md`; 7 việc Cần Anh ở §4.
+
+## CD-009 · 26/10/2026 06:25 · Không được dừng vì "hết việc ưu tiên" — quy tắc chạy đêm và lấp chỗ trống
+**Căn cứ:** Anh chốt 26/10 06:24 sau khi hỏi vì sao 02:45 → 05:30 bỏ trống. Bằng chứng: git không có commit 02:41 → 05:36; `BAO-CAO-DEM-20261026.md` §6 "02:45 → 05:36 không còn việc ưu tiên, chỉ đọc hộp thư mỗi giờ"; khung 5 giờ Claude đặt lại 03:50 (05:36 dùng 0%), Codex không chạm hạn mức; `BAO-CAO-DEM-20261026-doi-chieu.md` điểm 4. Hàng đợi lúc 02:45 còn M2k, E1-4 giao diện, M4-3, AI-4, MASK-3, sửa ca k10 của KY-DOCX, các điểm Nên sửa/Để sau, T-NEN-c2 — báo cáo không nêu lý do chặn.
+**Việc:**
+1. **Sáng nay:** trả lời trong `TRANG-THAI.md` (mục "Cần điều tra") vì sao AI-4, MASK-3, M2k, E1-4 giao diện, M4-3 không giao đêm qua; việc nào không bị chặn → **giao ngay**. KY-DOCX: giao một lát mới chỉ sửa ca test k10 (luật "đỏ 2 lần" áp cho lát cũ, không cấm lát sửa test).
+2. **Cấm lý do dừng "hết việc ưu tiên".** Trước khi để trống chỗ worker, lead rà **toàn bộ** hàng đợi (`4-KE-HOACH-LEAD.md` + `TRANG-THAI.md`) và ghi cho **từng việc không giao** một dòng: mã · lý do chặn cụ thể (chờ Anh quyết gì / chờ lát nào / chạm hạn mức gì). Còn việc không bị chặn → phải giao.
+3. **Danh sách lấp chỗ trống** (khi hết việc chính, theo thứ tự): (a) điểm "Nên sửa" rồi "Để sau" từ các báo cáo review; (b) sửa test đỏ/treo so nền; (c) test còn thiếu cho code đã gộp; (d) soạn checklist + bảng câu hỏi cho module chưa chốt (M3 · Hóa đơn bán ra & doanh thu BĐS trước) để Anh chốt — chỉ soạn, không code; (e) cập nhật `TRANG-THAI.md` cho đúng thực tế.
+4. **Trước khi Anh nghỉ** (khi có lệnh chạy đêm): báo Anh danh sách **≥ 6 việc không bị chặn** cho đêm đó; không đủ 6 → hỏi Anh ngay lúc đó (bảng chọn), không để tới sáng.
+5. **Nhịp khi rảnh:** 20 phút rà lại hàng đợi một lần (không chỉ đọc hộp thư); mỗi lần rà ghi 1 dòng nhật ký (giờ · số việc không bị chặn · đã giao gì).
+6. Báo cáo đêm/ngày thêm mục **"Việc không làm + lý do chặn"** (đủ mọi việc trong hàng đợi) và **thời gian trống của worker** (từ giờ nào đến giờ nào, vì sao).
+**Áp dụng:** từ ngay hôm nay, cho cả chạy ngày và chạy đêm.
+**Trạng thái:** ĐÃ NHẬN 26/10 09:10 — mục 1 trả lời trong `TRANG-THAI.md` (26/10 09:10); KY-DOCX lát sửa test riêng đã gộp (3dd1661); áp quy tắc rà hàng đợi 20 phút + mục "Việc không làm + lý do chặn" từ nay.
+
+## CD-010 · 26/10/2026 06:35 · Anh trả lời 7 việc "Cần Anh quyết" của báo cáo đêm
+**Căn cứ:** `bao-cao-ngay\BAO-CAO-DEM-20261026.md` §4; Anh chốt qua bảng chọn 26/10 06:30–06:34.
+**Quyết định và việc:**
+1. **Ký trên bản chỉ có DOCX:** thêm đường **"Kế toán xác nhận đã kiểm tay"** cho bước đối chiếu bản ký G5 — bắt buộc lý do, ghi nhật ký (ai, lúc nào), hợp đồng sang được Hiệu lực. **Không** nới hợp đồng dữ liệu E5 nhận hash DOCX. Xác nhận: PDF lỗi vẫn được sang Chờ ký. Gộp vào lát sửa KY-DOCX (CD-009 việc 1).
+2. **Mốc dự án:** đồng ý cả 3 mặc định lead đã chọn (việc "Chỉnh ngày dự kiến" giao vai Bán hàng; mốc vẫn hiện khi dự án ngừng bán; gõ tắt theo tên tắt + chữ cái đầu).
+3. **Trang chủ hệ thống:**
+   - Thanh cố định 4 mục **khác nhau theo vai**: lead đề xuất 4 mục cho từng vai, đưa vào phiếu cổng A UI-1/UI-3 để Anh duyệt.
+   - **Giữ tiền tố** "M2 ·", "M4 ·" trong tên module; M9 hiện mờ "Tạm dừng" với mọi vai.
+4. **Vai mô phỏng (DEMO) và ma trận thẩm quyền — yêu cầu mới:**
+   - Rút danh sách vai còn **khoảng 5 vai** theo cấp: **Người thực hiện 1 · Người thực hiện 2 · Trưởng phòng · CFO** (Anh nêu 4; lead đề xuất vai thứ 5 nếu cần, vd Người xem) — áp theo từng phòng/pháp nhân.
+   - **Thêm phần "Ma trận thẩm quyền"** (yêu cầu mới, **chưa chốt thiết kế → chưa code**): lead soạn checklist ngắn `THIET-KE-MA-TRAN-THAM-QUYEN.md` — vai × hành động (lập, sửa, kiểm, duyệt, hủy, xem) × module/màn × giới hạn (số tiền, pháp nhân, dự án) × ai cấp/sửa ma trận × nhật ký; dùng lại quyền đã có (TL 42 §1, kiểm quyền ở máy chủ) — rồi hỏi Anh bằng bảng chọn. Việc này vào danh sách lấp chỗ trống mục (d) của CD-009 nếu chưa tới lượt.
+5. **Báo giá USD:** **bỏ cột "VND quy đổi"** trùng với cột Giá trị; bằng chữ **giữ nguyên** "đồng".
+6. **`test_source6_lazy_excel`:** Anh không có bản lazy Excel đã duyệt → **bỏ bộ test khỏi nền**, ghi lý do trong `NEN-TEST.md`; mở lại khi có bản duyệt.
+7. **M4 · khối 03B:** kế toán **không** có đường tải tệp căn cứ riêng; kế toán dùng **"Yêu cầu bổ sung"** gửi phòng dự án. Giữ quyền tải như hiện tại.
+**Báo Anh khi:** checklist ma trận thẩm quyền sẵn sàng để chốt; phiếu cổng A có thanh cố định theo vai.
+**Trạng thái:** ĐÃ NHẬN 26/10 09:10 — mục 1 giao lát KY-G5TAY; mục 3, 5 lát giao diện; mục 6 ghi `NEN-TEST.md`; mục 4 thay bằng CD-012; mục 7 lát nhỏ M4.
+
+## CD-011 · 26/10/2026 07:00 · M4 = phần mềm review hồ sơ xây dựng: chép đủ 8 màn + chuyển dữ liệu SQLite → PostgreSQL thật riêng
+**Căn cứ:** Anh yêu cầu 26/10 06:56 ("chép lại hết các chức năng, copy luôn phần code, chỉ đẩy phần liên kết dữ liệu sang PostgreSQL") và chốt qua bảng chọn 06:58–07:00: (1) là **M4 · Nghiệm thu & chi phí dự án** (giữ M2 là Mua hàng/Hóa đơn mua vào); (2) **chép nguyên 8 màn "Bàn kiểm soát" vào khung icon M4**; (3) dữ liệu chuyển **vào kho thật** — cụ thể **tạo CSDL PostgreSQL thật riêng, nạp dữ liệu M4 trước**; (4) **đóng băng code bản gốc**, vẫn dùng tới khi M4 qua cổng B. Thiết kế M4 20/10 (`THIET-KE-MODULE-DE-CHOT-2026-10-20\M4-XAY-DUNG-VA-NGHIEM-THU.md` §1: "M4 bao gồm đầy đủ chức năng của review_xaydung, dùng lại lõi xử lý và giao diện"). `CLAUDE.md` mục kho thật đã thêm ngoại lệ (07:00).
+**Hiện trạng (phiên điều phối đọc README/API.md 26/10):** bản gốc `D:\Claude\Ho tro review ho so xay dung\review_xaydung` có 8 màn (Tổng quan · Trích tham số · Danh mục hợp đồng · Phụ lục · BOQ · Kiểm tra đợt · Chứng từ · Cài đặt), CSDL **SQLite** `co_so_du_lieu\hop_dong.db` qua `csdl_hop_dong.py`; repo mới chép lõi ở `m4\review_goc` + màn 02C/03A/03B/04.
+**Việc:**
+1. **Kiểm kê chênh lệch (lát đầu, chỉ đọc):** bảng màn × nút/chức năng × API (theo `API.md` bản gốc) → đã có ở M4 / thiếu / khác; bảng SQLite (`hop_dong.db`) ↔ bảng PostgreSQL M4 hiện có (`sql_review.py`, `sql_master_dung_chung.py`…). Ghi `docs\46-chuyen-doi-dieu-phoi\M4-KIEM-KE-CHEP-REVIEW.md`.
+2. **Chép nguyên code + giao diện** 8 màn vào M4, mỗi màn một icon trong khung lưới (TL 49); dùng chung đăng nhập, quyền, pháp nhân, thanh trên; **giữ** các màn M4 đã làm (02C, 03A kế toán nghiệm thu, 03B, 04 Request). **Chỉ thay lớp dữ liệu**: `csdl_hop_dong.py` (SQLite) → PostgreSQL qua migration mới; nghiệp vụ/thuật toán (K1–K8, B1–B8, C01–C09, P01–P18, trích 37 tham số) giữ nguyên, test gốc của bản review phải đạt trên bản chép. Đường AI theo cổng AI (Local luôn có, Cloud chỉ qua Mask v2 — CD-001). Lát nhỏ ≤ 3 file theo CD-004 (nhiều lát song song theo màn).
+3. **Công cụ chuyển dữ liệu** SQLite → PostgreSQL: chạy lại được (idempotent, khóa theo id gốc), báo cáo đối chiếu trước–sau: **số dòng từng bảng, tổng giá trị hợp đồng, tổng BOQ, tổng từng đợt** (đơn vị tiền ghi rõ), danh sách dòng lỗi.
+4. **Chạy thật — theo thứ tự, ghi biên bản từng bước:** (a) sao lưu `hop_dong.db` + SHA256 vào `LUU-TRU\m4-hop-dong-db-<ngày giờ>`; (b) chạy thử trên **bản sao** vào một CSDL PostgreSQL tạm → đối chiếu khớp 100%; (c) tạo **CSDL PostgreSQL thật riêng cho M4** (tên/role khác DEMO; file kết nối `*.that.local.json` ngoài git) → migration → nạp → đối chiếu → `pg_dump` sao lưu; (d) báo Anh biên bản. Lệch bất kỳ → dừng ở bước đó, không sửa tay dữ liệu.
+5. **Đóng băng bản gốc:** không sửa code `review_xaydung` từ nay (chỉ đọc). Anh vẫn dùng bản gốc tới cổng B M4; trước khi chuyển hẳn, chạy công cụ lần cuối để nạp phần dữ liệu phát sinh.
+6. Dữ liệu thật **không** vào test/fixture/DEMO, không gửi Cloud; test dùng dữ liệu giả.
+**Báo Anh khi:** bảng kiểm kê xong; biên bản chạy thật (bước 4); phiếu cổng A M4 (8 màn trong khung icon).
+**Trạng thái:** ĐÃ NHẬN 26/10 09:10 — lát 1 kiểm kê (chỉ đọc) giao trước; chạy thật bước 4 chỉ sau khi kiểm kê + công cụ chuyển dữ liệu qua review.
+
+## CD-012 · 26/10/2026 07:00 · Ma trận thẩm quyền — Anh chốt cách làm (thay CD-010 mục 4 phần "chưa chốt")
+**Căn cứ:** Anh 26/10 06:57: "Ma trận thẩm quyền tạo ra một bảng với các nút tick ở các module, tôi sẽ tự tick vào ma trận thẩm quyền, có 1 cột giới hạn số tiền, cấp và sửa ma trận chỉ có admin".
+**Đã chốt → được code (không cần hỏi thêm trước khi code):**
+1. Một màn **"Ma trận thẩm quyền"** dạng **bảng ô tick**: dòng = vai (theo CD-010: Người thực hiện 1 · Người thực hiện 2 · Trưởng phòng · CFO …) theo phòng/pháp nhân; cột = **module × hành động** (xem · lập · sửa · kiểm · duyệt · hủy), nhóm cột theo module, gấp/mở được.
+2. **Một cột "Giới hạn số tiền"** (VND, để trống = không giới hạn) cho mỗi dòng; máy chủ chặn hành động duyệt vượt giới hạn và ghi lý do chặn.
+3. **Chỉ vai Admin** được cấp/sửa ma trận; người khác chỉ xem phần của mình. Mỗi lần sửa ghi nhật ký (ô nào, cũ → mới, ai, lúc nào). Quyền kiểm ở máy chủ, ẩn nút chỉ là lớp hiển thị.
+4. Anh tự tick: máy **không** tự điền ma trận thật; DEMO có bản mẫu để thử.
+**Mặc định lead tự chọn, ghi vào phiếu cổng A để Anh xem:** giới hạn tiền áp cho hành động **duyệt** (và lập nếu module cần); cách nối ma trận với quyền đã có (TL 42 §1) — ma trận là nguồn quyền duy nhất sau khi bật.
+**Báo Anh khi:** phiếu cổng A màn Ma trận thẩm quyền.
+**Trạng thái:** ĐÃ NHẬN 26/10 09:10 — soạn thiết kế lát + giao MTQ-1 (máy chủ).

@@ -279,3 +279,18 @@ H3 phân loại 36 đầu việc: 19 gói đã nhập `hop-nhat`, 13 xung đột
 \* DA-6 giao 02:12, xong 02:13 (lát 2 tệp). Dòng giao diện cuối đêm `lat/ui-dem` 3ddad66 = hợp nhất d0baee2 + toàn bộ lát giao diện; DEMO 8798 khởi động lại 02:16 từ bản này. PG cả bộ trên `lat/ui-dem` đang chạy.
 
 - 05:36 **kết thúc chạy đêm CD-008.** Báo cáo: `bao-cao-ngay/BAO-CAO-DEM-20261026.md`. Hợp nhất `hop-nhat-20261023` d0baee2 (+ tài liệu lead); dòng giao diện `lat/ui-dem` 87c963c chạy DEMO 8798. Việc mở sáng 26/10: KY-DOCX sửa k10 + đổi M0036 rồi gộp cùng KY-UI; Anh kiểm cổng A lần 2; 7 việc Cần Anh (báo cáo §4).
+
+### 26/10 09:10 — KY-DOCX gộp (Anh duyệt 26/10) · trả lời CD-009 mục 1
+
+- **KY-DOCX vòng 3** (Codex, lát sửa test riêng theo CD-009): k10 hết đua (kéo `thu_lai_sau`, chấp nhận `CHO_CAU_HINH` + `G5_BAN_SINH_CHI_DOCX`), test theo **M0036**, nhãn "PDF xuất tay" không lộ mã. Lead gộp `lat/t-pdf` lên hợp nhất trong `lat/ky-gop`: **M0035 = mốc dự án, M0036 = KY-DOCX** (sửa CRLF của `pg_migrations.py` do lead ghi khi giải xung đột). PG cả bộ 2452/26/65/67 — 8 mã mới đều là ngắt kết nối (WinError 10053, máy bận) + `test_web` chập chờn; chạy lại riêng `test_crm_ky_ket_http` 10 ok (có k10), `test_crm_41_02_http` 13/13 → **gộp hợp nhất 3dd1661**.
+- **KY-UI** ghép trên nhánh riêng `lat/ui-ky` (= `lat/ui-dem` + hợp nhất 3dd1661 + `lat/ky-ui`): giữ nhãn xuất của KY-UI ("Chờ ký (đã xuất DOCX)", "PDF xuất tay khi cần"), `veBanKy` giữ cả KY-UI và `nguoi()` của BG-e7; node 5 bộ đạt; PG chọn lọc 182 ok, 0 mã mới so v3. **Chưa thay DEMO 8798** (Anh đang thử cổng A) — sẽ chuyển 8798 sang `lat/ui-ky` khi Anh xong.
+- Còn theo CD-010 mục 1: đường **"Kế toán xác nhận đã kiểm tay" G5** cho bản chỉ DOCX → lát KY-G5TAY (đang giao).
+
+**CD-009 mục 1 — vì sao đêm 25→26 không giao (lead nhận lỗi: dừng vì "hết việc ưu tiên" là sai, CD-009 cấm từ nay):**
+| Việc | Lý do đêm qua | Hiện nay |
+|---|---|---|
+| AI-4 (mở Cloud theo TL 48 §1.5, đo độ chính xác Local) | Lead xếp "để ngày" vì rủi ro Cloud — **không bị chặn thật** (AI-3 đã gộp 23:45) | **Giao** (Codex, review Opus) |
+| MASK-3 (định danh mới → tệp riêng mã hóa + màn rà, QD-23) | Lead e ngại chạy dự án Mask v2 ngoài repo ban đêm — **không bị chặn thật** | **Giao** (Codex, đúng ràng buộc Mask v2) |
+| M2k (nút "Cài đặt lại bộ tải") | Hàng đợi ghi "chưa chốt thiết kế" (thiếu: cài lại là gì — tải lại gói bộ tải hay khởi động lại tiến trình; quyền ai bấm) | **Bị chặn — hỏi Anh** (bảng chọn) |
+| E1-4 giao diện (màn danh mục Sửa + nhật ký) | Chưa rõ đặt màn ở đâu (M4 review / Cài đặt / Danh mục chung) | **Bị chặn — hỏi Anh** (bảng chọn) |
+| M4-3 (03A: M0026 + test + xác minh màn) | Thực chất đã xong qua các lát 03A/M4-5a; chưa đóng dòng | **Đóng**: PG v3 `test_m4_03a_pg` 13 ok, `test_m4_03a_tinh` 27 ok, `m4_03b_common_pg` 21 ok |

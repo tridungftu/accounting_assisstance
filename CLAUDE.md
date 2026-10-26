@@ -16,6 +16,7 @@
 
 - **Không xóa file**; cần bỏ thì chuyển vào `D:\Claude\Phan mem ho tro ke toan\LUU-TRU\`. Không `git clean`, `git reset --hard`, `push --force`.
 - Kho thật `var\plhn-that`, `var\web-that`, `cau_hinh.that.toml`: không đọc/sửa qua công cụ; kho thật vẫn SQLite. Không đọc `.env`.
+  - **Ngoại lệ duy nhất (Anh chốt 26/10 07:00, CD-011):** lead được tạo **CSDL PostgreSQL thật riêng cho M4** (tách hẳn DEMO, không dùng chung tên CSDL/role với DEMO) và nạp dữ liệu từ `D:\Claude\Ho tro review ho so xay dung\review_xaydung\co_so_du_lieu\hop_dong.db` (chỉ đọc file này; sao lưu + SHA vào `LUU-TRU` trước) theo đúng các bước CD-011. Không mở rộng sang `var\plhn-that`, `var\web-that`, `cau_hinh.that.toml`. Dữ liệu thật không vào test/fixture/DEMO, không gửi Cloud.
 - M9 · Vốn vay & đầu tư tài chính dừng. Không nhập Junsky, không gọi cổng thuế thật, không Request thật, không Word COM (xuất DOCX; PDF tạm xuất tay).
 - **Cổng AI (Anh chốt 25/10, TL 48 — `..\48-cong-ai-local-luon-co-cloud-qua-mask-v2.md`):** mọi lượt gọi AI qua một cổng; **luôn có đường Local AI** (máy AI qua LAN/Tailscale, kiểm tra địa chỉ như Mask v2) và phần mềm chạy đủ chỉ với Local AI; **Cloud được mở nhưng bắt buộc qua Mask file v2** (`D:\GPT\Phan mem Mask file\Mask file v2`) và kiểm còn sót định danh — còn sót thì không gửi; **không che số tiền/ngày**. Không code nào gọi `api.anthropic.com`/`api.openai.com` trực tiếp; đường Cloud trực tiếp của engine #6 (`AnDanh`) tạm khóa tới khi xong lát AI-3.
 - Dữ liệu thử chỉ DEMO; không đưa dữ liệu thật vào `tests\fixtures`.
