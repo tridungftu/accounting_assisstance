@@ -128,3 +128,93 @@ M4_BOQ_BO_SQL = (
         END IF;
     END $$""",
 )
+
+
+# BO-1b: các cặp thay SQL, áp dụng lên writer cuối trong registry (M0055),
+# cùng cách _m36_thay/_m37_ham của MTQ-4f1b; không dựng lại guard/receipt.
+M4_BOQ_BO_B_SQL = (
+    ("b uuid; n integer; goc text[]; tt text;",
+     """b uuid; n integer; goc text[]; tt text;
+        tuong_minh boolean; so_co integer; nguon_bo jsonb := '{}'::jsonb;
+        su_kien record; hien_tai jsonb;"""),
+    ("            n := jsonb_array_length(p_dong);",
+     """            n := jsonb_array_length(p_dong);
+            SELECT count(*) FILTER (WHERE e.value ? 'thao_tac') INTO so_co
+            FROM jsonb_array_elements(p_dong) e;
+            tuong_minh := so_co > 0;
+            IF tuong_minh AND so_co <> n THEN
+                RAISE EXCEPTION 'M4_BOQ_LAN_THAO_TAC: mọi dòng phải cùng có hoặc cùng không có thao tác.' USING ERRCODE = 'P0001';
+            END IF;
+            IF tuong_minh AND EXISTS (
+                SELECT 1 FROM jsonb_array_elements(p_dong) e
+                WHERE jsonb_typeof(e.value) IS DISTINCT FROM 'object'
+                   OR jsonb_typeof(e.value->'thao_tac') IS DISTINCT FROM 'string'
+                   OR (e.value->>'thao_tac') NOT IN ('GOC','THEM','THAY','BO')
+                   OR (p_pl IS NULL AND e.value->>'thao_tac' <> 'GOC')
+                   OR (p_pl IS NOT NULL AND e.value->>'thao_tac' = 'GOC')) THEN
+                RAISE EXCEPTION 'M4_BOQ_THAO_TAC_SAI: chỉ dùng GOC cho BOQ gốc; phụ lục nhận THEM, THAY hoặc BO.' USING ERRCODE = 'P0001';
+            END IF;
+            IF tuong_minh AND EXISTS (
+                SELECT 1 FROM jsonb_array_elements(p_dong) e
+                WHERE e.value->>'thao_tac' = 'BO'
+                  AND (jsonb_typeof(e.value->'ma_hm') IS DISTINCT FROM 'string'
+                       OR coalesce(length(btrim(e.value->>'ma_hm')), 0) NOT BETWEEN 1 AND 500)) THEN
+                RAISE EXCEPTION 'M4_BOQ_BO_THIEU_MA: dòng bỏ cần mã hạng mục hợp lệ.' USING ERRCODE = 'P0001';
+            END IF;
+            IF tuong_minh AND EXISTS (
+                SELECT 1 FROM jsonb_array_elements(p_dong) e WHERE e.value->>'thao_tac' = 'BO') THEN
+                -- Chỉ projection các mã cần bỏ, trước PL này; cùng ngày theo lan.
+                -- Loại toàn bộ PL đích và PL tương lai, kể cả khi đã nhập trước.
+                FOR su_kien IN
+                    WITH goc AS (
+                        SELECT id FROM m4.boq WHERE hop_dong_id = p_hd
+                          AND phu_luc_id IS NULL AND trang_thai = 'DA_MAP'
+                        ORDER BY lan DESC LIMIT 1
+                    )
+                    SELECT d.ma_hm, d.thao_tac, d.ten, d.dvt
+                    FROM m4.boq b0 JOIN m4.boq_dong d ON d.boq_id = b0.id
+                    LEFT JOIN m4.phu_luc pl ON pl.id = b0.phu_luc_id AND pl.hop_dong_id = p_hd
+                    WHERE b0.hop_dong_id = p_hd AND b0.trang_thai = 'DA_MAP'
+                      AND (b0.id IN (SELECT id FROM goc)
+                           OR (pl.id <> p_pl AND pl.trang_thai = 'DA_KY'
+                               AND pl.ngay_hieu_luc <= (SELECT ngay_hieu_luc FROM m4.phu_luc WHERE id = p_pl)))
+                      AND d.ma_hm IN (SELECT e.value->>'ma_hm' FROM jsonb_array_elements(p_dong) e
+                                      WHERE e.value->>'thao_tac' = 'BO')
+                    ORDER BY CASE WHEN b0.phu_luc_id IS NULL THEN '-infinity'::date
+                                  ELSE pl.ngay_hieu_luc END, b0.lan, d.dong
+                LOOP
+                    hien_tai := nguon_bo -> su_kien.ma_hm;
+                    IF su_kien.thao_tac IN ('GOC','THEM') AND hien_tai IS NULL THEN
+                        nguon_bo := nguon_bo || jsonb_build_object(su_kien.ma_hm,
+                            jsonb_build_object('ten', su_kien.ten, 'dvt', su_kien.dvt));
+                    ELSIF su_kien.thao_tac = 'THAY' AND hien_tai IS NOT NULL THEN
+                        nguon_bo := nguon_bo || jsonb_build_object(su_kien.ma_hm,
+                            jsonb_build_object('ten', coalesce(nullif(su_kien.ten, ''), hien_tai->>'ten'),
+                                               'dvt', coalesce(nullif(su_kien.dvt, ''), hien_tai->>'dvt')));
+                    ELSIF su_kien.thao_tac = 'BO' THEN
+                        nguon_bo := nguon_bo - su_kien.ma_hm;
+                    END IF;
+                END LOOP;
+                IF EXISTS (SELECT 1 FROM jsonb_array_elements(p_dong) e
+                           WHERE e.value->>'thao_tac' = 'BO' AND NOT (nguon_bo ? (e.value->>'ma_hm'))) THEN
+                    RAISE EXCEPTION 'M4_BOQ_BO_KHONG_HIEU_LUC: mã cần bỏ không có dòng hiệu lực trước phụ lục này.' USING ERRCODE = 'P0001';
+                END IF;
+            END IF;"""),
+    ("            INSERT INTO m4.boq_dong (boq_id, du_an_id, dong, ma_hm, thao_tac, stt, nhom, ten, dvt, kl, don_gia, thanh_tien, ma_rieng, o_goc)",
+     """            IF tuong_minh THEN
+                INSERT INTO m4.boq_dong (boq_id, du_an_id, dong, ma_hm, thao_tac, stt, nhom, ten, dvt, kl, don_gia, thanh_tien, ma_rieng, o_goc)
+                    SELECT b, h.du_an_id,
+                           CASE WHEN x.thao_tac = 'BO' THEN coalesce(x.dong, e.vi_tri::integer) ELSE x.dong END,
+                           x.ma_hm, x.thao_tac, x.stt, x.nhom,
+                           CASE WHEN x.thao_tac = 'BO' THEN coalesce(nullif(x.ten, ''), nguon_bo->x.ma_hm->>'ten') ELSE x.ten END,
+                           CASE WHEN x.thao_tac = 'BO' THEN coalesce(nullif(x.dvt, ''), nguon_bo->x.ma_hm->>'dvt') ELSE x.dvt END,
+                           x.kl, x.don_gia, x.thanh_tien, x.ma_rieng,
+                           CASE WHEN x.thao_tac = 'BO' THEN coalesce(x.o_goc, '{}'::jsonb) ELSE x.o_goc END
+                    FROM jsonb_array_elements(p_dong) WITH ORDINALITY AS e(value, vi_tri)
+                    CROSS JOIN LATERAL jsonb_to_record(e.value) AS x(dong integer, ma_hm text, thao_tac text,
+                        stt text, nhom text, ten text, dvt text, kl text, don_gia text, thanh_tien text, ma_rieng text, o_goc jsonb);
+            ELSE
+            INSERT INTO m4.boq_dong (boq_id, du_an_id, dong, ma_hm, thao_tac, stt, nhom, ten, dvt, kl, don_gia, thanh_tien, ma_rieng, o_goc)"""),
+    ("                                                     thanh_tien text, ma_rieng text, o_goc jsonb);",
+     "                                                     thanh_tien text, ma_rieng text, o_goc jsonb);\n            END IF;"),
+)
