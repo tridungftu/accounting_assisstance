@@ -22,10 +22,11 @@ from tests import test_mtq_cong_c_sql as cong_c
 from tests import test_mtq_sql as nen
 
 ROOT = Path(__file__).resolve().parents[1]
-READ = "master.mtq_duoc_doc(text,jsonb)"
+READ = "master.mtq_duoc_doc(text,jsonb,numeric)"
 PURE = "master.mtq_tinh_doc(uuid,uuid,text,text,text,text,text,numeric,uuid)"
 RESOLVER = "master.mtq_giai_doi_tuong(text,jsonb)"
 ACTION = "CRM:DU_AN_BAN:XEM"
+_OMITTED = object()
 
 
 def normalized(sql):
@@ -58,7 +59,10 @@ class MtqNenTinh(unittest.TestCase):
             self.assertNotIn("nhat_ky.", body)
         wrapper = MTQ_NEN_A_SQL[1]
         self.assertIn("STABLE SECURITY DEFINER", wrapper)
-        self.assertIn("p_hanh_dong text, p_doi_tuong jsonb) RETURNS boolean", wrapper)
+        self.assertIn("p_hanh_dong text, p_doi_tuong jsonb, p_so_tien numeric DEFAULT NULL) RETURNS boolean",
+                      normalized(wrapper))
+        self.assertEqual(sum(s.startswith("CREATE FUNCTION master.mtq_duoc_doc(")
+                             for s in MTQ_NEN_A_SQL), 1)
         self.assertIn("master.ktt_danh_tinh()", wrapper)
         self.assertIn("master.mtq_giai_doi_tuong(p_hanh_dong, p_doi_tuong)", wrapper)
         self.assertNotRegex(wrapper, r"master\.(?:ktt_duoc|ktt_co_vai|ktt_pn_cho_phep)\(")
@@ -85,7 +89,7 @@ class MtqNenTinh(unittest.TestCase):
         self.assertEqual(normalized(old.split(start, 1)[1].split(end, 1)[0]),
                          normalized(new.split(start, 1)[1].split(end, 1)[0]))
         self.assertLess(new.index("IS DISTINCT FROM true"), new.index("RETURN NULL"))
-        self.assertIn("khoa, scope_loai, NULL, scope_id)", new)
+        self.assertIn("khoa, scope_loai, p_so_tien, scope_id)", new)
 
     def test_acl_chi_mo_boolean_khong_mo_resolver_va_loi(self):
         acl = "\n".join(MTQ_NEN_A_SQL[2:])
@@ -103,8 +107,10 @@ class MtqNenTinh(unittest.TestCase):
             self.assertNotIn("\ufffd", raw.decode("utf-8"))
         self.assertNotIn(b"\r", Path(PM.__file__).read_bytes())
         tree = ast.parse(module.read_text(encoding="utf-8"))
-        self.assertEqual(len(tree.body), 1)
-        self.assertEqual(ast.literal_eval(tree.body[0].value), MTQ_NEN_A_SQL)
+        self.assertEqual(len(tree.body), 2)
+        self.assertIn("quyết định đọc/đếm/hiển thị", ast.get_docstring(tree))
+        self.assertIn("Thực hiện hành động vẫn phải qua cổng phiên", ast.get_docstring(tree))
+        self.assertEqual(ast.literal_eval(tree.body[1].value), MTQ_NEN_A_SQL)
 
 
 @unittest.skipUnless(nen.DSN and nen.psycopg is not None,
@@ -168,17 +174,21 @@ class _MtqNenFixture(unittest.TestCase):
         return self.c.execute("SELECT (SELECT count(*) FROM nhat_ky.mtq_tu_choi), "
                               "(SELECT count(*) FROM nhat_ky.mtq_thay_doi)").fetchone()
 
-    def doc(self, action=ACTION, obj=None):
-        return self.c.execute("SELECT master.mtq_duoc_doc(%s,%s::jsonb)",
-            (action, json.dumps(self.obj if obj is None else obj))).fetchone()[0]
+    def doc(self, action=ACTION, obj=None, money=_OMITTED):
+        params = (action, json.dumps(self.obj if obj is None else obj))
+        if money is _OMITTED:
+            return self.c.execute("SELECT master.mtq_duoc_doc(%s,%s::jsonb)", params).fetchone()[0]
+        return self.c.execute("SELECT master.mtq_duoc_doc(%s,%s::jsonb,%s::numeric)",
+                              (*params, money)).fetchone()[0]
 
-    def so_cong(self, expected, action=ACTION, obj=None):
+    def so_cong(self, expected, action=ACTION, obj=None, money=_OMITTED):
         before = self.audit_counts()
-        actual = self.doc(action, obj)
+        actual = self.doc(action, obj, money)
         self.assertIs(actual, expected)
         self.assertEqual(self.audit_counts(), before)
-        result = self.c.execute("SELECT master.mtq_quyet_dinh_phien(%s,%s::jsonb,NULL)",
-            (action, json.dumps(self.obj if obj is None else obj))).fetchone()[0]
+        result = self.c.execute("SELECT master.mtq_quyet_dinh_phien(%s,%s::jsonb,%s::numeric)",
+            (action, json.dumps(self.obj if obj is None else obj),
+             None if money is _OMITTED else money)).fetchone()[0]
         self.assertIs(actual, result["cho_phep"])
         self.assertEqual(self.audit_counts(), before)
 
@@ -306,8 +316,27 @@ class MtqNenPostgres(_MtqNenFixture):
         self.so_cong(False, action="CRM:TIEP_NHAN:DUYET", obj=obj)
         self.assertIs(self.doc("CRM:TIEP_NHAN:DUYET", {**obj, "so_tien": 0}), False)
 
+    def test_duyet_cung_so_tien_so_cong_han_muc_va_mac_dinh_null(self):
+        for limit in (100, None):
+            with self.subTest(limit=limit), self.c.transaction(force_rollback=True):
+                self.cau_hinh(limit=limit)
+                obj = {"bang": "master.hop_dong", "id": str(self.hop_dong(self.pn, self.da))}
+                self.so_cong(False, action="CRM:TIEP_NHAN:DUYET", obj=obj)
+                for money in (99, 100, 101, 10**19, None):
+                    with self.subTest(money=money):
+                        expected = money is not None and (limit is None or money <= limit)
+                        self.so_cong(expected, action="CRM:TIEP_NHAN:DUYET", obj=obj, money=money)
+                self.so_cong(True)  # Hai tham số dùng DEFAULT NULL cho đọc không có tiền.
+                self.so_cong(True, money=None)
+
     def test_acl_app_chi_boolean_khong_goi_resolver_loi(self):
         self.cau_hinh()
+        obj = {"bang": "master.hop_dong", "id": str(self.hop_dong(self.pn, self.da))}
+        self.assertIsNone(self.c.execute(
+            "SELECT to_regprocedure('master.mtq_duoc_doc(text,jsonb)')").fetchone()[0])
+        self.assertEqual(self.c.execute(
+            "SELECT pronargs,pronargdefaults FROM pg_proc WHERE oid=%s::regprocedure",
+            (READ,)).fetchone(), (3, 1))
         for signature, allowed in ((READ, True), (RESOLVER, False), (PURE, False)):
             self.assertIs(self.c.execute("SELECT has_function_privilege('app_web',%s,'EXECUTE')",
                                          (signature,)).fetchone()[0], allowed)
@@ -322,6 +351,8 @@ class MtqNenPostgres(_MtqNenFixture):
         before = self.audit_counts()
         self.c.execute("SET LOCAL ROLE app_web")
         self.assertIs(self.doc(), True)
+        self.assertIs(self.doc("CRM:TIEP_NHAN:DUYET", obj, money=99), True)
+        self.assertIs(self.doc("CRM:TIEP_NHAN:DUYET", obj, money=101), False)
         self.assertIs(self.doc(obj={**self.obj, "id": str(self.other_da)}), False)
         for query, params in (
             ("SELECT master.mtq_giai_doi_tuong(%s,%s::jsonb)", (ACTION, json.dumps(self.obj))),
@@ -338,6 +369,7 @@ class MtqNenReadOnlyPostgres(_MtqNenFixture):
     # ảnh hưởng các ca dùng fixture rollback ở MtqNenPostgres.
     def test_read_only_stable_rls_app_khong_them_nhat_ky(self):
         self.cau_hinh()
+        money_obj = {"bang": "master.hop_dong", "id": str(self.hop_dong(self.pn, self.da))}
         # Bảng/policy chỉ trong CSDL kho_test_*; không sửa RLS nền của phần mềm.
         self.c.execute("CREATE TABLE master.mtq_nen1_rls_test (ref jsonb)")
         for obj in (self.obj, {**self.obj, "id": str(self.other_da)}):
@@ -346,8 +378,8 @@ class MtqNenReadOnlyPostgres(_MtqNenFixture):
         self.c.execute("GRANT SELECT ON master.mtq_nen1_rls_test TO app_web")
         self.c.execute("CREATE POLICY doc ON master.mtq_nen1_rls_test FOR SELECT TO app_web "
                        "USING (master.mtq_duoc_doc('CRM:DU_AN_BAN:XEM',ref) IS TRUE)")
-        self.c.execute("CREATE FUNCTION master.mtq_nen1_stable_test(text,jsonb) RETURNS boolean "
-                       "LANGUAGE sql STABLE AS $$ SELECT master.mtq_duoc_doc($1,$2) $$")
+        self.c.execute("CREATE FUNCTION master.mtq_nen1_stable_test(text,jsonb,numeric DEFAULT NULL) RETURNS boolean "
+                       "LANGUAGE sql STABLE AS $$ SELECT master.mtq_duoc_doc($1,$2,$3) $$")
         # Commit fixture giả trước READ ONLY; actor GUC local phải đặt lại.
         self.c.execute("COMMIT")
         before = self.audit_counts()
@@ -363,6 +395,13 @@ class MtqNenReadOnlyPostgres(_MtqNenFixture):
                 self.assertIs(self.doc(action, obj), expected)
                 self.assertIs(self.c.execute("SELECT master.mtq_nen1_stable_test(%s,%s::jsonb)",
                     (action, json.dumps(obj))).fetchone()[0], expected)
+        self.assertIs(self.doc("CRM:TIEP_NHAN:DUYET", money_obj), False)
+        for money, expected in ((99, True), (100, True), (101, False), (None, False)):
+            with self.subTest(money=money):
+                self.assertIs(self.doc("CRM:TIEP_NHAN:DUYET", money_obj, money), expected)
+                self.assertIs(self.c.execute(
+                    "SELECT master.mtq_nen1_stable_test(%s,%s::jsonb,%s::numeric)",
+                    ("CRM:TIEP_NHAN:DUYET", json.dumps(money_obj), money)).fetchone()[0], expected)
         self.assertEqual(self.c.execute("SELECT ref FROM master.mtq_nen1_rls_test").fetchall(), [(self.obj,)])
         self.c.execute("RESET ROLE")
         self.assertEqual(self.audit_counts(), before)

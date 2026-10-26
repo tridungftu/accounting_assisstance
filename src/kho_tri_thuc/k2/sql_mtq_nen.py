@@ -1,3 +1,8 @@
+"""mtq_duoc_doc dùng cho quyết định đọc/đếm/hiển thị với số tiền tùy chọn.
+
+Thực hiện hành động vẫn phải qua cổng phiên.
+"""
+
 MTQ_NEN_A_SQL = (
     # Phần tính thuần M0039, chỉ nhận kết quả resolver tin cậy từ chủ bảng.
     # Không cấp hàm nội bộ này cho app_web; giữ nguyên mtq_quyet_dinh cũ.
@@ -37,7 +42,8 @@ MTQ_NEN_A_SQL = (
                 ELSE RETURN true; END IF;
             END IF;
         END $$""",
-    """CREATE FUNCTION master.mtq_duoc_doc(p_hanh_dong text, p_doi_tuong jsonb) RETURNS boolean
+    """CREATE FUNCTION master.mtq_duoc_doc(p_hanh_dong text, p_doi_tuong jsonb,
+        p_so_tien numeric DEFAULT NULL) RETURNS boolean
         LANGUAGE plpgsql STABLE SECURITY DEFINER
         SET search_path = pg_catalog, master, nhat_ky, pg_temp AS $$
         DECLARE
@@ -78,17 +84,17 @@ MTQ_NEN_A_SQL = (
                         OR (s.loai = 'KHACH' AND s.khoa = khach::text))
                 ORDER BY CASE s.loai WHEN 'HOP_DONG' THEN 1 WHEN 'DU_AN' THEN 2
                     WHEN 'LOAI_HINH' THEN 3 WHEN 'KHACH' THEN 4 ELSE 5 END, s.id LIMIT 1;
-            -- Cổng đọc không nhận tiền client. Như cổng phiên với tiền NULL,
-            -- duyệt có tiền bị chặn khi chưa có cơ sở tiền tin cậy.
+            -- Cùng số tiền cho cùng quyết định như cổng phiên; thiếu tiền vẫn chặn
+            -- hành động cần tiền. Thực hiện hành động vẫn phải qua cổng phiên.
             -- STABLE dùng snapshot của câu lệnh, không lấy khóa/ghi rồi rollback.
             RETURN master.mtq_tinh_doc(pn, phong, p_hanh_dong, giai->>'loai',
-                ((p_doi_tuong->>'id')::uuid)::text, khoa, scope_loai, NULL, scope_id);
+                ((p_doi_tuong->>'id')::uuid)::text, khoa, scope_loai, p_so_tien, scope_id);
         END $$""",
     """REVOKE ALL ON FUNCTION master.mtq_tinh_doc(uuid,uuid,text,text,text,text,text,numeric,uuid),
-        master.mtq_duoc_doc(text,jsonb) FROM PUBLIC""",
+        master.mtq_duoc_doc(text,jsonb,numeric) FROM PUBLIC""",
     """DO $$ BEGIN
         IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'app_web') THEN
-            GRANT EXECUTE ON FUNCTION master.mtq_duoc_doc(text,jsonb) TO app_web;
+            GRANT EXECUTE ON FUNCTION master.mtq_duoc_doc(text,jsonb,numeric) TO app_web;
         END IF;
         END $$""",
 )
