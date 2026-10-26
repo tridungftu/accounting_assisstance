@@ -165,7 +165,7 @@
 4. Tài khoản chi tiết trong mẫu bút toán là **dữ liệu policy** (kế toán trưởng điền); code không gắn cứng số tài khoản. Phần mềm **không phân bổ** thay Junsky, chỉ lưu tham số và kiểm chéo (Anh, #9).
 5. Test dùng dữ liệu giả; ví dụ 7.4 (600 / 60 tháng; cách A năm 1 = 120, cách B ≈ 93,3) làm test đơn vị cho M10-1.
 **Báo Anh khi:** phiếu cổng A M3 (lưới icon + màn hóa đơn–hợp đồng + đợt thu KCN); cần trả lời các [CHỜ CHỐT].
-**Trạng thái:** ĐÃ NHẬN 12:05 26/10 — mục 1 xong (M3 + M10-1 vào `4-KE-HOACH-LEAD.md` và TRANG-THAI; bản M3 20/10 chuyển `LUU-TRU	hiet-ke-m3-ban-20261020\` kèm SHA256; liên kết trong `00-DANH-MUC-VA-THU-TU-CHOT.md` và `CRM-CHUC-NANG-VA-THIET-KE.md` trỏ v2; M3-CL đánh dấu đã thay). Mục 2: giao **M10-1a** (engine lịch A/B, test ví dụ 7.4) 12:10; M3-0 (mô hình dữ liệu + bảng lớp/mốc + phiếu cổng A M3) chờ mục 17 trong v2 (chưa thấy trong tệp lúc 12:05). Không tự quyết #7, #8, #10, #11, #12.
+**Trạng thái:** ĐÃ NHẬN 12:05 26/10 — mục 1 xong (M3 + M10-1 vào `4-KE-HOACH-LEAD.md` và TRANG-THAI; bản M3 20/10 chuyển `LUU-TRU\thiet-ke-m3-ban-20261020\` kèm SHA256; liên kết trong `00-DANH-MUC-VA-THU-TU-CHOT.md` và `CRM-CHUC-NANG-VA-THIET-KE.md` trỏ v2; M3-CL đánh dấu đã thay). Mục 2: giao **M10-1a** (engine lịch A/B, test ví dụ 7.4) 12:10; M3-0 (mô hình dữ liệu + bảng lớp/mốc + phiếu cổng A M3) chờ mục 17 trong v2 (chưa thấy trong tệp lúc 12:05). Không tự quyết #7, #8, #10, #11, #12.
 
 ## CD-014 · 26/10/2026 11:55 · M3: làm theo MỐC thay đổi cách ghi nhận; tài khoản để bước sau (bổ sung CD-013)
 **Căn cứ:** Anh 26/10 11:49: "Hãy quan tâm đến các mốc làm thay đổi cách ghi nhận, còn ghi nhận vào tài khoản nào sẽ nằm ở bước sau." Thiết kế M3 v2 **mục 17** (thêm 11:55).
