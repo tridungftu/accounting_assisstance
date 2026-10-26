@@ -1,0 +1,5 @@
+- Đã sửa nhận diện Điều/Chương đứng riêng, gộp tiêu đề hợp lệ và giữ nguyên câu nội dung.
+- Chỉ đổi hai tệp được giao; UTF-8 không BOM; không commit.
+- Test: **59/59 đạt**, không có lỗi mới trong hai module.
+- Đã đối chiếu DEMO cũ với HEAD: đầu ra và `ma_doan` giữ nguyên.
+- Thông điệp commit đề xuất: `[M9-1d] Nhận nhãn Điều/Chương đứng riêng và tiêu đề đoạn kế`.
