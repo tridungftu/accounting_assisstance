@@ -210,3 +210,26 @@
 6. Ghi danh bạ engine vào `TRANG-THAI.md` (engine · phiên bản · module dùng · trạng thái test).
 **Báo Anh khi:** XS-1…XS-4 xong (kèm ví dụ: tắt một module, module kia vẫn chạy và hiện "chờ"); engine đầu tiên được cắm lại vào module thứ hai.
 **Trạng thái:** ĐÃ NHẬN 20:40 26/10 — giao Codex kiểm kê + chia lát XS-1…XS-4 theo TL 53 (chỉ tài liệu) rồi giao code từng lát; các lát MTQ-4/CD-016 đang chạy giữ nguyên.
+
+## CD-018 · 26/10/2026 20:30 · Mỗi module khai báo vùng dữ liệu ghi/đọc — nguyên tắc triển khai toàn phần mềm
+**Căn cứ:** Anh 26/10 20:26: "mỗi module vào phải xác định được vùng chức năng của cơ sở dữ liệu để ghi nhận hoặc lấy thông tin từ cơ sở dữ liệu… triển khai phần mềm với nguyên tắc như vậy." TL 53 §7 (đã thêm 20:30). `CLAUDE.md` đã thêm dòng "Kiến trúc" (ràng buộc cứng).
+**Việc:**
+1. Thêm **XS-5** vào nhóm xương sống của CD-017: "bản đồ vùng dữ liệu" trong khai báo module (vùng ghi riêng = schema của module; vùng ghi chung chỉ qua hàm xương sống — sự kiện, liên kết chứng từ, việc chờ/duyệt, kho file; vùng đọc danh mục chung; vùng đọc dữ liệu công bố của module khác + sự kiện đăng ký nhận).
+2. **PostgreSQL:** mỗi module một role, GRANT đúng bản đồ; module không ghi/đọc thẳng bảng của module khác. Làm trên DEMO trước; CSDL thật chung (CD-016) tạo theo cách này ngay từ đầu.
+3. **Test bắt buộc:** so mọi bảng/khung nhìn mà module chạm tới (bắt từ SQL chạy test) với bản đồ khai báo; lệch → đỏ, không gộp. Thêm vào 4 kiểm tự động của mỗi lát.
+4. **Áp dụng:** module mới (M3, M9, M10-1) khai báo ngay; module đang có (CRM, M2, M4, M0) lập bản đồ từ code hiện tại, ghi chỗ đang đọc chéo trực tiếp → chuyển dần sang dữ liệu công bố khi chạm tới (không dừng việc đang chạy).
+5. Màn quản trị (chỉ Admin): xem bản đồ vùng dữ liệu từng module (ghi gì, đọc gì, từ module nào).
+**Báo Anh khi:** bản đồ vùng dữ liệu của các module đang có (bảng tóm tắt 1 trang: module × ghi × đọc × chỗ đọc chéo cần sửa).
+**Trạng thái:** ĐÃ NHẬN 21:10 26/10 — thêm XS-5 vào chuỗi xương sống (KK-XUONG-SONG); giao Codex kiểm kê bản đồ vùng dữ liệu CRM/M2/M4/M0 (+M3, M9) từ mã → `KK-VUNG-DU-LIEU.md` (bảng 1 trang báo Anh). Sau đó: XS-5a khai báo vùng trong mô hình XS-4a; XS-5b role PG theo module trên DEMO; XS-5c test so truy cập thực với bản đồ (vào 4 kiểm tự động); màn quản trị Admin. CSDL thật chung (CD-016) chỉ dựng sau XS-5b để có role theo bản đồ ngay từ đầu.
+
+## CD-019 · 26/10/2026 20:45 · Engine/cổng dùng chung; CSDL lưu riêng `D:\DU-LIEU-KE-TOAN`; mã hóa
+**Căn cứ:** Anh 26/10 20:30 ("engine tái sử dụng qua các module, cổng chung để xử lý chung nhằm tiết kiệm dung lượng phần mềm cũng như hoạt động; CSDL phải được lưu trữ riêng chứ không nằm trong phần mềm"); Anh chốt 20:35–20:45: lưu trên máy này tại **`D:\DU-LIEU-KE-TOAN`**, sau chuyển lên máy chủ; mã hóa **cột nhạy cảm + file sao lưu ngay, BitLocker sau khi đo**. TL 53 §8; `CLAUDE.md` đã thêm dòng "Dùng chung & lưu riêng".
+**Việc:**
+1. **Dùng chung:** mỗi năng lực một engine; cổng chung một bản (AI, OCR, file, tải hóa đơn, Google API, xuất Junsky). Thêm kiểm ở cổng kiểm soát: lát không được thêm thư viện/mô hình/kết nối trùng cái đã có trong danh bạ engine/cổng (CD-017 XS-3).
+2. **CSDL thật chung (CD-016) tạo tại `D:\DU-LIEU-KE-TOAN\postgresql\`** (dịch vụ Windows riêng, cổng riêng, tách DEMO); kho file thật tại `D:\DU-LIEU-KE-TOAN\kho-file\`; sao lưu tại `D:\DU-LIEU-KE-TOAN\sao-luu\` + đề xuất cách chép thêm ra ổ khác/ổ ngoài định kỳ. Phần mềm chỉ giữ cấu hình kết nối (ngoài git). Thư mục chưa có → lead tạo (cần quyền thì hỏi Anh).
+3. Cụm DEMO đang ở `D:\Claude\Phan mem ho tro ke toan\var\postgresql-ktt-16\data`: chuyển ra ngoài thư mục phần mềm khi tiện (không gấp, không làm gián đoạn cổng A). Kho thật SQLite `var\plhn-that`: theo kế hoạch chuyển của CD-016 mục 2.
+4. **Mã hóa ngay:** (a) cột nhạy cảm bằng pgcrypto — lead lập danh sách cột (CCCD/ĐKDN, số tài khoản ngân hàng, …) để Anh duyệt trước khi bật; khóa nằm ngoài CSDL và ngoài thư mục phần mềm, chỉ code đọc lúc chạy; có cách xoay khóa; (b) file sao lưu mã hóa, khóa giữ riêng, có hướng dẫn khôi phục và thử khôi phục một lần.
+5. **BitLocker:** đo trước — chạy bộ đo (pgbench + vài thao tác lưu thật của phần mềm trên DEMO) trên `D:\DU-LIEU-KE-TOAN` khi chưa mã hóa, ghi số; khi Anh bật BitLocker, đo lại cùng bộ, báo chênh lệch để Anh quyết giữ hay dùng mã hóa phần cứng.
+6. SSL: ghi vào checklist chuyển lên máy chủ.
+**Báo Anh khi:** danh sách cột nhạy cảm cần duyệt; số đo trước BitLocker; biên bản thử khôi phục bản sao lưu mã hóa.
+**Trạng thái:** ĐÃ NHẬN 21:10 26/10 — (1) thêm kiểm "không trùng engine/thư viện/mô hình/kết nối" vào `MAU-REVIEW-CODEX.md` và cổng lead; (2) lead tạo `D:\DU-LIEU-KE-TOAN\{postgresql,kho-file,sao-luu}` (thư mục rỗng); cụm PG thật dựng sau XS-5b và khi Anh duyệt kế hoạch chuyển kho — đăng ký dịch vụ Windows cần quyền quản trị: sẽ hỏi Anh đúng bước đó; (3) giao Codex lập danh sách cột nhạy cảm + thiết kế pgcrypto/xoay khóa/sao lưu mã hóa/thử khôi phục + bộ đo trước BitLocker (tài liệu `KK-MA-HOA-LUU-RIENG.md`) → gửi Anh duyệt danh sách cột trước khi bật.
