@@ -17,7 +17,7 @@ import zipfile
 
 from kho_tri_thuc.ha_tang.primitives import DataError
 from kho_tri_thuc.m9.ocr_hot_folder import HotFolderM9
-from kho_tri_thuc.m9 import ocr_hot_folder as OCR
+from kho_tri_thuc.ha_tang import cong_ocr as OCR
 
 
 CHO = 20  # Giới hạn phát hiện treo, không phải khoảng ngủ để đoán tiến độ.
@@ -147,7 +147,7 @@ class HotFolderM9Tests(unittest.TestCase):
                     self.assertEqual(list((self.hot / ten).iterdir()), [])
 
     def _so(self):
-        return self.du_lieu / "ocr_hot_folder_m9" / "so_trang.json"
+        return self.du_lieu / "ocr_abbyy" / "so_trang.json"
 
     def _dat_so(self, ds):
         self._so().parent.mkdir(parents=True, exist_ok=True)
@@ -174,9 +174,9 @@ class HotFolderM9Tests(unittest.TestCase):
     def test_dem_sha256_ben_vung_khong_ton_lai_trang_ke_ca_het_han_muc(self):
         self._gia()
         self.assertEqual(self.bo_noi.ocr(self.pdf, "pdf"), self.docx)
-        tep = self._so().parent / (hashlib.sha256(self.pdf).hexdigest() + ".docx")
+        tep = self.du_lieu / "ocr_hot_folder_m9" / (hashlib.sha256(self.pdf).hexdigest() + ".docx")
         self.assertEqual(tep.read_bytes(), self.docx)
-        self._dat_so([[time.time(), 5000, "demo_da_dung"]])
+        self._dat_so([[time.time(), 5000]])
         self.assertEqual(self._moi().ocr(self.pdf, ".PDF"), self.docx)
         self.assertEqual(len(self.da_thay), 1)
         self.assertEqual(self._trang(), 5000)
@@ -224,7 +224,7 @@ class HotFolderM9Tests(unittest.TestCase):
         hen[0].lam()
         self.assertEqual((self.hot / "out" / "nguoi_dung.demo").read_bytes(), b"DEMO")
         if self.giu_tep:
-            self.assertEqual([p.read_bytes() for p in (self.hot / "out").glob("m9_*.docx")], [self.docx])
+            self.assertEqual([p.read_bytes() for p in (self.hot / "out").glob("hd*.docx")], [self.docx])
         else:
             self.assertEqual([p.name for p in (self.hot / "out").iterdir()], ["nguoi_dung.demo"])
         self.assertEqual(self._trang(), 1)
@@ -333,14 +333,14 @@ class HotFolderM9Tests(unittest.TestCase):
             dong_ho[0] += giay
 
         # Thời gian logic: mỗi lần poll đã ghi xong mới tiến giờ, không đua scheduler.
-        gia_gio = SimpleNamespace(time=time.time, monotonic=lambda: dong_ho[0], sleep=nhip)
+        gia_gio = SimpleNamespace(time=time.time, strftime=time.strftime, monotonic=lambda: dong_ho[0], sleep=nhip)
         with patch.object(OCR, "time", gia_gio):
             self.assertEqual(self.bo_noi.ocr(self.pdf, "pdf"), self.docx + b" " * 6)
         self.assertEqual(so_lan[0], 6)
         self._sach()
 
     def test_vuot_han_muc_chan_truoc_khi_ghi_vao_in(self):
-        self._dat_so([[time.time(), 4999, "demo_da_dung"]])
+        self._dat_so([[time.time(), 4999]])
         self._gia()
         doi_trang = self.pdf + b"\n/Type /Page\n"
         thay = []
@@ -350,7 +350,7 @@ class HotFolderM9Tests(unittest.TestCase):
             if Path(dst).parent == self.hot / "in":
                 thay.append(dst)
             return replace(src, dst)
-        with patch("kho_tri_thuc.m9.ocr_hot_folder.os.replace", side_effect=doi):
+        with patch("kho_tri_thuc.ha_tang.cong_ocr.os.replace", side_effect=doi):
             self._loi("M9_OCR_HET_HAN_MUC", lambda: self.bo_noi.ocr(doi_trang, "pdf"))
         self.assertEqual(thay, [])
         self.assertEqual(self.da_thay, [])
@@ -358,8 +358,8 @@ class HotFolderM9Tests(unittest.TestCase):
         self._sach()
 
     def test_cua_so_30_ngay_va_dem_pdf_khong_dem_pages(self):
-        self._dat_so([[time.time() - 31 * 86400, 5000, "demo_cu"],
-                      [time.time(), 4998, "demo_moi"]])
+        self._dat_so([[time.time() - 31 * 86400, 5000],
+                      [time.time(), 4998]])
         self._gia()
         raw = self.pdf + b"\n/Type\n/Page\n/Type /Pages /Type /PageLabel"
         self.assertEqual(self.bo_noi.ocr(raw, "pdf"), self.docx)
@@ -399,7 +399,7 @@ class HotFolderM9Tests(unittest.TestCase):
             if Path(dst).parent == self.hot / "in":
                 raise OSError(f"{self.goc}: Hợp đồng DEMO")
             return replace(src, dst)
-        with patch("kho_tri_thuc.m9.ocr_hot_folder.os.replace", side_effect=doi):
+        with patch("kho_tri_thuc.ha_tang.cong_ocr.os.replace", side_effect=doi):
             loi = self._loi("M9_OCR_LOI_ABBYY", lambda: self.bo_noi.ocr(self.pdf, "pdf"))
         self.assertTrue(loi.__suppress_context__)
         self._sach()
