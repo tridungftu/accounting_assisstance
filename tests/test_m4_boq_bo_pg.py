@@ -477,6 +477,8 @@ class BoqGhiPostgres(unittest.TestCase):
                 self.call(rows, pl)
         self.assertEqual(caught.exception.sqlstate, "P0001")
         self.assertTrue(caught.exception.diag.message_primary.startswith(code + ": "))
+        message = caught.exception.diag.message_primary.split(": ", 1)[1]
+        self.assertNotRegex(message, r"\b(?:GOC|THEM|THAY|BO)\b")
         self.assertEqual(self.counts(), before)
 
     def counts(self):
@@ -540,6 +542,41 @@ class BoqGhiPostgres(unittest.TestCase):
         self.loi("M4_BOQ_BO_KHONG_HIEU_LUC", [{"ma_hm": "MAT", "thao_tac": "BO"}], pl)
         self.call([{"ma_hm": "GIA", "thao_tac": "BO"}], self.pl("2026-02-01"))
         self.loi("M4_BOQ_BO_KHONG_HIEU_LUC", [{"ma_hm": "GIA", "thao_tac": "BO"}], pl)
+
+    def test_bo_thieu_dong_khong_trung_them_dong_mot(self):
+        self.legacy(self.f)
+        result = self.call([{"ma_hm": "GIA", "thao_tac": "BO"},
+                            self.dong("MOI", thao_tac="THEM")], self.pl())
+        self.assertEqual([r[:3] for r in self.stored(result)],
+                         [(1, "MOI", "THEM"), (2, "GIA", "BO")])
+        doc = self.c.execute("SELECT m4.boq_hieu_luc(%s,'2026-03-01')",
+                             (self.f["hd"],)).fetchone()[0]
+        self.assertFalse(doc["can_xem_lai"])
+        self.assertEqual([r["ma_hm"] for r in doc["boq"]], ["MOI"])
+
+    def test_dong_thieu_noi_sau_so_lon_nhat_theo_thu_tu_gui(self):
+        self.legacy(self.f)
+        for explicit in (False, True):
+            with self.subTest(explicit=explicit):
+                rows = [{"ma_hm": "DAU", "ten": "Dòng giả đầu", "dvt": "m", "o_goc": {}},
+                        {**self.dong("MUOI"), "dong": 10},
+                        {"ma_hm": "SAU", "ten": "Dòng giả sau", "dvt": "m", "o_goc": {}},
+                        {**self.dong("BA"), "dong": 3}]
+                if explicit:
+                    rows = [dict(row, thao_tac="THEM") for row in rows]
+                result = self.call(rows, self.pl())
+                self.assertEqual([r[:2] for r in self.stored(result)],
+                                 [(3, "BA"), (10, "MUOI"), (11, "DAU"), (12, "SAU")])
+
+    def test_dong_tuong_minh_trung_bao_loi_co_ma(self):
+        self.legacy(self.f)
+        pl = self.pl()
+        cases = [([self.dong(), self.dong("MOI")], None),
+                 ([self.dong(thao_tac="GOC"), self.dong("MOI", thao_tac="GOC")], None),
+                 ([self.dong(thao_tac="BO"), self.dong("MOI", thao_tac="THEM")], pl)]
+        for rows, target in cases:
+            with self.subTest(rows=rows, pl=target):
+                self.loi("M4_BOQ_TRUNG_DONG", rows, target)
 
     def test_them_thay_nhan_dung_khong_chan_nghiep_vu_va_giu_tien_text(self):
         self.legacy(self.f)

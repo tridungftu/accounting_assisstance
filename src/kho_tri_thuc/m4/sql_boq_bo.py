@@ -135,7 +135,7 @@ M4_BOQ_BO_SQL = (
 M4_BOQ_BO_B_SQL = (
     ("b uuid; n integer; goc text[]; tt text;",
      """b uuid; n integer; goc text[]; tt text;
-        tuong_minh boolean; so_co integer; nguon_bo jsonb := '{}'::jsonb;
+        tuong_minh boolean; so_co integer; dong_lon_nhat integer; nguon_bo jsonb := '{}'::jsonb;
         su_kien record; hien_tai jsonb;"""),
     ("            n := jsonb_array_length(p_dong);",
      """            n := jsonb_array_length(p_dong);
@@ -152,15 +152,33 @@ M4_BOQ_BO_B_SQL = (
                    OR (e.value->>'thao_tac') NOT IN ('GOC','THEM','THAY','BO')
                    OR (p_pl IS NULL AND e.value->>'thao_tac' <> 'GOC')
                    OR (p_pl IS NOT NULL AND e.value->>'thao_tac' = 'GOC')) THEN
-                RAISE EXCEPTION 'M4_BOQ_THAO_TAC_SAI: chỉ dùng GOC cho BOQ gốc; phụ lục nhận THEM, THAY hoặc BO.' USING ERRCODE = 'P0001';
+                RAISE EXCEPTION 'M4_BOQ_THAO_TAC_SAI: BOQ gốc chỉ nhận hạng mục gốc; phụ lục nhận thêm hạng mục, thay hạng mục hoặc bỏ hạng mục.' USING ERRCODE = 'P0001';
             END IF;
             IF tuong_minh AND EXISTS (
                 SELECT 1 FROM jsonb_array_elements(p_dong) e
                 WHERE e.value->>'thao_tac' = 'BO'
                   AND (jsonb_typeof(e.value->'ma_hm') IS DISTINCT FROM 'string'
                        OR coalesce(length(btrim(e.value->>'ma_hm')), 0) NOT BETWEEN 1 AND 500)) THEN
-                RAISE EXCEPTION 'M4_BOQ_BO_THIEU_MA: dòng bỏ cần mã hạng mục hợp lệ.' USING ERRCODE = 'P0001';
+                RAISE EXCEPTION 'M4_BOQ_BO_THIEU_MA: bỏ hạng mục cần mã hạng mục hợp lệ.' USING ERRCODE = 'P0001';
             END IF;
+            IF EXISTS (
+                SELECT 1 FROM jsonb_to_recordset(p_dong) AS x(dong integer)
+                WHERE x.dong IS NOT NULL GROUP BY x.dong HAVING count(*) > 1) THEN
+                RAISE EXCEPTION 'M4_BOQ_TRUNG_DONG: số dòng gửi tường minh bị trùng trong cùng lần ghi.' USING ERRCODE = 'P0001';
+            END IF;
+            SELECT coalesce(max(x.dong), 0) INTO dong_lon_nhat
+            FROM jsonb_to_recordset(p_dong) AS x(dong integer);
+            -- Dòng thiếu số nối sau số lớn nhất, theo thứ tự gửi; giữ số tường minh.
+            SELECT coalesce(jsonb_agg(
+                CASE WHEN e.dong IS NULL THEN e.value || jsonb_build_object(
+                    'dong', dong_lon_nhat + e.so_thieu::integer) ELSE e.value END
+                ORDER BY e.vi_tri), '[]'::jsonb) INTO p_dong
+            FROM (
+                SELECT a.value, a.vi_tri, x.dong,
+                       count(*) FILTER (WHERE x.dong IS NULL) OVER (ORDER BY a.vi_tri) AS so_thieu
+                FROM jsonb_array_elements(p_dong) WITH ORDINALITY AS a(value, vi_tri)
+                CROSS JOIN LATERAL jsonb_to_record(a.value) AS x(dong integer)
+            ) e;
             IF tuong_minh AND EXISTS (
                 SELECT 1 FROM jsonb_array_elements(p_dong) e WHERE e.value->>'thao_tac' = 'BO') THEN
                 -- Chỉ projection các mã cần bỏ, trước PL này; cùng ngày theo lan.
@@ -197,14 +215,14 @@ M4_BOQ_BO_B_SQL = (
                 END LOOP;
                 IF EXISTS (SELECT 1 FROM jsonb_array_elements(p_dong) e
                            WHERE e.value->>'thao_tac' = 'BO' AND NOT (nguon_bo ? (e.value->>'ma_hm'))) THEN
-                    RAISE EXCEPTION 'M4_BOQ_BO_KHONG_HIEU_LUC: mã cần bỏ không có dòng hiệu lực trước phụ lục này.' USING ERRCODE = 'P0001';
+                    RAISE EXCEPTION 'M4_BOQ_BO_KHONG_HIEU_LUC: bỏ hạng mục cần mã có dòng hiệu lực trước phụ lục này.' USING ERRCODE = 'P0001';
                 END IF;
             END IF;"""),
     ("            INSERT INTO m4.boq_dong (boq_id, du_an_id, dong, ma_hm, thao_tac, stt, nhom, ten, dvt, kl, don_gia, thanh_tien, ma_rieng, o_goc)",
      """            IF tuong_minh THEN
                 INSERT INTO m4.boq_dong (boq_id, du_an_id, dong, ma_hm, thao_tac, stt, nhom, ten, dvt, kl, don_gia, thanh_tien, ma_rieng, o_goc)
                     SELECT b, h.du_an_id,
-                           CASE WHEN x.thao_tac = 'BO' THEN coalesce(x.dong, e.vi_tri::integer) ELSE x.dong END,
+                           x.dong,
                            x.ma_hm, x.thao_tac, x.stt, x.nhom,
                            CASE WHEN x.thao_tac = 'BO' THEN coalesce(nullif(x.ten, ''), nguon_bo->x.ma_hm->>'ten') ELSE x.ten END,
                            CASE WHEN x.thao_tac = 'BO' THEN coalesce(nullif(x.dvt, ''), nguon_bo->x.ma_hm->>'dvt') ELSE x.dvt END,
