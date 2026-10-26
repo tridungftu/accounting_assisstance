@@ -373,3 +373,13 @@ H3 phân loại 36 đầu việc: 19 gói đã nhập `hop-nhat`, 13 xung đột
 | Bảng mốc M3 + phiếu cổng A M3 hoàn chỉnh | chờ mục 17 thiết kế v2 (chưa có lúc 12:40) |
 | M4-DL4 (đợt/KL/ghép/log) | cùng tệp DL2 — chờ DL2 gộp |
 | Nạp dữ liệu Review thật (CD-011) | **Cần Anh**: bảng ánh xạ `ma_hd → HĐ/pháp nhân/dự án` |
+### 26/10 ~13:00 — gộp MTQ-4a0 (M0041), MTQ-2d, M4-DL2 · lead chốt · lỗi test PG tự bỏ qua
+- Hợp nhất: e9553d4 MTQ-4a0 (**M0041**, cổng SQL SECURITY DEFINER; review vòng 2 Đạt, PG 103 ok), 881ba6d MTQ-2d (la_admin, mã lỗi trùng/khóa ngoại; PG 95 ok), 663ac63 M4-DL2 (review vòng 2 Đạt; PG 31 ok). `lat/ui-ky` 204ba6f nhận hợp nhất (style.css giữ cả khối khung lưới và khối `mtq-`).
+- **Lead chốt:**
+  - DL2 lớp đọc **tự kiểm quyền M4** (phương án (a), khớp hợp đồng dữ liệu); DL3 làm theo ở vòng 2.
+  - CD1: **chỉ đòi ánh xạ cho `ma_hd` có trong bảng `hop_dong`**; dòng mồ côi (`canh_bao`, `nhat_ky` của HĐ đã xóa) lưu NULL + đếm riêng.
+  - MTQ-4a0: phòng chọn trong các phòng người dùng có vai, mơ hồ thì chặn; tiền do máy chủ lấy từ phiên bản đã khóa; đối tượng `{bang,id,phong_id?}` (chờ Anh xác nhận, không chặn).
+- **Review M4-CD1 Không đạt (Chặn):** khi stdout không phải UTF-8, nhánh lỗi in traceback có thể lộ đoạn mật khẩu DSN → vòng 2 đang chạy. **Khi lead chạy thật:** dùng `python -X utf8`, ghi báo cáo vào `LUU-TRU` (không dán chat — có số tiền theo cặp HĐ × đợt).
+- **Lỗi lặp lại ở test PG mới (M3-1a, M3-1b):** test tự skip dưới bộ chạy của lead (đọc biến nội bộ `KHO_PG_DEMO_*`, hoặc đòi DSN đã trỏ vào `kho_test_*`). Bài học: cổng gộp phải kiểm **`tao=`/`skip`** của từng module PG mới, không chỉ `ids_loi`. M3-1a vòng 2 đã sửa (PG 16 ok); M3-1b vòng 2 chờ suất.
+- Thiết kế M3 v2 vẫn chưa có mục 17 (bảng mốc) → M3-3/M3-4 và phiếu cổng A M3 chờ.
+- Đang chạy: Codex — MTQ-4a, MTQ-3b2, M2-BR0, M4-CD1 v2 (4/4). Claude — review-lat M3-1a+1b (1/2). Chờ suất: M3-1b v2, M4-DL3 v2.

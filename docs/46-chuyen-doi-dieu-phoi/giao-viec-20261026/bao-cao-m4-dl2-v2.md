@@ -1,0 +1,5 @@
+- Anh, đã sửa đúng 2 tệp: phân biệt NULL, kiểm quyền M4, chặn ánh xạ trùng, chuẩn hóa `-0`, báo rõ trường replay khác.
+- API đọc: `doc_hien_hanh(hop_dong_id, *, conn_phien)`; chữ ký hàm ghi giữ nguyên.
+- UTF-8 không BOM và `git diff --check`: đạt.
+- Test: 15 thuần + 16 PG chưa chạy vì Python bị từ chối thực thi (`Access is denied`); chưa xác minh lỗi mới. Không kết nối PG.
+- Không commit. Thông điệp: `[M4-DL2] vòng 2: phân biệt NULL, kiểm quyền đọc và làm rõ lỗi replay`.
