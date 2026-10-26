@@ -40,7 +40,36 @@ Kiểm 5 việc, mỗi việc một kết luận:
 4. **Không phá phần cũ:** đường cũ giữ nguyên; không gọi thẳng `api.anthropic.com` / `api.openai.com` (chỉ qua cổng AI; M9 chỉ Local).
 5. **Giao diện/câu cho người dùng:** tiếng Việt nghiệp vụ, không mã kỹ thuật, không "Cần Anh/lead"; ngày dd/mm/yyyy; tiền có đơn vị.
 
+**Giữ đúng trọng tâm (Anh nhắc 26/10):**
+- Trả lời **trước tiên** từng câu hỏi trọng tâm lead ghi ở mục D, mỗi câu: Đạt/Không + tệp:dòng.
+- Chỉ xét **diff của lát** và đúng các tiêu chí trong giao việc + điểm nóng mục C. Không review lại mã cũ không bị diff chạm, không góp ý phong cách/đặt tên, không đề xuất tính năng hay thiết kế mới.
+- Mỗi điểm **Chặn** phải có đủ 3 thứ:
+  - tệp:dòng trong diff;
+  - tiêu chí bị vi phạm (mục nào của giao việc, hoặc dòng nào của mục C);
+  - **tình huống hỏng cụ thể** (dữ liệu vào → kết quả sai).
+
+  Thiếu một trong ba thì ghi "Nên sửa", không ghi "Chặn".
+- Phát hiện ngoài phạm vi lát (mã cũ, module khác): tối đa **2 dòng** ở "Để sau", không tính vào kết luận.
+- Vòng review 2 **chỉ** xem các điểm Chặn của vòng 1 đã sửa đúng chưa và diff vòng sửa có phá gì không; không mở thêm hạng mục mới trừ lỗi Chặn do chính diff vòng sửa gây ra.
+
 Trả ≤ 1 trang, ≤ 10 điểm, 3 mức **Chặn / Nên sửa / Để sau**; chỉ "Chặn" ngăn gộp. Không đề xuất mở rộng phạm vi.
+
+**Hỏi Claude trước khi đi tiếp (Anh nhắc 26/10):**
+- Mọi điểm Chặn có tình huống hỏng cụ thể, và mọi chỗ reviewer **không chắc** (thiếu căn cứ, nhiều cách hiểu, đụng nghiệp vụ/quyền/tiền chưa rõ), phải ghi riêng ở cuối review, mục **"Hỏi Claude"**.
+- Mỗi dòng: câu hỏi + tệp:dòng + vì sao chưa rõ.
+- Reviewer **không** tự kết luận Đạt cho lát còn mục "Hỏi Claude", và không tự đề xuất cách sửa ngoài phạm vi.
+
+## E. Lead kiểm soát review của Codex (trước khi giao vòng sửa)
+
+**Bắt buộc:** lát có điểm Chặn hoặc mục "Hỏi Claude" thì **dừng**. Lead (Claude) đọc, quyết từng điểm (Chặn thật / hạ mức / bỏ / hỏi Anh), rồi mới giao vòng sửa hoặc gộp. Worker Codex gặp chỗ chưa rõ trong khi làm cũng dừng và báo "Cần lead", không đoán.
+
+Lead đọc review Codex và **lọc**:
+- Điểm Chặn thiếu tệp:dòng, tiêu chí hoặc tình huống hỏng → hạ thành Nên sửa, hoặc bỏ.
+- Điểm ngoài diff/ngoài giao việc → bỏ, hoặc ghi vào hàng đợi riêng nếu thật sự có rủi ro. Không đưa vào vòng sửa của lát.
+- Review không trả lời các câu trọng tâm mục D → coi như chưa review, giao lại kèm nhắc.
+- Review mâu thuẫn với kết quả gate máy (ví dụ nói test đạt khi PG có mã lỗi mới) → lấy gate máy.
+- Vòng sửa chỉ gồm các điểm Chặn đã lọc, cộng Nên sửa rẻ và nằm trong cùng tệp.
+- Ghi vào tệp `review-<mã>.md`: bản đã lọc, kèm dòng "lead lọc: bỏ N điểm ngoài phạm vi, hạ M điểm".
 
 ## C. Điểm nóng phải soi (bài học review 26/10)
 

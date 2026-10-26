@@ -308,3 +308,4 @@ Lead ghi 26/10 theo review MTQ-4a3a: trong resolver SQL M0045, HĐ thuộc CRM =
 
 ## QD-20261026-04 · Review chéo giao Codex; Claude chỉ kiểm xác suất
 Anh chốt 26/10 ~16:00: "do hạn mức đã gần đầy, hãy giao cho cả codex tự kiểm theo bài của Claude, để claude code chỉ kiểm xác suất thôi". Thay phần review của CD-004 (kiem-nhanh Haiku + review-lat Opus): mỗi lát Codex được một Codex khác review chỉ đọc theo `docs/46-chuyen-doi-dieu-phoi/MAU-REVIEW-CODEX.md`; lead giữ gate máy (diff/mã hóa/test + PG so nền/skip) cho mọi lát và rút ngẫu nhiên ~1/4 lát đã Đạt để tự đọc nhanh điểm nóng, không gọi subagent. Vẫn tối đa 4 Codex (kể cả việc review).
+Bổ sung cùng ngày (Anh nhắc): kiểm soát Codex để không review quá phạm vi/lệch trọng tâm (mẫu mục B "Giữ đúng trọng tâm", mục E lead lọc); và **mọi điểm Chặn gây hỏng cụ thể hoặc chỗ không rõ phải hỏi lại Claude (lead) trước khi thực hiện tiếp** — reviewer ghi mục "Hỏi Claude", worker dừng và báo "Cần lead".
