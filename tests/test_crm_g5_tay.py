@@ -38,10 +38,10 @@ class G5TayThuan(unittest.TestCase):
         m = SimpleNamespace(danh_tinh=Mock(return_value="DANH_TINH_PHIEN"), _tx=tx)
         return CrmKyKetK2(SimpleNamespace(mau=m, kho=KYH.Path("kho-gia"))), c
 
-    def test_m0037_cuoi_va_khong_sua_m0036(self):
-        self.assertEqual(PM.PG_SCHEMA_VERSION, 37)
-        self.assertIs(PM.PG_MIGRATIONS[-1], PM.M0037_CRM_G5_TAY)
-        self.assertIs(PM.PG_MIGRATIONS[-2], PM.M0036_KY_DOCX)
+    def test_m0037_vi_tri_37_va_khong_sua_m0036(self):
+        self.assertGreaterEqual(PM.PG_SCHEMA_VERSION, 37)
+        self.assertIs(PM.PG_MIGRATIONS[36], PM.M0037_CRM_G5_TAY)
+        self.assertIs(PM.PG_MIGRATIONS[35], PM.M0036_KY_DOCX)
         self.assertNotIn("crm_g5_kiem_tay", "\n".join(PM.M0036_KY_DOCX))
 
     def test_sql_quyen_revoke_khoa_va_bien_nhan(self):
@@ -56,7 +56,8 @@ class G5TayThuan(unittest.TestCase):
 
     def test_sql_khong_noi_e5_va_khong_tu_duyet_g6(self):
         sql = "\n".join(PM.M0037_CRM_G5_TAY)
-        self.assertNotIn("ALTER TABLE", sql)
+        self.assertIn("ALTER TABLE master.crm_g5_kiem_tay ENABLE ROW LEVEL SECURITY", sql)
+        self.assertNotRegex(sql, r"ALTER TABLE\s+master\.(?:crm_hd_ky|crm_g5_(?!kiem_tay\b)\w+|crm_kiem_g5_\w+)\b")
         self.assertNotIn("INSERT INTO master.crm_g5_ket_qua", sql)
         self.assertNotIn("crm_kiem_hieu_luc(", sql)
         self.assertIn("s.revision_hien_hanh IS DISTINCT FROM k.revision", sql)
@@ -65,7 +66,8 @@ class G5TayThuan(unittest.TestCase):
 
     def test_ly_do_bat_buoc_va_bien_10_1000(self):
         svc, c = self.service()
-        for value in (None, "", " " * 20, "ngắn", "a" * 1001, 123, "123456789\x00"):
+        for value in (None, "", " " * 20, "ngắn", "a" * 1001, 123,
+                      *("123456789" + chr(n) + "lý do" for n in (*range(32), *range(127, 160)))):
             with self.subTest(value=repr(value)[:35]), self.assertRaises(DataError) as cm:
                 svc.xac_nhan_g5_tay("KT", ky_id=KY, ly_do=value, khoa="k1")
             self.assertEqual((cm.exception.code, cm.exception.locator), ("CRM_G5_TAY_LY_DO", "ly_do"))
@@ -73,6 +75,12 @@ class G5TayThuan(unittest.TestCase):
         for length in (10, 1000):
             svc.xac_nhan_g5_tay("KT", ky_id=KY, ly_do="a" * length, khoa="k1")
         self.assertEqual(c.execute.call_count, 2)
+
+    def test_sql_ly_do_chan_ky_tu_dieu_khien_o_lenh_trigger_va_bang(self):
+        sql = "\n".join(PM.M0037_CRM_G5_TAY)
+        self.assertIn("p_ly_do ~ '[[:cntrl:]]'", sql)
+        self.assertIn("NEW.ly_do ~ '[[:cntrl:]]'", sql)
+        self.assertIn("ly_do !~ '[[:cntrl:]]'", sql)
 
     def test_dich_vu_gui_dung_danh_tinh_va_digest(self):
         svc, c = self.service()
@@ -141,6 +149,7 @@ class G5TayPg(unittest.TestCase):
     def test_p00_chuan_bi(self):
         KYH.CrmKyKetHttp.test_k01_dung_ban_soan_va_xuat_that(self)
         self.s["pc"] = self.cap_phan_cong(KYH.BH)
+        self.assertTrue(self.q("SELECT relrowsecurity FROM pg_class WHERE oid = 'master.crm_g5_kiem_tay'::regclass"))
 
     def tao_ky(self, tag, co_sua=True):
         self.can_pdf()
@@ -172,13 +181,23 @@ class G5TayPg(unittest.TestCase):
         body.update(sua)
         return self.goi(ROUTE, body, self.sid(login))[:2]
 
+    def luu_g6(self, body):
+        st, r = self.goi("/api/crm/giao-ket/kiem/luu", body, self.sid(KYH.KT))[:2]
+        if st == 400 and r.get("error") == "CSDL_TU_CHOI":
+            # Chỉ dữ liệu DEMO của DB test: gọi cùng service/khóa để traceback
+            # hiện SQLSTATE + context gốc, thay vì lớp HTTP che lỗi PostgreSQL.
+            CG.dich_vu_kiem(self.app).luu(KYH.KT, **body)
+        self.assertEqual(st, 200, (KYH.KT, "giao-ket/kiem/luu", r))
+        return r
+
     def test_p01_hold_kiem_tay_g6_hieu_luc_va_nhat_ky(self):
         d = self.tao_ky("hl")
         self.assertEqual(self.q("SELECT master.crm_kiem_g5_xet(%s, 'VAN_HANH')", (d["ky"],))["chan"], [{"ma": "G5_BAN_SINH_CHI_DOCX"}])
         ma = self.ma("PN_DEMO_A")
         self.assertIsNotNone(ma, "Seed DEMO thiếu mã khách thử G6")
-        self.ok(KYH.KT, "giao-ket/kiem/luu", KIH._than_luu(ky_id=d["ky"], doi_tac_id=ma["doi_tac_id"], ma_junsky_id=ma["id"],
-            ngay_hieu_luc=KYH.ngay(0), can_cu_ngay="DIEU_KHOAN_HD", trich_dan_ngay=KIH.TRICH_DAN, khoa=self.K("luu-hl")))
+        body = KIH._than_luu(ky_id=d["ky"], doi_tac_id=ma["doi_tac_id"], ma_junsky_id=ma["id"],
+            ngay_hieu_luc=KYH.ngay(0), can_cu_ngay="DIEU_KHOAN_HD", trich_dan_ngay=KIH.TRICH_DAN, khoa=self.K("luu-hl"))
+        self.luu_g6(body)
         before = self.ok(KYH.KT, "giao-ket/kiem/check", {"ky_id": d["ky"], "expected_revision": 1, "khoa": self.K("check-truoc")})["check"]
         self.assertIn("G5_BAN_SINH_CHI_DOCX", {x["ma"] for x in before["chan"]})
         st, r = self.xac_nhan(d)
@@ -193,9 +212,11 @@ class G5TayPg(unittest.TestCase):
         self.assertEqual(len(rows), 1)
         self.assertEqual((rows[0][0], rows[0][1]), (KYH.KT, LY_DO))
         self.assertEqual(rows[0][2]["xac_nhan_luc"], r["xac_nhan_luc"])
-        c = self.ok(KYH.KT, "giao-ket/kiem/check", {"ky_id": d["ky"], "expected_revision": 1, "khoa": self.K("check-sau")})["check"]
+        body.update(expected_revision=1, khoa=self.K("luu-sau-tay"))
+        self.assertEqual(self.luu_g6(body)["revision"], 2)
+        c = self.ok(KYH.KT, "giao-ket/kiem/check", {"ky_id": d["ky"], "expected_revision": 2, "khoa": self.K("check-sau")})["check"]
         self.assertEqual((c["ket_luan"], c["chan"]), ("DU_DIEU_KIEN", []))
-        hl = self.ok(KYH.KT, "giao-ket/kiem/hieu-luc", {"ky_id": d["ky"], "expected_revision": 1,
+        hl = self.ok(KYH.KT, "giao-ket/kiem/hieu-luc", {"ky_id": d["ky"], "expected_revision": 2,
             "check_id": c["check_id"], "do_thi_sha256": c["do_thi_sha256"], "khoa": self.K("hl")})
         self.assertEqual((hl["trang_thai"], hl["hieu_luc"]["g5_che_do"]), ("HIEU_LUC", "VAN_HANH"))
 
@@ -269,6 +290,40 @@ class G5TayPg(unittest.TestCase):
             with self.admin.transaction():
                 self.admin.execute("UPDATE master.crm_g5_kiem_tay SET ly_do = 'DEMO sửa trái phép' WHERE ky_id = %s", (d["ky"],))
         self.assertIn("CRM_G_BAT_BIEN", str(cm.exception))
+
+    def test_p07_kiem_tay_truoc_khi_mo_ho_so_g6(self):
+        d = self.tao_ky("tay-truoc")
+        self.assertEqual(self.xac_nhan(d)[0], 200)
+        ma = self.ma("PN_DEMO_A")
+        self.assertIsNotNone(ma, "Seed DEMO thiếu mã khách thử G6")
+        r = self.luu_g6(KIH._than_luu(ky_id=d["ky"], doi_tac_id=ma["doi_tac_id"], ma_junsky_id=ma["id"],
+            ngay_hieu_luc=KYH.ngay(0), can_cu_ngay="DIEU_KHOAN_HD", trich_dan_ngay=KIH.TRICH_DAN, khoa=self.K("luu-tay-truoc")))
+        self.assertEqual(r["revision"], 1)
+        c = self.ok(KYH.KT, "giao-ket/kiem/check", {"ky_id": d["ky"], "expected_revision": 1, "khoa": self.K("check-tay-truoc")})["check"]
+        self.assertEqual((c["ket_luan"], c["chan"]), ("DU_DIEU_KIEN", []))
+        hl = self.ok(KYH.KT, "giao-ket/kiem/hieu-luc", {"ky_id": d["ky"], "expected_revision": 1,
+            "check_id": c["check_id"], "do_thi_sha256": c["do_thi_sha256"], "khoa": self.K("hl-tay-truoc")})
+        self.assertEqual(hl["trang_thai"], "HIEU_LUC")
+
+    def test_p08_sql_truc_tiep_chan_ky_tu_dieu_khien(self):
+        d = self.tao_ky("ctrl")
+        svc = CG.dich_vu_ky(self.app)
+        with svc.mau._tx(svc.mau.danh_tinh(KYH.KT)) as c:
+            for n in (9, 10, 13, 31, 127):
+                ly_do = "DEMO lý do" + chr(n) + "kiểm tay"
+                with self.subTest(ma=n, duong="lenh"), self.assertRaises(KYH.psycopg.Error) as cm:
+                    with c.transaction():
+                        c.execute("SELECT master.crm_g5_xac_nhan_tay(%s, %s, %s, %s)",
+                                  (self.K("ctrl-" + str(n)), "a" * 64, d["ky"], ly_do))
+                self.assertIn("CRM_G5_TAY_LY_DO", str(cm.exception))
+                with self.subTest(ma=n, duong="insert"), self.assertRaises(KYH.psycopg.Error) as cm:
+                    with c.transaction():
+                        c.execute("""INSERT INTO master.crm_g5_kiem_tay
+                            (ky_id, phap_nhan_id, soan_rev_id, ky_pdf_sha256, g3_docx_sha256, ly_do, xac_nhan_boi)
+                            SELECT id, phap_nhan_id, soan_rev_id, ky_pdf_sha256, g3_docx_sha256, %s, master.ktt_danh_tinh()
+                            FROM master.crm_hd_ky WHERE id = %s""", (ly_do, d["ky"]))
+                self.assertIn("CRM_G5_TAY_LY_DO", str(cm.exception))
+        self.assertEqual(self.q("SELECT count(*) FROM master.crm_g5_kiem_tay WHERE ky_id = %s", (d["ky"],)), 0)
 
 
 if __name__ == "__main__":

@@ -30,10 +30,11 @@ CRM_G5_TAY_SQL = (
         soan_rev_id uuid NOT NULL REFERENCES master.crm_hd_soan_rev(id),
         ky_pdf_sha256 text NOT NULL CHECK (ky_pdf_sha256 ~ '^[0-9a-f]{64}$'),
         g3_docx_sha256 text NOT NULL CHECK (g3_docx_sha256 ~ '^[0-9a-f]{64}$'),
-        ly_do text NOT NULL CHECK (length(btrim(ly_do)) BETWEEN 10 AND 1000),
+        ly_do text NOT NULL CHECK (length(btrim(ly_do)) BETWEEN 10 AND 1000 AND ly_do !~ '[[:cntrl:]]'),
         xac_nhan_boi text NOT NULL,
         xac_nhan_luc timestamptz NOT NULL DEFAULT now(),
         FOREIGN KEY (ky_id, phap_nhan_id) REFERENCES master.crm_hd_ky(id, phap_nhan_id))""",
+    "ALTER TABLE master.crm_g5_kiem_tay ENABLE ROW LEVEL SECURITY",
     "CREATE TRIGGER crm_g5_kiem_tay_bat_bien BEFORE INSERT OR UPDATE OR DELETE ON master.crm_g5_kiem_tay FOR EACH ROW EXECUTE FUNCTION master.crm_g_bat_bien()",
     """CREATE OR REPLACE FUNCTION master.crm_g5_kiem_tay_kiem() RETURNS trigger
         LANGUAGE plpgsql SET search_path = master, pg_temp AS $$
@@ -58,8 +59,8 @@ CRM_G5_TAY_SQL = (
                OR NEW.xac_nhan_boi IS DISTINCT FROM ai OR NEW.xac_nhan_luc IS DISTINCT FROM now() THEN
                 RAISE EXCEPTION 'CRM_G5_TAY_TRANG_THAI: căn cứ hoặc người/lúc kiểm tay không khớp máy chủ' USING ERRCODE = 'P0001';
             END IF;
-            IF NEW.ly_do IS NULL OR length(btrim(NEW.ly_do)) NOT BETWEEN 10 AND 1000 THEN
-                RAISE EXCEPTION 'CRM_G5_TAY_LY_DO: lý do kiểm tay bắt buộc từ 10 đến 1000 ký tự' USING ERRCODE = 'P0001';
+            IF NEW.ly_do IS NULL OR length(btrim(NEW.ly_do)) NOT BETWEEN 10 AND 1000 OR NEW.ly_do ~ '[[:cntrl:]]' THEN
+                RAISE EXCEPTION 'CRM_G5_TAY_LY_DO: lý do kiểm tay bắt buộc từ 10 đến 1000 ký tự, không có ký tự điều khiển' USING ERRCODE = 'P0001';
             END IF;
             RETURN NEW;
         END $$""",
@@ -84,8 +85,8 @@ CRM_G5_TAY_SQL = (
         LANGUAGE plpgsql SET search_path = master, pg_temp AS $$
         DECLARE ai text := master.ktt_danh_tinh(); d record; k record; h record; cu jsonb; kq jsonb; t record;
         BEGIN""" + _KIEM_MO + _G_REPLAY.format(a="'CRM_G5_XAC_NHAN_TAY'") + """
-            IF p_ly_do IS NULL OR length(btrim(p_ly_do)) NOT BETWEEN 10 AND 1000 THEN
-                RAISE EXCEPTION 'CRM_G5_TAY_LY_DO: lý do kiểm tay bắt buộc từ 10 đến 1000 ký tự' USING ERRCODE = 'P0001';
+            IF p_ly_do IS NULL OR length(btrim(p_ly_do)) NOT BETWEEN 10 AND 1000 OR p_ly_do ~ '[[:cntrl:]]' THEN
+                RAISE EXCEPTION 'CRM_G5_TAY_LY_DO: lý do kiểm tay bắt buộc từ 10 đến 1000 ký tự, không có ký tự điều khiển' USING ERRCODE = 'P0001';
             END IF;
             INSERT INTO master.crm_g5_kiem_tay (ky_id, phap_nhan_id, soan_rev_id, ky_pdf_sha256, g3_docx_sha256, ly_do, xac_nhan_boi)
                 VALUES (p_ky, d.pn, k.soan_rev_id, k.ky_pdf_sha256, k.g3_docx_sha256, btrim(p_ly_do), ai) RETURNING * INTO t;

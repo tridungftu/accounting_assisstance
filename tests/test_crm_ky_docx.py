@@ -4,7 +4,7 @@ Phân loại (không lẫn bằng chứng):
 - `M36Tinh`: TĨNH trên byte mã nguồn/hằng SQL — M0036 append đúng thứ tự 36, M0001–M0035 nguyên byte (ghim tiền tố tệp), mỗi hàm tạo lại từ
   định nghĩa HIỆN HÀNH (M0023/M0032) chỉ khác đúng các dòng chủ đích; G5 bản sinh chỉ DOCX → HOLD/cần kiểm tay, không bao giờ tự KHOP.
 - `M36CsdlThat`: PostgreSQL THẬT (KHO_PG_DSN_TEST) — DB mới `kho_test_kydocx_*` migrate tới bản hiện hành: hàng 36 + checksum, cột PDF G3 cho NULL,
-  CHECK cặp, thân hàm đã triển khai đúng hằng M0036. Thiếu DSN/psycopg → skip (NOT_RUN, không tính đạt). Ca luồng thật (soạn → xuất DOCX →
+  CHECK cặp, thân hàm đã triển khai đúng định nghĩa cuối trong chuỗi migration. Thiếu DSN/psycopg → skip (NOT_RUN, không tính đạt). Ca luồng thật (soạn → xuất DOCX →
   Chờ ký → ký trên DOCX; ký sai/DA_CU/PDF lệch bị chặn; G5 đánh dấu kiểm tay) ở tests/test_crm_ky_ket_http.py (k01, k05, k09).
 Dữ liệu tổng hợp; không dữ liệu thật, không M9, không xóa tệp/CSDL (runner dọn `kho_test_*`).
 """
@@ -18,6 +18,7 @@ import re
 import unittest
 import uuid
 from pathlib import Path
+from unittest.mock import patch
 
 from kho_tri_thuc.ha_tang import pg_migrations as PM
 from kho_tri_thuc.k2 import crm_ky_ket as KY
@@ -47,7 +48,21 @@ def _khac(goc, ten):
     return bo, them
 
 
+def _ham_hien_hanh(ten):
+    """Migration chạy sau ghi đè định nghĩa cùng hàm; giữ kiểm M0036 tĩnh riêng."""
+    return next(s for migration in reversed(PM.PG_MIGRATIONS) for s in reversed(migration)
+                if s.lstrip().startswith(f"CREATE OR REPLACE FUNCTION master.{ten}("))
+
+
 class M36Tinh(unittest.TestCase):
+    def test_tra_ham_hien_hanh_theo_thu_tu_migration(self):
+        ten = "crm_kiem_g5_xet"
+        self.assertEqual(_ham_hien_hanh(ten), _ham(PM.M0037_CRM_G5_TAY, ten))
+        self.assertEqual(_ham_hien_hanh("crm_ky_ket"), _ham(PM.M0036_KY_DOCX, "crm_ky_ket"))
+        moi = "CREATE OR REPLACE FUNCTION master.crm_kiem_g5_xet(p_ky uuid, p_che_do text) RETURNS jsonb AS $$ SELECT '{}'::jsonb $$"
+        with patch.object(PM, "PG_MIGRATIONS", (*PM.PG_MIGRATIONS, (moi,))):
+            self.assertEqual(_ham_hien_hanh(ten), moi)
+
     def test_dang_ky_thu_tu_36_va_tien_to_nguyen_byte(self):
         self.assertIs(PM.PG_MIGRATIONS[35], PM.M0036_KY_DOCX)
         self.assertIs(PM.PG_MIGRATIONS[34], PM.M0035_CRM_DU_AN_MOC)
@@ -228,14 +243,14 @@ class M36CsdlThat(unittest.TestCase):
             self.assertEqual(self.q("""SELECT is_nullable FROM information_schema.columns WHERE table_schema = 'master' AND table_name = %s
                                        AND column_name = 'g3_pdf_sha256'""", t), [("NO",)], t)
 
-    def test_than_ham_trien_khai_dung_m36(self):
+    def test_than_ham_trien_khai_dung_dinh_nghia_hien_hanh(self):
         for ten, sig in (("crm_gk_xuat_ghi", "(text, text, text, uuid, integer, text, text, bigint, text, bigint, text, text, text, jsonb)"),
                          ("crm_hd_ky_kiem", "()"),
                          ("crm_ky_ket", "(text, text, uuid, integer, uuid, text, text, bigint, text, bigint, integer, text, date, boolean, text, text, jsonb)"),
                          ("crm_kiem_g5_xet", "(uuid, text)"), ("crm_g5_hang_doi", "(integer)"), ("crm_g5_nhan", "(uuid, text, integer)"),
                          ("crm_g5_doc", "(uuid)"), ("crm_g5_chay", "(text, text, uuid, text)")):
             src = self.q(f"SELECT prosrc FROM pg_proc WHERE oid = 'master.{ten}{sig}'::regprocedure")[0][0]
-            self.assertEqual(src, _than(_ham(PM.M0036_KY_DOCX, ten)), ten)
+            self.assertEqual(src, _than(_ham_hien_hanh(ten)), ten)
         # quyền giữ nguyên: hàm lệnh không cấp PUBLIC/vai ứng dụng
         for vai in ("app_web", "app_ke_toan", "app_doc", "app_cong_ai"):
             if not self.q("SELECT 1 FROM pg_roles WHERE rolname = %s", vai):

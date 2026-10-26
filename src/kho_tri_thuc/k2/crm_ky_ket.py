@@ -182,8 +182,8 @@ class CrmKyKetK2:
         except DataError as exc:
             raise DataError(exc.code, str(exc), "khoa") from None
         if (not isinstance(ly_do, str) or not 10 <= len(ly_do.strip()) <= 1000
-                or any(ord(c) < 32 and c not in "\n\t" for c in ly_do)):
-            raise DataError("CRM_G5_TAY_LY_DO", "Lý do kiểm tay bắt buộc từ 10 đến 1000 ký tự.", "ly_do")
+                or any(ord(c) < 32 or 127 <= ord(c) <= 159 for c in ly_do)):
+            raise DataError("CRM_G5_TAY_LY_DO", "Lý do kiểm tay bắt buộc từ 10 đến 1000 ký tự, không có ký tự điều khiển.", "ly_do")
         ly_do = ly_do.strip()
         m, dt = self.mau, self.mau.danh_tinh(dang_nhap)
         h = _h("CRM_G5_XAC_NHAN_TAY", {"ky_id": kid, "ly_do": ly_do})
