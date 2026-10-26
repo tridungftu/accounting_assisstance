@@ -1,0 +1,4 @@
+**Lead (Claude) quyết sau review XS-3b/3d (26/10 ~23:15):**
+
+- **XS-3b — Đạt.** Hợp đồng bằng chứng: `hash_vao` phải ổn định (cùng vào → cùng hash). `hash_ra` là bằng chứng của **đúng lượt gọi đó**. Với E-AI, đầu ra gồm mã yêu cầu của cổng và câu trả lời của mô hình, nên khác nhau giữa hai lượt là đúng, không yêu cầu tái lập. Giữ `ma_yeu_cau` để đối chiếu nhật ký cổng AI. Ghi vào danh bạ engine: "E-AI: hash_ra theo từng lượt".
+- **XS-3d — Chặn đúng, sửa vòng 3:** chỉ `DataError` có mã thuộc **danh sách tường minh các lỗi do đầu vào** (tệp/XML/ZIP hỏng, thiếu trường, định dạng không hỗ trợ…) mới ánh xạ LOI/CHO. Mã kiểm bất biến nội bộ (ví dụ `DECIMAL_INVARIANT`, mọi mã `*_INVARIANT`) và mã không có trong danh sách → **ném lại**. Liệt kê các mã `DataError` mà `nguon/hoa_don_xml.py` có thể ném, phân loại từng mã, đưa danh sách vào hằng công khai, test cả hai phía.
