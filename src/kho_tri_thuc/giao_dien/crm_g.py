@@ -128,7 +128,7 @@ KHONG_NHAN_DC = frozenset({"expected", "expected_sha256", "catalog", "catalog_id
                            "dang_ky_id", "principal", "nguoi_chay", "tac_nhan", "request_id", "job_id", "result_id", "mode", "engine", "tham_so",
                            "trusted", "lineage", "soan_rev_id"})
 MA_409_DC = frozenset({"CRM_G5_NGU_CANH_CU", "CRM_G5_CHUA_CO_VIEC", "CRM_G5_LEASE_MAT", "CRM_G5_Y_DINH_KHAC", "CRM_G5_VIEC_SAI", "CRM_G5_VIEC_BAT_BIEN",
-                       "CRM_G5_DANG_KY_DOI", "CRM_G5_NGUOI_CHAY_DOI", "CRM_G5_KET_QUA_SAI", "CRM_G5_Y_DINH_SAI"})
+                       "CRM_G5_DANG_KY_DOI", "CRM_G5_NGUOI_CHAY_DOI", "CRM_G5_KET_QUA_SAI", "CRM_G5_Y_DINH_SAI", "CRM_G5_TAY_TRANG_THAI"})
 _UUID = r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"
 _DOCX = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
 # check+create factory CRM: đồng bộ thực (hai luồng init/refresh → một service/worker). Reentrant cho chuỗi G→Gk→Ky→Kiem→G5.
@@ -633,6 +633,16 @@ def dieu_huong(h, app, post: bool, path: str, query: dict):
                 _danh_thuc_g5(app)  # G5-B: việc bắt buộc đã ghi trong CHÍNH giao dịch ký; chỉ đánh thức worker, ACK G4 giữ nguyên
                 return h.send_content(200, kq)
             ten = path[len("/api/crm/"):]
+            if ten == "giao-ket/doi-chieu/xac-nhan-tay":  # CD-010: kế toán kiểm tay bản sinh chỉ DOCX
+                _khong_query(h, query)
+                body = h.json_body()
+                if not isinstance(body, dict):
+                    raise DataError("CRM_G_YEU_CAU_SAI", "Thân yêu cầu phải là object.")
+                payload = _than(body, {"ky_id", "ly_do", "khoa"})
+                with app.mutation_lock:
+                    _, me, _ = app.crm_phien(h.crm_sid())
+                    return h.send_content(200, app._crm_db(lambda: dich_vu_ky(app).xac_nhan_g5_tay(
+                        me, ky_id=payload.get("ky_id"), ly_do=payload.get("ly_do"), khoa=payload.get("khoa"))))
             if ten in TRUONG_DC:  # CRM G5-B lệnh ngắn (không query; chỉ ky_id + ngữ cảnh CAS + khóa)
                 _khong_query(h, query)
                 body = h.json_body()

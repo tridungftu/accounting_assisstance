@@ -12080,3 +12080,33 @@ M0036_KY_DOCX = (
 
 PG_MIGRATIONS = (*PG_MIGRATIONS, M0036_KY_DOCX)
 PG_SCHEMA_VERSION = len(PG_MIGRATIONS)
+
+# M0037 — CD-010 mục 1: kế toán kiểm tay G5 cho bản sinh chỉ DOCX; E5 giữ nguyên.
+from ..k2.sql_crm_g5_tay import CRM_G5_TAY_SQL, G5_TAY_XET, G6_KIEM_CASE_CAP  # noqa: E402
+
+
+def _m37_ham(ten: str) -> str:
+    """Lấy định nghĩa cuối trước M0037, gồm schema master hoặc kho."""
+    for migration in reversed(PG_MIGRATIONS):
+        ds = [s for s in migration if s.lstrip().startswith(f"CREATE OR REPLACE FUNCTION {ten}(")]
+        if ds:
+            if len(ds) != 1:
+                raise RuntimeError(f"M0037: không định vị đúng một định nghĩa {ten}")
+            return ds[0]
+    raise RuntimeError(f"M0037: thiếu định nghĩa hiện hành {ten}")
+
+
+_M37_KIEM_G5_XET = _m36_thay(
+    _m37_ham("master.crm_kiem_g5_xet"),
+    ("            v_kt := jsonb_build_object('trang_thai', g.trang_thai, 'ly_do', g.ly_do, 'la_bang_chung', false);\n",
+     "            v_kt := jsonb_build_object('trang_thai', g.trang_thai, 'ly_do', g.ly_do, 'la_bang_chung', false);\n" + G5_TAY_XET))
+
+# Lỗi thật tại dòng 32 của kho.crm_kiem_viec_kiem là IF NOT CASE bị cắt ở
+# THEN đầu, không phải guard G5 tự động. Guard hồ sơ cũng dùng cùng cú pháp;
+# sửa cả hai để lưu/Hiệu lực chạy được, không thêm ngoại lệ bỏ qua G5 hay G6.
+_M37_KIEM_VIEC_KIEM = _m36_thay(_m37_ham("kho.crm_kiem_viec_kiem"), *G6_KIEM_CASE_CAP)
+_M37_KIEM_HO_SO_KIEM = _m36_thay(_m37_ham("master.crm_kiem_ho_so_kiem"), *G6_KIEM_CASE_CAP)
+
+M0037_CRM_G5_TAY = (*CRM_G5_TAY_SQL, _M37_KIEM_G5_XET, _M37_KIEM_VIEC_KIEM, _M37_KIEM_HO_SO_KIEM)
+PG_MIGRATIONS = (*PG_MIGRATIONS, M0037_CRM_G5_TAY)
+PG_SCHEMA_VERSION = len(PG_MIGRATIONS)
