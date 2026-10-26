@@ -198,3 +198,15 @@
 5. **Không làm** khung cắm module tổng quát (TL 52 §2) — Anh đang nghiên cứu; module mới vẫn khai báo theo cách hiện có của TL 49.
 **Báo Anh khi:** kế hoạch chuyển kho thật SQLite sẵn sàng; bảng điều kiện go-live 5 module.
 **Trạng thái:** ĐÃ NHẬN 20:30 26/10 — (1) chưa tạo CSDL thật riêng M4 nào → không cần gộp, CSDL thật chung tạo theo CD-011 khi có ánh xạ `ma_hd`; (2)(3)(4) giao Codex soạn tài liệu (chỉ đọc mã, không đọc kho thật), lead duyệt rồi báo Anh; (5) không làm khung cắm tổng quát.
+
+## CD-017 · 26/10/2026 20:35 · Kiến trúc Xương sống – Engine – Module (thay CD-016 mục 5)
+**Căn cứ:** Anh 26/10 20:21: dữ liệu ở PostgreSQL; mỗi module gắn vào **khung xương sống chung**, nối CSDL và nối module khác **không phụ thuộc module khác có chạy hay không**; phát triển **theo từng engine**, engine có rồi thì cắm lại vào module; cách kỹ thuật tùy chọn "nhưng phải ra kết quả và module đó dùng được". Thiết kế `D:\Claude\Phan mem ho tro ke toan\53-kien-truc-xuong-song-engine-module.md` (Project TL 53). CD-016 mục 5 ("không làm khung cắm module") **bỏ**.
+**Việc (theo TL 53 §6 — chuyển đổi dần, không viết lại, không dừng việc đang chạy):**
+1. **Xương sống còn thiếu (lát nhỏ, ưu tiên ngay sau các lát đang chạy):** XS-1 bus sự kiện bền trong PostgreSQL (`su_kien` outbox/inbox, idempotent, chạy lại không nhân đôi) · XS-2 hàng việc nền dùng chung (tiến độ, dừng, thử lại, nhật ký) — tận dụng cơ chế việc nền đã có · XS-3 danh bạ engine + hợp đồng engine (mã, phiên bản, vào/ra, trạng thái xong/chờ/lỗi có mã, bằng chứng) + bộ test mẫu chuẩn · XS-4 khai báo module tổng quát từ `khung_khai_bao.py` (CRM) cho mọi module + công tắc Tắt/Thử/Vận hành theo module × pháp nhân; ma trận thẩm quyền đọc cột từ khai báo.
+2. **Engine gọi được hai cách cùng một hợp đồng:** trong tiến trình (Python) và qua API nội bộ + hàng việc nền cho việc nặng. Engine không đọc/ghi bảng của module.
+3. **Module mới làm theo engine ngay:** M9 = E-OCR + E-RAG + E-SHEETS; M3 = E-HOADON + E-MOC (+ E-PHANBO ở M10). Năng lực mới → làm engine trước, có test mẫu riêng.
+4. **Code cũ bọc dần** thành engine khi chạm tới (E-OCR từ ABBYY review, E-TRICH từ #6/E1, E-KIEMTRA-DOT từ review xây dựng khi làm CD-011, E-HOADON từ M2-00, E-AI = cổng AI). Không đổi hành vi; test cũ phải đạt.
+5. **Độc lập module:** thiếu dữ liệu từ module khác → trạng thái **chờ có lý do**, không lỗi, không suy đoán; trao đổi chỉ qua danh mục chung, bus sự kiện, dữ liệu công bố chỉ đọc.
+6. Ghi danh bạ engine vào `TRANG-THAI.md` (engine · phiên bản · module dùng · trạng thái test).
+**Báo Anh khi:** XS-1…XS-4 xong (kèm ví dụ: tắt một module, module kia vẫn chạy và hiện "chờ"); engine đầu tiên được cắm lại vào module thứ hai.
+**Trạng thái:** ĐÃ NHẬN 20:40 26/10 — giao Codex kiểm kê + chia lát XS-1…XS-4 theo TL 53 (chỉ tài liệu) rồi giao code từng lát; các lát MTQ-4/CD-016 đang chạy giữ nguyên.
