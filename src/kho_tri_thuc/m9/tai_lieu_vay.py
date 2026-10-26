@@ -18,12 +18,20 @@ _LOAI_TAI_LIEU = frozenset({
     "HD_TIN_DUNG", "KHE_UOC_NHAN_NO", "PHU_LUC", "HD_BAO_DAM",
     "THONG_BAO_LAI_SUAT",
 })
-_CHUONG = re.compile(r"^Chương\s+\S+", re.IGNORECASE)
-_DIEU = re.compile(r"^Điều\s+(\d+)\s*[.:](?:\s*|$)", re.IGNORECASE)
+_DUOI_TIEU_DE = r"(?:\s*[.:]\s*|(?=\s+(?P<chu_dau>[^\W\d_])))"
+_CHUONG = re.compile(r"^Chương\s+(?:\d+|[IVXLCDM]+)" + _DUOI_TIEU_DE, re.IGNORECASE)
+_DIEU = re.compile(r"^Điều\s+(\d+)" + _DUOI_TIEU_DE, re.IGNORECASE)
 _KHOAN_CHU = re.compile(r"^Khoản\s+(\d+(?:\.\d+)*)(?:[.:])?(?=\s|$)\s*", re.IGNORECASE)
 # Các nhóm ba chữ số có thể là số tiền: không nhận là nhãn khoản.
 _KHOAN_SO = re.compile(r"^(\d+(?:\.\d{1,2})+\.?|\d+\.)(?=\s|$)\s*")
 _DIEM = re.compile(r"^([a-zđ])[).](?=\s|$)\s*", re.IGNORECASE)
+
+
+def _khop_tieu_de(mau: re.Pattern, van_ban: str):
+    khop = mau.match(van_ban)
+    if khop and (khop.group("chu_dau") is None or khop.group("chu_dau").isupper()):
+        return khop
+    return None
 
 
 def _doc(raw: bytes) -> tuple[list[dict], int]:
@@ -40,14 +48,15 @@ def _doc(raw: bytes) -> tuple[list[dict], int]:
             LookupError, zlib.error):
         raise DataError(
             "M9_TAI_LIEU_KHONG_DOC_DUOC",
-            "Không đọc được tài liệu. Anh vui lòng cung cấp DOCX hợp lệ.",
+            "Không đọc được tài liệu. Hãy tải lên tệp Word (.docx) hợp lệ.",
         ) from None
 
     ket_qua = []
     trang = 1
+    da_ngat_trang = False
 
     def doc_khoi(khoi, la_bang=False):
-        nonlocal trang
+        nonlocal trang, da_ngat_trang
         if khoi.tag != _W + "p":
             for con in khoi:
                 doc_khoi(con, la_bang or khoi.tag == _W + "tbl")
@@ -67,10 +76,15 @@ def _doc(raw: bytes) -> tuple[list[dict], int]:
         for nut in khoi.iter():
             if nut.tag == _W + "t":
                 chu.append(nut.text or "")
+                if (nut.text or "").strip():
+                    da_ngat_trang = False
             elif (nut.tag == _W + "lastRenderedPageBreak"
                   or (nut.tag == _W + "br" and nut.get(_W + "type") == "page")):
                 ghi()
-                trang += 1
+                # Word có thể ghi lại cùng ngắt trang ở run/đoạn kế tiếp.
+                if nut.tag == _W + "br" or not da_ngat_trang:
+                    trang += 1
+                da_ngat_trang = True
             elif nut.tag in (_W + "tab", _W + "br", _W + "cr"):
                 chu.append(" ")
         ghi()
@@ -144,8 +158,8 @@ def cat_doan(doan: list[dict]) -> list[dict]:
         dau_noi_dung = 0
         co_nhan = False
         if not muc.get("la_bang"):
-            chuong = _CHUONG.match(van_ban)
-            dieu = _DIEU.match(van_ban)
+            chuong = _khop_tieu_de(_CHUONG, van_ban)
+            dieu = _khop_tieu_de(_DIEU, van_ban)
             khoan = _KHOAN_CHU.match(van_ban) or _KHOAN_SO.match(van_ban)
             diem = _DIEM.match(van_ban)
             if chuong:
