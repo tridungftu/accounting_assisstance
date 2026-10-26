@@ -1,0 +1,5 @@
+# BG-e8 — Báo giá USD: bỏ cột "VND quy đổi" trùng cột Giá trị; bằng chữ giữ "đồng" (CD-010 mục 5)
+
+Bạn là worker Codex, chạy không tương tác. **Làm ngay, không hỏi lại.** UTF-8 không BOM — ghi tệp bằng UTF-8. Sandbox không ghi `.git`: **không commit**. Không mở server. Không xóa file. Worktree hiện tại, nhánh `lat/bg-e8` (dòng giao diện `lat/ui-ky`). Căn cứ: hộp thư **CD-010 mục 5** (Anh chốt: bỏ cột "VND quy đổi" vì lịch đã tính bằng VND nên trùng số với cột Giá trị; bằng chữ giữ nguyên "đồng").
+**Việc — `src/kho_tri_thuc/giao_dien/assets/crm_g.js`:** bảng lịch thanh toán báo giá USD bỏ cột **"VND quy đổi"** (BG-e1 thêm); bảng còn 5 cột Lần · % · Giá trị · Mốc thời gian · Ghi chú cho mọi tiền tệ; không đổi dữ liệu gửi máy chủ, không đổi Σ/tổng. Cập nhật test node `tests/crm_giao_ket_async.cjs` (ca USD không còn cột "VND quy đổi", vẫn 5 cột; bằng chữ "đồng").
+**Chạy node:** `node tests/crm_giao_ket_async.cjs`, `node tests/crm_ky_ket_async.cjs`, `node tests/crm_du_an_ban_async.cjs`, `node tests/khung_luoi_async.cjs`. **Báo cáo (≤ 5 dòng)**, thông điệp commit `[BG-e8] …`.

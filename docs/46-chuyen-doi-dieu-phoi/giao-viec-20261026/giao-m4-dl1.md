@@ -1,0 +1,10 @@
+# M4-DL1 — M4 · Nghiệm thu & chi phí dự án: lược đồ PostgreSQL cho dữ liệu review chép từ SQLite (CD-011, lát 1 theo kiểm kê)
+
+Bạn là worker Codex, chạy không tương tác. **Làm ngay, không hỏi lại** (chưa rõ → chọn cách an toàn, ghi "Cần Anh"). Đọc `AGENTS.md`, `CLAUDE.md`. UTF-8 không BOM — ghi tệp bằng UTF-8. Sandbox không ghi `.git`: **không commit**. Không mở server/PostgreSQL (test PG tự skip — lead chạy). Không xóa file. **Không đọc dữ liệu thật** (thư mục `co_so_du_lieu` của bản gốc; kho thật của repo).
+
+Worktree hiện tại, nhánh `lat/m4-dl1` (hợp nhất). Căn cứ: hộp thư `docs\46-chuyen-doi-dieu-phoi\CHI-DAO-TU-ANH.md` **CD-011**; kiểm kê `docs\46-chuyen-doi-dieu-phoi\M4-KIEM-KE-CHEP-REVIEW.md` (bảng SQLite ↔ PostgreSQL, mục chia lát dòng "1 · M4-DL1").
+
+**Việc (đúng dòng M4-DL1 của kiểm kê):** DDL bổ sung các trường/bảng PostgreSQL còn thiếu để chứa đủ **12 bảng** SQLite của `csdl_hop_dong.py` (map đủ cột, giữ NULL/kiểu/khóa, cờ hủy PL/BO, **khóa nguồn gốc/import** = id gốc SQLite để công cụ chuyển dữ liệu chạy lại được — idempotent), theo đúng nơi M4 đang lưu (schema/bảng hiện có `k2/sql_review.py`, `k2/sql_master_dung_chung.py` — **dùng lại** bảng có sẵn khi đã map, chỉ thêm phần thiếu), quyền/RLS/REVOKE như các bảng M4 cùng loại. Tệp SQL mới `src/kho_tri_thuc/m4/sql_review_chep.py` (chỉ hằng SQL), đăng ký **migration kế tiếp** cuối `ha_tang/pg_migrations.py` (append, không đổi migration cũ; đặt tên biến `M00xx_M4_REVIEW_CHEP` — lead đánh số khi gộp vì đang có lát khác thêm migration; **test không ghi cứng số migration**).
+**Test — mới `tests/test_m4_review_chep_schema.py`:** thuần: SQL có đủ bảng/cột theo bảng ánh xạ của kiểm kê, khóa nguồn gốc duy nhất, REVOKE; PG (`skipUnless KHO_PG_DSN_TEST`, mẫu dựng CSDL tạm của các test M4 PG): migrate sạch, ràng buộc khóa nguồn, ghi/đọc một bộ dữ liệu **DEMO giả** đủ 12 bảng.
+**Không làm:** repository (M4-DL2), công cụ chuyển dữ liệu, giao diện.
+**Báo cáo (≤ ⅓ trang):** bảng/cột thêm, bảng dùng lại, số test, Cần Anh, thông điệp commit `[M4-DL1] …`.
