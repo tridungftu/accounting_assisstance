@@ -412,3 +412,10 @@ H3 phân loại 36 đầu việc: 19 gói đã nhập `hop-nhat`, 13 xung đột
 - Anh 14:35: "Cứ giao nhịp nhanh, 4 codex cho tôi" (sau khi lead đề xuất chậm lại vì hạn mức tuần ~88–90%). Lát nhỏ/vòng sửa: `kiem-nhanh` (Haiku) hoặc lead tự kiểm; Opus cho quyền/SECURITY DEFINER/migration/dữ liệu thật/Mask.
 - `lat/ui-ky` 2419503 nhận hợp nhất; xung đột `server.py` (dòng giao diện có `_danh_tinh_demo` giàu hơn) → giữ hàm dòng giao diện + thêm lọc `MO_PHONG_MTQ_`; ca test giả `test_mtq_demo_phien.test_crm_m9_m5_khong_co_mtq` sửa ở MTQ-3b3.
 - Giao 4 Codex: **MTQ-3b3** (bộ chọn vai MTQ trên màn ma trận, dòng giao diện), **M4-CD2** (đối chiếu độc lập sau nạp), **M4-DL3b** (nên sửa DL3), **M4-DL5a** (nối PL/BOQ chép vào snapshot tính toán, parity).
+### 26/10 ~15:05 — gộp M4-DL3b; MTQ-3b3 lên dòng giao diện, thử Admin đạt; giao MTQ-4a3a, M4-DL5b, M9-1a; giao lại M4-DL5a
+- PG (từng lát, so nền PG v4): M4-CD2 128 ok / 0 lỗi / 0 skip; M4-DL3b 113 ok / 0 / 0; MTQ-3b3 0 mã lỗi mới (lỗi `test_crm_k2`/`test_m9_k2` đều có trong nền).
+- Gộp hợp nhất: 901be7b **M4-DL3b** (lead tự kiểm: chỉ đổi tên công khai + giữ bí danh, lý do có số PL, `gt_hd_ghi_tren_pl_cuoi`).
+- `lat/ui-ky` 39f2d3a nhận **MTQ-3b3**. DEMO 8799 khởi động lại (server cũ chạy từ 13:28, chưa có `/api/demo/vai`). Thử trình duyệt: bộ chọn "Vai mô phỏng (DEMO)" có 5 vai + nhóm Quản trị DEMO; đổi sang Admin DEMO → màn quản trị ma trận (pháp nhân, phòng, phiên bản, bảng tick, giới hạn tiền, Lưu nháp/Công bố/Nhật ký, "Chưa thể bật") — **đạt**.
+- M4-CD2: review Opus đang chạy (công cụ chạy trên dữ liệu thật) → gộp nếu Đạt.
+- **4 Codex đang chạy:** M4-DL5a (giao lại sau "at capacity"), **MTQ-4a3a** (migration resolver SQL cho 9 điểm CRM/M1 — giữ `pg_migrations.py`), **M4-DL5b** (lịch sử đợt chép cạnh lũy kế đã duyệt, không vào căn cứ review), **M9-1a** (đọc DOCX + cắt điều/khoản, thuần, không AI).
+- Hàng đợi tiếp: MTQ-4a3b (nối Python 9 điểm, sau 4a3a), M3-1d (cần migration — chờ 4a3a nhả `pg_migrations.py`), M4-UI0, M9-1b (lưu tệp + phiên bản + Hot Folder), M2-BR….
