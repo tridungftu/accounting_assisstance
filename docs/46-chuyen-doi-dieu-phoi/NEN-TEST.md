@@ -215,3 +215,6 @@ Số lỗi = ERROR + FAIL (FAIL tính theo từng subtest, như `run_suite.py`).
 | `test_v9` | 3/0/0/0 | 3/0/0/0 | = | — |  |
 | `test_v9b` | 19/0/0/0 | 19/0/0/0 | = | — |  |
 | `test_web` | 22/0/1/0 | 22/0/1/0 | = | N5 `IntakeTests` 1 ≠ 2 (biên nhận/scope) |  |
+
+## 26/10/2026 — Bỏ `test_source6_lazy_excel` khỏi nền (Anh chốt CD-010 mục 6)
+Bộ test đòi bản "candidate" `tools/source6_lazy_excel/master_hd.py` đã duyệt và bố cục gói giao nộp (`files/` + `input-extra/`); không nhánh git nào có bản này (T-NEN-c2), Anh không có bản lazy Excel đã duyệt → **không tính vào so nền** (mọi mã lỗi của module này bỏ qua khi so lát mới với nền v3). Mở lại khi có bản candidate đã duyệt. Lát `lat/t-nen-c` (sửa DTO + đổi 3 FAIL source6 thành lỗi setUp) giữ nhánh, không gộp phần source6.
