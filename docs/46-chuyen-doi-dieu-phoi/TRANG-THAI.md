@@ -439,3 +439,29 @@ H3 phân loại 36 đầu việc: 19 gói đã nhập `hop-nhat`, 13 xung đột
 - **Cần Anh (thêm):**
   - M4-DL5b: lịch sử đợt chép có tính vào lũy kế chính thức?
   - M9-1c: gộp sổ đếm trang ABBYY của M9 với Review?
+### 26/10 ~16:25 — QD-20261026-04 (review chéo giao Codex, Claude chỉ kiểm xác suất); gộp loạt M4/MTQ/M3/M9
+- **Anh chốt ~16:00:**
+  - hạn mức Claude gần đầy → review chéo do Codex làm (chỉ đọc) theo `MAU-REVIEW-CODEX.md`;
+  - Claude giữ gate máy + rút ngẫu nhiên ~1/4 lát;
+  - Codex giữ đúng trọng tâm;
+  - mọi điểm Chặn hoặc chỗ không rõ phải hỏi Claude trước khi đi tiếp.
+- **Gộp hợp nhất:**
+  - 28eb122 M4-DL5b;
+  - 408a40a MTQ-4a3a (**M0045**);
+  - 8ad26a2 M3-1d (**M0046**);
+  - 42ea4a1 M4-DL5a (Codex v2 Đạt, kiểm xác suất trúng, đạt);
+  - 40fbd18 MTQ-4a3b;
+  - M9: 1b641eb5 M9-2a, fd15c70 M9-4a, 1b20a21 M9-2b, b9ad161 M9-1d, b470ece M9-3a.
+  - Mỗi lát: PG 0 mã mới so v4, skip khớp nền. Migration cuối = **M0046**.
+- **Review Codex chạy được việc:** chặn đúng 2 lỗi thật (MTQ-4a3b kiểm/ghi khác giao dịch; M9-3a ô `#N/A` lọt vào khoản vay).
+- **Bài học:** worktree cũ hơn tài liệu thì chép nội dung vào prompt.
+- **Đang chạy:**
+  - PG **cả bộ** trên hợp nhất (sạch → nền PG v5);
+  - Codex soạn **nháp phiếu cổng A M9** (chỉ tài liệu). Lưu trữ/CSDL/màn hình M9 dừng tới khi Anh duyệt.
+- **Hàng đợi còn lại phần lớn chờ Anh:**
+  - M3 bảng mốc §17;
+  - M10 #8;
+  - M2 bán ra (nguồn/quyền/mẫu XML);
+  - M4-CD3 phạm vi tệp đính kèm;
+  - M4-UI0 (đụng trang chủ chờ cổng A);
+  - ánh xạ `ma_hd` cho nạp thật CD-011.
