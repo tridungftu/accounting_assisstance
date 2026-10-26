@@ -90,6 +90,7 @@ LOAI_VIEC: dict[str, LoaiViec] = {item.ma: item for item in (
     LoaiViec("CHON_UNG_VIEN", "Chọn một trong 2–5 ứng viên (đối tượng, loại nghiệp vụ) khi khóa cứng và lịch sử chưa "
              "quyết được — tên ứng viên bị che thành bí danh nên Cloud không giúp được", False, 0.90),
     LoaiViec("PHAN_TICH_TRA_LOI_ZALO", "Phân tích câu trả lời Zalo của người duyệt — chỉ Local AI", False, 0.80),
+    LoaiViec("HOI_DAP_VAY", "Hỏi đáp hợp đồng vay có trích dẫn (M9 · Vốn vay & đầu tư tài chính) — chỉ Local AI", False, 0.80),
 )}
 
 
