@@ -12226,3 +12226,11 @@ from ..k2.sql_mtq_cong import MTQ_CONG_F_SQL  # noqa: E402 — chỉ hằng SQL
 M0051_MTQ_CONG_F = MTQ_CONG_F_SQL
 PG_MIGRATIONS = (*PG_MIGRATIONS, M0051_MTQ_CONG_F)
 PG_SCHEMA_VERSION = len(PG_MIGRATIONS)
+
+
+# MTQ-NEN-1 — CD-012: quyết định chỉ đọc; tên tạm, lead đánh số khi gộp.
+from ..k2.sql_mtq_nen import MTQ_NEN_A_SQL  # noqa: E402 — chỉ hằng SQL
+
+M00xx_MTQ_NEN_A = MTQ_NEN_A_SQL
+PG_MIGRATIONS = (*PG_MIGRATIONS, M00xx_MTQ_NEN_A)
+PG_SCHEMA_VERSION = len(PG_MIGRATIONS)
