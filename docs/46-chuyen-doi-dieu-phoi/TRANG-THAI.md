@@ -483,3 +483,18 @@ H3 phân loại 36 đầu việc: 19 gói đã nhập `hop-nhat`, 13 xung đột
   - phiếu cổng A M9;
   - lũy kế lịch sử Review (DL5b);
   - sổ trang ABBYY.
+### 26/10 ~18:30 — gộp M9-2c/4b/4c, OCR-1, M4-DL5c; PG cả bộ lần 2
+- **Anh chốt ~17:20:**
+  - lịch sử đợt Review tính vào lũy kế chính thức (QD-05);
+  - OCR một engine chung + sổ trang chung với Review (QD-06);
+  - làm tiếp việc phụ M9 khi chờ (QD-07).
+- **Gộp:**
+  - 4a7c432 M9-2c;
+  - f65b061 M9-4b (kiểm xác suất trúng, đạt; lộ câu "Cần Anh" cũ → 7ce11af M9-4c);
+  - c11b66c OCR-1;
+  - 5f94ce6 M4-DL5c (PG 183 ok, 0 mã mới so v5).
+- **PG cả bộ lần 2** (eceb2cc, 87 phút do chạy song song Codex): 3260/22/64/78. Có 3 mã mới, chạy lại riêng:
+  - `test_web` hết (chập chờn);
+  - `test_trich6_host.HandlerSoHuuTests` (chập chờn đã biết);
+  - `test_chay_test_pg_demo...timeout_giet_ca_chau` vẫn đỏ khi chạy riêng. Không lát nào hôm nay sửa `tools/`; nghi do máy đang chạy nhiều tiến trình Codex. **Theo dõi:** chạy lại khi máy rảnh.
+- **Đang chạy:** 3 Codex kiểm kê MTQ-4 còn lại (CRM, M4, liên module; chỉ tài liệu). M9-2d chờ review Codex.
