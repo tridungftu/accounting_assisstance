@@ -11948,4 +11948,135 @@ from ..k2.sql_crm_du_an_moc import CRM_DU_AN_MOC_SQL  # noqa: E402 — chỉ h�
 
 M0035_CRM_DU_AN_MOC = CRM_DU_AN_MOC_SQL
 PG_MIGRATIONS = (*PG_MIGRATIONS, M0035_CRM_DU_AN_MOC)
+
+# ---------------------------------------------------------------------------
+# 0036 — KY-DOCX (QD-20261025-27, hệ quả QD-26 "Word → PDF mặc định tắt"): CHO KÝ TRÊN BẢN DOCX. APPEND sau M0035 (mốc dự án); không sửa byte/định nghĩa/
+#        checksum 1–35. Mọi hàm dưới đây TẠO LẠI định nghĩa HIỆN HÀNH (M0023 cho G3/G4, M0032 cho G5) bằng thay chuỗi đã kiểm đúng MỘT vị trí —
+#        không chép tay thân hàm; mọi kiểm khác (quyền, phạm vi, biên nhận, CAS revision, mẫu/danh mục đã ghim, khóa sau ký) giữ nguyên văn.
+#        * crm_gk_xuat_ghi: bản soạn sang CHO_KY khi lần xuất ĐÚNG revision hiện hành được công bố — lần xuất công bố luôn có DOCX đã kiểm (không
+#          còn ô, kênh an toàn) ở mọi trạng thái PDF_DAT | PDF_CHUA_SAN_SANG | PDF_LOI; DA_CU (revision đã đổi / đã ký) vẫn không. PDF chỉ tham khảo.
+#        * crm_hd_ky: g3_pdf_sha256/g3_pdf_len được NULL (cặp cùng có/cùng NULL); trigger crm_hd_ky_kiem gắn bản ký vào bản xuất theo DOCX + input +
+#          engine + revision như cũ, PDF khớp khi bản xuất có PDF (IS DISTINCT FROM: bản xuất không PDF thì bản ký phải NULL); DA_CU vẫn bị chặn.
+#        * crm_ky_ket: căn cứ = bản xuất MỚI NHẤT của revision hiện hành có DOCX (không còn đòi PDF_DAT); PDF G3 do máy chủ resolve khớp khi có.
+#        * G5 (đối chiếu bản ký ↔ bản sinh): hợp đồng lineage E5 hiện cần PDF G3 → bản ký gắn bản sinh CHỈ DOCX chưa đối chiếu tự động được. Thà
+#          bỏ sót: crm_kiem_g5_xet HOLD + chặn G5_BAN_SINH_CHI_DOCX (mọi chế độ, không bao giờ tự KHOP); hàng đợi/nhận việc giữ việc MỞ ở
+#          CHO_CAU_HINH lý do G5_BAN_SINH_CHI_DOCX (cần kiểm tay; không ý định/engine); màn G5 báo chưa sẵn sàng + tắt Chạy; Chạy thủ công bị từ
+#          chối (CRM_G5_CAN_KIEM_TAY). Không viết bộ đối chiếu mới.
+# ---------------------------------------------------------------------------
+def _m36_ham(goc: tuple, ten: str) -> str:
+    """ĐÚNG một định nghĩa CREATE OR REPLACE FUNCTION master.<ten>( trong migration gốc (định nghĩa hiện hành trước M0036)."""
+    ds = [s for s in goc if s.lstrip().startswith(f"CREATE OR REPLACE FUNCTION master.{ten}(")]
+    if len(ds) != 1:
+        raise RuntimeError(f"M0036: không định vị đúng một định nghĩa master.{ten}")
+    return ds[0]
+
+
+def _m36_thay(stmt: str, *cap: tuple) -> str:
+    """Thay lần lượt từng cặp (cũ, mới); mỗi chuỗi cũ phải xuất hiện ĐÚNG một lần (lệch nguồn → dừng import, không áp mù)."""
+    for cu, moi in cap:
+        if stmt.count(cu) != 1:
+            raise RuntimeError("M0036: không định vị đúng một vị trí thay: " + cu.strip()[:100])
+        stmt = stmt.replace(cu, moi, 1)
+    return stmt
+
+
+_M36_TT = "('PDF_DAT','PDF_CHUA_SAN_SANG','PDF_LOI')"  # lần xuất đã công bố có DOCX của đúng revision (DA_CU bị loại)
+_M36_CHI_DOCX = "EXISTS (SELECT 1 FROM master.crm_hd_ky k0 WHERE k0.id = {ky} AND k0.g3_pdf_sha256 IS NULL)"  # bản ký gắn bản sinh chỉ DOCX
+_M36_VIEC_CHO = ("{b}UPDATE master.crm_g5_viec SET trang_thai = 'CHO_CAU_HINH', ly_do = 'G5_BAN_SINH_CHI_DOCX', lease_boi = NULL, lease_den = NULL,\n"
+                 "{b}                              thu_lai_sau = now() + interval '15 minutes', cap_nhat_luc = now() WHERE id = v.id;\n")
+
+_M36_XUAT_GHI = _m36_thay(
+    _m36_ham(M0023_CRM_KY, "crm_gk_xuat_ghi"),
+    ("                IF tt = 'PDF_DAT' THEN\n",
+     "                IF tt IN " + _M36_TT + " THEN  -- M0036 (QD-27): DOCX đúng revision là căn cứ ký; PDF chỉ tham khảo\n"))
+
+_M36_HD_KY_KIEM = _m36_thay(
+    _m36_ham(M0023_CRM_KY, "crm_hd_ky_kiem"),
+    ("               OR x.trang_thai IS DISTINCT FROM 'PDF_DAT' OR x.pdf_sha256 IS DISTINCT FROM NEW.g3_pdf_sha256 OR x.pdf_len IS DISTINCT FROM NEW.g3_pdf_len\n",
+     "               OR x.trang_thai IS NULL OR x.trang_thai NOT IN " + _M36_TT + "\n"
+     "               OR x.pdf_sha256 IS DISTINCT FROM NEW.g3_pdf_sha256 OR x.pdf_len IS DISTINCT FROM NEW.g3_pdf_len\n"),
+    ("'CRM_KY_G3_LECH: bản ký phải gắn đúng bản xuất G3 PDF_DAT và revision đã ghim của bản soạn CHO_KY'",
+     "'CRM_KY_G3_LECH: bản ký phải gắn đúng bản xuất G3 (DOCX của revision hiện hành, PDF khớp khi có) và revision đã ghim của bản soạn CHO_KY'"))
+
+_M36_KY_KET = _m36_thay(
+    _m36_ham(M0023_CRM_KY, "crm_ky_ket"),
+    ("OR p_g3_input_sha IS NULL OR p_g3_pdf_sha IS NULL OR p_g3_pdf_len IS NULL OR p_tom_tat IS NULL",
+     "OR p_g3_input_sha IS NULL OR (p_g3_pdf_sha IS NULL) <> (p_g3_pdf_len IS NULL) OR p_tom_tat IS NULL"),
+    ("            IF xm.trang_thai <> 'PDF_DAT' OR xm.pdf_sha256 IS NULL THEN\n"
+     "                RAISE EXCEPTION 'CRM_KY_XUAT_CHUA_DAT: bản xuất hiện hành chưa có PDF đạt — chưa ký được' USING ERRCODE = 'P0001';\n",
+     "            IF xm.trang_thai NOT IN " + _M36_TT + " OR xm.docx_sha256 IS NULL OR xm.docx_len IS NULL THEN  -- M0036 (QD-27): ký trên DOCX\n"
+     "                RAISE EXCEPTION 'CRM_KY_XUAT_CHUA_DAT: bản xuất hiện hành chưa có DOCX của revision hiện hành — chưa ký được' USING ERRCODE = 'P0001';\n"),
+    ("IF xm.input_sha256 <> p_g3_input_sha OR xm.pdf_sha256 <> p_g3_pdf_sha OR xm.pdf_len <> p_g3_pdf_len THEN",
+     "IF xm.input_sha256 <> p_g3_input_sha OR xm.pdf_sha256 IS DISTINCT FROM p_g3_pdf_sha OR xm.pdf_len IS DISTINCT FROM p_g3_pdf_len THEN"))
+
+_M36_KIEM_G5_XET = _m36_thay(
+    _m36_ham(CRM_G5_SQL, "crm_kiem_g5_xet"),
+    ("            v_kt := jsonb_build_object('trang_thai', g.trang_thai, 'ly_do', g.ly_do, 'la_bang_chung', false);\n",
+     "            v_kt := jsonb_build_object('trang_thai', g.trang_thai, 'ly_do', g.ly_do, 'la_bang_chung', false);\n"
+     "            -- M0036 (QD-27): bản ký gắn bản sinh chỉ DOCX → chưa đối chiếu được, cần kiểm tay; HOLD ở MỌI chế độ, không bao giờ tự KHOP\n"
+     "            IF " + _M36_CHI_DOCX.format(ky="p_ky") + " THEN\n"
+     "                RETURN jsonb_build_object('che_do', CASE WHEN p_che_do = 'SYNTHETIC_FIXTURE' THEN 'SYNTHETIC_FIXTURE' ELSE 'VAN_HANH' END,\n"
+     "                                          'trang_thai', 'HOLD', 'khoi_tao', v_kt, 'lech', '[]'::jsonb,\n"
+     "                                          'chan', jsonb_build_array(jsonb_build_object('ma', 'G5_BAN_SINH_CHI_DOCX')));\n"
+     "            END IF;\n"))
+
+_M36_HANG_DOI = _m36_thay(
+    _m36_ham(CRM_G5_SQL, "crm_g5_hang_doi"),
+    ("                IF v.loai = 'BAT_BUOC' THEN\n",
+     "                -- M0036 (QD-27): bản sinh chỉ DOCX → không giao worker (không ý định/engine); giữ việc mở, lý do cần kiểm tay\n"
+     "                IF " + _M36_CHI_DOCX.format(ky="v.ky_id") + " THEN\n"
+     "                    IF v.trang_thai <> 'CHO_CAU_HINH' OR v.ly_do IS DISTINCT FROM 'G5_BAN_SINH_CHI_DOCX' THEN\n"
+     "                        PERFORM master.crm_g5_ghi_su_kien(v.id, 'CHO_CAU_HINH', 'HE_THONG', 'hang_doi', jsonb_build_object('ly_do', 'G5_BAN_SINH_CHI_DOCX'));\n"
+     "                    END IF;\n"
+     + _M36_VIEC_CHO.format(b=" " * 20) +
+     "                    CONTINUE;\n"
+     "                END IF;\n"
+     "                IF v.loai = 'BAT_BUOC' THEN\n"))
+
+_M36_NHAN = _m36_thay(
+    _m36_ham(CRM_G5_SQL, "crm_g5_nhan"),
+    ("                RETURN jsonb_build_object('nhan', false, 'ly_do', 'KHONG_DEN_HAN', 'trang_thai', v.trang_thai);\n            END IF;\n",
+     "                RETURN jsonb_build_object('nhan', false, 'ly_do', 'KHONG_DEN_HAN', 'trang_thai', v.trang_thai);\n            END IF;\n"
+     "            -- M0036 (QD-27): bản sinh chỉ DOCX → không nhận (không ý định/engine/lineage); giữ việc mở ở CHO_CAU_HINH, lý do cần kiểm tay\n"
+     "            IF " + _M36_CHI_DOCX.format(ky="v.ky_id") + " THEN\n"
+     "                IF v.trang_thai <> 'CHO_CAU_HINH' OR v.ly_do IS DISTINCT FROM 'G5_BAN_SINH_CHI_DOCX' THEN\n"
+     "                    PERFORM master.crm_g5_ghi_su_kien(v.id, 'CHO_CAU_HINH', 'HE_THONG', coalesce(ai, 'khong_danh_tinh'),\n"
+     "                                                      jsonb_build_object('ly_do', 'G5_BAN_SINH_CHI_DOCX'));\n"
+     "                END IF;\n"
+     + _M36_VIEC_CHO.format(b=" " * 16) +
+     "                RETURN jsonb_build_object('nhan', false, 'ly_do', 'G5_BAN_SINH_CHI_DOCX', 'trang_thai', 'CHO_CAU_HINH');\n"
+     "            END IF;\n"))
+
+_M36_DOC = _m36_thay(
+    _m36_ham(CRM_G5_SQL, "crm_g5_doc"),
+    ("            IF k.co_sua AND nc.dang_nhap IS NULL THEN v_ly := v_ly || jsonb_build_array('THIEU_NGUOI_CHAY'); END IF;\n",
+     "            IF k.co_sua AND nc.dang_nhap IS NULL THEN v_ly := v_ly || jsonb_build_array('THIEU_NGUOI_CHAY'); END IF;\n"
+     "            IF " + _M36_CHI_DOCX.format(ky="k.id") + " THEN  -- M0036 (QD-27): bản sinh chỉ DOCX → cần kiểm tay, không chạy tự động\n"
+     "                v_ly := v_ly || jsonb_build_array('G5_BAN_SINH_CHI_DOCX');\n"
+     "                v_chay := false;\n"
+     "            END IF;\n"))
+
+_M36_CHAY = _m36_thay(
+    _m36_ham(CRM_G5_SQL, "crm_g5_chay"),
+    ("            SELECT * INTO v FROM master.crm_g5_viec WHERE ky_id = p_ky AND loai = 'THU_CONG' AND trang_thai IN ",
+     "            IF k.g3_pdf_sha256 IS NULL THEN  -- M0036 (QD-27): bản sinh chỉ DOCX → không tạo việc thủ công không chạy được\n"
+     "                RAISE EXCEPTION 'CRM_G5_CAN_KIEM_TAY: bản ký gắn bản sinh chỉ có DOCX — chưa đối chiếu tự động được, cần kiểm tay' USING ERRCODE = 'P0001';\n"
+     "            END IF;\n"
+     "            SELECT * INTO v FROM master.crm_g5_viec WHERE ky_id = p_ky AND loai = 'THU_CONG' AND trang_thai IN "))
+
+M0036_KY_DOCX = (
+    # bản ký: PDF G3 tùy chọn (chỉ khi bản xuất có PDF); cặp sha/độ dài cùng có hoặc cùng NULL. Hàng cũ đều có PDF → CHECK hợp lệ ngay.
+    "ALTER TABLE master.crm_hd_ky ALTER COLUMN g3_pdf_sha256 DROP NOT NULL, ALTER COLUMN g3_pdf_len DROP NOT NULL",
+    "ALTER TABLE master.crm_hd_ky ADD CONSTRAINT crm_hd_ky_g3_pdf_cap CHECK ((g3_pdf_sha256 IS NULL) = (g3_pdf_len IS NULL))",
+    _M36_XUAT_GHI,
+    _M36_HD_KY_KIEM,
+    _M36_KY_KET,
+    _M36_KIEM_G5_XET,
+    _M36_HANG_DOI,
+    _M36_NHAN,
+    _M36_DOC,
+    _M36_CHAY,
+)
+
+PG_MIGRATIONS = (*PG_MIGRATIONS, M0036_KY_DOCX)
 PG_SCHEMA_VERSION = len(PG_MIGRATIONS)

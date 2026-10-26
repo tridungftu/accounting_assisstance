@@ -974,6 +974,7 @@
   const VAI_VN = {KE_TOAN: "Kế toán", KE_TOAN_TRUONG: "Kế toán trưởng", CFO: "CFO", NHAP_JUNSKY: "Nhập Junsky", XEM: "Chỉ xem", BAN_HANG: "Bán hàng", DU_AN: "Dự án"};
   const TT_SO = {SOAN_THAO: "Đang soạn", CHO_KY: "Chờ ký (đã xuất DOCX+PDF)", DA_KY: "Đã ký — chờ kế toán kiểm"};
   const TT_XUAT = {PDF_DAT: "DOCX + PDF đạt", PDF_CHUA_SAN_SANG: "DOCX đã giữ · PDF chưa sẵn sàng", PDF_LOI: "DOCX đã giữ · PDF lỗi", DA_CU: "Bản cũ (revision đã đổi)"};
+  const LY_DO_PDF = {PDF_XUAT_TAY: "PDF xuất tay từ tệp DOCX (chưa bật chuyển PDF tự động)"};
 
   let ep = 0, genForm = 0, genDs = 0, genBg = 0, genSo = 0, cheDo = "bao_gia";
   let ds = null, bgChon = null, bgCt = null, soChon = null, soCt = null, soDongBg = 1, soDongSo = 0;

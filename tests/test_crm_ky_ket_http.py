@@ -10,6 +10,10 @@ Quyền đọc KT/KTT/CFO: vai + PN + module KHÔNG đủ — cần phân công 
 dự án/thu hồi + đối chứng đúng phạm vi). Đây là kiểm PG THẬT + HTTP thật khi Root chạy; chưa chạy thì không có bằng chứng dương nào.
 Ánh xạ tiêu chí handoff §7: 1 → k02 · 2 → k03/k05 · 3/4 → k05/k08 · 5 → k06 · 6 → k05 · 7 → k02/k03b/k04/k07 · 8 → k06/k07 · 9 → tests/crm_ky_ket_async.cjs ·
 10 → test_crm_ky_ket.PrefixVaPhamVi. Không DROP/DELETE/cleanup — DB/role/thư mục giữ làm bằng chứng. Không chứng minh GUI/trình duyệt thật.
+KY-DOCX (QD-20261025-27, M0035): lần xuất đúng revision có DOCX (PDF xuất tay/lỗi/đạt) → Chờ ký; ca dương k05/k06/k07 chạy trên bản xuất THẬT của
+runtime (mặc định chỉ DOCX — PDF G3 NULL), không owner-forge. k08 (bản ký trùng byte PDF G3) vẫn chỉ chạy khi có PDF_DAT thật. k09: G5 bản sinh chỉ
+DOCX → HOLD/việc giữ mở "cần kiểm tay" (không ý định/engine); trigger bản ký chặn sai DOCX/revision/PDF/DA_CU — bản xuất DA_CU/PDF_DAT giả chỉ chèn
+trong giao dịch bị hoàn tác để kiểm guard ÂM (không phải bằng chứng PDF_DAT, không để lại hàng).
 """
 
 from __future__ import annotations
@@ -40,6 +44,10 @@ ADMIN_DSN = os.environ.get("KHO_PG_DSN_TEST")
 TAI, KT, CFO, BH = GKH.TAI, GKH.KT, GKH.CFO, GKH.BH
 KT_NO_CRM, CFO_B = GKH.KT_NO_CRM, GKH.CFO_B
 ngay = GKH.ngay
+
+
+class _HoanTac(Exception):
+    """Ném trong giao dịch để hoàn tác ca dương của trigger (không để lại hàng bản ký/bản xuất giả)."""
 
 
 @unittest.skipUnless(psycopg is not None and ADMIN_DSN, "Không có psycopg hoặc KHO_PG_DSN_TEST — HTTP CRM-41-04A không chạy (NOT_RUN, không tính đạt)")
@@ -122,7 +130,13 @@ class CrmKyKetHttp(unittest.TestCase):
         except ImportError:
             self.skipTest("NOT_RUN: máy chủ thiếu pypdfium2 — route trả 503 CRM_KY_PDF_CHUA_KIEM_DUOC (fail closed), ca 409 căn cứ không kiểm được")
 
+    def can_cho_ky(self):
+        """QD-20261025-27 (M0035): ký trên DOCX — ca dương chạy khi k01 đã đưa bản soạn sang Chờ ký bằng lần xuất THẬT có DOCX (PDF có hay không)."""
+        if not self.s.get("cho_ky"):
+            self.skipTest(f"NOT_RUN: bản soạn chưa Chờ ký sau lần xuất ở k01 (trạng thái thực: {self.s.get('g3_trang_thai', 'chưa xuất')})")
+
     def can_word(self):
+        """Chỉ cho ca cần PDF G3 thật (k08: bản ký trùng byte PDF G3)."""
         if not (self.co_word and self.s.get("pdf_dat")):
             self.skipTest("NOT_RUN: chưa có bản xuất G3 PDF_DAT THẬT ở runtime (trạng thái thực: "
                           f"{self.s.get('g3_trang_thai', 'chưa xuất')}; probe Word={self.co_word}) — không owner-forge PDF_DAT; ca dương G4 không tính đạt")
@@ -214,9 +228,19 @@ class CrmKyKetHttp(unittest.TestCase):
             self.assertEqual(x["trang_thai"], "PDF_CHUA_SAN_SANG")
         else:
             self.assertIn(x["trang_thai"], {"PDF_DAT", "PDF_LOI", "PDF_CHUA_SAN_SANG"})
-        self.assertEqual(self.q("SELECT trang_thai FROM master.crm_hd_soan WHERE id = %s", (a["soan_id"],)),
-                         "CHO_KY" if x["trang_thai"] == "PDF_DAT" else "SOAN_THAO")
-        g3 = self.g3_dat_that(x, a["soan_id"])  # dương G4 chỉ khi runtime có G3 PDF_DAT thật, bytes đúng hash/độ dài
+        # KY-DOCX (QD-20261025-27, M0035): lần xuất đúng revision có DOCX → Chờ ký, KHÔNG phụ thuộc PDF (PDF xuất tay/lỗi chỉ là tham khảo)
+        self.assertEqual([i + 1 for i, m in enumerate(PM.PG_MIGRATIONS) if m is PM.M0035_KY_DOCX], [35])
+        self.assertEqual(self.q("SELECT checksum FROM master.schema_migrations WHERE version = 35"), PM._hash(PM.M0035_KY_DOCX))
+        self.assertTrue(x["docx_sha256"] and x["docx_len"] > 0, x)
+        if x["trang_thai"] != "PDF_DAT":
+            self.assertEqual((x["pdf_sha256"], x["pdf_len"]), (None, None), x)
+        self.assertEqual(self.q("SELECT trang_thai FROM master.crm_hd_soan WHERE id = %s", (a["soan_id"],)), "CHO_KY")
+        hd = self.admin.execute("SELECT trang_thai, crm_giao_ket FROM master.hop_dong WHERE id = %s", (a["hop_dong_id"],)).fetchone()
+        self.assertEqual(tuple(hd), ("CHO_KY", "CHO_KY"))
+        docx = self.goi(f"/api/crm/giao-ket/tep/{x['xuat_id']}/docx", cookie=self.sid(BH))[1]
+        self.assertEqual((hashlib.sha256(docx).hexdigest(), len(docx)), (x["docx_sha256"], x["docx_len"]))  # bản DOCX để ký tải được, đúng hash
+        self.s["cho_ky"] = True
+        g3 = self.g3_dat_that(x, a["soan_id"])  # PDF G3 thật chỉ cho k08 (bản ký trùng byte PDF G3)
         self.s["pdf_dat"], self.s["g3_pdf"] = g3 is not None, g3
 
     # ------------------------------------------------------------------ k02 (§7.1/§7.7): hợp đồng yêu cầu + quyền trước mọi thứ
@@ -274,8 +298,10 @@ class CrmKyKetHttp(unittest.TestCase):
         self.s["pv"] = self.cap_pham_vi(self.s["pc"])
         d = self.get(BH, "giao-ket/ky/" + self.s["soan"])
         self.assertEqual(d["quyen"]["doc"], True)
-        self.assertEqual(d["quyen"]["ky"], self.s["pdf_dat"])  # chỉ ký được khi CHO_KY thật
+        self.assertEqual(d["quyen"]["ky"], bool(self.s.get("cho_ky")))  # QD-27: Chờ ký trên DOCX + phạm vi → ký được (không cần PDF đạt)
         self.assertEqual(d["can_cu"]["xuat_id"], self.s["xuat"])
+        self.assertEqual((d["can_cu"]["docx_sha256"], d["can_cu"]["pdf_sha256"], d["can_cu"]["trang_thai"]),
+                         (self.s["x"]["docx_sha256"], self.s["x"]["pdf_sha256"], self.s["x"]["trang_thai"]))
         self.assertNotIn("_bao_gia", d["can_cu"])
         self.assertEqual(d["can_cu"]["tom_tat"], {"so_dong": 2, "tong_minor": "1000000000", "tien_te": "VND"})
         self.can_pdf()
@@ -283,9 +309,7 @@ class CrmKyKetHttp(unittest.TestCase):
         raw = pdf_tong_hop(1, "BAN KY DEMO K03")
         st, r = self.ky(BH, self.info(expected_xuat_id=str(uuid.uuid4()), khoa=self.K("ky-xu")), raw)
         self.assertEqual((st, r.get("error")), (409, "CRM_KY_XUAT_CU"))
-        if not self.s["pdf_dat"]:
-            st, r = self.ky(BH, self.info(khoa=self.K("ky-chua-dat")), raw)
-            self.assertEqual((st, r.get("error")), (409, "CRM_KY_XUAT_CHUA_DAT"))  # nhánh không Word: không ký trên bản chưa có PDF đạt
+        # (QD-27: bản chỉ DOCX KHÔNG còn bị CRM_KY_XUAT_CHUA_DAT — ký dương ở k05; guard DA_CU/PDF lệch ở k09)
         self.assertEqual((self.dem_ky(), self.kho_ky()), (trc, kho))
         # phạm vi: chỉ thu hồi một lần, không xóa/sửa
         for sql in ("DELETE FROM master.crm_ky_pham_vi WHERE id = %s", "UPDATE master.crm_ky_pham_vi SET du_an_id = NULL WHERE id = %s"):
@@ -348,9 +372,10 @@ class CrmKyKetHttp(unittest.TestCase):
             st, r = self.ky(BH, self.info(khoa=self.K("ky-hong")), raw)
             self.assertIn((st, r.get("error")), {(st_, ma), (503, "CRM_KY_PDF_CHUA_KIEM_DUOC")}, raw[:10])  # thiếu parser: fail closed, không nhận
 
-    # ------------------------------------------------------------------ k05 (§7.3/§7.4/§7.6): ký lần đầu (CHỈ khi có PDF_DAT thật)
+    # ------------------------------------------------------------------ k05 (§7.3/§7.4/§7.6): ký lần đầu trên bản xuất THẬT (QD-27: DOCX; PDF nếu có)
     def test_k05_ky_lan_dau_replay_va_g5(self):
-        self.can_word()
+        self.can_cho_ky()
+        self.can_pdf()
         raw = pdf_tong_hop(2, "BAN KY DEMO K05")
         # (bản ký trùng byte PDF G3 là lần ký ĐẦU hợp lệ với vai trò bằng chứng riêng — kiểm ở k08 trên HĐ riêng, không ký A rồi gửi B ở đây)
         st, r = self.ky(BH, self.info(ngay_ky=ngay(1), khoa=self.K("ky-tuong-lai")), raw)
@@ -365,6 +390,13 @@ class CrmKyKetHttp(unittest.TestCase):
         self.assertEqual((r["ky_pdf_sha256"], r["ky_pdf_len"], r["g3_pdf_sha256"]), (hashlib.sha256(raw).hexdigest(), len(raw), self.s["x"]["pdf_sha256"]))
         self.s["ky_id"], self.s["raw"] = r["ky_id"], raw
         self.assertEqual(tuple(x - y for x, y in zip(self.dem_ky(), trc)), (1, 1, 1))
+        # QD-27 (M0035): bản ký gắn ĐÚNG bản xuất theo DOCX + input + engine + revision; PDF G3 = PDF bản xuất (NULL khi bản xuất chỉ DOCX)
+        x = self.s["x"]
+        row = self.admin.execute("""SELECT k.g3_docx_sha256, k.g3_docx_len, k.g3_pdf_sha256, k.g3_pdf_len, k.xuat_id, k.revision, k.g3_input_sha256 = g.input_sha256,
+                                         k.g3_engine = g.engine FROM master.crm_hd_ky k JOIN master.crm_gk_xuat g ON g.id = k.xuat_id WHERE k.id = %s""",
+                                 (r["ky_id"],)).fetchone()
+        self.assertEqual((row[0], row[1], row[2], row[3], str(row[4]), row[5], row[6], row[7]),
+                         (x["docx_sha256"], x["docx_len"], x["pdf_sha256"], x["pdf_len"], self.s["xuat"], self.s["rev"], True, True))
         hd = self.admin.execute("SELECT trang_thai, crm_giao_ket, ngay_ky, phien_ban_hien_hanh FROM master.hop_dong WHERE id = %s", (self.s["hd"],)).fetchone()
         self.assertEqual(tuple(hd), ("DA_KY", "DA_KY", None, None))  # ngày ký KHÔNG thành ngày/phiên bản hiệu lực
         self.assertEqual(self.dem()["lich_thu"], lt)  # không lịch thu/nghĩa vụ
@@ -385,7 +417,9 @@ class CrmKyKetHttp(unittest.TestCase):
 
     # ------------------------------------------------------------------ k06 (§7.5/§7.8): bất biến sau ký + tải bản ký
     def test_k06_bat_bien_sau_ky_va_tai(self):
-        self.can_word()
+        self.can_cho_ky()
+        if not self.s.get("ky_id"):
+            self.skipTest("NOT_RUN: k05 chưa ký (thiếu bộ đọc PDF hoặc k05 lỗi) — không có bản ký để kiểm bất biến")
         sid = self.s["soan"]
         for path, body in (("soan/luu", {"soan_id": sid, "expected_revision": 2, "gia_tri_truong": {"so_hop_dong": "X"}, "khoa": self.K("sau-luu")}),
                            ("soan/xuat", {"soan_id": sid, "expected_revision": 2, "khoa": self.K("sau-xuat")})):
@@ -431,7 +465,9 @@ class CrmKyKetHttp(unittest.TestCase):
             st, out, _ = self.tai(KT, self.s["ky_id"])
             self.assertEqual(st, 404)
             self.assertNotIn(b"sha256", out)
-        self.can_word()
+        self.can_cho_ky()
+        if not self.s.get("ky_id"):
+            self.skipTest("NOT_RUN: k05 chưa ký — không có bản ký để kiểm thu hồi trước replay")
         self.admin.execute("UPDATE master.crm_ky_pham_vi SET thu_hoi_luc = now(), thu_hoi_boi = 'TEST', thu_hoi_ly_do = 'TEST thu hồi' WHERE id = %s",
                            (self.s["pv"],))
         st, r = self.ky(BH, self.info(), self.s["raw"])  # cùng khóa đã FINAL: quyền hiện hành TRƯỚC biên nhận → 403, không trả kết quả cũ
@@ -477,6 +513,129 @@ class CrmKyKetHttp(unittest.TestCase):
         st, e = self.ky(BH, {**info, "ngay_ky": ngay(-1), "khoa": self.K("ky-trung-3")}, g3)
         self.assertEqual((st, e.get("error")), (409, "CRM_KY_DA_KY"))
         self.assertEqual(tuple(x_ - y for x_, y in zip(self.dem_ky(), trc)), (1, 1, 1))
+    # ------------------------------------------------------------------ KY-DOCX (QD-20261025-27, M0035): helper k09/k10
+    _CHEN_KY_THO = """INSERT INTO master.crm_hd_ky (phap_nhan_id, hop_dong_id, soan_id, revision, soan_rev_id, xuat_id, g3_input_sha256, g3_docx_sha256,
+            g3_docx_len, g3_pdf_sha256, g3_pdf_len, g3_engine, mau_phien_ban_id, anh_xa_id, kiem_id, raw_sha256, ban_do_sha256, danh_muc_ref, danh_muc_rev,
+            danh_muc_digest, profile_phien_ban, profile_sha256, du_lieu_sha256, tom_tat, ky_pdf_sha256, ky_pdf_len, ky_so_trang, ten_tep, ngay_ky, co_sua,
+            tao_boi)
+        SELECT s.phap_nhan_id, s.hop_dong_id, s.id, coalesce(%(rev)s::integer, s.revision_hien_hanh), r.id, x.id, x.input_sha256,
+               coalesce(%(docx)s::text, x.docx_sha256), x.docx_len,
+               CASE WHEN %(pdf_xuat)s::boolean THEN x.pdf_sha256 ELSE %(pdf_sha)s::text END,
+               CASE WHEN %(pdf_xuat)s::boolean THEN x.pdf_len ELSE %(pdf_len)s::bigint END,
+               x.engine, r.mau_phien_ban_id, r.anh_xa_id, r.kiem_id, r.raw_sha256, r.ban_do_sha256, r.danh_muc_ref, r.danh_muc_rev, r.danh_muc_digest,
+               r.profile_phien_ban, r.profile_sha256, r.du_lieu_sha256, '{}'::jsonb, %(ky)s::text, 1, 1, 'ban-ky-tho.pdf', current_date, false, 'TEST:KY-DOCX'
+        FROM master.crm_hd_soan s JOIN master.crm_hd_soan_rev r ON r.soan_id = s.id AND r.revision = s.revision_hien_hanh
+        JOIN master.crm_gk_xuat x ON x.id = %(xuat)s::uuid WHERE s.id = %(soan)s::uuid"""
+    _XUAT_GIA = """INSERT INTO master.crm_gk_xuat (phap_nhan_id, loai, soan_id, revision, input_sha256, docx_sha256, docx_len, pdf_sha256, pdf_len, trang_thai,
+                                                  engine, ly_do, kiem_pdf, tao_boi)
+        SELECT phap_nhan_id, loai, soan_id, revision, input_sha256, docx_sha256, docx_len, %s::text, %s::bigint, %s::text, engine, 'TEST_KY_DOCX', '{}'::jsonb,
+               'TEST:KY-DOCX' FROM master.crm_gk_xuat WHERE id = %s::uuid RETURNING id"""
+
+    def xuat_soan(self, tag, so_hd):
+        """HĐ CRM mới cùng PN qua LUỒNG THẬT (báo giá → chuyển → lưu revision 2 → xuất). Trả (soan_id, kết quả xuất, giá trị trường)."""
+        a = self.tao_soan(tag)
+        bg = dict(self.get(BH, "soan/" + a["soan_id"])["du_lieu"]["bao_gia"])
+        bg["fx"] = None
+        gt = {"so_hop_dong": so_hd, "ngay_ky": ngay(0), "ten_hien_thi_demo": "NGƯỜI MUA DEMO",
+              "gia_tri_hop_dong": {"so_tien": "1000000000", "tien_te": "VND"}}
+        self.ok(BH, "soan/luu", {"soan_id": a["soan_id"], "expected_revision": 1, "gia_tri_truong": gt, "bao_gia": bg, "khoa": self.K("so-" + tag)})
+        x = self.ok(BH, "soan/xuat", {"soan_id": a["soan_id"], "expected_revision": 2, "khoa": self.K("x-" + tag)})
+        return a["soan_id"], x, gt
+
+    def chen_ky_tho(self, soan, xuat, *, rev=None, docx=None, pdf=None, xuat_gia=None):
+        """CHỦ BẢNG chèn THẲNG crm_hd_ky (bỏ qua hàm lệnh) với căn cứ chép từ bản soạn/revision hiện hành/bản xuất; `pdf` = (sha, len) thay PDF
+        của bản xuất; `xuat_gia` = (pdf_sha, pdf_len, trang_thai) → chèn TRƯỚC một bản xuất giả cùng revision (chỉ trong giao dịch này)."""
+        if xuat_gia is not None:
+            xuat = str(self.admin.execute(self._XUAT_GIA, (*xuat_gia, xuat)).fetchone()[0])
+        self.admin.execute(self._CHEN_KY_THO, {"soan": soan, "xuat": xuat, "rev": rev, "docx": docx, "pdf_xuat": pdf is None,
+                                                "pdf_sha": (pdf or (None, None))[0], "pdf_len": (pdf or (None, None))[1], "ky": "a" * 64})
+
+    def ky_tho_bi_chan(self, soan, xuat, **sua):
+        with self.assertRaises(psycopg.Error) as cm:
+            with self.admin.transaction():
+                self.chen_ky_tho(soan, xuat, **sua)
+        self.assertIn("CRM_KY_G3_LECH", str(cm.exception), sua)
+
+    def ky_tho_nhan(self, soan, xuat, **sua):
+        """Đối chứng dương của trigger: chèn được rồi HOÀN TÁC (không để lại bản ký/bản xuất giả)."""
+        with self.assertRaises(_HoanTac):
+            with self.admin.transaction():
+                self.chen_ky_tho(soan, xuat, **sua)
+                self.assertEqual(self.q("SELECT count(*) FROM master.crm_hd_ky WHERE soan_id = %s", (soan,)), 1)
+                raise _HoanTac
+
+    # ------------------------------------------------------------------ k09 (QD-27): trigger bản ký gắn DOCX; PDF khớp khi có; DA_CU/sai bị chặn
+    def test_k09_trigger_ban_ky_gan_docx_va_chan_sai(self):
+        """PG THẬT. HĐ Chờ ký MỚI qua luồng thật (bản xuất thật của runtime). Guard crm_hd_ky_kiem khi chủ bảng chèn thẳng: đúng bản xuất (DOCX +
+        input + engine + revision; PDF như bản xuất) → nhận (hoàn tác); sai DOCX / revision / PDF (có mà bản xuất không có, hoặc ngược lại, hoặc
+        lệch) / bản xuất DA_CU → CRM_KY_G3_LECH. Bản xuất DA_CU/PDF_DAT giả chỉ sống trong giao dịch bị hoàn tác (guard ÂM, không phải bằng chứng
+        PDF_DAT). Sau đó lưu revision mới → bản soạn về Đang soạn → ký trên bản xuất cũ bị 409."""
+        self.can_cho_ky()
+        sid, x, gt = self.xuat_soan("tho", "HĐ-DEMO-KY-0003")
+        xid, co_pdf = x["xuat_id"], x["pdf_sha256"] is not None
+        self.assertEqual(self.q("SELECT trang_thai FROM master.crm_hd_soan WHERE id = %s", (sid,)), "CHO_KY")
+        self.ky_tho_nhan(sid, xid)  # đúng bản xuất thật (chỉ DOCX → PDF NULL)
+        self.ky_tho_bi_chan(sid, xid, docx="f" * 64)
+        self.ky_tho_bi_chan(sid, xid, rev=1)
+        self.ky_tho_bi_chan(sid, xid, pdf=("c" * 64, 100) if not co_pdf else (None, None))
+        self.ky_tho_bi_chan(sid, xid, xuat_gia=(None, None, "DA_CU"))
+        self.ky_tho_bi_chan(sid, xid, xuat_gia=("c" * 64, 100, "PDF_DAT"), pdf=(None, None))  # bản xuất có PDF → bản ký phải có đúng PDF
+        self.ky_tho_bi_chan(sid, xid, xuat_gia=("c" * 64, 100, "PDF_DAT"), pdf=("d" * 64, 100))
+        self.ky_tho_nhan(sid, xid, xuat_gia=("c" * 64, 100, "PDF_DAT"), pdf=("c" * 64, 100))
+        self.assertEqual(self.q("SELECT count(*) FROM master.crm_hd_ky WHERE soan_id = %s", (sid,)), 0)
+        self.assertEqual(self.q("SELECT count(*) FROM master.crm_gk_xuat WHERE soan_id = %s", (sid,)), 1)  # bản xuất giả đã hoàn tác
+        # lưu revision mới → Đang soạn; ký trên bản xuất của revision cũ bị chặn (không ký bản DOCX cũ)
+        self.ok(BH, "soan/luu", {"soan_id": sid, "expected_revision": 2, "gia_tri_truong": gt, "khoa": self.K("so-tho-3")})
+        self.assertEqual(self.q("SELECT trang_thai FROM master.crm_hd_soan WHERE id = %s", (sid,)), "SOAN_THAO")
+        self.ky_tho_bi_chan(sid, xid)  # trigger: bản soạn không Chờ ký / revision đã đổi
+        self.can_pdf()
+        self.cap_pham_vi(self.s["pc"], soan=sid)
+        trc = self.dem_ky()
+        st, r = self.ky(BH, {"soan_id": sid, "expected_revision": 2, "expected_xuat_id": xid, "ten_tep": "ban-ky-cu.pdf", "ngay_ky": ngay(0),
+                             "co_sua": False, "khoa": self.K("ky-tho-cu")}, pdf_tong_hop(1, "BAN KY DEMO CU"))
+        self.assertEqual((st, r.get("error")), (409, "CRM_KY_TRANG_THAI"))
+        self.assertEqual(self.dem_ky(), trc)
+
+    # ------------------------------------------------------------------ k10 (QD-27): G5 bản sinh chỉ DOCX → cần kiểm tay, không tự kết luận khớp
+    def test_k10_g5_ban_sinh_chi_docx_can_kiem_tay(self):
+        """PG THẬT + HTTP thật. Ký khai Có trên bản xuất chỉ DOCX → việc G5 bắt buộc tạo trong giao dịch ký; xét G5 cho G6 = HOLD +
+        G5_BAN_SINH_CHI_DOCX ở mọi chế độ (cả bản ký khai Không của k05); nhận việc / hàng đợi KHÔNG giữ lease, KHÔNG ý định/kết quả/engine;
+        việc vẫn MỞ ở CHO_CAU_HINH với lý do cần kiểm tay (nghĩa vụ không đóng)."""
+        self.can_cho_ky()
+        self.can_pdf()
+        sid, x, _ = self.xuat_soan("g5", "HĐ-DEMO-KY-0004")
+        if x["pdf_sha256"] is not None:
+            self.skipTest(f"NOT_RUN: runtime xuất có PDF ({x['trang_thai']}) — ca bản sinh chỉ DOCX không áp dụng")
+        self.cap_pham_vi(self.s["pc"], soan=sid)
+        st, r = self.ky(BH, {"soan_id": sid, "expected_revision": 2, "expected_xuat_id": x["xuat_id"], "ten_tep": "ban-ky-g5.pdf", "ngay_ky": ngay(0),
+                             "co_sua": True, "mo_ta": "Sửa tay điều khoản DEMO", "khoa": self.K("ky-g5")}, pdf_tong_hop(1, "BAN KY DEMO G5"))
+        self.assertEqual(st, 200, r)
+        self.assertEqual((r["trang_thai"], r["g3_pdf_sha256"], r["g5"]), ("DA_KY", None, {"trang_thai": "PENDING", "ly_do": "BAT_BUOC_KHAI_CO"}))
+        ky = r["ky_id"]
+        cac_ky = [ky] + ([self.s["ky_id"]] if self.s.get("ky_id") and self.s["x"]["pdf_sha256"] is None else [])
+        for k in cac_ky:
+            for che_do in ("VAN_HANH", "SYNTHETIC_FIXTURE"):
+                g = self.q("SELECT master.crm_kiem_g5_xet(%s::uuid, %s)", (k, che_do))
+                self.assertEqual((g["che_do"], g["trang_thai"], g["chan"], g["lech"]), (che_do, "HOLD", [{"ma": "G5_BAN_SINH_CHI_DOCX"}], []), (k, che_do))
+        viec = str(self.q("SELECT id FROM master.crm_g5_viec WHERE ky_id = %s AND loai = 'BAT_BUOC'", (ky,)))
+
+        def dong():
+            return tuple(self.admin.execute("SELECT trang_thai, ly_do, lease_boi, ket_qua_id FROM master.crm_g5_viec WHERE id = %s", (viec,)).fetchone())
+
+        def su_kien():
+            return self.q("""SELECT count(*) FROM master.crm_g5_su_kien WHERE viec_id = %s AND loai = 'CHO_CAU_HINH'
+                             AND chi_tiet ->> 'ly_do' = 'G5_BAN_SINH_CHI_DOCX'""", (viec,))
+        self.assertEqual(dong()[0], "CHO_CAU_HINH")
+        self.assertEqual(self.q("SELECT master.crm_g5_nhan(%s::uuid, %s, %s)", (viec, "test-kydocx", 60)),
+                         {"nhan": False, "ly_do": "G5_BAN_SINH_CHI_DOCX", "trang_thai": "CHO_CAU_HINH"})
+        self.assertEqual(dong(), ("CHO_CAU_HINH", "G5_BAN_SINH_CHI_DOCX", None, None))
+        self.assertEqual(su_kien(), 1)
+        self.admin.execute("UPDATE master.crm_g5_viec SET thu_lai_sau = now() - interval '1 minute' WHERE id = %s", (viec,))  # đến hạn lại
+        self.assertNotIn(viec, [str(m["viec_id"]) for m in self.q("SELECT master.crm_g5_hang_doi(50)")])  # không giao worker
+        self.assertEqual(dong(), ("CHO_CAU_HINH", "G5_BAN_SINH_CHI_DOCX", None, None))
+        self.assertEqual(su_kien(), 1)  # cùng lý do → không ghi sự kiện trùng
+        for bang in ("crm_g5_y_dinh", "crm_g5_ket_qua"):
+            self.assertEqual(self.q(f"SELECT count(*) FROM master.{bang} WHERE ky_id = %s", (ky,)), 0, bang)
 
 
 if __name__ == "__main__":

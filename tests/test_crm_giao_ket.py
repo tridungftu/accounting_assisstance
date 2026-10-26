@@ -6,7 +6,7 @@ Phân loại:
 - `RenderDocx`: THẬT trên python-docx (bytes DOCX tổng hợp CRM-only tạo trong test): tách run/bảng lồng/header-footer được tham chiếu, tên ô ≠ mã
   trường, giữ định dạng run đầu ô; lệch facts/thiếu ánh xạ/kênh chưa hỗ trợ → lỗi có mã (không xuất giả). Thiếu python-docx → skip (KHÔNG PASS).
 - `NhaCungCapPdf`: THUẦN với nhà cung cấp vắng (không spawn) → DOCX GIỮ, PDF_CHUA_SAN_SANG, không CHO_KY.
-- `WordThat`: THẬT Word COM + PDFium/pdfplumber — chỉ Windows có đúng WINWORD đã ghim + pywin32 + guard A517; thiếu → skip (KHÔNG PASS).
+- `WordThat`: THẬT Word COM + PDFium/pdfplumber — chỉ khi KHO_TEST_WORD_THAT=1 và Windows có đúng WINWORD đã ghim + pywin32 + guard A517; thiếu → skip (KHÔNG PASS).
   FIX02: test chính KHÔNG gọi COM; "Word người dùng" control chạy trong native child do test sở hữu (Job trước stdin, hạn, dừng có bằng chứng),
   child tự tạo/sở hữu/chứng minh Word như worker; không sở hữu được → skip (NOT_VERIFIED, KHÔNG PASS).
 - FIX02 (`VongDoiParent`, `DungWordSoHuu`): THUẦN — tiêm lỗi mọi nhánh vòng đời parent/Word (gán Job/stdin/EOF/quá hạn/treo/Job không rỗng/
@@ -461,10 +461,25 @@ class RenderDocx(unittest.TestCase):
 
 
 class NhaCungCapPdf(unittest.TestCase):
+    def test_mac_dinh_tat_khong_spawn_giu_docx(self):
+        tam = Path(tempfile.mkdtemp(prefix="ktt_gk_pdf_tat_"))  # giữ lại
+        docx = tam / "x.docx"
+        docx.write_bytes(b"PK")
+        with mock.patch.dict(os.environ), \
+                mock.patch.object(R, "_chuyen_pdf_mot") as word, \
+                mock.patch("subprocess.Popen") as popen:
+            os.environ.pop("KHO_CRM_WORD_PDF", None)
+            kq = R.chuyen_pdf(tam, docx)
+        self.assertEqual((kq["trang_thai"], kq["ly_do"]), ("PDF_CHUA_SAN_SANG", "PDF_XUAT_TAY"))
+        word.assert_not_called()
+        popen.assert_not_called()
+        self.assertEqual(docx.read_bytes(), b"PK")
+
     def test_thieu_word_khong_spawn_giu_docx(self):
         tam = Path(tempfile.mkdtemp(prefix="ktt_gk_pdf_"))  # giữ lại
         (tam / "x.docx").write_bytes(b"PK")
-        with mock.patch.object(R, "_winword_ok", lambda w: "WORD_KHONG_CO"), \
+        with mock.patch.dict(os.environ, {"KHO_CRM_WORD_PDF": "1"}), \
+                mock.patch.object(R, "_winword_ok", lambda w: "WORD_KHONG_CO"), \
                 mock.patch("subprocess.Popen", side_effect=AssertionError("không được spawn khi thiếu nhà cung cấp")):
             kq = R.chuyen_pdf(tam, tam / "x.docx")
         self.assertEqual((kq["trang_thai"], kq["ly_do"]), ("PDF_CHUA_SAN_SANG", "WORD_KHONG_CO"))
@@ -1072,8 +1087,11 @@ class DatChoRender(unittest.TestCase):  # FIX01 #5 — phần pha B của đặt
 
 
 def _co_word():
-    """CHỈ METADATA (FIX02): binary ghim (hash) + module có mặt (find_spec, KHÔNG import pythoncom/win32com — import có thể khởi tạo COM ở tiến
+    """Chỉ kiểm khi bật rõ KHO_TEST_WORD_THAT=1. CHỈ METADATA (FIX02): binary ghim (hash) + module có mặt (find_spec, KHÔNG import pythoncom/win32com — import có thể khởi tạo COM ở tiến
     trình test chính) + guard. Không kích hoạt Word/COM."""
+    # Không tự mở Word COM: chưa bật thì không kiểm binary/module/guard hay dựng tiến trình con.
+    if os.environ.get("KHO_TEST_WORD_THAT") != "1":
+        return False
     import importlib.util
     if os.name != "nt" or not CO_DOCX or R._winword_ok(R.WINWORD_GHIM) is not None:
         return False
@@ -1081,6 +1099,20 @@ def _co_word():
         return False
     from kho_tri_thuc.nguon.trich6_host import chung_cu_guard, guard_hop_le
     return guard_hop_le(chung_cu_guard()) is None
+
+
+class CongWordThat(unittest.TestCase):
+    def test_chua_bat_khong_kiem_word_module_hay_spawn(self):
+        with mock.patch.dict(os.environ), mock.patch.object(os, "name", "nt"), \
+                mock.patch(__name__ + ".CO_DOCX", True), \
+                mock.patch.object(R, "_winword_ok", side_effect=AssertionError("không kiểm Word khi chưa bật")) as word, \
+                mock.patch("importlib.util.find_spec", side_effect=AssertionError("không tìm module khi chưa bật")) as module, \
+                mock.patch("subprocess.Popen", side_effect=AssertionError("không spawn khi chưa bật")) as popen:
+            os.environ.pop("KHO_TEST_WORD_THAT", None)
+            self.assertIs(_co_word(), False)
+        word.assert_not_called()
+        module.assert_not_called()
+        popen.assert_not_called()
 
 
 class _ConSoHuu:
@@ -1125,7 +1157,7 @@ class _ConSoHuu:
             self.job.dong()
 
 
-@unittest.skipUnless(_co_word(), "Thiếu Word đã ghim/pywin32/PDFium/pdfplumber/guard A517 — Word thật không chạy (skip, KHÔNG PASS)")
+@unittest.skipUnless(_co_word(), "Chỉ chạy khi bật KHO_TEST_WORD_THAT=1 (không tự mở Word COM)")
 class WordThat(unittest.TestCase):
     """THẬT: Word COM sở hữu → PDF; Word của người dùng mở sẵn vẫn sống, tài liệu không đổi; quá hạn → không báo thành công, không dư tiến trình."""
 
@@ -1159,7 +1191,9 @@ class WordThat(unittest.TestCase):
             if not san_sang or san_sang.get("buoc") != "SAN_SANG":
                 self.skipTest(f"Control Word của test chưa sở hữu/chứng minh được (NOT_VERIFIED, không PASS): {san_sang}")
             lan = self.chuan_bi()
-            kq = R.chuyen_pdf(lan, lan / "hd.docx", han=180)
+            # review PDF-1 điểm 3: đường Word thật chỉ chạy khi công tắc QD-26 bật (mặc định tắt → PDF_XUAT_TAY, không spawn) — bật cờ TRONG ca này
+            with mock.patch.dict(os.environ, {"KHO_CRM_WORD_PDF": "1"}):
+                kq = R.chuyen_pdf(lan, lan / "hd.docx", han=180)
             self.assertEqual(kq["trang_thai"], "PDF_DA_TAO", kq)
             self.assertIs(kq["word"].get("da_dung"), True, kq)
             self.assertNotEqual(kq["word"]["pid"], san_sang["pid"])  # worker chỉ chạm Word của chính nó
@@ -1184,7 +1218,8 @@ class WordThat(unittest.TestCase):
 
     def test_qua_han_trung_thuc(self):
         lan = self.chuan_bi()
-        kq = R.chuyen_pdf(lan, lan / "hd.docx", han=0.5)
+        with mock.patch.dict(os.environ, {"KHO_CRM_WORD_PDF": "1"}):
+            kq = R.chuyen_pdf(lan, lan / "hd.docx", han=0.5)
         self.assertNotEqual(kq["trang_thai"], "PDF_DA_TAO")
         self.assertIn(kq["ly_do"], ("WORKER_QUA_HAN_HOAC_EOF", "WORKER_CHUA_DUNG"))
         if "dung" in kq:
