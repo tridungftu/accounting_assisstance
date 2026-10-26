@@ -333,3 +333,23 @@ Anh chốt 26/10 ~17:20: làm tiếp việc phụ M9 (thuần, chưa CSDL/màn h
 Bổ sung lead 26/10 ~17:25 (Codex hỏi khi làm M4-DL5c/OCR-1):
 - (a) Đợt M4 cùng số chưa seal, có dòng chép Review liên kết `m4_dot_id` đúng: tính khối lượng Review vào lũy kế (`REVIEW_CHEP`, cờ `m4_dang_mo_lai`); seal M4 về sau thắng. Cùng số mà không liên kết: cần xem lại.
 - (b) Sổ trang chung với Review: Review đóng băng ghi không khóa tệp. Chấp nhận rủi ro chen ghi, phía mình đọc lại + gộp + kiểm sau ghi. Hết rủi ro khi chuyển hẳn sang M4 (cổng B).
+
+## QD-20261026-08 · Ma trận thẩm quyền — chốt 14 điểm MTQ-4 (A1–A3, B1–B11)
+Anh chốt 26/10 ~19:50: "Đồng ý toàn bộ đề xuất A1–A3, B1–B11 trong MTQ-4-CAN-CHOT.md; giao tiếp các lát MTQ-4".
+- **Nền (A):**
+  - A1: Admin cấp phạm vi nguồn tường minh (profile, công ty nguồn) → pháp nhân; nguồn gộp đòi đủ quyền mọi pháp nhân.
+  - A2: lead giữ chuỗi **MTQ-NEN** cho `ktt_duoc/ktt_pn_cho_phep`, RLS nền, wrapper nhật ký từ chối, kiểm sẵn sàng bật.
+  - A3: hàm quyết định **chỉ đọc**, không ghi nhật ký, cho lọc danh sách.
+- **Nghiệp vụ (B):**
+  - B1: tỷ giá chung cần quyền ở mọi pháp nhân dùng nó.
+  - B2: ô riêng cho CFO duyệt lệch bộ chuẩn (V8).
+  - B3: phạm vi hẹp theo HĐ/dự án, giữ ràng buộc khách/phiên bản.
+  - B4: ghi PDF 02C = "Duyệt hồ sơ đợt: Sửa".
+  - B5: 03A xem PDF cần cả ô 03A Xem và ô PDF Xem.
+  - B6: tải mẫu/bộ chọn master M4 = Lập "Hồ sơ" theo dự án; không dự án → chặn.
+  - B7: chặn chấp thuận ngoại tệ khi chưa có tỷ giá ghim.
+  - B8: L11 xem bằng chứng thô cần cả M2 và M5.
+  - B9: khởi động lại/dừng bộ tải M2 chỉ Admin.
+  - B10: 03B kiểm theo từng nguồn.
+  - B11: pháp nhân còn dùng đường cũ thì chưa được bật.
+- **Lead tự quyết (C):** thứ tự migration; `m4_request.py` thuộc nhóm M4; guard kỹ thuật giữ nguyên.

@@ -39,4 +39,6 @@
 - C2: điểm nối `giao_dien/m4_request.py` (ngoài danh sách cũ) đưa vào nhóm M4.
 - C3: các guard kỹ thuật (chủ bảng, append-only, bất biến) **giữ nguyên**, không phải ô nghiệp vụ, không thành đường vượt cho Admin/CFO.
 
+**ĐÃ CHỐT 26/10 ~19:50 (QD-20261026-08): Anh đồng ý toàn bộ đề xuất A1–A3, B1–B11.**
+
 **Anh trả lời:** chọn đồng ý đề xuất, hoặc ghi lựa chọn khác cho từng dòng A1–A3, B1–B11. Lead giao tiếp các lát theo câu trả lời.
