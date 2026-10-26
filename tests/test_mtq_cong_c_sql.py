@@ -109,13 +109,17 @@ class MtqCongCPostgres(unittest.TestCase):
     def obj(table, key):
         return {"bang": table, "id": str(key)}
 
-    def chung_tu(self, pn, kind="HOP_DONG_TEP"):
+    def chung_tu(self, pn, kind="HOP_DONG_TEP", data=None):
         return self.c.execute(
-            "INSERT INTO kho.chung_tu (phap_nhan_id,loai,khoa_nguon,ngay_nghiep_vu,hash) "
-            "VALUES (%s,%s,%s,current_date,%s) RETURNING id",
-            (pn, kind, uuid.uuid4().hex, uuid.uuid4().hex * 2)).fetchone()[0]
+            "INSERT INTO kho.chung_tu (phap_nhan_id,loai,khoa_nguon,ngay_nghiep_vu,hash,du_lieu) "
+            "VALUES (%s,%s,%s,current_date,%s,%s::jsonb) RETURNING id",
+            (pn, kind, uuid.uuid4().hex, uuid.uuid4().hex * 2, json.dumps(data or {}))).fetchone()[0]
 
     def hop_dong(self, pn, da=None, loai="DICH_VU", module=None):
+        if module == "M4" and da is None:
+            da = self.c.execute("INSERT INTO master.du_an (phap_nhan_id,ma_junsky,ten) "
+                                "VALUES (%s,%s,'Dự án M4 MTQ DEMO') RETURNING id",
+                                (pn, uuid.uuid4().hex)).fetchone()[0]
         return self.c.execute(
             "INSERT INTO master.hop_dong (phap_nhan_id,du_an_id,loai,ma_noi_bo,so_hop_dong,module_chu) "
             "VALUES (%s,%s,%s,%s,%s,%s) RETURNING id",
@@ -126,17 +130,97 @@ class MtqCongCPostgres(unittest.TestCase):
             "INSERT INTO master.hop_dong_phien_ban (hop_dong_id,phien_ban,nguon,chung_tu_id) "
             "VALUES (%s,%s,'TRICH_6',%s) RETURNING id", (hd, version, ct)).fetchone()[0]
 
-    def lo_xuat(self, pn, module="CRM", loai="FILE_SOAT"):
+    def lo_xuat(self, pn, module="CRM", loai="FILE_SOAT", hd=None):
+        data = {"module": module}
+        if hd is not None:
+            data["hop_dong_id"] = str(hd)
+        sha = path = None
+        if module == "M5":
+            # Kết nối hiện tại là chủ bảng đã migrate CSDL test; không SET ROLE app_web.
+            self.assertTrue(self.c.execute("SELECT master.la_chu_bang('kho.lo_xuat')").fetchone()[0])
+            sha = uuid.uuid4().hex * 2
+            path = "m5-xuat/" + sha + ".xlsx"
+            data.update(stage_id=str(uuid.uuid4()), muc_dich="FILE_SOAT")
         return self.c.execute(
-            "INSERT INTO kho.lo_xuat (phap_nhan_id,ky,ma_lo,loai,nguoi,du_lieu) "
-            "VALUES (%s,'2026-10',%s,%s,%s,%s::jsonb) RETURNING id",
-            (pn, uuid.uuid4().hex, loai, self.admin[1], json.dumps({"module": module}))).fetchone()[0]
+            "INSERT INTO kho.lo_xuat (phap_nhan_id,ky,ma_lo,loai,nguoi,du_lieu,hash,duong_dan) "
+            "VALUES (%s,'2026-10',%s,%s,%s,%s::jsonb,%s,%s) RETURNING id",
+            (pn, uuid.uuid4().hex, loai, self.admin[1], json.dumps(data), sha, path)).fetchone()[0]
 
     def lien_ket(self, pn, ct_a, ct_b, hd=None):
         # Liên kết không có lịch thu là dữ liệu hợp lệ; không giả lập tiền/duyệt.
         return self.c.execute(
             "INSERT INTO kho.lien_ket_chung_tu (phap_nhan_id,chung_tu_a_id,chung_tu_b_id,loai,hop_dong_id) "
-            "VALUES (%s,%s,%s,'KHAC',%s) RETURNING id", (pn, ct_a, ct_b, hd)).fetchone()[0]
+            "VALUES (%s,%s,%s,'HOP_DONG_DOT_TIEN',%s) RETURNING id", (pn, ct_a, ct_b, hd)).fetchone()[0]
+
+    def lien_ket_vay(self, pn):
+        # Chuỗi COMMON hiện hành chưa nhận VAY_TIEN (M0013 full-M9 là lineage).
+        # Chỉ nới CHECK loại trong giao dịch test, rollback ở tearDown; không bật M9.
+        check = self.c.execute("SELECT pg_get_constraintdef(oid) FROM pg_constraint "
+                               "WHERE conrelid='kho.lien_ket_chung_tu'::regclass "
+                               "AND conname='lien_ket_chung_tu_loai_check'").fetchone()[0]
+        if "VAY_TIEN" not in check:
+            from psycopg import sql
+            self.c.execute("ALTER TABLE kho.lien_ket_chung_tu DROP CONSTRAINT lien_ket_chung_tu_loai_check")
+            self.c.execute(sql.SQL("ALTER TABLE kho.lien_ket_chung_tu ADD CONSTRAINT "
+                                  "lien_ket_chung_tu_loai_check CHECK (({}) OR loai='VAY_TIEN')").format(
+                                      sql.SQL(check.removeprefix("CHECK "))))
+        hd = self.hop_dong(pn, loai="VAY")
+        a = self.chung_tu(pn, "SAO_KE")
+        b = self.chung_tu(pn, data={"hop_dong_id": str(hd)})
+        return self.c.execute(
+            "INSERT INTO kho.lien_ket_chung_tu (phap_nhan_id,chung_tu_a_id,chung_tu_b_id,loai,"
+            "hop_dong_id,so_tien_khop_minor,tien_te,tao_boi) "
+            "VALUES (%s,%s,%s,'VAY_TIEN',%s,1,'VND',%s) RETURNING id",
+            (pn, a, b, hd, self.admin[1])).fetchone()[0]
+
+    def lien_ket_l11(self, pn):
+        # Đồ thị typed tối thiểu, mọi FK/trigger vẫn bật; chỉ tạo bằng vai chủ bảng.
+        from psycopg import sql
+        from psycopg.types.json import Jsonb
+
+        def them(table, **data):
+            return self.c.execute(sql.SQL("INSERT INTO {} ({}) VALUES ({}) RETURNING id").format(
+                sql.Identifier(*table.split(".")), sql.SQL(",").join(map(sql.Identifier, data)),
+                sql.SQL(",").join(sql.Placeholder() for _ in data)), tuple(data.values())).fetchone()[0]
+
+        self.assertTrue(self.c.execute("SELECT master.la_chu_bang('kho.lien_ket_chung_tu')").fetchone()[0])
+        inst, sha, ref = "MTQ_DEMO_" + uuid.uuid4().hex, uuid.uuid4().hex * 2, "MTQ_DEMO"
+        self.c.execute("INSERT INTO master.nguon_instance (source_instance_id) VALUES (%s)", (inst,))
+        profile = them("master.nguon_profile", source_instance_id=inst, profile_ref=ref,
+                       profile_sha256=sha, payload=Jsonb({}))
+        mapping = them("master.anh_xa_nguon", reference_id=inst, revision=1, source_instance_id=inst,
+                       profile_ref=ref, profile_sha256=sha, subject_kind="WAREHOUSE", subject_key="DEMO",
+                       phap_nhan_id=pn, valid_from="2026-01-01", nguon_quyet_dinh="ROOT_SEED_DEMO",
+                       duyet_boi="ROOT_SEED_DEMO")
+        snapshot = them("kho.anh_chup_nguon", source_instance_id=inst, profile_ref=ref, profile_sha256=sha,
+                        bundle_sha256=sha, state="THIEU_VAI_TRO", nguoi=self.admin[1])
+        self.c.execute("INSERT INTO kho.anh_chup_nguon_vai_tro "
+                       "(snapshot_id,source_instance_id,vai_tro,co_mat,ly_do_vang) VALUES (%s,%s,'HEADER',false,'DEMO')",
+                       (snapshot, inst))
+        row = them("kho.ban_ghi_nguon", snapshot_id=snapshot, source_instance_id=inst, vai_tro="HEADER",
+                   section="HEADER", locator="DEMO", thu_tu=0, row_raw=Jsonb({}), row_raw_sha256=sha,
+                   validation_state="HOP_LE")
+        a = them("kho.chung_tu", phap_nhan_id=pn, loai="HD_MUA", module_nghiep_vu="M2",
+                 khoa_nguon=uuid.uuid4().hex, ngay_nghiep_vu="2026-10-01", hash=sha, tien_te=None)
+        b = them("kho.chung_tu", phap_nhan_id=pn, loai="PHIEU_KHO", module_nghiep_vu="M5",
+                 khoa_nguon=uuid.uuid4().hex, ngay_nghiep_vu="2026-10-01", hash=sha, tien_te=None)
+        invoice = them("kho.hoa_don_danh_tinh", phap_nhan_id=pn, chieu="MUA_VAO", mst_ban="DEMO",
+                       mau_so="1", ky_hieu="DEMO", so_chuan="1", source_instance_id=inst, created_by=self.admin[1])
+        receipt = them("kho.phieu_kho_danh_tinh", phap_nhan_id=pn, source_instance_id=inst, so_phieu_raw="DEMO",
+                       so_phieu_key="DEMO", ma_kho="DEMO", mapping_revision_id=mapping, tao_boi=self.admin[1])
+        them("kho.hoa_don_phien_ban", phap_nhan_id=pn, hoa_don_id=invoice, phien_ban=1,
+             semantic_contract="M2_XML_CONTENT_V1", semantic_sha256=sha, profile_id=profile, profile_sha256=sha,
+             company_mapping_id=mapping, snapshot_id=snapshot, header_source_row_id=row, raw_header_states=Jsonb({}),
+             ngay_lap="2026-10-01", tien_te="VND", raw_components=Jsonb({}), money_basis_state="UNPROVEN_NO_MINOR",
+             chung_tu_id=a)
+        them("kho.phieu_kho_phien_ban", phap_nhan_id=pn, phieu_id=receipt, version=1,
+             semantic_contract="kho10-content/v1", semantic_sha256=sha, profile_ref=ref, profile_sha256=sha,
+             mapping_revision_id=mapping, first_snapshot_id=snapshot, header_row_id=row, native_header=Jsonb({}),
+             loai_phieu_raw="NHAP", trang_thai_raw="NHAP", trang_thai_nguon="NHAP", ngay_chung_tu="2026-10-01",
+             ma_kho="DEMO", related_master_facts=Jsonb({}), khoa_nguon_chieu="KHO10_PHIEU:v1:" + sha, chung_tu_id=b)
+        return them("kho.lien_ket_chung_tu", phap_nhan_id=pn, chung_tu_a_id=a, chung_tu_b_id=b,
+                    loai="HD_PHIEU_KHO", trang_thai="DA_KHOP", chu_so_huu_module="M5",
+                    muc_dich_lien_ket="EVIDENCE", hoa_don_id=invoice, phieu_id=receipt)
 
     def tao_doi_tuong(self, pn):
         da = self.c.execute(
@@ -189,6 +273,19 @@ class MtqCongCPostgres(unittest.TestCase):
         self.assertTrue(kq["ma"].startswith("MTQ_"))
         if code:
             self.assertEqual(kq["ma"], code)
+
+    def assert_audit_pn(self, action, obj, pn, code):
+        from psycopg import sql
+
+        key = self.c.execute("SELECT master.mtq_ghi_tu_choi_phien(%s,%s,%s::jsonb,NULL)",
+                             (uuid.uuid4(), action, json.dumps(obj))).fetchone()[0]
+        role = self.c.execute("SELECT current_role").fetchone()[0]
+        self.c.execute("RESET ROLE")  # app_web chỉ được gọi cổng, không SELECT bảng audit.
+        try:
+            self.assertEqual(self.c.execute("SELECT phap_nhan_id,ma FROM nhat_ky.mtq_tu_choi WHERE id=%s",
+                                            (key,)).fetchone(), (pn, code))
+        finally:
+            self.c.execute(sql.SQL("SET LOCAL ROLE {}").format(sql.Identifier(role)))
 
     def test_chin_diem_dung_pham_vi_khong_can_tien_va_app_web(self):
         self.cau_hinh()
@@ -296,13 +393,114 @@ class MtqCongCPostgres(unittest.TestCase):
         self.cau_hinh()
         self.assertIs(self.cong("M1:TIEN:HUY", self.obj("kho.lien_ket_chung_tu", lk))["cho_phep"], True)
 
+    def test_lien_ket_vay_l11_hd_ngoai_crm_bi_chan_pn_tat_giu_cu_va_audit(self):
+        pairs = []
+        for pn in (self.pn, self.pn2):
+            links = [self.lien_ket_vay(pn), self.lien_ket_l11(pn)]
+            # Loại liên kết CRM vẫn phải kiểm HĐ; không chỉ chặn theo tên VAY_TIEN.
+            for loai, module in (("XAY_DUNG", "M4"), ("VAY", None), ("MUA", None)):
+                a, b = self.chung_tu(pn), self.chung_tu(pn)
+                links.append(self.lien_ket(pn, a, b, self.hop_dong(pn, loai=loai, module=module)))
+            a, b = self.chung_tu(pn), self.chung_tu(pn)
+            links.append(self.lien_ket(pn, a, b, self.hop_dong(self.pn2 if pn == self.pn else self.pn)))
+            for kind in ("KHAC", "HD_PHIEU_KHO"):
+                links.append(self.c.execute(
+                    "INSERT INTO kho.lien_ket_chung_tu (phap_nhan_id,chung_tu_a_id,chung_tu_b_id,loai) "
+                    "VALUES (%s,%s,%s,%s) RETURNING id", (pn, a, b, kind)).fetchone()[0])
+            pairs.extend((pn, self.obj("kho.lien_ket_chung_tu", lk)) for lk in links)
+        self.actor(self.user)
+        for pn, obj in pairs:
+            with self.subTest(giai_doan="tat", pn=pn, obj=obj):
+                self.assertEqual(self.cong("M1:TIEN:HUY", obj)["nguon"], "CU")
+        self.cau_hinh()
+        self.c.execute("SET LOCAL ROLE app_web")
+        for pn, obj in pairs:
+            with self.subTest(giai_doan="bat", pn=pn, obj=obj):
+                if pn == self.pn:
+                    self.assert_tu_choi(self.cong("M1:TIEN:HUY", obj), "MTQ_CAN_RESOLVER_MTQ4")
+                    self.assert_audit_pn("M1:TIEN:HUY", obj, pn, "MTQ_CAN_RESOLVER_MTQ4")
+                else:
+                    self.assertEqual(self.cong("M1:TIEN:HUY", obj)["nguon"], "CU")
+
+    def test_lo_xuat_pham_vi_hd_dung_sai_va_uuid_sai_dang(self):
+        hd = self.objects["master.hop_dong"]["id"]
+        good = self.obj("kho.lo_xuat", self.lo_xuat(self.pn, hd=hd))
+        other = self.obj("kho.lo_xuat", self.lo_xuat(self.pn, hd=self.hop_dong(self.pn)))
+        bad = [self.obj("kho.lo_xuat", self.lo_xuat(self.pn, hd=value))
+               for value in ("khong-phai-uuid", "", "00000000-0000-0000-0000-00000000000z")]
+        self.cau_hinh("HOP_DONG", hd)
+        self.assertIs(self.cong("CRM:FILE_SOAT:XEM", good)["cho_phep"], True)
+        for obj in [other, *bad]:
+            with self.subTest(obj=obj):
+                self.assert_tu_choi(self.cong("CRM:FILE_SOAT:XEM", obj), "MTQ_PHAM_VI")
+                self.assert_audit_pn("CRM:FILE_SOAT:XEM", obj, self.pn, "MTQ_PHAM_VI")
+        # Cùng dữ liệu UUID hỏng được phép với phạm vi PN, không lỗi SQL.
+        self.actor(self.admin)
+        gan = self.c.execute("SELECT id FROM master.mtq_gan_vai WHERE nguoi_dung_id=%s AND phap_nhan_id=%s",
+                             (self.user[0], self.pn)).fetchone()[0]
+        self.ghi("PHAM_VI", {"gan_vai_id": str(gan), "phap_nhan_id": str(self.pn),
+                              "loai": "PHAP_NHAN", "khoa": str(self.pn)})
+        self.actor(self.user)
+        for obj in bad:
+            self.assertIs(self.cong("CRM:FILE_SOAT:XEM", obj)["cho_phep"], True)
+
+    def test_lo_xuat_hd_ngoai_crm_khac_pn_khong_ton_tai_bi_chan_va_audit(self):
+        refs = [self.hop_dong(self.pn, loai="XAY_DUNG", module="M4"), self.hop_dong(self.pn, loai="VAY"),
+                self.hop_dong(self.pn, loai="MUA"), self.hop_dong(self.pn2), uuid.uuid4()]
+        pairs = [(pn, self.obj("kho.lo_xuat", self.lo_xuat(pn, hd=hd)))
+                 for pn in (self.pn, self.pn2) for hd in refs]
+        self.cau_hinh()
+        for pn, obj in pairs:
+            with self.subTest(pn=pn, obj=obj):
+                if pn == self.pn:
+                    self.assert_tu_choi(self.cong("CRM:FILE_SOAT:XEM", obj), "MTQ_CAN_RESOLVER_MTQ4")
+                    self.assert_audit_pn("CRM:FILE_SOAT:XEM", obj, pn, "MTQ_CAN_RESOLVER_MTQ4")
+                else:
+                    self.assertEqual(self.cong("CRM:FILE_SOAT:XEM", obj)["nguon"], "CU")
+
+    def test_id_khong_ton_tai_cho_tung_bang_moi(self):
+        self.cau_hinh()
+        for action, table in (("CRM:TIEP_NHAN:LAP", "master.phap_nhan"),
+                              ("CRM:TIEP_NHAN:SUA", "kho.chung_tu"),
+                              ("M1:TIEN:HUY", "kho.lien_ket_chung_tu"),
+                              ("CRM:FILE_SOAT:XEM", "kho.lo_xuat")):
+            with self.subTest(bang=table):
+                obj = self.obj(table, uuid.uuid4())
+                self.assert_tu_choi(self.cong(action, obj), "MTQ_CAN_RESOLVER_MTQ4")
+                self.assert_audit_pn(action, obj, None, "MTQ_CAN_RESOLVER_MTQ4")
+
+    def test_ho_so_gan_hd_m4_hoac_crm_giao_ket_bi_chan_va_audit(self):
+        objects = []
+        for module, giao_ket in (("M4", None), (None, "SOAN_THAO")):
+            hd = self.hop_dong(self.pn, loai="XAY_DUNG" if module == "M4" else "DICH_VU", module=module)
+            ct = self.chung_tu(self.pn)
+            self.gan_phien_ban(hd, ct)
+            if giao_ket:
+                # Fixture phòng thủ cho dữ liệu bất thường: guard G3 hiện tại cấm
+                # chuyển HĐ B thành bản soạn. Chỉ tạm tắt đúng guard đó khi dựng,
+                # bật lại trước khi gọi cổng; cả giao dịch test luôn rollback.
+                with self.c.transaction():
+                    self.c.execute("ALTER TABLE master.hop_dong DISABLE TRIGGER hop_dong_gk_kiem")
+                    self.c.execute("UPDATE master.hop_dong SET crm_giao_ket=%s,trang_thai=%s WHERE id=%s",
+                                   (giao_ket, giao_ket, hd))
+                    self.c.execute("ALTER TABLE master.hop_dong ENABLE TRIGGER hop_dong_gk_kiem")
+            objects.append(self.obj("kho.chung_tu", ct))
+        self.cau_hinh()
+        for obj in objects:
+            for action in ("CRM:TIEP_NHAN:SUA", "CRM:TIEP_NHAN:KIEM"):
+                with self.subTest(obj=obj, lenh=action):
+                    self.assert_tu_choi(self.cong(action, obj), "MTQ_CAN_RESOLVER_MTQ4")
+                    self.assert_audit_pn(action, obj, self.pn, "MTQ_CAN_RESOLVER_MTQ4")
+
     def test_pham_vi_du_an_qua_hd_ho_so_va_lien_ket(self):
+        lo = self.obj("kho.lo_xuat", self.lo_xuat(self.pn, hd=self.objects["master.hop_dong"]["id"]))
         self.cau_hinh("DU_AN", self.objects["du_an"]["id"])
         for action, obj in (
             ("M1:TIEN:SUA", self.objects["master.hop_dong"]),
             ("CRM:FILE_SOAT:XEM", self.objects["master.hop_dong"]),
             ("CRM:TIEP_NHAN:KIEM", self.objects["ct_da_gan"]),
             ("M1:TIEN:HUY", self.objects["kho.lien_ket_chung_tu"]),
+            ("CRM:FILE_SOAT:XEM", lo),
         ):
             with self.subTest(lenh=action):
                 self.assertIs(self.cong(action, obj)["cho_phep"], True)

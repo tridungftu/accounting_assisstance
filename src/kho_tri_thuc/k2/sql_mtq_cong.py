@@ -233,6 +233,7 @@ MTQ_CONG_C_SQL = (
             pn uuid; phong uuid; scope_id uuid; khoa text; scope_loai text;
             obj uuid; hd uuid; da uuid; lh uuid; khach uuid;
             loai text; man_hinh text; module_hd text; hd_ho_tro boolean; hd_crm boolean; doi_tuong_ho_tro boolean := false;
+            hd_text text;
             n bigint; kq jsonb; ma text; ly_do text;
         BEGIN
             -- JSON là tham chiếu đối tượng, không phải danh tính/quyền client.
@@ -287,18 +288,36 @@ MTQ_CONG_C_SQL = (
                             END IF;
                         END IF;
                     ELSIF p_doi_tuong->>'bang' = 'kho.lien_ket_chung_tu' THEN
-                        SELECT l.phap_nhan_id, l.hop_dong_id
-                            INTO pn, hd FROM kho.lien_ket_chung_tu l WHERE l.id = obj;
-                        doi_tuong_ho_tro := FOUND;
-                        IF hd IS NOT NULL THEN
+                        -- Giữ PN cả dòng ngoài CRM để PN tắt vẫn đi CU.
+                        SELECT l.phap_nhan_id, l.hop_dong_id,
+                                l.loai = 'HOP_DONG_DOT_TIEN' AND l.chu_so_huu_module IS NULL
+                            INTO pn, hd, doi_tuong_ho_tro FROM kho.lien_ket_chung_tu l WHERE l.id = obj;
+                        IF doi_tuong_ho_tro AND hd IS NOT NULL THEN
                             SELECT h.du_an_id, h.loai_hinh_dt_id, h.doi_tac_id
                                 INTO da, lh, khach FROM master.hop_dong h
-                                WHERE h.id = hd AND h.phap_nhan_id = pn;
+                                WHERE h.id = hd AND h.phap_nhan_id = pn
+                                    AND h.module_chu IS NULL AND h.loai NOT IN ('VAY','MUA');
                             doi_tuong_ho_tro := FOUND;
                         END IF;
                     ELSIF p_doi_tuong->>'bang' = 'kho.lo_xuat' THEN
-                        SELECT l.phap_nhan_id, l.loai = 'FILE_SOAT' AND l.du_lieu->>'module' = 'CRM'
-                            INTO pn, doi_tuong_ho_tro FROM kho.lo_xuat l WHERE l.id = obj;
+                        SELECT l.phap_nhan_id, l.loai = 'FILE_SOAT' AND l.du_lieu->>'module' = 'CRM',
+                                l.du_lieu->>'hop_dong_id'
+                            INTO pn, doi_tuong_ho_tro, hd_text FROM kho.lo_xuat l WHERE l.id = obj;
+                        IF doi_tuong_ho_tro THEN
+                            -- Ép UUID riêng: chuỗi sai dạng chỉ còn phạm vi PN.
+                            BEGIN
+                                hd := hd_text::uuid;
+                            EXCEPTION WHEN invalid_text_representation THEN
+                                hd := NULL;
+                            END;
+                            IF hd IS NOT NULL THEN
+                                SELECT h.du_an_id, h.loai_hinh_dt_id, h.doi_tac_id
+                                    INTO da, lh, khach FROM master.hop_dong h
+                                    WHERE h.id = hd AND h.phap_nhan_id = pn
+                                        AND h.module_chu IS NULL AND h.loai NOT IN ('VAY','MUA');
+                                doi_tuong_ho_tro := FOUND;
+                            END IF;
+                        END IF;
                     END IF;
                     IF NOT EXISTS (SELECT 1 FROM master.mtq_kich_hoat
                             WHERE bat AND (pn IS NULL OR phap_nhan_id = pn)) THEN
@@ -314,7 +333,7 @@ MTQ_CONG_C_SQL = (
                             WHERE c.catalog_version = 1 AND c.lenh_ky_thuat = p_hanh_dong;
                         -- Không suy HĐ M4/bản soạn G3 thành tiếp nhận luồng B.
                         -- Whitelist cặp bảng/lệnh; không suy quyền từ loại đối tượng catalog.
-                        -- HĐ thuộc CRM: cùng bộ lọc CRM S1 (crm_s1.py); loại VAY/MUA không thuộc CRM.
+                        -- HĐ thuộc CRM = module_chu IS NULL AND loai NOT IN ('VAY','MUA') (crm_s1.py:93), hẹp hơn RLS (an toàn).
                         IF NOT coalesce((
                             (p_doi_tuong->>'bang' = 'master.hop_dong' AND (
                                 (module_hd = 'CRM' AND hd_ho_tro AND man_hinh = 'TIEP_NHAN') OR
@@ -418,8 +437,10 @@ MTQ_CONG_C_SQL = (
             ELSIF p_doi_tuong->>'bang' = 'kho.chung_tu' THEN
                 SELECT phap_nhan_id INTO pn FROM kho.chung_tu WHERE id::text = kq->>'doi_tuong';
             ELSIF p_doi_tuong->>'bang' = 'kho.lien_ket_chung_tu' THEN
+                -- kq đã qua resolver CRM ở mtq_quyet_dinh_phien; giữ PN cả khi chặn VAY/L11/HĐ ngoài CRM.
                 SELECT phap_nhan_id INTO pn FROM kho.lien_ket_chung_tu WHERE id::text = kq->>'doi_tuong';
             ELSIF p_doi_tuong->>'bang' = 'kho.lo_xuat' THEN
+                -- Cùng quyết định đã kiểm HĐ/UUID; audit vẫn ghi PN của lô bị từ chối.
                 SELECT phap_nhan_id INTO pn FROM kho.lo_xuat WHERE id::text = kq->>'doi_tuong';
             END IF;
             SELECT g.phong_id, g.vai INTO phong, vai_hd FROM master.mtq_gan_vai g
