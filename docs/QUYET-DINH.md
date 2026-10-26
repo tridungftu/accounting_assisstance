@@ -305,3 +305,6 @@ Anh chốt 26/10 (bảng chọn): một ô riêng trên trang chủ hệ thống
 
 ## QD-20261026-03 · MTQ-4a3a — "Hợp đồng thuộc CRM" trong cổng ma trận thẩm quyền
 Lead ghi 26/10 theo review MTQ-4a3a: trong resolver SQL M0045, HĐ thuộc CRM = `module_chu IS NULL AND loai NOT IN ('VAY','MUA')` (cùng bộ lọc `k2/crm_s1.py:93`). Hẹp hơn RLS (RLS và `crm.py` vẫn coi MUA là CRM) nên an toàn; profile CRM hiện chỉ tạo `THUE_DAT`/`BAN_NHA`. Liên kết tiền chỉ nhận `HOP_DONG_DOT_TIEN` không chủ sở hữu module (chặn `VAY_TIEN` của M9 và L11 `HD_PHIEU_KHO`). Đổi định nghĩa phải qua migration mới + review.
+
+## QD-20261026-04 · Review chéo giao Codex; Claude chỉ kiểm xác suất
+Anh chốt 26/10 ~16:00: "do hạn mức đã gần đầy, hãy giao cho cả codex tự kiểm theo bài của Claude, để claude code chỉ kiểm xác suất thôi". Thay phần review của CD-004 (kiem-nhanh Haiku + review-lat Opus): mỗi lát Codex được một Codex khác review chỉ đọc theo `docs/46-chuyen-doi-dieu-phoi/MAU-REVIEW-CODEX.md`; lead giữ gate máy (diff/mã hóa/test + PG so nền/skip) cho mọi lát và rút ngẫu nhiên ~1/4 lát đã Đạt để tự đọc nhanh điểm nóng, không gọi subagent. Vẫn tối đa 4 Codex (kể cả việc review).
