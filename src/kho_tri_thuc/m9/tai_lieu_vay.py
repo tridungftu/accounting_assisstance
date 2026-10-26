@@ -18,9 +18,15 @@ _LOAI_TAI_LIEU = frozenset({
     "HD_TIN_DUNG", "KHE_UOC_NHAN_NO", "PHU_LUC", "HD_BAO_DAM",
     "THONG_BAO_LAI_SUAT",
 })
-_DUOI_TIEU_DE = r"(?:\s*[.:]\s*|(?=\s+(?P<chu_dau>[^\W\d_])))"
+_DUOI_TIEU_DE = r"(?:\s*[.:]\s*|(?=\s+(?P<chu_dau>[^\W\d_]))|$)"
 _CHUONG = re.compile(r"^Chương\s+(?:\d+|[IVXLCDM]+)" + _DUOI_TIEU_DE, re.IGNORECASE)
 _DIEU = re.compile(r"^Điều\s+(\d+)" + _DUOI_TIEU_DE, re.IGNORECASE)
+_NHAN_DIEU_CHUONG = r"(?:Điều\s+\d+|Chương\s+(?:\d+|[IVXLCDM]+))"
+_NHAN_DUNG_RIENG = re.compile(r"^" + _NHAN_DIEU_CHUONG + r"\s*[.:]?\s*$", re.IGNORECASE)
+_NHAN_DAU_DOAN = re.compile(
+    r"^(?:" + _NHAN_DIEU_CHUONG + r"|Khoản\s+\d+(?:\.\d+)*|Điểm\s+[a-zđ])(?=[).:\s]|$)",
+    re.IGNORECASE,
+)
 _KHOAN_CHU = re.compile(r"^Khoản\s+(\d+(?:\.\d+)*)(?:[.:])?(?=\s|$)\s*", re.IGNORECASE)
 # Các nhóm ba chữ số có thể là số tiền: không nhận là nhãn khoản.
 _KHOAN_SO = re.compile(r"^(\d+(?:\.\d{1,2})+\.?|\d+\.)(?=\s|$)\s*")
@@ -32,6 +38,16 @@ def _khop_tieu_de(mau: re.Pattern, van_ban: str):
     if khop and (khop.group("chu_dau") is None or khop.group("chu_dau").isupper()):
         return khop
     return None
+
+
+def _la_tieu_de_tach(van_ban: str) -> bool:
+    return bool(
+        van_ban and len(van_ban) <= 120
+        and van_ban[-1] not in ".,;:!?…"
+        and not _NHAN_DAU_DOAN.match(van_ban)
+        and not _KHOAN_SO.match(van_ban)
+        and not _DIEM.match(van_ban)
+    )
 
 
 def _doc(raw: bytes) -> tuple[list[dict], int]:
@@ -130,12 +146,15 @@ def cat_doan(doan: list[dict]) -> list[dict]:
 
     dieu giữ số và tiêu đề sau chữ Điều; khoan/diem chỉ giữ nhãn số/chữ.
     chuong giữ số và tiêu đề sau chữ Chương. Ô bảng kế thừa cấp hiện tại.
+    Nhãn đứng riêng lấy tiêu đề ngắn ở đoạn ngoài bảng kế tiếp nếu hợp lệ;
+    nhãn và tiêu đề tách chỉ làm ngữ cảnh, không sinh câu nội dung.
     Không dựng lại đánh số tự động của Word hoặc sửa chữ do OCR nhận sai.
     """
     ket_qua = []
     cap = {"chuong": None, "dieu": "MO_DAU", "khoan": None, "diem": None}
     nguon = []
     cac_cau = []
+    vi_tri_tieu_de = None
 
     def ghi():
         if not nguon:
@@ -154,20 +173,39 @@ def cat_doan(doan: list[dict]) -> list[dict]:
         van_ban = muc["van_ban"]
         if not van_ban.strip():
             continue
+        if vi_tri == vi_tri_tieu_de:
+            # Giữ nguồn gốc để mã/trang vẫn dựa trên văn bản thật, không thêm câu.
+            nguon.append([vi_tri, muc["thu_tu"], muc["trang"], van_ban])
+            continue
         moi = dict(cap)
         dau_noi_dung = 0
         co_nhan = False
+        nhan_dung_rieng = False
         if not muc.get("la_bang"):
             chuong = _khop_tieu_de(_CHUONG, van_ban)
             dieu = _khop_tieu_de(_DIEU, van_ban)
             khoan = _KHOAN_CHU.match(van_ban) or _KHOAN_SO.match(van_ban)
             diem = _DIEM.match(van_ban)
+            nhan = van_ban.split(maxsplit=1)[1] if chuong or dieu else None
+            nhan_dung_rieng = bool((chuong or dieu) and _NHAN_DUNG_RIENG.fullmatch(van_ban))
+            if nhan_dung_rieng:
+                nhan = nhan.rstrip(".:").strip()
+                # Chỉ xét đoạn ngoài bảng kế tiếp; không vượt qua đoạn bị loại.
+                for i in range(vi_tri + 1, len(doan)):
+                    ke_tiep = doan[i]
+                    if ke_tiep.get("la_bang") or not ke_tiep["van_ban"].strip():
+                        continue
+                    tieu_de = ke_tiep["van_ban"].strip()
+                    if _la_tieu_de_tach(tieu_de):
+                        nhan += " " + tieu_de
+                        vi_tri_tieu_de = i
+                    break
             if chuong:
-                moi.update(chuong=van_ban.split(maxsplit=1)[1], dieu="MO_DAU", khoan=None, diem=None)
+                moi.update(chuong=nhan, dieu="MO_DAU", khoan=None, diem=None)
                 dau_noi_dung = chuong.end()
                 co_nhan = True
             elif dieu:
-                moi.update(dieu=van_ban.split(maxsplit=1)[1], khoan=None, diem=None)
+                moi.update(dieu=nhan, khoan=None, diem=None)
                 dau_noi_dung = dieu.end()
                 co_nhan = True
             elif khoan:
@@ -182,7 +220,8 @@ def cat_doan(doan: list[dict]) -> list[dict]:
             ghi()
             cap = moi
         nguon.append([vi_tri, muc["thu_tu"], muc["trang"], van_ban])
-        cac_cau.extend(_tach_cau(van_ban, dau_noi_dung))
+        if not nhan_dung_rieng:
+            cac_cau.extend(_tach_cau(van_ban, dau_noi_dung))
     ghi()
     return ket_qua
 
