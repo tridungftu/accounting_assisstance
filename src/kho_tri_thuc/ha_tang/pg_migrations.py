@@ -12300,3 +12300,81 @@ M0053_MTQ_CRM_B = (
 )
 PG_MIGRATIONS = (*PG_MIGRATIONS, M0053_MTQ_CRM_B)
 PG_SCHEMA_VERSION = len(PG_MIGRATIONS)
+
+# MTQ-4f1b — CD-012: guard từng lệnh hồ sơ M17; lead đánh số khi gộp.
+from ..m4.sql_mtq import MTQ_M4_A_SQL  # noqa: E402 — chỉ hằng SQL
+from ..m4.sql_m17 import _SOAN as _M4_A_SOAN  # noqa: E402 — guard CU nguyên bản
+
+
+def _mtq_m4_a_soan(ten: str, hanh: str, du_an: str, obj: str) -> str:
+    """Giữ toàn thân hiện hành; chỉ thay nguồn quyền ở đúng guard SOAN."""
+    cu = _M4_A_SOAN.format(d=du_an)
+    moi = (f"\n            IF NOT m4._mtq_ho_so_quyen('{hanh}', {obj}) THEN"
+           + cu + "\n            END IF;")
+    return _m36_thay(_m37_ham("m4." + ten), (cu, moi))
+
+
+M00xx_MTQ_M4_A = (
+    *MTQ_M4_A_SQL,
+    # Căn cứ nội bộ của lệnh đã có guard: không dùng XEM/vai cũ phủ quyết
+    # KIEM/SUA. API đọc công khai và RLS để nguyên cho lát MTQ-4f1c.
+    _m36_thay(
+        _m37_ham("m4.digest_tham_so"),
+        ("CREATE OR REPLACE FUNCTION m4.digest_tham_so(p_hd uuid)",
+         "CREATE FUNCTION m4._mtq_ho_so_digest(p_hd uuid)"),
+        ("LANGUAGE sql STABLE SECURITY DEFINER", "LANGUAGE sql STABLE"),
+        ("\n          AND EXISTS (SELECT 1 FROM m4.ho_so_hop_dong h WHERE h.hop_dong_id = p_hd\n"
+         "                      AND (master.m4_duoc(h.du_an_id, 'XEM') OR master.m4_duoc(h.du_an_id, 'REVIEW')))", "")),
+    "REVOKE ALL ON FUNCTION m4._mtq_ho_so_digest(uuid) FROM PUBLIC",
+    _m36_thay(
+        _m37_ham("m4.thieu"),
+        ("CREATE OR REPLACE FUNCTION m4.thieu(p_dot uuid)",
+         "CREATE FUNCTION m4._mtq_ho_so_thieu(p_dot uuid)"),
+        ("LANGUAGE plpgsql STABLE SECURITY DEFINER", "LANGUAGE plpgsql STABLE"),
+        ("IF NOT FOUND OR NOT (master.m4_duoc(d.du_an_id, 'XEM') OR (master.m4_duoc(d.du_an_id, 'REVIEW') AND d.trang_thai = 'DA_NOP')) THEN",
+         "IF NOT FOUND THEN"),
+        ("m4.digest_tham_so(h.hop_dong_id)", "m4._mtq_ho_so_digest(h.hop_dong_id)")),
+    "REVOKE ALL ON FUNCTION m4._mtq_ho_so_thieu(uuid) FROM PUBLIC",
+    _m36_thay(
+        _m37_ham("m4._khoa_dot"),
+        ("CREATE OR REPLACE FUNCTION m4._khoa_dot(p_dot uuid)",
+         "CREATE FUNCTION m4._mtq_ho_so_khoa_dot(p_dot uuid, p_hanh_dong text)"),
+        (_M4_A_SOAN.format(d="d.du_an_id"),
+         "\n            IF NOT m4._mtq_ho_so_quyen(p_hanh_dong, p_dot) THEN"
+         + _M4_A_SOAN.format(d="d.du_an_id") + "\n            END IF;")),
+    "REVOKE ALL ON FUNCTION m4._mtq_ho_so_khoa_dot(uuid, text) FROM PUBLIC",
+    *(_mtq_m4_a_soan(ten, hanh, da, obj) for ten, hanh, da, obj in (
+        ("tao_hop_dong", "TAO_HOP_DONG", "p_du_an", "p_du_an"),
+        ("ghi_tep", "TAI_TEP", "p_du_an", "p_du_an"),
+        ("gan_tep_hop_dong", "GAN_TEP_HOP_DONG", "h.du_an_id", "p_hd"),
+        ("ghi_trich_xuat", "TRICH", "h.du_an_id", "p_hd"),
+        ("sua_tham_so", "SUA_THAM_SO", "h.du_an_id", "p_hd"),
+        ("khai_phu_luc", "KHAI_PHU_LUC", "h.du_an_id", "p_hd"),
+        ("them_phu_luc", "THEM_PHU_LUC", "h.du_an_id", "p_hd"),
+        ("huy_phu_luc", "HUY_PHU_LUC", "h.du_an_id", "p_pl"),
+        ("ghi_boq", "NHAP_BOQ", "h.du_an_id", "p_hd"),
+        ("tao_dot", "TAO_DOT", "h.du_an_id", "p_hd"))),
+    _m36_thay(
+        _mtq_m4_a_soan("xac_nhan_tham_so", "XAC_NHAN_THAM_SO", "h.du_an_id", "p_hd"),
+        ("m4.digest_tham_so(h.hop_dong_id)",
+         "CASE WHEN m4._mtq_ho_so_quyen('XAC_NHAN_THAM_SO', p_hd) "
+         "THEN m4._mtq_ho_so_digest(h.hop_dong_id) ELSE m4.digest_tham_so(h.hop_dong_id) END")),
+    *(_m36_thay(
+        _m37_ham("m4." + ten),
+        ("d := m4._khoa_dot(p_dot);", f"d := m4._mtq_ho_so_khoa_dot(p_dot, '{hanh}');"))
+      for ten, hanh in (("sua_dot", "SUA_DOT"), ("gan_tep_dot", "GAN_TEP_DOT"))),
+    _m36_thay(
+        _m37_ham("m4.nop"),
+        ("d := m4._khoa_dot(p_dot);", "d := m4._mtq_ho_so_khoa_dot(p_dot, 'NOP');"),
+        ("con := m4.thieu(p_dot);",
+         "con := CASE WHEN m4._mtq_ho_so_quyen('NOP', p_dot) "
+         "THEN m4._mtq_ho_so_thieu(p_dot) ELSE m4.thieu(p_dot) END;")),
+    _m36_thay(
+        _m37_ham("m4.tra_bien_nhan"),
+        ("LANGUAGE plpgsql STABLE SECURITY DEFINER", "LANGUAGE plpgsql SECURITY DEFINER"),
+        (_M4_A_SOAN.format(d="b.du_an_id"),
+         "\n            IF NOT m4._mtq_ho_so_replay(b.hanh_dong, b.yeu_cau, b.du_an_id) THEN"
+         + _M4_A_SOAN.format(d="b.du_an_id") + "\n            END IF;")),
+)
+PG_MIGRATIONS = (*PG_MIGRATIONS, M00xx_MTQ_M4_A)
+PG_SCHEMA_VERSION = len(PG_MIGRATIONS)
