@@ -35,7 +35,7 @@ SOURCE_ACTIONS = (
 class MtqLmodResolverTinh(unittest.TestCase):
     def test_registry_append_khong_ghim_cuoi(self):
         source = Path(PM.__file__).read_text(encoding="utf-8")
-        marker = "# MTQ-4i-b1 — CD-012:"
+        marker = "# MTQ-4i-b1 — CD-012: resolver"
         self.assertEqual(source.count(marker), 1)
         old = {"__name__": PM.__name__, "__package__": PM.__package__}
         exec(compile(source.split(marker, 1)[0], PM.__file__, "exec"), old)
@@ -94,6 +94,15 @@ class MtqLmodResolverTinh(unittest.TestCase):
         narrow = whitelist.split("'master.anh_xa_nguon','master.phap_nhan'", 1)[1]
         self.assertEqual(set(re.findall(r"'(M[25]:[^']+)'", narrow)), {ACTION, "M5:KHO:DUYET"})
 
+    def test_dung_helper_m0049_cho_ca_uuid_va_instance_khong_dem_rieng(self):
+        sql = MTQ_CONG_H_SQL[0]
+        self.assertIn("master.mtq_nguon_ung_vien(r.scope_kind, token.nguon, r.subject_key)", sql)
+        self.assertIn("(true, r.profile_id::text), (false, r.source_instance_id)", sql)
+        self.assertIn("HAVING count(*) = 1 AND (array_agg(c.profile_id))[1] = r.profile_id", sql)
+        self.assertNotIn("WHERE p.source_instance_id = r.source_instance_id) = 1", sql)
+        self.assertIn("count(t.value->>'nguon_khoa') = count(*)", sql)
+        self.assertNotIn("đúng module từ CSDL", sql)
+
     def test_utf8_khong_bom_migration_lf_va_hang_literal(self):
         paths = (Path(PM.__file__), ROOT / "src/kho_tri_thuc/k2/sql_mtq_cong.py", Path(__file__))
         for path in paths:
@@ -116,6 +125,7 @@ class MtqLmodResolverPostgres(unittest.TestCase):
     san_sang = nen.MtqPostgres.san_sang
     mapping = nguon.MtqNguonPostgres.mapping
     them_profile = nguon.MtqNguonPostgres.them_profile
+    ung_vien_m0049 = nguon.MtqNguonPostgres.ung_vien_m0049
     dong_mapping = nguon.MtqNguonPostgres.dong_mapping
     hop_dong = cong.MtqCongCPostgres.hop_dong
 
@@ -216,6 +226,59 @@ class MtqLmodResolverPostgres(unittest.TestCase):
         self.assertIs(self.decision()["cho_phep"], True)
         self.them_profile("PROFILE_THU_HAI")
         self.assertEqual(self.resolve()[0]["nguon_khoa"], self.key())
+        self.assertEqual(self.decision()["ma"], "MTQ_PHAM_VI")
+
+    def test_review_uuid_profile_trung_ten_instance_khong_dung_quyen_nguon_cu(self):
+        self.configure()
+        old_obj = self.obj
+        old_profile = self.profile
+        self.assertEqual(self.ung_vien_m0049("INVOICE_SET", str(old_profile[0]), "CTY A"), [old_profile[0]])
+        self.assertEqual(self.resolve()[0]["nguon_khoa"], self.key())
+        self.assertIs(self.decision()["cho_phep"], True)
+        # Cấp U trước, sau đó thêm instance tên U với profile/mapping khác.
+        self.inst = str(old_profile[0])
+        self.c.execute("INSERT INTO master.nguon_instance(source_instance_id) VALUES (%s)", (self.inst,))
+        self.profile = self.them_profile("PROFILE_TRUNG_UUID")
+        self.mapping()
+        new_obj = self.ref("master.nguon_pham_vi", self.scope(["CTY A"]))
+        self.assertEqual(set(self.ung_vien_m0049("INVOICE_SET", self.inst, "CTY A")),
+                         {old_profile[0], self.profile[0]})
+        self.assertIsNone(self.resolve(old_obj)[0]["nguon_khoa"])
+        for obj in (old_obj, new_obj):
+            with self.subTest(obj=obj):
+                self.assertEqual(self.decision(obj)["ma"], "MTQ_PHAM_VI")
+                self.assertIs(self.decision(obj)["cho_phep"], False)
+        self.actor(self.admin)
+        self.ghi("PHAM_VI", {"gan_vai_id": self.gans[self.pn]["id"], "phap_nhan_id": str(self.pn),
+                              "loai": "PHAP_NHAN", "khoa": str(self.pn)})
+        self.actor(self.user)
+        for obj in (old_obj, new_obj):
+            self.assertIs(self.decision(obj)["cho_phep"], True)
+
+    def test_mot_ung_vien_uuid_va_alias_doi_chieu_m0049_cho(self):
+        for instance in (False, True):
+            with self.subTest(instance=instance), self.c.transaction(force_rollback=True):
+                self.configure(key=self.key(instance=instance))
+                token = self.inst if instance else str(self.profile[0])
+                self.assertEqual(self.ung_vien_m0049(" invoice_set ", " \t" + token.lower(), "cty  a\n"),
+                                 [self.profile[0]])
+                self.assertEqual(self.resolve()[0]["nguon_khoa"], self.key(instance=instance))
+                self.assertIs(self.decision()["cho_phep"], True)
+
+    def test_subject_mo_ho_cung_pn_khong_mat_khi_gop_voi_subject_ro(self):
+        self.mapping(key="CTY B")
+        self.obj = self.ref("master.nguon_pham_vi", self.scope(["CTY A", "CTY B"]))
+        # Chỉ CTY A có alias instance đã cấp; CTY B phải giữ khóa NULL khi
+        # UUID trở nên mơ hồ, không được mất khỏi phép gộp do count bỏ NULL.
+        self.configure(key=self.key(instance=True))
+        old_inst = self.inst
+        self.inst = str(self.profile[0])
+        self.c.execute("INSERT INTO master.nguon_instance(source_instance_id) VALUES (%s)", (self.inst,))
+        self.them_profile("PROFILE_TRUNG_UUID_KHONG_MAP")
+        # Subject UUID mơ hồ vẫn tính dù profile trùng tên chưa có mapping.
+        self.assertEqual(len(self.ung_vien_m0049("INVOICE_SET", self.inst, "CTY B")), 2)
+        self.assertEqual(self.ung_vien_m0049("INVOICE_SET", old_inst, "CTY A"), [self.profile[0]])
+        self.assertIsNone(self.resolve()[0]["nguon_khoa"])
         self.assertEqual(self.decision()["ma"], "MTQ_PHAM_VI")
 
     def test_nguon_uu_tien_truoc_phap_nhan_va_thu_hoi(self):

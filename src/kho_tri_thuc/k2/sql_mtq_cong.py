@@ -2186,12 +2186,22 @@ MTQ_CONG_H_SQL = (
                         INTO hop_le FROM master.anh_xa_nguon m WHERE m.id = r.mapping_id;
                     pn := r.mapping_pn;
                 END IF;
-                khoa_profile := r.scope_kind || '|' || upper(r.profile_id::text) || '|' || r.subject_key;
-                khoa_instance := r.scope_kind || '|' || upper(r.source_instance_id) || '|' || r.subject_key;
+                -- Cả UUID lẫn alias phải giải đúng một profile theo M0049.
+                -- UUID trùng tên instance khác cũng mơ hồ; không chọn một dòng
+                -- hoặc lọc theo mapping/PN để làm mất ứng viên chưa được cấp.
+                SELECT max(u.nguon_khoa) FILTER (WHERE token.la_profile),
+                    max(u.nguon_khoa) FILTER (WHERE NOT token.la_profile)
+                    INTO khoa_profile, khoa_instance
+                    FROM (VALUES (true, r.profile_id::text), (false, r.source_instance_id))
+                        token(la_profile, nguon)
+                    CROSS JOIN LATERAL (
+                        SELECT min(c.nguon_khoa) AS nguon_khoa
+                        FROM master.mtq_nguon_ung_vien(r.scope_kind, token.nguon, r.subject_key) c
+                        HAVING count(*) = 1 AND (array_agg(c.profile_id))[1] = r.profile_id) u;
                 nguon_khoa := NULL;
                 -- Cùng identity có hai cách cấp của M0049. Chỉ chọn alias đã cấp
                 -- cho phiên/PN; cổng vẫn tự kiểm lại phòng, vai và scope đó.
-                -- Alias instance chỉ hợp lệ nếu instance còn đúng một profile.
+                -- Khóa mơ hồ không được dùng, kể cả đã được cấp trước đó.
                 SELECT s.khoa INTO nguon_khoa FROM master.mtq_pham_vi s
                     JOIN master.mtq_gan_vai g ON g.id = s.gan_vai_id AND g.phap_nhan_id = s.phap_nhan_id
                     JOIN master.mtq_phong p ON p.id = g.phong_id AND p.phap_nhan_id = g.phap_nhan_id AND p.hoat_dong
@@ -2199,16 +2209,14 @@ MTQ_CONG_H_SQL = (
                     WHERE a.dang_nhap = master.ktt_danh_tinh() AND a.trang_thai = 'HOAT_DONG'
                         AND g.phap_nhan_id = pn AND g.thu_hoi_luc IS NULL AND s.thu_hoi_luc IS NULL
                         AND (phong IS NULL OR g.phong_id = phong)
-                        AND s.loai = 'NGUON' AND (s.khoa = khoa_profile OR (s.khoa = khoa_instance
-                            AND (SELECT count(*) FROM master.nguon_profile p
-                                WHERE p.source_instance_id = r.source_instance_id) = 1))
+                        AND s.loai = 'NGUON' AND s.khoa IN (khoa_profile, khoa_instance)
                     ORDER BY CASE WHEN s.khoa = khoa_profile THEN 0 ELSE 1 END, s.id LIMIT 1;
                 nguon_khoa := coalesce(nguon_khoa, khoa_profile);
                 kq := cu || jsonb_build_object('pn',pn,'phong',phong,'loai',loai,
                     'man',man_hinh,'module',module_hd,'nguon_khoa',nguon_khoa,
                     'hop_le',coalesce(hop_le,false),
                     'ma',CASE WHEN hop_le THEN NULL ELSE 'MTQ_CAN_RESOLVER_MTQ4' END,
-                    'ly_do',CASE WHEN hop_le THEN NULL ELSE 'Chưa xác định duy nhất nguồn/ánh xạ hiện hành đúng module từ CSDL' END);
+                    'ly_do',CASE WHEN hop_le THEN NULL ELSE 'Chưa xác định duy nhất nguồn và ánh xạ còn hiệu lực phù hợp với nghiệp vụ' END);
                 tap := tap || jsonb_build_array(kq);
             END LOOP;
             IF jsonb_array_length(tap) = 0 THEN RETURN jsonb_build_array(cu); END IF;
@@ -2219,12 +2227,13 @@ MTQ_CONG_H_SQL = (
                 FROM (SELECT jsonb_build_object(
                     'pn',t.value->>'pn','hd',NULL,'da',NULL,'lh',NULL,'khach',NULL,
                     'phong',phong,'loai',loai,'man',man_hinh,'module',module_hd,
-                    'nguon_khoa',CASE WHEN count(DISTINCT t.value->>'nguon_khoa') = 1
+                    'nguon_khoa',CASE WHEN count(t.value->>'nguon_khoa') = count(*)
+                        AND count(DISTINCT t.value->>'nguon_khoa') = 1
                         THEN min(t.value->>'nguon_khoa') END,
                     'hop_le',bool_and((t.value->>'hop_le')::boolean),
                     'ma',CASE WHEN bool_and((t.value->>'hop_le')::boolean) THEN NULL ELSE 'MTQ_CAN_RESOLVER_MTQ4' END,
                     'ly_do',CASE WHEN bool_and((t.value->>'hop_le')::boolean) THEN NULL
-                        ELSE 'Chưa xác định duy nhất nguồn/ánh xạ hiện hành đúng module từ CSDL' END) AS context
+                        ELSE 'Chưa xác định duy nhất nguồn và ánh xạ còn hiệu lực phù hợp với nghiệp vụ' END) AS context
                     FROM jsonb_array_elements(tap) t GROUP BY t.value->>'pn') x;
             RETURN tap;
         END $$""",

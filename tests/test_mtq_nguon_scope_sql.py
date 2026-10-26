@@ -17,7 +17,10 @@ sys.path.insert(0, str(ROOT / "src"))
 
 from kho_tri_thuc.ha_tang import pg_migrations as PM
 from kho_tri_thuc.k2.sql_ma_tran_tham_quyen import MA_TRAN_THAM_QUYEN_SQL
-from kho_tri_thuc.k2.sql_mtq_lien_module import MTQ_LMOD_A_SQL, _NGUON_CU, _NGUON_MOI
+from kho_tri_thuc.k2.sql_mtq_lien_module import (
+    MTQ_LMOD_A_SQL, MTQ_LMOD_B_SQL, _M0049_PROFILE_CU, _M0049_PROFILE_MOI,
+    _NGUON_CU, _NGUON_MOI,
+)
 from tests import test_mtq_sql as nen
 
 SQL = MTQ_LMOD_A_SQL[0]
@@ -57,6 +60,41 @@ class MtqNguonTinh(unittest.TestCase):
             self.assertFalse(raw.startswith(b"\xef\xbb\xbf"), str(path))
             self.assertNotIn("\ufffd", raw.decode("utf-8"))
         self.assertNotIn(b"\r", Path(PM.__file__).read_bytes())
+
+    def test_helper_registry_sau_cong_h_khong_doi_migration_cu(self):
+        source = Path(PM.__file__).read_text(encoding="utf-8")
+        marker = "# MTQ-4i-b1 — CD-012: helper NGUON"
+        self.assertEqual(source.count(marker), 1)
+        old = {"__name__": PM.__name__, "__package__": PM.__package__}
+        exec(compile(source.split(marker, 1)[0], PM.__file__, "exec"), old)
+        previous = old["PG_MIGRATIONS"]
+        self.assertEqual(PM.PG_MIGRATIONS[:len(previous)], previous)
+        self.assertIs(previous[-1], PM.M00xx_MTQ_CONG_H)
+        self.assertIs(PM.PG_MIGRATIONS[len(previous)], MTQ_LMOD_B_SQL)
+        self.assertIs(PM.M00xx_MTQ_LMOD_B, MTQ_LMOD_B_SQL)
+        self.assertEqual(sum(m is MTQ_LMOD_B_SQL for m in PM.PG_MIGRATIONS), 1)
+
+    def test_validator_chung_chi_thay_truy_van_profile_m0049(self):
+        new = MTQ_LMOD_B_SQL[-1]
+        self.assertEqual(new.count(_M0049_PROFILE_MOI), 1)
+        self.assertEqual(new.replace(_M0049_PROFILE_MOI, _M0049_PROFILE_CU, 1), SQL)
+        self.assertIn("ORDER BY p.id FOR SHARE OF p, i", new)
+        self.assertNotIn("SECURITY DEFINER", new)
+        self.assertNotIn("GRANT ", new)
+        for statement in (MTQ_LMOD_B_SQL[0], new):
+            self.assertEqual(statement.count("AS $$"), 1)
+            self.assertEqual(statement.count("$$"), 2)
+            self.assertTrue(statement.endswith("END $$"))
+
+    def test_helper_stable_definer_search_path_va_khong_cap_app_web(self):
+        helper = MTQ_LMOD_B_SQL[0]
+        self.assertIn("LANGUAGE plpgsql STABLE SECURITY DEFINER", helper)
+        self.assertIn("SET search_path = pg_catalog, master, pg_temp AS $$", helper)
+        self.assertIn("FROM PUBLIC", MTQ_LMOD_B_SQL[1])
+        self.assertIn("FROM app_web", MTQ_LMOD_B_SQL[2])
+        self.assertNotIn("GRANT ", "\n".join(MTQ_LMOD_B_SQL))
+        self.assertNotIn("FOR SHARE", helper)
+        self.assertNotIn("anh_xa_nguon", helper)
 
 
 @unittest.skipUnless(DSN and psycopg is not None,
@@ -132,6 +170,136 @@ class MtqNguonPostgres(unittest.TestCase):
         return self.ghi("PHAM_VI", {"gan_vai_id": gan or self.gan,
             "phap_nhan_id": str(pn or self.pn), "loai": loai,
             "khoa": key if key is not None else "INVOICE_SET|" + self.inst + "|CTY A"})
+
+    def ung_vien_m0049(self, loai, source, subject):
+        # Oracle lấy nguyên truy vấn M0049, gồm cả FOR SHARE và upper tên
+        # registry; chỉ thay biến PL/pgSQL bằng tham số đã chuẩn hóa như M0049.
+        parts = [self.c.execute("""SELECT upper(btrim(regexp_replace(
+            %s::text, '[[:space:]]+', ' ', 'g')))""", (part,)).fetchone()[0]
+                 for part in (loai, source, subject)]
+        old = _M0049_PROFILE_CU.replace("SELECT p.*", "SELECT p.id").replace("parts[2]", "%s")
+        expected = self.c.execute(old, (parts[1], parts[1])).fetchall()
+        actual = self.c.execute("SELECT profile_id,nguon_khoa FROM "
+                                "master.mtq_nguon_ung_vien(%s,%s,%s) ORDER BY profile_id",
+                                (loai, source, subject)).fetchall()
+        self.assertEqual(actual, [(row[0], "|".join(parts)) for row in expected])
+        return [row[0] for row in actual]
+
+    def oracle_validator(self, key, *, pn=None, loai="NGUON", revoke=False):
+        # Hai thân chạy cùng fixture, ID/request/thời điểm cấp cố định; mỗi
+        # lần rollback savepoint nên không làm mất fixture hay đổi trigger.
+        # Audit bỏ đúng ID/lúc ghi ngẫu nhiên; nội dung NEW so nguyên JSON.
+        row_id, request = uuid.uuid4(), uuid.uuid4()
+        results = []
+        for validator in (SQL, MTQ_LMOD_B_SQL[-1]):
+            try:
+                with self.c.transaction(force_rollback=True):
+                    self.c.execute(validator)
+                    self.c.execute("SELECT set_config('ktt.mtq_request',%s,true),"
+                                   "set_config('ktt.mtq_ly_do','Oracle M0049',true),"
+                                   "set_config('ktt.mtq_lenh','PHAM_VI',true)", (str(request),))
+                    row = self.c.execute("""INSERT INTO master.mtq_pham_vi
+                        (id,gan_vai_id,phap_nhan_id,loai,khoa,cap_boi,cap_luc,ly_do)
+                        VALUES (%s,%s,%s,%s,%s,%s,'2000-01-01 UTC','Oracle M0049')
+                        RETURNING to_jsonb(mtq_pham_vi.*)""",
+                        (row_id, self.gan, pn or self.pn, loai, key, self.admin[0])).fetchone()[0]
+                    if revoke:
+                        row = self.c.execute("""UPDATE master.mtq_pham_vi
+                            SET thu_hoi_luc='2000-01-02 UTC',thu_hoi_boi=%s,revision=revision+1
+                            WHERE id=%s RETURNING to_jsonb(mtq_pham_vi.*)""",
+                            (self.admin[0], row_id)).fetchone()[0]
+                    audit = self.c.execute("""SELECT to_jsonb(t)-'id'-'luc'
+                        FROM nhat_ky.mtq_thay_doi t WHERE request_id=%s ORDER BY revision""",
+                        (request,)).fetchall()
+                    results.append(("OK", row, audit))
+            except psycopg.Error as exc:
+                results.append(("ERROR", exc.sqlstate, exc.diag.message_primary))
+        self.assertEqual(results[0], results[1])
+        return results[1]
+
+    def test_oracle_validator_m0049_nguyen_ket_qua_va_loi(self):
+        key = "INVOICE_SET|" + self.inst + "|CTY A"
+        self.assertEqual(self.oracle_validator(key)[0], "ERROR")
+        self.mapping()
+        self.mapping("WAREHOUSE", "KHO 01")
+        for source in (self.inst, str(self.profile[0])):
+            for kind, subject in (("INVOICE_SET", "CTY A"), ("KHO10_PHIEU", "KHO 01")):
+                raw = " \t" + kind.lower() + " | " + source.lower() + " | " + subject.lower().replace(" ", "  ") + "\n"
+                with self.subTest(key=raw):
+                    self.assertEqual(self.ung_vien_m0049(kind, source, subject), [self.profile[0]])
+                    self.assertEqual(self.oracle_validator(raw, revoke=True)[0], "OK")
+        for raw in ("", "INVOICE_SET|x", "INVOICE_SET|x|y|z", "INVOICE_SET| |CTY A",
+                    "INVOICE_SET|x| \t", "L11_EVIDENCE_SET|x|y", "KHAC|x|y",
+                    "INVOICE_SET|KHONG_CO|CTY A", "INVOICE_SET|" + self.inst + "|CHUA MAP"):
+            with self.subTest(key=raw):
+                self.assertEqual(self.oracle_validator(raw)[0], "ERROR")
+        self.assertEqual(self.oracle_validator(str(self.pn), loai="PHAP_NHAN")[0], "OK")
+        self.assertEqual(self.oracle_validator(key, pn=self.pn2)[0], "ERROR")
+
+    def test_oracle_validator_m0049_nhieu_profile_trung_uuid_va_instance_dung(self):
+        self.mapping()
+        key = "INVOICE_SET|" + str(self.profile[0]) + "|CTY A"
+        second = self.them_profile("PROFILE_THU_HAI")
+        self.assertEqual(set(self.ung_vien_m0049("INVOICE_SET", self.inst, "CTY A")),
+                         {self.profile[0], second[0]})
+        self.assertEqual(self.oracle_validator("INVOICE_SET|" + self.inst + "|CTY A")[0], "ERROR")
+        self.assertEqual(self.oracle_validator(key)[0], "OK")
+        old_inst = self.inst
+        self.inst = str(self.profile[0])
+        self.c.execute("INSERT INTO master.nguon_instance(source_instance_id) VALUES (%s)", (self.inst,))
+        collision = self.them_profile("PROFILE_TRUNG_UUID")
+        self.mapping(profile=collision)
+        self.assertEqual(set(self.ung_vien_m0049("INVOICE_SET", self.inst, "CTY A")),
+                         {self.profile[0], collision[0]})
+        self.assertEqual(self.oracle_validator(key)[0], "ERROR")
+        self.c.execute("UPDATE master.nguon_instance SET trang_thai='DUNG' WHERE source_instance_id=%s",
+                       (self.inst,))
+        self.assertEqual(self.oracle_validator(key)[0], "OK")
+        self.c.execute("UPDATE master.nguon_instance SET trang_thai='DUNG' WHERE source_instance_id=%s",
+                       (old_inst,))
+        self.assertEqual(self.ung_vien_m0049("INVOICE_SET", str(self.profile[0]), "CTY A"), [])
+        self.assertEqual(self.oracle_validator(key)[0], "ERROR")
+
+    def test_oracle_validator_m0049_mapping_tuong_lai_trung_va_khac_pn(self):
+        key = "INVOICE_SET|" + self.inst + "|CTY A"
+        for options in ({"future": True}, {"pn": self.pn2}, {}):
+            with self.subTest(options=options), self.c.transaction(force_rollback=True):
+                self.mapping(**options)
+                self.assertEqual(self.oracle_validator(key)[0], "OK" if not options else "ERROR")
+                self.mapping(key="cty   a")
+                self.assertEqual(self.oracle_validator(key)[0], "ERROR" if not options or "pn" in options else "OK")
+
+    def test_helper_ung_vien_chuan_hoa_va_ten_registry_khac_hoa_thuong(self):
+        for source in (self.inst.lower(), " \t" + self.inst.lower() + "\n", str(self.profile[0]), "KHONG_CO"):
+            self.ung_vien_m0049(" invoice_set ", source, " cty\t  a ")
+        # Registry phân biệt hoa/thường ở PK, nhưng M0049 xét upper cả hai:
+        # hai tên hợp lệ khác hoa/thường vẫn phải trả đủ hai ứng viên.
+        self.inst = self.inst.lower()
+        self.c.execute("INSERT INTO master.nguon_instance(source_instance_id) VALUES (%s)", (self.inst,))
+        pr = self.them_profile("PROFILE_KHAC_HOA_THUONG")
+        self.assertEqual(set(self.ung_vien_m0049("INVOICE_SET", self.inst, "CTY A")),
+                         {self.profile[0], pr[0]})
+        self.assertEqual(self.ung_vien_m0049("INVOICE_SET", str(pr[0]), "CTY A"), [pr[0]])
+
+    def test_helper_read_only_va_khong_cap_app_web_public(self):
+        signature = "master.mtq_nguon_ung_vien(text,text,text)"
+        self.assertEqual(self.c.execute("SELECT provolatile,prosecdef,proconfig FROM pg_proc "
+                                       "WHERE oid=%s::regprocedure", (signature,)).fetchone(),
+                         ("s", True, ["search_path=pg_catalog, master, pg_temp"]))
+        self.assertFalse(self.c.execute("SELECT has_function_privilege('app_web',%s,'EXECUTE')",
+                                        (signature,)).fetchone()[0])
+        self.assertFalse(self.c.execute("SELECT EXISTS (SELECT 1 FROM pg_proc p, "
+            "LATERAL aclexplode(coalesce(p.proacl,acldefault('f',p.proowner))) a "
+            "WHERE p.oid=%s::regprocedure AND a.grantee=0 AND a.privilege_type='EXECUTE')",
+            (signature,)).fetchone()[0])
+        self.c.execute("ROLLBACK")
+        self.c.execute("BEGIN READ ONLY")
+        self.assertEqual(self.c.execute("SELECT * FROM master.mtq_nguon_ung_vien(%s,%s,%s)",
+                                        ("INVOICE_SET", "KHONG_CO", "CTY A")).fetchall(), [])
+        self.c.execute("SET LOCAL ROLE app_web")
+        with self.assertRaises(psycopg.errors.InsufficientPrivilege), self.c.transaction():
+            self.c.execute("SELECT * FROM master.mtq_nguon_ung_vien(%s,%s,%s)",
+                           ("INVOICE_SET", "KHONG_CO", "CTY A"))
 
     def dong_mapping(self, mapping_id, expired=False):
         # Đi qua guard CFO V4 + module + SOURCE_MAP thật; fixture chưa có child

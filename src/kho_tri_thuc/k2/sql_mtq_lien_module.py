@@ -100,3 +100,51 @@ def _validator_nguon() -> str:
 
 # CREATE OR REPLACE giữ OID/owner/ACL, trigger kiểm ghi và audit M0039 giữ nguyên.
 MTQ_LMOD_A_SQL = (_validator_nguon(),)
+
+
+# Tách đúng truy vấn M0049; migration cũ và oracle vẫn giữ nguyên thân cũ.
+_M0049_PROFILE_CU = _NGUON_MOI.split("FOR pr IN ", 1)[1].split(
+    "\n                            LOOP", 1)[0]
+_M0049_PROFILE_MOI = """SELECT p.* FROM master.mtq_nguon_ung_vien(parts[1], parts[2], parts[3]) u
+                                JOIN master.nguon_profile p ON p.id = u.profile_id
+                                JOIN master.nguon_instance i ON i.source_instance_id = p.source_instance_id
+                                WHERE i.trang_thai = 'HOAT_DONG'
+                                ORDER BY p.id FOR SHARE OF p, i"""
+
+
+def _validator_nguon_chung() -> str:
+    """Chỉ thay truy vấn ứng viên; giữ guard, mapping, khóa hàng và ACL M0049."""
+    old = MTQ_LMOD_A_SQL[0]
+    if old.count(_M0049_PROFILE_CU) != 1:
+        raise RuntimeError("MTQ-4i-b1: không định vị duy nhất truy vấn profile M0049")
+    return old.replace(_M0049_PROFILE_CU, _M0049_PROFILE_MOI, 1)
+
+
+MTQ_LMOD_B_SQL = (
+    """CREATE FUNCTION master.mtq_nguon_ung_vien(
+        p_loai text, p_nguon text, p_subject text)
+        RETURNS TABLE (profile_id uuid, nguon_khoa text)
+        LANGUAGE plpgsql STABLE SECURITY DEFINER
+        SET search_path = pg_catalog, master, pg_temp AS $$
+        BEGIN
+            -- Một dòng cho mỗi profile ứng viên, kể cả khi cùng một khóa.
+            -- Không lọc theo mapping/PN: M0049 kiểm duy nhất profile trước.
+            -- Chỉ chuẩn hóa đầu vào; tên instance trong registry chỉ upper
+            -- đúng M0049, không tự trim/gộp khoảng trắng của dữ liệu registry.
+            RETURN QUERY
+                WITH parts AS (SELECT
+                    upper(btrim(regexp_replace(p_loai, '[[:space:]]+', ' ', 'g'))) AS loai,
+                    upper(btrim(regexp_replace(p_nguon, '[[:space:]]+', ' ', 'g'))) AS nguon,
+                    upper(btrim(regexp_replace(p_subject, '[[:space:]]+', ' ', 'g'))) AS subject)
+                SELECT p.id, parts.loai || '|' || parts.nguon || '|' || parts.subject
+                FROM master.nguon_profile p
+                JOIN master.nguon_instance i ON i.source_instance_id = p.source_instance_id
+                CROSS JOIN parts
+                WHERE (upper(p.id::text) = parts.nguon OR upper(p.source_instance_id) = parts.nguon)
+                    AND i.trang_thai = 'HOAT_DONG'
+                ORDER BY p.id;
+        END $$""",
+    "REVOKE ALL ON FUNCTION master.mtq_nguon_ung_vien(text,text,text) FROM PUBLIC",
+    "REVOKE ALL ON FUNCTION master.mtq_nguon_ung_vien(text,text,text) FROM app_web",
+    _validator_nguon_chung(),
+)
