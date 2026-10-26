@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import ast
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -11,7 +12,7 @@ import unittest
 import uuid
 
 from kho_tri_thuc.ha_tang import pg_migrations as PM
-from kho_tri_thuc.k2.sql_mtq_cong import MTQ_CONG_SQL
+from kho_tri_thuc.k2.sql_mtq_cong import MTQ_CONG_B_SQL, MTQ_CONG_SQL
 from tests import test_mtq_sql as nen
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -24,15 +25,29 @@ class MtqCongTinh(unittest.TestCase):
     def test_module_chi_chua_hang_sql(self):
         path = ROOT / "src/kho_tri_thuc/k2/sql_mtq_cong.py"
         tree = ast.parse(path.read_text(encoding="utf-8"))
-        self.assertEqual(len(tree.body), 1)
-        assignment = tree.body[0]
-        self.assertIsInstance(assignment, ast.Assign)
-        self.assertEqual([t.id for t in assignment.targets], ["MTQ_CONG_SQL"])
-        self.assertEqual(ast.literal_eval(assignment.value), MTQ_CONG_SQL)
-        self.assertTrue(all(isinstance(s, str) and s.strip() for s in MTQ_CONG_SQL))
+        self.assertEqual(len(tree.body), 2)
+        for assignment, name, value in zip(
+                tree.body, ("MTQ_CONG_SQL", "MTQ_CONG_B_SQL"),
+                (MTQ_CONG_SQL, MTQ_CONG_B_SQL)):
+            self.assertIsInstance(assignment, ast.Assign)
+            self.assertEqual([t.id for t in assignment.targets], [name])
+            self.assertEqual(ast.literal_eval(assignment.value), value)
+            self.assertTrue(all(isinstance(s, str) and s.strip() for s in value))
+
+    def test_m0041_da_phat_hanh_khong_doi_noi_dung_sql(self):
+        # Python chuẩn hóa newline khi nạp hằng: checkout LF/CRLF cùng nội dung.
+        self.assertEqual(hashlib.sha256("\x00".join(MTQ_CONG_SQL).encode("utf-8")).hexdigest(),
+                         "d4f8f8993a232fb00c647dd3431e756c64e6dc3dd3734e1c7947e0460fafb628")
+
+    def test_noi_dung_hang_sql_khong_phu_thuoc_checkout_lf_crlf(self):
+        source = (ROOT / "src/kho_tri_thuc/k2/sql_mtq_cong.py").read_text(encoding="utf-8")
+        for newline in ("\n", "\r\n"):
+            tree = ast.parse(source.replace("\n", newline))
+            self.assertEqual([ast.literal_eval(a.value) for a in tree.body],
+                             [MTQ_CONG_SQL, MTQ_CONG_B_SQL])
 
     def test_definer_search_path_chu_ky_khong_nhan_danh_tinh(self):
-        functions = MTQ_CONG_SQL[:2]
+        functions = (*MTQ_CONG_SQL[:2], MTQ_CONG_B_SQL[1])
         self.assertEqual(len(re.findall(r"CREATE FUNCTION ", SQL)), 2)
         for f in functions:
             self.assertIn("SECURITY DEFINER", f)
@@ -54,6 +69,17 @@ class MtqCongTinh(unittest.TestCase):
         self.assertIs(PM.PG_MIGRATIONS[len(previous)], MTQ_CONG_SQL)
         self.assertEqual(sum(m is MTQ_CONG_SQL for m in PM.PG_MIGRATIONS), 1)
         self.assertEqual(PM.PG_SCHEMA_VERSION, len(PM.PG_MIGRATIONS))
+
+    def test_registry_b_chi_append_sau_cac_migration_da_phat_hanh(self):
+        source = Path(PM.__file__).read_text(encoding="utf-8")
+        marker = "# MTQ-4a0b — CD-012:"
+        self.assertEqual(source.count(marker), 1)
+        old = {"__name__": PM.__name__, "__package__": PM.__package__}
+        exec(compile(source.split(marker, 1)[0], PM.__file__, "exec"), old)
+        i = next(k for k, m in enumerate(PM.PG_MIGRATIONS) if m is MTQ_CONG_B_SQL)
+        self.assertEqual(PM.PG_MIGRATIONS[:i], old["PG_MIGRATIONS"])
+        self.assertIs(PM.M0043_MTQ_CONG_B, MTQ_CONG_B_SQL)
+        self.assertEqual(sum(m is MTQ_CONG_B_SQL for m in PM.PG_MIGRATIONS), 1)
 
     def test_acl_chi_cap_hai_ham_khong_cap_bang(self):
         for sig in ("master.mtq_quyet_dinh_phien(text,jsonb,numeric)",
@@ -79,21 +105,46 @@ class MtqCongTinh(unittest.TestCase):
         self.assertIn("khoa, scope_loai, p_so_tien, scope_id, NULL", f)
 
     def test_audit_tinh_lai_chi_tu_choi_khong_nuot_loi_ghi(self):
-        f = MTQ_CONG_SQL[1]
-        self.assertIn("kq := master.mtq_quyet_dinh_phien(", f)
-        self.assertIn("kq->'cho_phep' IS DISTINCT FROM 'false'::jsonb", f)
-        self.assertIn("kq->>'nguon' IS DISTINCT FROM 'MA_TRAN'", f)
-        self.assertIn("INSERT INTO nhat_ky.mtq_tu_choi", f)
-        self.assertNotIn("EXCEPTION WHEN", f)
-        self.assertNotRegex(f, r"\bp_(ma|ly_do|quyet_dinh|gioi_han)\b")
+        for f in (MTQ_CONG_SQL[1], MTQ_CONG_B_SQL[1]):
+            self.assertIn("kq := master.mtq_quyet_dinh_phien(", f)
+            self.assertIn("kq->'cho_phep' IS DISTINCT FROM 'false'::jsonb", f)
+            self.assertIn("kq->>'nguon' IS DISTINCT FROM 'MA_TRAN'", f)
+            self.assertIn("INSERT INTO nhat_ky.mtq_tu_choi", f)
+            self.assertNotIn("EXCEPTION WHEN", f)
+            self.assertNotRegex(f, r"\bp_(ma|ly_do|quyet_dinh|gioi_han)\b")
+
+    def test_b_giu_chu_ky_acl_va_khoa_request_truoc_doi_chieu(self):
+        self.assertEqual(len(MTQ_CONG_B_SQL), 2)
+        self.assertEqual(MTQ_CONG_B_SQL[0],
+                         "CREATE INDEX IF NOT EXISTS mtq_tu_choi_request_id_idx\n"
+                         "        ON nhat_ky.mtq_tu_choi (request_id)")
+        f = MTQ_CONG_B_SQL[1]
+        self.assertEqual(f.split("DECLARE", 1)[0],
+                         MTQ_CONG_SQL[1].split("DECLARE", 1)[0].replace(
+                             "CREATE FUNCTION ", "CREATE OR REPLACE FUNCTION ", 1))
+        lock = f.index("pg_advisory_xact_lock(hashtextextended(p_request::text, 0))")
+        read = f.index("SELECT * INTO cu FROM nhat_ky.mtq_tu_choi")
+        reject = f.index("RAISE EXCEPTION 'MTQ_REQUEST_TRUNG:")
+        reuse = f.index("RETURN cu.id;")
+        insert = f.index("INSERT INTO nhat_ky.mtq_tu_choi")
+        self.assertLess(lock, read)
+        self.assertLess(read, reject)
+        self.assertLess(reject, reuse)
+        self.assertLess(reuse, insert)
+        for check in ("cu.actor_id IS DISTINCT FROM ai", "cu.actor_login IS DISTINCT FROM login",
+                      "cu.lenh_ky_thuat IS DISTINCT FROM p_hanh_dong",
+                      "cu.doi_tuong IS DISTINCT FROM (p_doi_tuong->>'id')"):
+            self.assertIn(check, f[read:reject])
+        self.assertIn("IF FOUND THEN", f[read:reject])
+        self.assertEqual(f[f.index("kq :="):],
+                         MTQ_CONG_SQL[1][MTQ_CONG_SQL[1].index("kq :="):])
+        self.assertNotRegex("\n".join(MTQ_CONG_B_SQL), r"\b(GRANT|REVOKE|DROP)\b")
 
     def test_utf8_khong_bom_va_migration_lf(self):
-        for name in ("src/kho_tri_thuc/k2/sql_mtq_cong.py",
-                     "src/kho_tri_thuc/ha_tang/pg_migrations.py", "tests/test_mtq_cong_sql.py"):
-            data = (ROOT / name).read_bytes()
-            self.assertFalse(data.startswith(b"\xef\xbb\xbf"), name)
-            self.assertNotIn("\ufffd", data.decode("utf-8"))
-            self.assertNotIn(b"\r\n", data, name)
+        data = Path(PM.__file__).read_bytes()
+        self.assertFalse(data.startswith(b"\xef\xbb\xbf"))
+        self.assertNotIn("\ufffd", data.decode("utf-8"))
+        self.assertNotIn(b"\r", data)
 
 
 @unittest.skipUnless(DSN and psycopg is not None, "NOT_RUN: cần KHO_PG_DSN_TEST + psycopg; lead chạy PG")
@@ -191,6 +242,15 @@ class MtqCongPostgres(unittest.TestCase):
     def test_vai_khac_khong_co_execute_hai_ham_cong(self):
         roles = self.c.execute("SELECT rolname FROM pg_roles WHERE rolname = ANY(%s)",
                                (["app_ke_toan", "app_doc", "app_cong_ai"],)).fetchall()
+        # PUBLIC là grantee 0 trong ACL, luôn kiểm kể cả khi không có vai app khác.
+        for signature in ("master.mtq_quyet_dinh_phien(text,jsonb,numeric)",
+                          "master.mtq_ghi_tu_choi_phien(uuid,text,jsonb,numeric)"):
+            with self.subTest(vai="PUBLIC", ham=signature):
+                self.assertFalse(self.c.execute(
+                    "SELECT EXISTS (SELECT 1 FROM pg_proc p, "
+                    "LATERAL aclexplode(coalesce(p.proacl, acldefault('f', p.proowner))) a "
+                    "WHERE p.oid = %s::regprocedure AND a.grantee = 0 "
+                    "AND a.privilege_type = 'EXECUTE')", (signature,)).fetchone()[0])
         for (role,) in roles:
             for signature in ("master.mtq_quyet_dinh_phien(text,jsonb,numeric)",
                               "master.mtq_ghi_tu_choi_phien(uuid,text,jsonb,numeric)"):
@@ -338,6 +398,29 @@ class MtqCongPostgres(unittest.TestCase):
         self.c.execute("RESET ROLE")
         self.assertEqual(self.c.execute("SELECT count(*) FROM nhat_ky.mtq_tu_choi").fetchone()[0], after_first)
         self.assertEqual(self.c.execute("SELECT count(*) FROM nhat_ky.mtq_tu_choi WHERE request_id=%s", (req,)).fetchone()[0], 1)
+
+    def test_logger_trung_request_khac_nguoi_hanh_dong_doi_tuong_bao_loi(self):
+        self.cau_hinh(tick=False)
+        before = self.c.execute("SELECT count(*) FROM nhat_ky.mtq_tu_choi").fetchone()[0]
+        self.web()
+        req = uuid.uuid4()
+        key = self.audit(req)
+        for actor, action, obj in (
+                (self.admin, "CRM:DU_AN_BAN:XEM", self.obj),
+                (self.user, "CRM:TIEP_NHAN:XEM", self.obj),
+                (self.user, "CRM:DU_AN_BAN:XEM", {**self.obj, "id": str(uuid.uuid4())}),
+                (self.user, "CRM:DU_AN_BAN:XEM", {**self.obj, "id": None})):
+            with self.subTest(actor=actor[1], action=action, obj=obj):
+                self.actor(actor)
+                with self.assertRaisesRegex(psycopg.Error, "MTQ_REQUEST_TRUNG"):
+                    with self.c.transaction():
+                        self.audit(req, obj=obj, action=action)
+        self.actor(self.user)
+        self.assertEqual(self.audit(req), key)
+        self.c.execute("RESET ROLE")
+        self.assertEqual(self.c.execute("SELECT count(*) FROM nhat_ky.mtq_tu_choi").fetchone()[0], before + 1)
+        self.assertEqual(self.c.execute("SELECT count(*) FROM nhat_ky.mtq_tu_choi WHERE request_id=%s",
+                                       (req,)).fetchone()[0], 1)
 
     def test_logger_hanh_dong_la_bi_tu_choi_khong_ghi(self):
         self.cau_hinh(tick=False)
