@@ -632,6 +632,62 @@ class CrmChinDiem(unittest.TestCase):
     def test_cu_nhan_ket_qua_6_oracle(self):
         self.check_cu("nhan_ket_qua_6")
 
+    def test_nhan_ket_qua_6_kiem_va_ghi_cung_giao_dich(self):
+        for source in ("CU", "MA_TRAN"):
+            for fail in (False, True):
+                q = deepcopy(CU) if source == "CU" else {**matrix(), "hanh_dong": "LAP"}
+                with self.subTest(source=source, rollback=fail):
+                    with self.service("nhan_ket_qua_6", actor("KE_TOAN"), q) as (c, svc, _, _, invoke):
+                        execute = c.execute
+
+                        def write(sql, params=()):
+                            result = execute(sql, params)
+                            for table, key, event in (("kho.tep_goc", REQUEST, "ghi_tep"),
+                                                      ("kho.chung_tu", CT, "ghi_chung_tu")):
+                                if sql.lstrip().startswith("INSERT INTO " + table):
+                                    self.assertEqual(c.identity, (ACTOR, actor()["dang_nhap"]))
+                                    c.trace.append(event)
+                                    result.fetchone.return_value = {"id": key}
+                            return result
+
+                        c.execute = write
+                        svc._profile = MagicMock(return_value=None)
+
+                        def adapt(*args):
+                            c.trace.append("adapter")
+                            return MagicMock(read=MagicMock(return_value=MagicMock(
+                                issues=[], records=[MagicMock(core={})])))
+
+                        def create(*args):
+                            c.trace.append("lap_ho_so")
+                            if fail:
+                                raise SauKiemQuyen()
+                            return {"ket_qua": "DEMO"}
+
+                        svc._lap_ho_so = MagicMock(side_effect=create)
+                        env = {"hash_ket_qua": "DEMO", "van_ban_nguon_hash": "DEMO_VB",
+                               "phap_nhan": "PN_DEMO", "loai_hinh": None,
+                               "namespace": "DEMO", "loai_ban": "GOC"}
+                        with patch("kho_tri_thuc.k2.crm.envelope", return_value=env), \
+                             patch("kho_tri_thuc.k2.crm.TrichHopDong6Adapter", side_effect=adapt), \
+                             patch.object(quyen, "kiem", wraps=quyen.kiem) as old:
+                            if fail:
+                                with self.assertRaises(SauKiemQuyen):
+                                    invoke()
+                            else:
+                                self.assertEqual(invoke(), {"trung": False, "chung_tu_id": CT,
+                                                           "ket_qua": "DEMO", "issues": []})
+                            if source == "CU":
+                                old.assert_called_once_with(svc.danh_tinh(), "NOP_HOP_DONG", PN)
+                            else:
+                                old.assert_not_called()
+                        # Không commit/nhả khóa giữa cổng quyền, adapter và các INSERT.
+                        self.assertEqual(c.trace, ["begin", "identity"] +
+                                         ["decision"] * (1 if source == "CU" else 2) +
+                                         ["adapter", "ghi_tep", "ghi_chung_tu", "lap_ho_so",
+                                          "rollback" if fail else "commit"])
+                        self.assertEqual(len(c.writes), 0 if fail else 2)
+
     def test_cu_bo_sung_ho_so_oracle(self):
         self.check_cu("bo_sung_ho_so")
 

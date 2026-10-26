@@ -242,14 +242,13 @@ class CrmK2:
         if not env["phap_nhan"]:
             raise DataError("TRICH6_THIEU_PHAP_NHAN", "Chưa xác định pháp nhân của hồ sơ — không ghi vào kho (không đoán từ tên file).")
         pn = self._pn(env["phap_nhan"])
-        with self._tx(dt):  # giữ vị trí kiểm cũ: sau lưu raw, trước adapter/ghi kho
+        with self._tx(dt):  # kiểm trước adapter/ghi kho; giữ khóa thẩm quyền tới commit ghi
             quyen.kiem_tham_quyen(
                 self.conn, "CRM:TIEP_NHAN:LAP", {"bang": "master.phap_nhan", "id": str(pn)},
                 {"kiem_cu": lambda: quyen.kiem(dt, "NOP_HOP_DONG", pn),
                  "khong_thay": ("PHAP_NHAN", "Không có pháp nhân này.")})
-        record = TrichHopDong6Adapter(env).read(raw)
-        batch_issues = [i.code for i in record.issues]
-        with self._tx(dt):
+            record = TrichHopDong6Adapter(env).read(raw)
+            batch_issues = [i.code for i in record.issues]
             tep = self.conn.execute("""INSERT INTO kho.tep_goc (phap_nhan_id, loai_nguon, duong_dan, hash, kich_thuoc, nguon, nguoi)
                                        VALUES (%s,'TRICH_6',%s,%s,%s,'TAY',%s) ON CONFLICT (hash) DO NOTHING RETURNING id""",
                                     (pn, f"k2-tep/{env['hash_ket_qua']}.bin", env["hash_ket_qua"], len(raw), dt["dang_nhap"])).fetchone()
