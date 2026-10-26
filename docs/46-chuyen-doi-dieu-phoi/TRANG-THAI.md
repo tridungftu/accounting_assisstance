@@ -498,3 +498,17 @@ H3 phân loại 36 đầu việc: 19 gói đã nhập `hop-nhat`, 13 xung đột
   - `test_trich6_host.HandlerSoHuuTests` (chập chờn đã biết);
   - `test_chay_test_pg_demo...timeout_giet_ca_chau` vẫn đỏ khi chạy riêng. Không lát nào hôm nay sửa `tools/`; nghi do máy đang chạy nhiều tiến trình Codex. **Theo dõi:** chạy lại khi máy rảnh.
 - **Đang chạy:** 3 Codex kiểm kê MTQ-4 còn lại (CRM, M4, liên module; chỉ tài liệu). M9-2d chờ review Codex.
+### 26/10 ~19:40 — gộp M9-2d, MTQ-4b1a (M0047); phiếu chốt MTQ-4; Codex rảnh có lý do
+- **Gộp:**
+  - 0d0ad76 **M9-2d**: số dư/lãi suất từ snapshot Sheet có mốc, không qua AI. Review Codex 2 Chặn; lead thử câu hỏi thật qua 3 vòng.
+  - 39f8536 **MTQ-4b1a**: **M0047**, resolver bảng riêng CRM G1/G2/G3/G4/G7/dự án. H/TY_GIA/V8 vẫn chặn khi bật. Review Codex Đạt, kiểm xác suất trúng và đạt.
+  - Migration cuối = **M0047**.
+- **Ba bản kiểm kê MTQ-4** (`KK-MTQ4-CRM.md`, `KK-MTQ4-M4.md`, `KK-MTQ4-LIEN-MODULE.md`): khoảng 40 lát còn lại. 15 câu "Cần lead" gom vào **`MTQ-4-CAN-CHOT.md`**, đã gửi Anh.
+  - A1–A3 là nền, chặn cả nhóm.
+  - B1–B11 là nghiệp vụ.
+- **Codex đang rảnh — lý do chặn (CD-009):**
+  - lát MTQ-4 kế tiếp (4b1b RLS/guard, M4 4f, liên module 4i) phụ thuộc A1–A3/B;
+  - M9 lưu trữ/màn hình chờ duyệt phiếu cổng A M9;
+  - M9-3b (gọi Google Sheets) cần chốt cách ký JWT tài khoản dịch vụ: thêm thư viện hay tự cài thuần Python;
+  - các hàng đợi M3/M10/M2/M4-CD3/UI0/nạp thật đã ghi trước.
+- **Theo dõi:** `test_chay_test_pg_demo...timeout_giet_ca_chau` chạy lại khi máy rảnh.
