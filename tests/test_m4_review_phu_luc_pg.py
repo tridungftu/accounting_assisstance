@@ -7,11 +7,12 @@ from __future__ import annotations
 
 import copy
 import os
+import secrets
 import unittest
 import uuid
 from datetime import date
 from decimal import Decimal
-from unittest.mock import Mock
+from unittest.mock import MagicMock, Mock
 
 from kho_tri_thuc.ha_tang.primitives import DataError
 from kho_tri_thuc.m4.review_phu_luc_pg import (
@@ -222,6 +223,95 @@ class ReviewPhuLucTinh(unittest.TestCase):
         conn.execute.assert_not_called()
 
 
+class ReviewPhuLucDocTinh(unittest.TestCase):
+    def test_phien_bat_buoc_khong_quyen_giong_uuid_ngau_nhien(self):
+        owner, session = Mock(), Mock()
+        repo = ReviewPhuLucPG(owner)
+        with self.assertRaises(TypeError):
+            repo.doc_hien_hanh(uuid.UUID(int=1), ngay="2026-03-01")
+        errors = []
+        for result in ((False,), {"duoc": False}):
+            session.execute.return_value.fetchone.return_value = result
+            for conn in (None, owner, session):
+                for identity in (uuid.UUID(int=1), uuid.uuid4()):
+                    with self.subTest(result=result, identity=identity), self.assertRaises(DataError) as caught:
+                        repo.doc_hien_hanh(identity, ngay="2026-03-01", conn_phien=conn)
+                    errors.append((caught.exception.code, str(caught.exception)))
+        self.assertEqual(set(errors), {("M4_REVIEW_KHONG_THAY", "Không tìm thấy hợp đồng.")})
+        query, params = session.execute.call_args.args
+        self.assertIn("FROM master.hop_dong h", query)
+        self.assertIn("h.module_chu='M4'", query)
+        self.assertIn("master.m4_duoc(h.du_an_id, 'XEM')", query)
+        self.assertIn("master.m4_duoc(h.du_an_id, 'REVIEW')", query)
+        self.assertEqual(len(params), 1)
+        owner.execute.assert_not_called()
+        owner.transaction.assert_not_called()
+
+    def test_uuid_sai_tra_404_khong_lam_hong_phien(self):
+        owner, session = Mock(), Mock()
+        for identity in (None, "", "DEMO-khong-phai-uuid", "' OR 1=1 --", 123, []):
+            with self.subTest(identity=identity), self.assertRaises(DataError) as caught:
+                ReviewPhuLucPG(owner).doc_hien_hanh(identity, ngay="2026-03-01", conn_phien=session)
+            self.assertEqual(caught.exception.code, "M4_REVIEW_KHONG_THAY")
+            self.assertEqual(str(caught.exception), "Không tìm thấy hợp đồng.")
+        session.execute.assert_not_called()
+        owner.execute.assert_not_called()
+        owner.transaction.assert_not_called()
+
+    def _owner(self, session, responses):
+        owner, active = MagicMock(), []
+        owner.transaction.return_value.__enter__.side_effect = lambda: active.append(True)
+        owner.transaction.return_value.__exit__.side_effect = lambda *args: active.pop() and False
+
+        def execute(query, params=()):
+            session.execute.assert_called_once()
+            self.assertEqual(active, [True])
+            rows = responses.pop(0)
+            cursor = Mock()
+            cursor.description = []  # dict_row không cần tên cột.
+            cursor.fetchall.return_value = rows
+            return cursor
+
+        owner.execute.side_effect = execute
+        return owner, active
+
+    def test_ba_trang_thai_null_mot_select_sau_kiem_quyen(self):
+        for result in ((True,), {"duoc": True}):
+            for co_nguon, co_hd, state in (
+                (False, False, "CHUA_CO_LAN_CHUP"),
+                (True, False, "CHUA_CO_TRONG_NGUON"),
+                (True, True, "DA_XOA_O_NGUON"),
+            ):
+                session = Mock()
+                session.execute.return_value.fetchone.return_value = result
+                owner, active = self._owner(session, [[dict(nguon_id=None, co_nguon=co_nguon, co_hd=co_hd)]])
+                with self.subTest(result=result, state=state):
+                    actual = ReviewPhuLucPG(owner).doc_hien_hanh(uuid.UUID(int=1), ngay="2026-03-01", conn_phien=session)
+                    self.assertEqual(actual, dict(dto_phu_luc([], [], [], "2026-03-01"), trang_thai=state))
+                    owner.execute.assert_called_once()
+                    query, params = owner.execute.call_args.args
+                    self.assertIn("m4.review_chep_hien_hanh(%s::uuid)", query)
+                    self.assertEqual(query.count("EXISTS"), 2)
+                    self.assertIn("FROM m4.review_chep_nguon", query)
+                    self.assertIn("FROM m4.review_chep_hop_dong", query)
+                    self.assertEqual(params, (str(uuid.UUID(int=1)),) * 2)
+                    self.assertEqual(active, [])
+
+    def test_doc_du_boq_phu_luc_ghim_dung_nguon(self):
+        session, data = Mock(), _demo()
+        session.execute.return_value.fetchone.return_value = {"duoc": True}
+        responses = [[dict(nguon_id="DEMO-MOI", co_nguon=True, co_hd=True)],
+                     data["phu_luc"], data["thay_doi_tham_so"], data["boq_dong"]]
+        owner, active = self._owner(session, responses)
+        identity = uuid.UUID(int=1)
+        actual = ReviewPhuLucPG(owner).doc_hien_hanh(identity, ngay="2026-03-01", conn_phien=session)
+        self.assertEqual(actual, dict(_dto(), trang_thai="HIEN_HANH"))
+        self.assertEqual(owner.execute.call_count, 4)
+        for call in owner.execute.call_args_list[1:]:
+            self.assertEqual(call.args[1], ("DEMO-MOI", str(identity)))
+        self.assertEqual(active, [])
+
+
 @unittest.skipUnless(DSN and psycopg is not None, "Thiếu KHO_PG_DSN_TEST/psycopg — PG do lead chạy (NOT_RUN)")
 class ReviewPhuLucPGTests(unittest.TestCase):
     @classmethod
@@ -236,15 +326,31 @@ class ReviewPhuLucPGTests(unittest.TestCase):
         pg.migrate(cls.con)
         cls.pn = cls.con.execute("INSERT INTO master.phap_nhan (ma,ten) VALUES ('DEMO_DL3','Pháp nhân DEMO DL3') RETURNING id").fetchone()[0]
         cls.da = cls.con.execute("INSERT INTO master.du_an (phap_nhan_id,ma_junsky,ten) VALUES (%s,'DEMO_DL3','Dự án DEMO DL3') RETURNING id", (cls.pn,)).fetchone()[0]
+        login = "MO_PHONG_DL3_XEM"
+        actor = cls.con.execute("""INSERT INTO master.nguoi_dung (ten,dang_nhap,vai_tro)
+            VALUES (%s,%s,'XEM') RETURNING id""", (login, login)).fetchone()[0]
+        cls.actor = (str(actor), login)
+        cls.con.execute("INSERT INTO master.phan_quyen (nguoi_dung_id,phap_nhan_id,module) VALUES (%s,%s,ARRAY['M4'])", (actor, cls.pn))
+        cls.con.execute("""INSERT INTO m4.quyen_du_an (nguoi_dung_id,phap_nhan_id,du_an_id,vai)
+            VALUES (%s,%s,%s,'XEM')""", (actor, cls.pn, cls.da))
+        role, password = "ktt_test_dl3_" + uuid.uuid4().hex[:12], secrets.token_hex(16)
+        cls.con.execute(sql.SQL("CREATE ROLE {} LOGIN PASSWORD {} NOSUPERUSER NOBYPASSRLS NOCREATEDB NOCREATEROLE IN ROLE app_web").format(
+            sql.Identifier(role), sql.Literal(password)))
+        cls.web = psycopg.connect(conninfo.make_conninfo(cls.dsn, user=role, password=password), autocommit=True)
+        cls.addClassCleanup(cls.web.close)
 
     def setUp(self):
-        self.enterContext(self.con.transaction(force_rollback=True))
+        # Master HĐ commit trước để kết nối phiên thường thấy được.
         code = "DEMO-DL3-" + uuid.uuid4().hex
         self.hd = self.con.execute("""INSERT INTO master.hop_dong
             (phap_nhan_id,du_an_id,loai,module_chu,ma_noi_bo,so_hop_dong,trang_thai)
             VALUES (%s,%s,'XAY_DUNG','M4',%s,%s,'SOAN_THAO') RETURNING id""", (self.pn, self.da, code, code)).fetchone()[0]
         self.con.execute("""INSERT INTO m4.ho_so_hop_dong (hop_dong_id,phap_nhan_id,du_an_id,ten,tao_boi)
             VALUES (%s,%s,%s,'DEMO DL3','MO_PHONG_DEMO')""", (self.hd, self.pn, self.da))
+        self.enterContext(self.con.transaction(force_rollback=True))
+        self.enterContext(self.web.transaction(force_rollback=True))
+        self.web.execute("""SELECT set_config('ktt.nguoi_dung_id',%s,true),
+            set_config('ktt.nguoi_dung_dang_nhap',%s,true)""", self.actor)
         self.repo = ReviewPhuLucPG(self.con)
         self.source = "DEMO-DL3-" + uuid.uuid4().hex
 
@@ -261,7 +367,7 @@ class ReviewPhuLucPGTests(unittest.TestCase):
     def test_ghi_doc_boq_hai_ngay_tham_so_huy_va_decimal(self):
         self.assertEqual(self._ghi(), 13)
         for day in ("2026-02-01", "2026-03-01"):
-            self.assertEqual(self.repo.doc_hien_hanh(self.hd, ngay=day), dict(_dto(day=day), trang_thai="HIEN_HANH"))
+            self.assertEqual(self.repo.doc_hien_hanh(self.hd, conn_phien=self.web, ngay=day), dict(_dto(day=day), trang_thai="HIEN_HANH"))
         value = self.con.execute("SELECT don_gia FROM m4.review_chep_boq_dong WHERE nguon_id=%s AND id=3", (self.source,)).fetchone()[0]
         self.assertIsNone(value)
 
@@ -293,7 +399,7 @@ class ReviewPhuLucPGTests(unittest.TestCase):
         self._ghi()
         data = dict(phu_luc=[], thay_doi_tham_so=[], boq_dong=_demo()["boq_dong"][:2])
         self._ghi(data, nguon_id="DEMO-DL3-MOI", chup_luc="2026-10-27T07:00:00+07:00")
-        result = self.repo.doc_hien_hanh(self.hd, ngay="2026-03-01")
+        result = self.repo.doc_hien_hanh(self.hd, conn_phien=self.web, ngay="2026-03-01")
         self.assertEqual(result["phu_luc"], [])
         self.assertEqual([r["ma_hm"] for r in result["boq"]], ["DEMO-A", "DEMO-B"])
         self.assertEqual(self._counts()["phu_luc"], 3)
@@ -316,10 +422,14 @@ class ReviewPhuLucPGTests(unittest.TestCase):
         self.assertEqual(self._counts()["phu_luc"], 0)
 
     def test_phan_biet_chua_chup_va_hd_vang_nguon(self):
-        self.assertEqual(self.repo.doc_hien_hanh(self.hd, ngay="2026-03-01")["trang_thai"], "CHUA_CO_LAN_CHUP")
+        self.assertEqual(self.repo.doc_hien_hanh(self.hd, conn_phien=self.web, ngay="2026-03-01")["trang_thai"], "CHUA_CO_LAN_CHUP")
         self.repo.ghi_lan_chup({t: [] for t in _demo()}, du_lieu_dl2={t: [] for t in _base()},
                               nguon_id=self.source, chup_luc=CHUP, nhap_boi="MO_PHONG_DEMO", anh_xa={})
-        self.assertEqual(self.repo.doc_hien_hanh(self.hd, ngay="2026-03-01")["trang_thai"], "DA_XOA_O_NGUON")
+        self.assertEqual(self.repo.doc_hien_hanh(self.hd, conn_phien=self.web, ngay="2026-03-01")["trang_thai"], "CHUA_CO_TRONG_NGUON")
+        self._ghi(nguon_id="DEMO-DL3-CO-HD", chup_luc="2026-10-27T07:00:00+07:00")
+        self.repo.ghi_lan_chup({t: [] for t in _demo()}, du_lieu_dl2={t: [] for t in _base()},
+                              nguon_id="DEMO-DL3-XOA-HD", chup_luc="2026-10-28T07:00:00+07:00", nhap_boi="MO_PHONG_DEMO", anh_xa={})
+        self.assertEqual(self.repo.doc_hien_hanh(self.hd, conn_phien=self.web, ngay="2026-03-01")["trang_thai"], "DA_XOA_O_NGUON")
 
     def test_dict_row_doc_ghi(self):
         # Đổi row_factory trên cùng conn vẫn nằm trong transaction rollback test.
@@ -327,7 +437,7 @@ class ReviewPhuLucPGTests(unittest.TestCase):
         try:
             self.con.row_factory = dict_row
             self._ghi()
-            self.assertEqual(self.repo.doc_hien_hanh(self.hd, ngay="2026-03-01"), dict(_dto(), trang_thai="HIEN_HANH"))
+            self.assertEqual(self.repo.doc_hien_hanh(self.hd, conn_phien=self.web, ngay="2026-03-01"), dict(_dto(), trang_thai="HIEN_HANH"))
         finally:
             self.con.row_factory = before
 

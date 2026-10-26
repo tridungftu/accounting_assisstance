@@ -1,6 +1,7 @@
 """M4-DL3 — PL/tham số đổi/BOQ của cùng lần chụp đầy đủ Review.
 
-Chỉ dùng conn chủ bảng đã được caller kiểm quyền M4, không mở DSN/tệp.
+Lớp đọc tự kiểm quyền XEM/REVIEW bằng conn phiên trước khi dùng conn chủ bảng;
+dùng chung khối kiểm và phân biệt ba trạng thái NULL của DL2, không mở DSN/tệp.
 DL2 chưa có hook: Cần lead nối công cụ nạp vào ghi_lan_chup bên dưới hoặc
 gọi ghi_trong_giao_dich sau DL2 trên CÙNG conn/transaction; lỗi phải thoát
 transaction ngoài để rollback cả lần chụp. Không nạp riêng một HĐ/dự án.
@@ -217,7 +218,7 @@ def _chuan_bi(du_lieu, contracts):
 
 
 class ReviewPhuLucPG:
-    """Repository tin cậy; caller kiểm quyền M4 trước khi gọi đọc bằng owner."""
+    """Repository hai kết nối; tự kiểm quyền phiên trước mọi lần đọc owner."""
 
     def __init__(self, conn_tin_cay):
         if conn_tin_cay is None:
@@ -272,20 +273,23 @@ class ReviewPhuLucPG:
                     tuple(values.values())).rowcount
         return added
 
-    def doc_hien_hanh(self, hop_dong_id, *, ngay):
+    def doc_hien_hanh(self, hop_dong_id, *, ngay, conn_phien):
         """Ghim nguồn qua hàm DL1b; không lùi về lần chụp còn PL/HĐ cũ.
 
-        Owner đã lọc quyền: phân biệt chưa chụp và HĐ vắng ở nguồn mới.
-        Không suy trạng thái xóa từ NULL trên kết nối app_web/RLS.
+        Dùng kiểm XEM/REVIEW của DL2 theo master.hop_dong.du_an_id trên phiên;
+        không thấy/không quyền/UUID sai cùng M4_REVIEW_KHONG_THAY (HTTP 404).
+        Chấp nhận khe hở kiểm quyền phiên → đọc chủ bảng như DL2: quyền xét
+        tại lúc kiểm, bản chụp chỉ đọc/bất biến; thu hồi đồng thời có hiệu lực
+        từ lần kiểm tiếp theo. Không bảo đảm nguyên tử giữa hai kết nối.
+        Ba trạng thái NULL được xác định trong cùng một SELECT của DL2.
         """
+        reader = ReviewDataPG(self.conn)
+        hop_dong_id = reader._kiem_quyen_doc(hop_dong_id, conn_phien=conn_phien)
         _ngay(ngay)
         with self.conn.transaction():
-            current = _rows(self.conn, """SELECT m4.review_chep_hien_hanh(%s::uuid) AS nguon_id,
-                EXISTS(SELECT 1 FROM m4.review_chep_nguon) AS da_co_nguon""", (str(hop_dong_id),))[0]
-            source = current["nguon_id"]
+            source, state = reader._nguon_hien_hanh(hop_dong_id)
             if source is None:
-                return dict(dto_phu_luc([], [], [], ngay), trang_thai=(
-                    "DA_XOA_O_NGUON" if current["da_co_nguon"] else "CHUA_CO_LAN_CHUP"))
+                return dict(dto_phu_luc([], [], [], ngay), trang_thai=state)
             params = (source, str(hop_dong_id))
             pls = _rows(self.conn, "SELECT * FROM m4.review_chep_phu_luc WHERE nguon_id=%s AND hop_dong_id=%s::uuid ORDER BY id", params)
             changes = _rows(self.conn, """SELECT t.* FROM m4.review_chep_thay_doi_tham_so t
