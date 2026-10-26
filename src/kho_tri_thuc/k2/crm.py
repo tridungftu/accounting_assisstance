@@ -178,7 +178,11 @@ class CrmK2:
         if la:
             raise DataError("CRM_ENVELOPE", "Thông tin trích có trường ngoài phạm vi: " + ", ".join(la))
         pn = self._pn(thong_tin["phap_nhan"].strip())
-        quyen.kiem(dt, "NOP_HOP_DONG", pn)  # trước mọi side effect / gọi engine
+        with self._tx(dt):  # chỉ kiểm quyền; engine #6 luôn ở ngoài giao dịch
+            quyen.kiem_tham_quyen(
+                self.conn, "CRM:TIEP_NHAN:LAP", {"bang": "master.phap_nhan", "id": str(pn)},
+                {"kiem_cu": lambda: quyen.kiem(dt, "NOP_HOP_DONG", pn),
+                 "khong_thay": ("PHAP_NHAN", "Không có pháp nhân này.")})
         T6.yeu_cau_common(source_sha256=sha256(bytes(docx)), loai_hop_dong=loai_hop_dong, tham_so=tham_so, request_id=request_id)  # lỗi rõ trước
         if client is None:
             raise DataError("CRM_TRICH6_CHUA_SAN_SANG", "Engine trích dùng chung #6 chưa được máy chủ cấu hình — chưa trích.")
@@ -238,7 +242,11 @@ class CrmK2:
         if not env["phap_nhan"]:
             raise DataError("TRICH6_THIEU_PHAP_NHAN", "Chưa xác định pháp nhân của hồ sơ — không ghi vào kho (không đoán từ tên file).")
         pn = self._pn(env["phap_nhan"])
-        quyen.kiem(dt, "NOP_HOP_DONG", pn)
+        with self._tx(dt):  # giữ vị trí kiểm cũ: sau lưu raw, trước adapter/ghi kho
+            quyen.kiem_tham_quyen(
+                self.conn, "CRM:TIEP_NHAN:LAP", {"bang": "master.phap_nhan", "id": str(pn)},
+                {"kiem_cu": lambda: quyen.kiem(dt, "NOP_HOP_DONG", pn),
+                 "khong_thay": ("PHAP_NHAN", "Không có pháp nhân này.")})
         record = TrichHopDong6Adapter(env).read(raw)
         batch_issues = [i.code for i in record.issues]
         with self._tx(dt):
@@ -435,7 +443,10 @@ class CrmK2:
             ct = self.conn.execute("SELECT * FROM kho.chung_tu WHERE id = %s AND loai = %s FOR UPDATE", (ct_id, KIND)).fetchone()
             if not ct:
                 raise DataError("HO_SO", "Không thấy hồ sơ (hoặc ngoài quyền).")
-            quyen.kiem(dt, "BO_SUNG_HO_SO", ct["phap_nhan_id"])
+            quyen.kiem_tham_quyen(
+                self.conn, "CRM:TIEP_NHAN:SUA", {"bang": "kho.chung_tu", "id": str(ct["id"])},
+                {"kiem_cu": lambda: quyen.kiem(dt, "BO_SUNG_HO_SO", ct["phap_nhan_id"]),
+                 "khong_thay": ("HO_SO", "Không thấy hồ sơ (hoặc ngoài quyền).")})
             if self.conn.execute("SELECT 1 FROM master.hop_dong_phien_ban WHERE chung_tu_id = %s", (ct_id,)).fetchone():
                 raise DataError("HO_SO_DA_LAP", "Hồ sơ đã thành hợp đồng/phiên bản; sửa mapping ở phiên bản chờ duyệt.")
             if not self.conn.execute("""SELECT 1 FROM kho.viec_can_duyet WHERE tham_chieu_bang = 'kho.chung_tu' AND tham_chieu_id = %s AND loai = 'V4'
@@ -479,7 +490,10 @@ class CrmK2:
         ct = self.conn.execute("SELECT * FROM kho.chung_tu WHERE id = %s AND loai = %s", (ct_id, KIND)).fetchone()
         if not ct:
             raise DataError("HO_SO", "Không thấy hồ sơ (hoặc ngoài quyền).")
-        quyen.kiem(dt, "DOI_CHIEU_TRICH_LAI", ct["phap_nhan_id"])
+        quyen.kiem_tham_quyen(
+            self.conn, "CRM:TIEP_NHAN:KIEM", {"bang": "kho.chung_tu", "id": str(ct["id"])},
+            {"kiem_cu": lambda: quyen.kiem(dt, "DOI_CHIEU_TRICH_LAI", ct["phap_nhan_id"]),
+             "khong_thay": ("HO_SO", "Không thấy hồ sơ (hoặc ngoài quyền).")})
         if not self.conn.execute("""SELECT 1 FROM kho.viec_can_duyet WHERE tham_chieu_bang = 'kho.chung_tu' AND tham_chieu_id = %s AND loai = 'V3'
                                     AND trang_thai = 'CHO_DUYET'""", (ct_id,)).fetchone():
             raise DataError("KHONG_PHAI_TRICH_LAI_CHO", "Hồ sơ không phải bản trích lại đang chờ đối chiếu.")
@@ -676,7 +690,11 @@ class CrmK2:
     def kiem_nhan_tien(self, dang_nhap, pn_ma: str) -> str:
         dt = self.danh_tinh(dang_nhap)
         pn = self._pn(pn_ma)
-        quyen.kiem(dt, "NHAN_TIEN", pn)
+        with self._tx(dt):
+            quyen.kiem_tham_quyen(
+                self.conn, "M1:TIEN:LAP", {"bang": "master.phap_nhan", "id": str(pn)},
+                {"kiem_cu": lambda: quyen.kiem(dt, "NHAN_TIEN", pn),
+                 "khong_thay": ("PHAP_NHAN", "Không có pháp nhân này.")})
         return pn
 
     def fact_hop_dong_m1(self, dang_nhap, pn_ma: str) -> dict:
@@ -720,7 +738,10 @@ class CrmK2:
                                       (lich_id,)).fetchone()
             if not lich0:
                 raise DataError("LIEN_KET_THAM_CHIEU", "Không thấy khoản tiền hoặc đợt (hoặc ngoài quyền).")
-            quyen.kiem(dt, "LIEN_KET_TIEN", lich0["phap_nhan_id"])  # quyền trước mọi nhánh, kể cả trả kết quả lặp
+            quyen.kiem_tham_quyen(  # trước mọi nhánh, kể cả trả kết quả lặp
+                self.conn, "M1:TIEN:SUA", {"bang": "master.hop_dong", "id": str(lich0["hop_dong_id"])},
+                {"kiem_cu": lambda: quyen.kiem(dt, "LIEN_KET_TIEN", lich0["phap_nhan_id"]),
+                 "khong_thay": ("LIEN_KET_THAM_CHIEU", "Không thấy khoản tiền hoặc đợt (hoặc ngoài quyền).")})
             self._khoa_hop_dong(lich0["hop_dong_id"])  # hai lần thử đồng thời cùng hợp đồng xếp hàng tại đây
             old = self.conn.execute("SELECT * FROM kho.lien_ket_chung_tu WHERE khoa_idempotency = %s", (khoa,)).fetchone()
             if old:
@@ -764,7 +785,10 @@ class CrmK2:
             lk = self.conn.execute("SELECT * FROM kho.lien_ket_chung_tu WHERE id = %s", (lk_id,)).fetchone()
             if not lk:
                 raise DataError("LIEN_KET", "Không thấy liên kết (hoặc ngoài quyền).")
-            quyen.kiem(dt, "LIEN_KET_TIEN", lk["phap_nhan_id"])
+            quyen.kiem_tham_quyen(
+                self.conn, "M1:TIEN:HUY", {"bang": "kho.lien_ket_chung_tu", "id": str(lk["id"])},
+                {"kiem_cu": lambda: quyen.kiem(dt, "LIEN_KET_TIEN", lk["phap_nhan_id"]),
+                 "khong_thay": ("LIEN_KET", "Không thấy liên kết (hoặc ngoài quyền).")})
             if lk["hop_dong_id"]:
                 self._khoa_hop_dong(lk["hop_dong_id"])
             if lk["trang_thai"] == "HUY":
@@ -792,7 +816,10 @@ class CrmK2:
             hd = self.conn.execute("SELECT h.*, p.ma AS pn_ma FROM master.hop_dong h JOIN master.phap_nhan p ON p.id = h.phap_nhan_id WHERE h.id = %s", (hd_id,)).fetchone()
             if not hd:
                 raise DataError("HOP_DONG", "Không thấy hợp đồng (hoặc ngoài quyền).")
-            quyen.kiem(dt, "XUAT_FILE_SOAT", hd["phap_nhan_id"])
+            quyen.kiem_tham_quyen(
+                self.conn, "CRM:FILE_SOAT:XEM", {"bang": "master.hop_dong", "id": str(hd["id"])},
+                {"kiem_cu": lambda: quyen.kiem(dt, "XUAT_FILE_SOAT", hd["phap_nhan_id"]),
+                 "khong_thay": ("HOP_DONG", "Không thấy hợp đồng (hoặc ngoài quyền).")})
             versions = self.conn.execute("SELECT * FROM master.hop_dong_phien_ban WHERE hop_dong_id = %s ORDER BY phien_ban", (hd_id,)).fetchall()
             hieu_luc = self.conn.execute("SELECT master.crm_phien_ban_hieu_luc(%s, %s) AS v", (hd_id, self.hom_nay())).fetchone()["v"]
             tien = lambda v: None if v is None else (v if abs(v) < EXCEL_SO_CHINH_XAC else str(v))
@@ -837,7 +864,10 @@ class CrmK2:
             lo = self.conn.execute("SELECT * FROM kho.lo_xuat WHERE id = %s AND du_lieu->>'module' = %s", (lo_id, MODULE)).fetchone()
             if not lo:
                 raise DataError("FILE_SOAT", "Không thấy file soát CRM (hoặc ngoài quyền).")
-            quyen.kiem(dt, "XUAT_FILE_SOAT", lo["phap_nhan_id"])
+            quyen.kiem_tham_quyen(
+                self.conn, "CRM:FILE_SOAT:XEM", {"bang": "kho.lo_xuat", "id": str(lo["id"])},
+                {"kiem_cu": lambda: quyen.kiem(dt, "XUAT_FILE_SOAT", lo["phap_nhan_id"]),
+                 "khong_thay": ("FILE_SOAT", "Không thấy file soát CRM (hoặc ngoài quyền).")})
         path = (self.root / lo["duong_dan"]).resolve()
         if not path.is_relative_to(self.root.resolve()):
             raise DataError("FILE_SOAT", "Đường dẫn file soát không hợp lệ.")

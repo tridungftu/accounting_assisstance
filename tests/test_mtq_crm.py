@@ -1,10 +1,10 @@
-"""MTQ-4a/4a2: adapter + duyệt, mapping, xác nhận tham số, kiểm luồng B.
+"""MTQ-4a/4a2/4a3b: adapter và các điểm CRM/M1 luồng B.
 
-Không khởi động dịch vụ, không xóa CSDL/file. Resolver M1/file/tiếp nhận
-chưa có ở M0041 thuộc lát tiếp theo; không coi mock là bằng chứng PG bật.
+Không khởi động dịch vụ, không xóa CSDL/file. PG tái dùng fixture M0045
+tạo kho_test_*; không coi mock là bằng chứng PG bật.
 """
 
-from contextlib import contextmanager
+from contextlib import contextmanager, ExitStack
 from copy import deepcopy
 from datetime import date
 from decimal import Decimal
@@ -335,6 +335,32 @@ class AdapterBat(unittest.TestCase):
                 old.assert_not_called()
                 self.assertEqual(len(c.calls), 1)
 
+    def test_loi_cong_ghi_log_exc_info_khong_lo_chi_tiet(self):
+        with self.assertLogs(quyen.__name__, level="ERROR") as logs:
+            with self.assertRaises(quyen.TuChoiThamQuyen) as cm:
+                self.call(RuntimeError("Chi tiết SQL DEMO nội bộ"))
+        self.assertEqual(cm.exception.code, "MTQ_LOI_QUYET_DINH")
+        self.assertIsNotNone(logs.records[0].exc_info)
+        self.assertNotIn("Chi tiết SQL", str(cm.exception))
+        self.assertNotIn("Cần Anh", str(cm.exception))
+
+    def test_loi_lay_tien_ghi_log_exc_info_khong_lo_chi_tiet(self):
+        resolver = MagicMock(side_effect=RuntimeError("Chi tiết khóa DEMO nội bộ"))
+        with self.assertLogs(quyen.__name__, level="ERROR") as logs:
+            with self.assertRaises(quyen.TuChoiThamQuyen) as cm:
+                self.call(matrix(), resolver)
+        self.assertEqual(cm.exception.code, "MTQ_LOI_QUYET_DINH")
+        self.assertIsNotNone(logs.records[0].exc_info)
+        self.assertNotIn("Chi tiết khóa", str(cm.exception))
+        self.assertNotIn("Cần Anh", str(cm.exception))
+
+    def test_thieu_tien_thong_bao_trung_tinh_giu_ma(self):
+        with self.assertRaises(quyen.TuChoiThamQuyen) as cm:
+            self.call(matrix(limit=None), None)
+        self.assertEqual(cm.exception.code, "MTQ_THIEU_CO_SO_TIEN")
+        self.assertEqual(str(cm.exception), "Chưa có tổng giá trị hợp đồng VND từ phiên bản đã khóa; chưa thể duyệt.")
+        self.assertNotIn("Cần Anh", str(cm.exception))
+
 
 class CrmDiemMoi(unittest.TestCase):
     POINTS = (
@@ -450,6 +476,256 @@ class CrmDiemMoi(unittest.TestCase):
                     self.assertEqual(cm.exception.code, code)
                     self.assertNotIn("decision", c.trace)
                     self.assertFalse(c.writes)
+
+
+CT, LK, LO, REQUEST = (str(uuid.uuid4()) for _ in range(4))
+# Tên, lệnh cũ, khóa catalog, bảng, ID từ dòng đọc được, lỗi ngoài phạm vi.
+REMAINING = (
+    ("trich_tu_docx", "NOP_HOP_DONG", "CRM:TIEP_NHAN:LAP", "master.phap_nhan", PN, "PHAP_NHAN", "Không có pháp nhân này."),
+    ("nhan_ket_qua_6", "NOP_HOP_DONG", "CRM:TIEP_NHAN:LAP", "master.phap_nhan", PN, "PHAP_NHAN", "Không có pháp nhân này."),
+    ("bo_sung_ho_so", "BO_SUNG_HO_SO", "CRM:TIEP_NHAN:SUA", "kho.chung_tu", CT, "HO_SO", "Không thấy hồ sơ (hoặc ngoài quyền)."),
+    ("_trich_lai", "DOI_CHIEU_TRICH_LAI", "CRM:TIEP_NHAN:KIEM", "kho.chung_tu", CT, "HO_SO", "Không thấy hồ sơ (hoặc ngoài quyền)."),
+    ("kiem_nhan_tien", "NHAN_TIEN", "M1:TIEN:LAP", "master.phap_nhan", PN, "PHAP_NHAN", "Không có pháp nhân này."),
+    ("lien_ket", "LIEN_KET_TIEN", "M1:TIEN:SUA", "master.hop_dong", HD, "LIEN_KET_THAM_CHIEU", "Không thấy khoản tiền hoặc đợt (hoặc ngoài quyền)."),
+    ("go_lien_ket", "LIEN_KET_TIEN", "M1:TIEN:HUY", "kho.lien_ket_chung_tu", LK, "LIEN_KET", "Không thấy liên kết (hoặc ngoài quyền)."),
+    ("xuat_file_soat", "XUAT_FILE_SOAT", "CRM:FILE_SOAT:XEM", "master.hop_dong", HD, "HOP_DONG", "Không thấy hợp đồng (hoặc ngoài quyền)."),
+    ("tep_file_soat", "XUAT_FILE_SOAT", "CRM:FILE_SOAT:XEM", "kho.lo_xuat", LO, "FILE_SOAT", "Không thấy file soát CRM (hoặc ngoài quyền)."),
+)
+
+
+class SauKiemQuyen(Exception):
+    """Dừng tại bước nghiệp vụ kế tiếp, không chạy engine/ghi/xuất thật."""
+
+
+class RemainingConnection(Connection):
+    def __init__(self, decision=None, missing=False):
+        super().__init__(decision)
+        self.events, self.missing = [], missing
+
+    def after(self, *args, **kwargs):
+        self.events.append("nghiep_vu")
+        raise SauKiemQuyen()
+
+    def execute(self, sql, params=()):
+        if "mtq_quyet_dinh_phien(" in sql:
+            if self.identity is None:
+                raise AssertionError("Cổng phải có GUC danh tính trong transaction")
+            self.events.append("cong")
+        initial = None
+        if "SELECT id FROM master.phap_nhan WHERE ma" in sql:
+            initial = {"id": PN}
+        elif "SELECT * FROM kho.chung_tu WHERE id" in sql:
+            initial = {"id": CT, "phap_nhan_id": PN}
+        elif "SELECT l.phap_nhan_id, p.hop_dong_id" in sql:
+            initial = {"phap_nhan_id": PN, "hop_dong_id": HD}
+        elif "SELECT * FROM kho.lien_ket_chung_tu WHERE id" in sql:
+            initial = {"id": LK, "phap_nhan_id": PN, "hop_dong_id": HD}
+        elif "SELECT h.*, p.ma AS pn_ma" in sql:
+            initial = {"id": HD, "phap_nhan_id": PN}
+        elif "SELECT * FROM kho.lo_xuat WHERE id" in sql:
+            initial = {"id": LO, "phap_nhan_id": PN, "duong_dan": "DEMO.xlsx"}
+        if initial is not None:
+            self.calls.append((sql, params))
+            self.events.append("doc_dong")
+            result = MagicMock()
+            result.fetchone.return_value = None if self.missing else initial
+            return result
+        if any(part in sql for part in ("SELECT 1 FROM master.hop_dong_phien_ban",
+                                       "SELECT 1 FROM kho.viec_can_duyet",
+                                       "SELECT * FROM master.hop_dong_phien_ban WHERE hop_dong_id")):
+            self.after()
+        return super().execute(sql, params)
+
+
+class CrmChinDiem(unittest.TestCase):
+    @contextmanager
+    def service(self, point, dt, decision=None, missing=False):
+        c = RemainingConnection(decision, missing)
+        svc = crm(c, dt)
+        svc._khoa_hop_dong = MagicMock(side_effect=c.after)
+        svc._tien_mtq = MagicMock(side_effect=AssertionError("PHI_TIEN không đọc tiền"))
+        client = MagicMock()
+        with ExitStack() as stack:
+            def mock(name, **kwargs):
+                return stack.enter_context(patch(name, **kwargs))
+            mock("kho_tri_thuc.k2.crm.envelope", return_value={
+                "hash_ket_qua": "DEMO", "van_ban_nguon_hash": "DEMO_VB", "phap_nhan": "PN_DEMO"})
+            mock("kho_tri_thuc.k2.crm.doc_ket_qua", return_value={})
+            mock("kho_tri_thuc.k2.crm.write_immutable", side_effect=lambda *a: c.events.append("raw"))
+            mock("kho_tri_thuc.k2.crm.TrichHopDong6Adapter", side_effect=c.after)
+            request = mock("kho_tri_thuc.nguon.trich_chung_6.yeu_cau_common", side_effect=c.after)
+            if point == "tep_file_soat":
+                svc.root = MagicMock()
+                svc.root.__truediv__.side_effect = c.after
+
+            def invoke():
+                if point == "trich_tu_docx":
+                    return svc.trich_tu_docx("PHIEN_MAY_CHU", b"PK\x03\x04DEMO", {"phap_nhan": "PN_DEMO"},
+                                            loai_hop_dong="DEMO", tham_so=[], request_id=REQUEST, client=client)
+                if point == "nhan_ket_qua_6":
+                    return svc.nhan_ket_qua_6("PHIEN_MAY_CHU", b"DEMO", {}, van_ban_nguon="Văn bản DEMO")
+                if point == "bo_sung_ho_so":
+                    return svc.bo_sung_ho_so("PHIEN_MAY_CHU", REQUEST, {"loai_hinh": "DEMO"})
+                if point == "_trich_lai":
+                    # Cả doi_chieu_trich_lai/xu_ly_trich_lai đều đã mở _tx.
+                    with svc._tx(dt):
+                        return svc._trich_lai(dt, REQUEST)
+                if point == "kiem_nhan_tien":
+                    return svc.kiem_nhan_tien("PHIEN_MAY_CHU", "PN_DEMO")
+                if point == "lien_ket":
+                    return svc.lien_ket("PHIEN_MAY_CHU", REQUEST, REQUEST, 1, "DEMO_IDEMPOTENCY")
+                if point == "go_lien_ket":
+                    return svc.go_lien_ket("PHIEN_MAY_CHU", REQUEST, "Lý do DEMO")
+                return getattr(svc, point)("PHIEN_MAY_CHU", REQUEST)
+
+            yield c, svc, client, request, invoke
+
+    def check_cu(self, point):
+        _, command, technical, table, key, _, _ = next(p for p in REMAINING if p[0] == point)
+        oracle = quyen.kiem
+        for role in ("BAN_HANG", "KE_TOAN", "KE_TOAN_TRUONG", "CFO", "XEM"):
+            for modules in ((), ("CRM",), ("M1",), ("CRM", "M1")):
+                for right_pn in (False, True):
+                    dt = actor(role, modules=modules)
+                    if not right_pn:
+                        dt["quyen"] = {REQUEST: dt["quyen"][PN]}
+                    with self.subTest(point=point, role=role, modules=modules, pn=right_pn):
+                        try:
+                            oracle(dt, command, PN)
+                            expected = None
+                        except DataError as exc:
+                            expected = (exc.code, str(exc), exc.locator)
+                        with self.service(point, dt) as (c, svc, client, request, invoke):
+                            def legacy(*args):
+                                c.events.append("cu")
+                                return oracle(*args)
+                            with patch.object(quyen, "kiem", side_effect=legacy) as old:
+                                actual = None
+                                try:
+                                    out = invoke()
+                                    self.assertEqual(out, PN)  # kiem_nhan_tien trả PN thật
+                                except SauKiemQuyen:
+                                    pass
+                                except DataError as exc:
+                                    actual = (exc.code, str(exc), exc.locator)
+                                self.assertEqual(actual, expected)
+                                old.assert_called_once_with(dt, command, PN)
+                            self.assertLess(c.events.index("doc_dong"), c.events.index("cu"))
+                            if point == "nhan_ket_qua_6":
+                                self.assertEqual(c.events[:2], ["raw", "raw"])
+                            else:
+                                self.assertNotIn("raw", c.events)
+                            if expected is not None:
+                                self.assertNotIn("nghiep_vu", c.events)
+                                request.assert_not_called()
+                            elif point != "kiem_nhan_tien":
+                                self.assertLess(c.events.index("cu"), c.events.index("nghiep_vu"))
+                            client.trich.assert_not_called()
+                            self.assertFalse(c.writes or c.journal)
+                            gates = [p for s, p in c.calls if "mtq_quyet_dinh_phien(" in s]
+                            self.assertEqual(gates, [(technical, json.dumps({"bang": table, "id": key}, ensure_ascii=False), None)])
+                            svc._tien_mtq.assert_not_called()
+
+    def test_cu_trich_tu_docx_oracle(self):
+        self.check_cu("trich_tu_docx")
+
+    def test_cu_nhan_ket_qua_6_oracle(self):
+        self.check_cu("nhan_ket_qua_6")
+
+    def test_cu_bo_sung_ho_so_oracle(self):
+        self.check_cu("bo_sung_ho_so")
+
+    def test_cu_trich_lai_oracle(self):
+        self.check_cu("_trich_lai")
+
+    def test_cu_kiem_nhan_tien_oracle(self):
+        self.check_cu("kiem_nhan_tien")
+
+    def test_cu_lien_ket_oracle(self):
+        self.check_cu("lien_ket")
+
+    def test_cu_go_lien_ket_oracle(self):
+        self.check_cu("go_lien_ket")
+
+    def test_cu_xuat_file_soat_oracle(self):
+        self.check_cu("xuat_file_soat")
+
+    def test_cu_tep_file_soat_oracle(self):
+        self.check_cu("tep_file_soat")
+
+    def test_bat_chin_diem_khong_fallback_phi_tien_audit_sau_rollback(self):
+        for point, _, technical, table, key, _, _ in REMAINING:
+            for allow in (True, False):
+                with self.subTest(point=point, allow=allow):
+                    q = matrix(allow, limit="0")
+                    q.update(zip(("module", "man", "hanh_dong"), technical.split(":")))
+                    with self.service(point, actor("XEM"), q) as (c, svc, client, _, invoke):
+                        with patch.object(quyen, "kiem", side_effect=AssertionError("Không fallback")):
+                            if allow:
+                                if point == "kiem_nhan_tien":
+                                    self.assertEqual(invoke(), PN)
+                                else:
+                                    with self.assertRaises(SauKiemQuyen):
+                                        invoke()
+                            else:
+                                with self.assertRaises(quyen.TuChoiThamQuyen) as cm:
+                                    invoke()
+                                self.assertEqual(cm.exception.code, "MTQ_CHUA_TICK")
+                                self.assertNotIn("nghiep_vu", c.events)
+                                self.assertLess(c.trace.index("rollback"), c.trace.index("audit"))
+                                self.assertEqual(c.trace[-4:], ["begin", "identity", "audit", "commit"])
+                                self.assertEqual(c.journal[0][0], (ACTOR, actor()["dang_nhap"]))
+                                self.assertEqual(c.journal[0][1][1:],
+                                                 (technical, json.dumps({"bang": table, "id": key}, ensure_ascii=False), None))
+                        gates = [p for s, p in c.calls if "mtq_quyet_dinh_phien(" in s]
+                        self.assertEqual(gates, [(technical, json.dumps({"bang": table, "id": key}, ensure_ascii=False), None)] * (2 if allow else 1))
+                        client.trich.assert_not_called()
+                        svc._tien_mtq.assert_not_called()
+
+    def test_khong_thay_giu_loi_tung_diem_va_khong_lo_snapshot(self):
+        for point, _, _, _, _, code, message in REMAINING:
+            for denial in ("MTQ_GAN_VAI", "MTQ_PHAM_VI", "MTQ_PHAP_NHAN"):
+                with self.subTest(point=point, denial=denial):
+                    with self.service(point, actor(), matrix(False, denial)) as (c, _, _, _, invoke):
+                        with self.assertRaises(quyen.TuChoiThamQuyen) as cm:
+                            invoke()
+                        self.assertEqual((cm.exception.code, str(cm.exception)), (code, message))
+                        self.assertFalse(hasattr(cm.exception, "revision"))
+                        self.assertNotIn("nghiep_vu", c.events)
+
+    def test_mat_dong_rls_chan_truoc_cong(self):
+        for point, _, _, _, _, code, message in REMAINING:
+            with self.subTest(point=point):
+                with self.service(point, actor(), missing=True) as (c, _, client, _, invoke):
+                    with self.assertRaises(DataError) as cm:
+                        invoke()
+                    self.assertEqual((cm.exception.code, str(cm.exception)), (code, message))
+                    self.assertNotIn("cong", c.events)
+                    client.trich.assert_not_called()
+
+    def test_engine_trich_chi_goi_sau_commit_kiem_quyen(self):
+        for decision in (CU, matrix()):
+            q = deepcopy(decision)
+            if q["nguon"] == "MA_TRAN":
+                q.update(hanh_dong="LAP")
+            with self.subTest(source=q["nguon"]):
+                with self.service("trich_tu_docx", actor("KE_TOAN"), q) as (c, svc, client, request, invoke):
+                    request.side_effect = None
+                    svc.root = MagicMock()
+                    svc.root.__truediv__.return_value.__truediv__.return_value.is_file.return_value = False
+                    svc.nhan_ket_qua_6 = MagicMock(return_value={"ket_qua": "DEMO"})
+                    def engine(*args, **kwargs):
+                        self.assertIsNone(c.identity)
+                        self.assertEqual(c.trace[-1], "commit")
+                        return {"raw_sha256": "DEMO", "raw_ket_qua": b"DEMO", "ket_qua": {}, "luot": 1,
+                                "common": {"contract": "DEMO", "catalog_id": "DEMO", "catalog_sha256": "DEMO",
+                                           "loai_hop_dong": "DEMO", "tham_so_da_dung": []}}
+                    client.trich.side_effect = engine
+                    with patch("kho_tri_thuc.nguon.trich_chung_6.chieu_tham_so", return_value={"adapter": "DEMO"}), \
+                         patch("kho_tri_thuc.nguon.trich_chung_6.view_bytes", return_value=b"DEMO"):
+                        self.assertEqual(invoke()["ket_qua"], "DEMO")
+                    client.trich.assert_called_once()
+                    svc.nhan_ket_qua_6.assert_called_once()
 
 
 class CrmBat(unittest.TestCase):
@@ -610,6 +886,71 @@ class MtqCrmPostgres(unittest.TestCase):
                             old.assert_called_once_with()
         finally:
             f.doCleanups()
+
+
+@unittest.skipUnless(os.environ.get("KHO_PG_DSN_TEST"), "NOT_RUN: lead cấp KHO_PG_DSN_TEST; không mở PostgreSQL")
+class MtqCrmResolverPostgres(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from tests.test_mtq_cong_c_sql import MtqCongCPostgres
+        cls.fixture = MtqCongCPostgres
+        cls.fixture.setUpClass()  # CREATE DATABASE kho_test_* từ DSN quản trị
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.fixture.doClassCleanups()
+
+    def setUp(self):
+        self.f = self.fixture("test_chin_diem_dung_pham_vi_khong_can_tien_va_app_web")
+        self.addCleanup(self.f.doCleanups)
+        self.f.setUp()  # BEGIN + rollback dữ liệu test; không đọc DSN DEMO
+
+    def check_points(self, allow, expected=None):
+        from psycopg.rows import dict_row
+        f = self.f
+        f.c.execute("SET LOCAL ROLE app_web")
+        with f.c.cursor(row_factory=dict_row) as cursor:
+            for point, _, technical, table, _, code, message in REMAINING:
+                old = MagicMock(side_effect=AssertionError("PG bật MTQ không fallback"))
+                context = {"kiem_cu": old, "khong_thay": (code, message)}
+                with self.subTest(point=point):
+                    if allow:
+                        q = quyen.kiem_tham_quyen(cursor, technical, f.objects[table], context)
+                        self.assertEqual(q["nguon"], "MA_TRAN")
+                        self.assertIs(q["cho_phep"], True)
+                        self.assertIsNone(q["so_tien_vnd"])
+                    else:
+                        with self.assertRaises(quyen.TuChoiThamQuyen) as cm:
+                            quyen.kiem_tham_quyen(cursor, technical, f.objects[table], context)
+                        self.assertEqual(cm.exception.code, expected or code)
+                        if expected is None:
+                            self.assertEqual(str(cm.exception), message)
+                    old.assert_not_called()
+
+    def test_bat_chin_diem_du_o_pham_vi_qua_adapter(self):
+        self.f.cau_hinh()
+        self.check_points(True)
+
+    def test_bat_chin_diem_thieu_o_giu_ma_cong_khong_fallback(self):
+        self.f.cau_hinh(tick=False)
+        self.check_points(False, "MTQ_CHUA_TICK")
+
+    def test_bat_chin_diem_thieu_pham_vi_giu_loi_service(self):
+        self.f.cau_hinh(scope=None)
+        self.check_points(False)
+
+    def test_lo_xuat_module_khac_bi_chan_khong_fallback(self):
+        from psycopg.rows import dict_row
+        f = self.f
+        obj = f.obj("kho.lo_xuat", f.lo_xuat(f.pn, module="M5"))
+        f.cau_hinh()
+        f.c.execute("SET LOCAL ROLE app_web")
+        old = MagicMock(side_effect=AssertionError("Không fallback"))
+        with f.c.cursor(row_factory=dict_row) as cursor:
+            with self.assertRaises(quyen.TuChoiThamQuyen) as cm:
+                quyen.kiem_tham_quyen(cursor, "CRM:FILE_SOAT:XEM", obj, {"kiem_cu": old})
+        self.assertEqual(cm.exception.code, "MTQ_CAN_RESOLVER_MTQ4")
+        old.assert_not_called()
 
 
 if __name__ == "__main__":
