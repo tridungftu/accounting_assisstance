@@ -12163,3 +12163,10 @@ from ..k2.sql_m3 import M3_CO_SO_B_SQL  # noqa: E402 — chỉ hằng SQL
 M0044_M3_CO_SO_B = M3_CO_SO_B_SQL
 PG_MIGRATIONS = (*PG_MIGRATIONS, M0044_M3_CO_SO_B)
 PG_SCHEMA_VERSION = len(PG_MIGRATIONS)
+
+# MTQ-4a3a — CD-012: M0045 (lead đánh số khi gộp 26/10); resolver CRM/M1/file soát.
+from ..k2.sql_mtq_cong import MTQ_CONG_C_SQL  # noqa: E402 — chỉ hằng SQL
+
+M0045_MTQ_CONG_C = MTQ_CONG_C_SQL
+PG_MIGRATIONS = (*PG_MIGRATIONS, M0045_MTQ_CONG_C)
+PG_SCHEMA_VERSION = len(PG_MIGRATIONS)
