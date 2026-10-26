@@ -12401,3 +12401,56 @@ from ..k2.sql_mtq_cong import MTQ_CONG_G_SQL  # noqa: E402 — chỉ hằng SQL
 M0057_MTQ_CONG_G = MTQ_CONG_G_SQL
 PG_MIGRATIONS = (*PG_MIGRATIONS, M0057_MTQ_CONG_G)
 PG_SCHEMA_VERSION = len(PG_MIGRATIONS)
+
+
+# MTQ-4f1c — CD-012: đọc/master M4 và B6; lead đánh số khi gộp.
+from ..m4.sql_mtq import MTQ_M4_B_SQL  # noqa: E402 — chỉ hằng SQL
+from ..m4.sql_master_dung_chung import _SOAN as _M4_B_SOAN  # noqa: E402
+
+
+def _mtq_m4_b_xem(bang: str, obj: str, cu: str, hanh: str = 'XEM') -> str:
+    return f"coalesce(m4.mtq_ho_so_doc('{bang}', {obj}, '{hanh}'), ({cu}))"
+
+
+_M4_B_H_XR = "master.m4_duoc(h.du_an_id, 'XEM') OR master.m4_duoc(h.du_an_id, 'REVIEW')"
+_M4_B_P_XR = "master.m4_duoc(p_du_an, 'XEM') OR master.m4_duoc(p_du_an, 'REVIEW')"
+_M4_B_D_XR = "master.m4_duoc(d.du_an_id, 'XEM') OR (master.m4_duoc(d.du_an_id, 'REVIEW') AND d.trang_thai = 'DA_NOP')"
+
+
+def _mtq_m4_b_bo_chon(ten: str) -> str:
+    cu = _M4_B_SOAN.format(d='p_du_an')
+    return _m36_thay(
+        _m37_ham('m4.' + ten),
+        (cu, "\n            IF m4.mtq_ho_so_doc('master.du_an', p_du_an, 'LAP') IS NULL THEN"
+         + cu + "\n            ELSIF NOT m4.mau_duoc(p_du_an) THEN"
+         "\n                RAISE EXCEPTION 'M4_KHONG_CO_QUYEN_DU_AN: Anh/chị cần chọn dự án và được giao quyền lập hồ sơ tại dự án đó.' USING ERRCODE = 'P0001';"
+         "\n            END IF;"))
+
+
+M00xx_MTQ_M4_B = (
+    *MTQ_M4_B_SQL,
+    _m36_thay(_m37_ham('m4.digest_tham_so'),
+        (_M4_B_H_XR, _mtq_m4_b_xem('master.hop_dong', 'h.hop_dong_id', _M4_B_H_XR))),
+    _m36_thay(_m37_ham('m4.tep_da_nop'),
+        ("master.m4_duoc(f.du_an_id, 'XEM') OR master.m4_duoc(f.du_an_id, 'REVIEW')",
+         _mtq_m4_b_xem('m4.tep', 'f.id', "master.m4_duoc(f.du_an_id, 'XEM') OR master.m4_duoc(f.du_an_id, 'REVIEW')"))),
+    _m36_thay(_m37_ham('m4.thieu'),
+        (_M4_B_D_XR, _mtq_m4_b_xem('m4.dot', 'd.id', _M4_B_D_XR))),
+    _m36_thay(_m37_ham('m4.mc_co_ho_so'),
+        (_M4_B_P_XR, _mtq_m4_b_xem('master.hop_dong', 'p_hd', _M4_B_P_XR))),
+    _m36_thay(_mtq_m4_b_bo_chon('master_hop_dong_ds'),
+        ("WHERE h.phap_nhan_id = d.phap_nhan_id AND h.du_an_id = p_du_an AND h.loai = 'XAY_DUNG'",
+         "WHERE h.phap_nhan_id = d.phap_nhan_id AND h.du_an_id = p_du_an AND h.loai = 'XAY_DUNG'"
+         "\n                   AND coalesce(m4.mtq_ho_so_doc('master.hop_dong', h.id, 'LAP'), true)")),
+    _mtq_m4_b_bo_chon('master_doi_tac_ds'),
+    _m36_thay(_m37_ham('m4.master_can_cu_doc'),
+        (_M4_B_H_XR, _mtq_m4_b_xem('master.hop_dong', 'h.hop_dong_id', _M4_B_H_XR)),
+        ("master.m4_duoc(h.du_an_id, 'SOAN')",
+         _mtq_m4_b_xem('master.hop_dong', 'h.hop_dong_id', "master.m4_duoc(h.du_an_id, 'SOAN')", 'SUA'))),
+    # INVOKER và ACL nguồn/cờ sửa M38/M40 giữ nguyên: không mở nguồn cho app.
+    _m36_thay(next(s for s in M0040_M4_REVIEW_CHEP_B if s.startswith('CREATE FUNCTION m4.review_chep_hien_hanh(')),
+        ('CREATE FUNCTION m4.review_chep_hien_hanh(', 'CREATE OR REPLACE FUNCTION m4.review_chep_hien_hanh('),
+        ('WHERE EXISTS (', "WHERE m4.mtq_ho_so_doc('master.hop_dong', p_hop_dong_id, 'XEM') IS DISTINCT FROM false\n        AND EXISTS (")),
+)
+PG_MIGRATIONS = (*PG_MIGRATIONS, M00xx_MTQ_M4_B)
+PG_SCHEMA_VERSION = len(PG_MIGRATIONS)
