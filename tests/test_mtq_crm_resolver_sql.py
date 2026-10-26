@@ -17,7 +17,7 @@ import uuid
 
 from kho_tri_thuc.ha_tang import pg_migrations as PM
 from kho_tri_thuc.k2.sql_ma_tran_tham_quyen import _CATALOG
-from kho_tri_thuc.k2.sql_mtq_cong import MTQ_CONG_C_SQL, MTQ_CONG_D_SQL
+from kho_tri_thuc.k2.sql_mtq_cong import MTQ_CONG_C_SQL, MTQ_CONG_D_SQL, MTQ_CONG_E_SQL
 from tests import test_mtq_sql as nen
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -43,7 +43,8 @@ ALLOWED = {
     "x_hop_dong": ("CRM:G3_G4_SOAN_KY:XEM",),
     "master.du_an": (
         "CRM:DU_AN_BAN:XEM", "CRM:DU_AN_BAN:LAP", "CRM:DU_AN_BAN:SUA",
-        "CRM:G7_CHUAN:XEM", "CRM:G7_CHUAN:LAP", "CRM:G7_CHUAN:SUA", "CRM:G7_CHUAN:DUYET"),
+        "CRM:G7_CHUAN:XEM", "CRM:G7_CHUAN:LAP", "CRM:G7_CHUAN:SUA", "CRM:G7_CHUAN:DUYET",
+        "M4:HO_SO:XEM", "M4:HO_SO:LAP", "M4:HO_SO:SUA"),
     "master.crm_da_ban": ("CRM:DU_AN_BAN:XEM", "CRM:DU_AN_BAN:LAP", "CRM:DU_AN_BAN:SUA"),
     "master.crm_da_ban_lo": ("CRM:DU_AN_BAN:XEM", "CRM:DU_AN_BAN:SUA"),
     "master.crm_da_moc": ("CRM:DU_AN_BAN:XEM", "CRM:DU_AN_BAN:SUA"),
@@ -105,7 +106,8 @@ class MtqCrmResolverTinh(unittest.TestCase):
                 self.assertIn(f"FROM {table}", sql)
             for action in actions:
                 self.assertIn(action, catalog)
-                self.assertIn(f"'{action}'", MTQ_CONG_D_SQL[0])
+                sql = MTQ_CONG_E_SQL[0] if action.startswith("M4:") else MTQ_CONG_D_SQL[0]
+                self.assertIn(f"'{action}'", sql)
         for ref in ("r.revision = b.revision_hien_hanh", "r.revision = x.revision",
                     "s.hop_dong_id = k.hop_dong_id", "xuat_loai = 'BAO_GIA'", "xuat_loai = 'HOP_DONG'"):
             self.assertIn(ref, MTQ_CONG_D_SQL[0])
