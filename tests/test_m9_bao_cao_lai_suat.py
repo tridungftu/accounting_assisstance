@@ -46,6 +46,13 @@ def _lap(*khoan):
     return lap_bao_cao(_snapshot(*khoan), ngay_bao_cao=_NGAY)
 
 
+def _kiem_cau_trung_tinh(test, cau):
+    test.assertNotIn("cần anh", cau.lower())
+    test.assertNotIn("lead", cau.lower())
+    test.assertNotIn("_", cau)
+    test.assertNotIn("M9-2", cau)
+
+
 _CHU_DE = ("biên độ lãi suất", "điều chỉnh lãi suất", "phí trả nợ trước hạn")
 _CAU_DEMO = (
     "Biên độ lãi suất DEMO là 2,75%/năm; giữ NGUYÊN chữ gốc.",
@@ -192,7 +199,7 @@ class BaoCaoLaiSuatTests(unittest.TestCase):
         self.assertEqual(thieu["trang_thai"], "THIEU_DU_LIEU")
         for truong in ("lai_suat_nam", "chenh_lech", "lai_cao", "lai_tra_them_uoc_tinh_nam"):
             self.assertIsNone(thieu[truong])
-        self.assertIn("Cần Anh/lead", thieu["ghi_chu"])
+        self.assertIn("Thiếu dữ liệu: lãi suất.", thieu["ghi_chu"])
 
     def test_khong_khoan_du_du_lieu_khong_chia_khong(self):
         bc = _lap(_khoan(lai_suat_nam=None), _khoan("DEMO-KHONG", du_no=Decimal(0)))
@@ -249,12 +256,19 @@ class BaoCaoLaiSuatTests(unittest.TestCase):
         self.assertEqual(bc["khoan_vay"][0]["trang_thai"], "THIEU_DU_LIEU")
 
     def test_nguon_va_moc_bat_buoc_khong_tu_dien(self):
-        for thay in ({"nguon": None}, {"nguon": "Hợp đồng DEMO"}, {"moc": None},
-                     {"moc": "1/1/2026 8:30"}, {"moc": "31/02/2026 08:30"},
-                     {"khoan_vay": None}):
+        for thay, cau in (
+                ({"nguon": None}, "Chỉ nhận dữ liệu từ Sheet có mốc thời gian."),
+                ({"nguon": "Hợp đồng DEMO"}, "Chỉ nhận dữ liệu từ Sheet có mốc thời gian."),
+                ({"moc": None}, "Mốc dữ liệu phải có dạng dd/mm/yyyy hh:mm."),
+                ({"moc": "1/1/2026 8:30"}, "Mốc dữ liệu phải có dạng dd/mm/yyyy hh:mm."),
+                ({"moc": "31/02/2026 08:30"}, "Mốc dữ liệu phải có dạng dd/mm/yyyy hh:mm."),
+                ({"khoan_vay": None}, "Thiếu danh sách khoản vay đã chuẩn hóa."),
+                ({"khoan_vay": [None]}, "Dữ liệu khoản vay chưa đúng cấu trúc đã chuẩn hóa.")):
             with self.subTest(thay=thay):
-                with self.assertRaisesRegex(ValueError, "Cần Anh/lead"):
+                with self.assertRaises(ValueError) as loi:
                     lap_bao_cao({**_snapshot(_khoan()), **thay}, ngay_bao_cao=_NGAY)
+                self.assertEqual(str(loi.exception), cau)
+                _kiem_cau_trung_tinh(self, str(loi.exception))
 
     def test_moc_nguon_ngay_va_dau_vao_khong_bi_sua(self):
         snapshot = _snapshot(*_ba_khoan())
@@ -264,14 +278,40 @@ class BaoCaoLaiSuatTests(unittest.TestCase):
         self.assertEqual((bc["moc"], bc["nguon"], bc["ngay_bao_cao"]), (_MOC, "Sheet", _NGAY))
         for k in bc["khoan_vay"]:
             self.assertEqual(k["dieu_khoan_lien_quan_toi_dam_phan"], "")
-            self.assertIn("chờ nối trích dẫn hợp đồng (M9-2)", k["ghi_chu"])
+            self.assertIn("Chờ bổ sung trích dẫn hợp đồng.", k["ghi_chu"])
 
-    def test_ngay_sai_kieu_danh_dau_can_lead(self):
-        bc = _lap(_khoan(ky_dieu_chinh_ke_tiep="26/10/2026"))
-        self.assertEqual(bc["canh_bao"], [])
-        self.assertIn("chuẩn hóa ky_dieu_chinh_ke_tiep", bc["can_anh"][0])
-        with self.assertRaises(ValueError):
+    def test_ngay_sai_kieu_danh_dau_can_xem_lai(self):
+        for truong, nhan in (("ky_dieu_chinh_ke_tiep", "Ngày kỳ điều chỉnh kế tiếp"),
+                             ("ngay_dao_han", "Ngày đáo hạn")):
+            with self.subTest(truong=truong):
+                bc = _lap(_khoan(**{truong: "26/10/2026"}))
+                self.assertEqual(bc["canh_bao"], [])
+                self.assertEqual(bc["can_xem_lai"], [nhan + " chưa đúng định dạng ngày."])
+                _kiem_cau_trung_tinh(self, bc["can_xem_lai"][0])
+        with self.assertRaises(ValueError) as loi:
             lap_bao_cao(_snapshot(_khoan()), ngay_bao_cao=datetime(2026, 10, 26))
+        self.assertEqual(str(loi.exception), "Ngày báo cáo chưa đúng định dạng ngày.")
+        _kiem_cau_trung_tinh(self, str(loi.exception))
+
+    def test_cau_hien_trong_ket_qua_trung_tinh_va_khong_giu_khoa_cu(self):
+        for bc in (
+                _lap(), _lap(*_ba_khoan()),
+                _lap(_khoan(tien_te=None, du_no=None, lai_suat_nam=None,
+                            ky_dieu_chinh_ke_tiep="26/10/2026", ngay_dao_han="27/10/2026")),
+                _lap(_khoan(tien_te="DEMO")),
+                _lap_co_trich_dan(_khoan(du_no=None, lai_suat_nam=None))):
+            with self.subTest(bc=bc):
+                self.assertNotIn("can_anh", bc)
+                for cau in [bc["ghi_chu"], *bc["can_xem_lai"]]:
+                    _kiem_cau_trung_tinh(self, cau)
+                for k in bc["khoan_vay"]:
+                    # Các mã nội bộ và danh sách trường thiếu vẫn giữ nguyên.
+                    _kiem_cau_trung_tinh(self, k["ghi_chu"])
+                    _kiem_cau_trung_tinh(self, k["nhan_lai_tra_them"])
+        thieu = _lap_co_trich_dan(_khoan(du_no=None, lai_suat_nam=None))
+        self.assertEqual(thieu["khoan_vay"][0]["ghi_chu"],
+                         "Thiếu dữ liệu: dư nợ dương, lãi suất.")
+        self.assertEqual(thieu["khoan_vay"][0]["thieu_truong"], ["du_no > 0", "lai_suat_nam"])
 
     def test_khong_float_de_quy(self):
         bc = _lap(*_ba_khoan(), _khoan("DEMO-FLOAT", du_no=1.5, lai_co_so=4.5,
@@ -298,6 +338,10 @@ class XuatExcelTests(unittest.TestCase):
         self.addCleanup(wb.close)
         self.assertEqual(len(wb.worksheets), 1)
         ws = wb.active
+        for hang in ws:
+            for o in hang:
+                if isinstance(o.value, str):
+                    _kiem_cau_trung_tinh(self, o.value)
         dong = next(o.row for hang in ws for o in hang if o.value == "Mã khoản vay")
         cot = {o.value: o.column for o in ws[dong] if o.value is not None}
         return ws, dong, cot
@@ -324,7 +368,7 @@ class XuatExcelTests(unittest.TestCase):
             for o in hang:
                 self.assertNotEqual(o.data_type, "f")
                 if isinstance(o.value, str):
-                    self.assertNotIn("chờ nối trích dẫn hợp đồng (M9-2)", o.value)
+                    self.assertNotIn("Chờ bổ sung trích dẫn hợp đồng.", o.value)
 
     def test_excel_tieu_de_so_ngay_khong_cong_thuc(self):
         bc = _lap(*_ba_khoan(), _khoan("DEMO-THIEU", lai_suat_nam=None))
@@ -349,7 +393,7 @@ class XuatExcelTests(unittest.TestCase):
                 self.assertNotEqual(o.data_type, "f")
         self.assertIsNone(ws.cell(dong + 4, cot["Lãi suất áp dụng (%/năm)"]).value)
         self.assertIsNone(ws.cell(dong + 1, cot["Điều khoản liên quan tới đàm phán"]).value)
-        self.assertIn("chờ nối trích dẫn hợp đồng (M9-2)", ws.cell(dong + 1, cot["Ghi chú"]).value)
+        self.assertIn("Chờ bổ sung trích dẫn hợp đồng.", ws.cell(dong + 1, cot["Ghi chú"]).value)
         self.assertEqual(ws.cell(ws.max_row, 1).value,
                          "Lãi trả thêm là ước tính; không gửi ra ngoài khi chưa duyệt.")
 
@@ -375,7 +419,18 @@ class XuatExcelTests(unittest.TestCase):
         o = ws.cell(dong + 1, cot["Kỳ điều chỉnh kế tiếp"])
         self.assertEqual(o.value.date(), _NGAY)
         self.assertEqual(o.number_format, "dd/mm/yyyy")
-        self.assertEqual(ws.cell(dong + 1, cot["Cảnh báo"]).value, "SAP_DIEU_CHINH")
+        self.assertEqual(ws.cell(dong + 1, cot["Cảnh báo"]).value, "Sắp đến kỳ điều chỉnh")
+
+    def test_excel_ngay_sai_qua_ky_va_thieu_du_lieu_dung_nhan_tieng_viet(self):
+        bc = _lap(_khoan(du_no=None, lai_suat_nam=None,
+                         ky_dieu_chinh_ke_tiep=_NGAY - timedelta(days=1),
+                         ngay_dao_han="27/10/2026"))
+        ws, dong, cot = self._doc(bc)
+        self.assertEqual(ws.cell(dong + 1, cot["Trạng thái"]).value, "Thiếu dữ liệu")
+        self.assertEqual(ws.cell(dong + 1, cot["Cảnh báo"]).value, "Đã quá kỳ điều chỉnh")
+        self.assertIn("Ngày đáo hạn chưa đúng định dạng ngày.",
+                      ws.cell(dong + 1, cot["Ghi chú"]).value)
+        self.assertEqual(bc["khoan_vay"][0]["canh_bao"], ["DA_QUA_KY"])
 
     def test_excel_ten_bat_dau_dau_bang_la_van_ban(self):
         bc = _lap(_khoan(phap_nhan='=HYPERLINK("DEMO")', ngan_hang="#N/A",
@@ -394,7 +449,9 @@ class XuatExcelTests(unittest.TestCase):
             with self.subTest(tien=list(bc["binh_quan_theo_tien_te"])):
                 ws, _, _ = self._doc(bc)
                 self.assertIn(_MOC, ws["A2"].value)
-        self.assertTrue(any("chốt số lẻ tiền DEMO" in s for s in bc["can_anh"]))
+        self.assertEqual(bc["can_xem_lai"], [
+            "Chưa có quy tắc làm tròn cho đồng tiền DEMO; số xuất chưa làm tròn.",
+        ])
 
 
 if __name__ == "__main__":

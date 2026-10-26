@@ -12,7 +12,7 @@ from openpyxl.utils import get_column_letter
 
 
 _ZERO = Decimal(0)
-_CHO_TRICH_DAN = "chờ nối trích dẫn hợp đồng (M9-2)"
+_CHO_TRICH_DAN = "Chờ bổ sung trích dẫn hợp đồng."
 _GHI_CHU = "Lãi trả thêm là ước tính; không gửi ra ngoài khi chưa duyệt."
 _SO_LE_TIEN = {"VND": 0, "USD": 2}
 _CHU_DE_DAM_PHAN = (
@@ -38,7 +38,7 @@ def _ngay(gia_tri) -> date | None:
 
 def _kiem_nguon(du_lieu: dict) -> None:
     if du_lieu.get("nguon") != "Sheet":
-        raise ValueError("Cần Anh/lead: chỉ nhận nguồn Sheet có mốc dữ liệu.")
+        raise ValueError("Chỉ nhận dữ liệu từ Sheet có mốc thời gian.")
     moc = du_lieu.get("moc")
     try:
         if not isinstance(moc, str):
@@ -47,7 +47,7 @@ def _kiem_nguon(du_lieu: dict) -> None:
         if da_doc.strftime("%d/%m/%Y %H:%M") != moc:
             raise ValueError
     except ValueError:
-        raise ValueError("Cần Anh/lead: mốc Sheet phải có dạng dd/mm/yyyy hh:mm.") from None
+        raise ValueError("Mốc dữ liệu phải có dạng dd/mm/yyyy hh:mm.") from None
 
 
 def lap_bao_cao(snapshot: dict, *, ngay_bao_cao: date, chi_muc=None,
@@ -64,18 +64,18 @@ def lap_bao_cao(snapshot: dict, *, ngay_bao_cao: date, chi_muc=None,
     """
     _kiem_nguon(snapshot)
     if type(ngay_bao_cao) is not date:
-        raise ValueError("ngay_bao_cao phải là date.")
+        raise ValueError("Ngày báo cáo chưa đúng định dạng ngày.")
     if not isinstance(snapshot.get("khoan_vay"), list):
-        raise ValueError("Cần Anh/lead: thiếu danh sách khoản vay đã chuẩn hóa.")
+        raise ValueError("Thiếu danh sách khoản vay đã chuẩn hóa.")
 
     cac_khoan = []
     tong_du_no = {}
     tu_so = {}
     mau_so = {}
-    can_anh = []
+    can_xem_lai = []
     for dau_vao in snapshot["khoan_vay"]:
         if not isinstance(dau_vao, dict):
-            raise ValueError("Cần Anh/lead: khoản vay phải là dict đã chuẩn hóa.")
+            raise ValueError("Dữ liệu khoản vay chưa đúng cấu trúc đã chuẩn hóa.")
         tien_te = _chu(dau_vao.get("tien_te"))
         du_no = _so(dau_vao.get("du_no"))
         if du_no is not None and du_no < 0:
@@ -129,15 +129,24 @@ def lap_bao_cao(snapshot: dict, *, ngay_bao_cao: date, chi_muc=None,
             khoan["dieu_khoan_lien_quan_toi_dam_phan"] = dieu_khoan
             khoan["ghi_chu"] = ""
         if thieu:
+            nhan_thieu = {
+                "tien_te": "đồng tiền", "du_no > 0": "dư nợ dương",
+                "lai_suat_nam": "lãi suất",
+            }
             khoan["ghi_chu"] += (("; " if khoan["ghi_chu"] else "")
-                                 + "Cần Anh/lead: bổ sung " + ", ".join(thieu))
-            can_anh.append(khoan["ghi_chu"])
+                                 + "Thiếu dữ liệu: "
+                                 + ", ".join(nhan_thieu[t] for t in thieu) + ".")
+            can_xem_lai.append(khoan["ghi_chu"])
         # Ngày sai kiểu không được âm thầm coi là không có cảnh báo.
         for truong in ("ky_dieu_chinh_ke_tiep", "ngay_dao_han"):
             if dau_vao.get(truong) is not None and khoan[truong] is None:
-                ghi_chu = "Cần Anh/lead: chuẩn hóa " + truong + " thành date."
+                nhan_ngay = {
+                    "ky_dieu_chinh_ke_tiep": "Ngày kỳ điều chỉnh kế tiếp",
+                    "ngay_dao_han": "Ngày đáo hạn",
+                }
+                ghi_chu = nhan_ngay[truong] + " chưa đúng định dạng ngày."
                 khoan["ghi_chu"] += ("; " if khoan["ghi_chu"] else "") + ghi_chu
-                can_anh.append(ghi_chu)
+                can_xem_lai.append(ghi_chu)
         ky = khoan["ky_dieu_chinh_ke_tiep"]
         if ky is not None:
             if ky < ngay_bao_cao:
@@ -180,7 +189,8 @@ def lap_bao_cao(snapshot: dict, *, ngay_bao_cao: date, chi_muc=None,
     ]
     for tien in sorted(tong_du_no):
         if tien not in _SO_LE_TIEN:
-            can_anh.append("Cần Anh/lead: chốt số lẻ tiền " + tien + "; xuất chưa làm tròn.")
+            can_xem_lai.append("Chưa có quy tắc làm tròn cho đồng tiền " + tien
+                               + "; số xuất chưa làm tròn.")
     return {
         "moc": snapshot["moc"], "nguon": snapshot["nguon"],
         "ngay_bao_cao": ngay_bao_cao,
@@ -188,7 +198,7 @@ def lap_bao_cao(snapshot: dict, *, ngay_bao_cao: date, chi_muc=None,
         "binh_quan_theo_tien_te": binh_quan,
         "so_khoan_lai_cao": sum(k["lai_cao"] is True for k in cac_khoan),
         "khoan_vay": cac_khoan, "canh_bao": canh_bao,
-        "ghi_chu": _GHI_CHU, "can_anh": can_anh,
+        "ghi_chu": _GHI_CHU, "can_xem_lai": can_xem_lai,
     }
 
 
@@ -285,8 +295,10 @@ def xuat_excel(bao_cao: dict) -> bytes:
             k["lai_co_so"], k["bien_do"], k["binh_quan"], k["chenh_lech"],
             None if k["lai_cao"] is None else ("Có" if k["lai_cao"] else "Không"),
             _tien_excel(k["lai_tra_them_uoc_tinh_nam"], tien),
-            k["ky_dieu_chinh_ke_tiep"], k["ngay_dao_han"], k["trang_thai"],
-            ", ".join(k["canh_bao"]),
+            k["ky_dieu_chinh_ke_tiep"], k["ngay_dao_han"],
+            {"DU_DU_LIEU": "Đủ dữ liệu", "THIEU_DU_LIEU": "Thiếu dữ liệu"}[k["trang_thai"]],
+            ", ".join({"DA_QUA_KY": "Đã quá kỳ điều chỉnh",
+                       "SAP_DIEU_CHINH": "Sắp đến kỳ điều chỉnh"}[c] for c in k["canh_bao"]),
             _dieu_khoan_excel(k["dieu_khoan_lien_quan_toi_dam_phan"]), k["ghi_chu"],
         ])
         dong = ws.max_row
@@ -303,7 +315,7 @@ def xuat_excel(bao_cao: dict) -> bytes:
         ws.auto_filter.ref = f"A{dong_tieu_de}:S{ws.max_row}"
     ws.freeze_panes = f"E{dong_tieu_de + 1}"
     them_hang([None])
-    for ghi_chu in bao_cao.get("can_anh", []):
+    for ghi_chu in bao_cao.get("can_xem_lai", []):
         them_hang([ghi_chu])
         ws.merge_cells(start_row=ws.max_row, start_column=1, end_row=ws.max_row, end_column=19)
     if not bao_cao["khoan_vay"] or any(
