@@ -16,7 +16,7 @@ from unittest.mock import MagicMock, Mock
 
 from kho_tri_thuc.ha_tang.primitives import DataError
 from kho_tri_thuc.m4.review_data_pg import MA_HTTP
-from kho_tri_thuc.m4.review_dot_pg import ReviewDotPG, chuan_bi_dong, dto_dot
+from kho_tri_thuc.m4.review_dot_pg import ReviewDotPG, chuan_bi_dong, dto_dot, doc_lich_su_chep
 from kho_tri_thuc.m4.sql_review_chep import BANG_NGUON
 
 try:
@@ -80,7 +80,7 @@ def _dl3():
                             ngay_ky="2026-10-01", ngay_hieu_luc="2026-10-01",
                             doi_boq=0, trang_thai="Đã ký")],
                 thay_doi_tham_so=[dict(pl_id=1, ma_ts="DEMO-TS", gia_tri_moi="DEMO mới")],
-                boq_dong=[dict(id=1, ma_hd="DEMO-HD", ma_hm="DEMO-A", thao_tac="GOC", kl=1.25)])
+                boq_dong=[dict(id=1, ma_hd="DEMO-HD", ma_hm="DEMO-A", thao_tac="GOC", dvt="m3", kl=1.25)])
 
 
 def _dto(data=None):
@@ -90,6 +90,39 @@ def _dto(data=None):
 
 
 class ReviewDotTinh(unittest.TestCase):
+    def test_dl5b_doc_dvt_chuan_hoa_va_khong_chon_khi_thieu_hoac_nhieu_dvt(self):
+        conn = Mock()
+        queries = []
+
+        def execute(query, params=()):
+            queries.append((query, params))
+            rows = [dict(duoc=True)]
+            if "review_chep_hien_hanh(" in query:
+                rows = [dict(nguon_id="DEMO-hien-hanh")]
+            elif "FROM m4.review_chep_dot_thanh_toan d" in query:
+                rows = [dict(dot=1, m4_dot_id=None, m4_so_dot=None, ngay_nghiem_thu="2026-09-01")]
+            elif "FROM m4.review_chep_kl_thanh_toan k" in query:
+                rows = [dict(dot=1, ma_hm=f"DEMO-{n}", kl_ky=Decimal("5"), kl_luy_ke=Decimal("5"), ds_dvt=units)
+                        for n, units in enumerate(([" M  3 ", "m\t3"], ["m2", "m3"], None, [None], ["m3", None], ["  "], ["m3", "m3"]))]
+            cursor = Mock()
+            cursor.description = [Mock(name=key) for key in rows[0]]
+            for desc, key in zip(cursor.description, rows[0]):
+                desc.name = key
+            cursor.fetchall.return_value = rows
+            return cursor
+
+        conn.execute.side_effect = execute
+        history = doc_lich_su_chep(conn, str(uuid.UUID(int=1)))
+        self.assertEqual([r["dvt"] for r in history["dong"]], ["m 3", None, None, None, None, None, "m3"])
+        self.assertTrue(all("ds_dvt" not in r for r in history["dong"]))
+        self.assertEqual(history["dot"][0]["ngay_nghiem_thu"], "2026-09-01")
+        query, params = next((q, p) for q, p in queries if "FROM m4.review_chep_kl_thanh_toan k" in q)
+        self.assertIn("b.nguon_id=k.nguon_id", query)
+        self.assertIn("b.ma_hd=k.ma_hd", query)
+        self.assertIn("b.hop_dong_id=d.hop_dong_id", query)
+        self.assertIn("b.ma_hm=k.ma_hm", query)
+        self.assertEqual(params, ("DEMO-hien-hanh", str(uuid.UUID(int=1))))
+
     def test_chuan_hoa_decimal_repr_null_chuoi_va_khong_sua_input(self):
         data = _demo()
         before = copy.deepcopy(data)
@@ -428,6 +461,96 @@ class ReviewDotPGTests(unittest.TestCase):
 
     def _doc(self):
         return self.repo.doc_hien_hanh(self.hd, conn_phien=self.web)
+
+    def _phien_dl5b(self, name="XEM"):
+        # Cùng transaction đã ghi fixture; chuyển sang app_web để kiểm RLS
+        # thật. Quyền metadata giả lập chỉ trong CSDL kho_test_* và rollback.
+        self.con.execute("GRANT SELECT ON m4.review_chep_nguon TO app_web")
+        self.con.execute("CREATE POLICY dl5b_metadata_test ON m4.review_chep_nguon FOR SELECT TO app_web USING (true)")
+        self.con.execute("SET LOCAL ROLE app_web")
+        self.con.execute("""SELECT set_config('ktt.nguoi_dung_id',%s,true),
+            set_config('ktt.nguoi_dung_dang_nhap',%s,true)""", self.actors[name])
+
+    def test_dl5b_doc_cung_phien_rls_co_quyen(self):
+        self._ghi()
+        self.con.execute("""SELECT set_config('ktt.nguoi_dung_id',%s,true),
+            set_config('ktt.nguoi_dung_dang_nhap',%s,true)""", self.actors["XEM"])
+        history_owner = doc_lich_su_chep(self.con, self.hd)
+        self._phien_dl5b()
+        history = doc_lich_su_chep(self.con, self.hd)
+        self.assertEqual(history, history_owner)
+        self.assertEqual(history["dot"], [dict(dot=r["dot"], m4_dot_id=None, m4_so_dot=None, ngay_nghiem_thu=r["ngay_nghiem_thu"])
+                                         for r in _dto()["dot_thanh_toan"]])
+        self.assertEqual(history["dong"], [dict(dot=r["dot"], ma_hm=r["ma_hm"],
+                                                   dvt="m3" if r["ma_hm"] == "DEMO-A" else None,
+                                                   kl_ky=r["kl_ky"], kl_luy_ke=r["kl_luy_ke"])
+                                          for r in _dto()["kl_thanh_toan"]])
+
+    def test_dl5b_dvt_boq_dung_ban_chup_hien_hanh(self):
+        old = _dl3()
+        old["boq_dong"][0]["dvt"] = "m2"
+        self._ghi(dl3=old)
+        self._ghi(nguon_id=self.source + "-moi", chup_luc="2026-10-27T07:00:00+07:00")
+        self._phien_dl5b()
+        history = doc_lich_su_chep(self.con, self.hd)
+        self.assertEqual(history["dong"][0]["dvt"], "m3")
+        self.assertIsNone(history["dong"][1]["dvt"])  # DEMO-B không có BOQ
+
+    def test_dl5b_boq_hien_hanh_thieu_khong_lay_dvt_ban_cu(self):
+        self._ghi()
+        data = _dl3()
+        data["boq_dong"] = []
+        self._ghi(dl3=data, nguon_id=self.source + "-moi", chup_luc="2026-10-27T07:00:00+07:00")
+        self._phien_dl5b()
+        history = doc_lich_su_chep(self.con, self.hd)
+        self.assertTrue(all(r["dvt"] is None for r in history["dong"]))
+
+    def test_dl5b_nhieu_dvt_boq_khong_chon_tuy_tien(self):
+        data = _dl3()
+        data["boq_dong"].append(dict(id=2, ma_hd="DEMO-HD", ma_hm="DEMO-A", thao_tac="THAY", pl_id=1, dvt="m2"))
+        self._ghi(dl3=data)
+        self._phien_dl5b()
+        self.assertIsNone(doc_lich_su_chep(self.con, self.hd)["dong"][0]["dvt"])
+
+    def test_dl5b_nhieu_boq_cung_dvt_sau_chuan_hoa(self):
+        data = _dl3()
+        data["boq_dong"].append(dict(id=2, ma_hd="DEMO-HD", ma_hm="DEMO-A", thao_tac="THAY", pl_id=1, dvt="  M3\t"))
+        self._ghi(dl3=data)
+        self._phien_dl5b()
+        self.assertEqual(doc_lich_su_chep(self.con, self.hd)["dong"][0]["dvt"], "m3")
+
+    def test_dl5b_khong_quyen_khong_lo_ca_chu_bang(self):
+        self._ghi()
+        self.con.execute("""SELECT set_config('ktt.nguoi_dung_id',%s,true),
+            set_config('ktt.nguoi_dung_dang_nhap',%s,true)""", self.actors["KHONG_QUYEN"])
+        self.assertIsNone(doc_lich_su_chep(self.con, self.hd))
+        self._phien_dl5b("KHONG_QUYEN")
+        self.assertIsNone(doc_lich_su_chep(self.con, self.hd))
+        self.assertEqual(self.con.execute("SELECT count(*) FROM m4.review_chep_dot_thanh_toan WHERE hop_dong_id=%s", (self.hd,)).fetchone()[0], 0)
+
+    def test_dl5b_thieu_grant_metadata_khong_doc_bang_owner(self):
+        self._ghi()
+        self.assertIsNone(doc_lich_su_chep(self.web, self.hd))
+
+    def test_dl5b_ba_trang_thai_null_khong_lui_ve_nguon_cu(self):
+        self._phien_dl5b()
+        self.assertIsNone(doc_lich_su_chep(self.con, self.hd))
+        self.con.execute("RESET ROLE")
+        empty = {t: [] for t in _demo()}
+        base = {t: [] for t in _base()}
+        dl3 = {t: [] for t in _dl3()}
+        self._ghi(empty, base=base, dl3=dl3, anh_xa={})
+        self.con.execute("SET LOCAL ROLE app_web")
+        self.assertIsNone(doc_lich_su_chep(self.con, self.hd))
+        self.con.execute("RESET ROLE")
+        self._ghi(nguon_id=self.source + "-co", chup_luc="2026-10-27T07:00:00+07:00")
+        self.con.execute("SET LOCAL ROLE app_web")
+        self.assertIsNotNone(doc_lich_su_chep(self.con, self.hd))
+        self.con.execute("RESET ROLE")
+        self._ghi(empty, base=base, dl3=dl3, anh_xa={}, nguon_id=self.source + "-xoa",
+                  chup_luc="2026-10-28T07:00:00+07:00")
+        self.con.execute("SET LOCAL ROLE app_web")
+        self.assertIsNone(doc_lich_su_chep(self.con, self.hd))
 
     def test_ghi_doc_du_nam_bang_va_orphan(self):
         self.assertEqual(self._ghi(), 20)
