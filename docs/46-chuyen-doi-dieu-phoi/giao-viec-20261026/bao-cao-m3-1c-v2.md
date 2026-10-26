@@ -1,0 +1,5 @@
+- Đã bỏ UNIQUE, thêm trigger khóa theo hóa đơn và chỉ xét liên kết hiện hành; bổ sung đủ bốn ca PG.
+- Chỉ sửa `sql_m3.py`, `tests/test_m3_sql.py`; M0042 và registry giữ nguyên.
+- Test: 34/50 đạt, 16 PG skip vì thiếu DSN/psycopg; không lỗi trong phần đã chạy.
+- UTF-8 không BOM, registry LF, `git diff --check` đạt; không commit.
+- Thông điệp dự kiến: `[M3-1c] vòng 2: thay UNIQUE bằng trigger xét liên kết hiện hành`.

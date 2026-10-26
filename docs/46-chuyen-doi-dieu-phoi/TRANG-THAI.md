@@ -390,3 +390,17 @@ H3 phân loại 36 đầu việc: 19 gói đã nhập `hop-nhat`, 13 xung đột
 - Review M4-DL3 — **Cần Anh:** hai phụ lục cùng ngày hiệu lực: (a) theo Review gốc (ngày hiệu lực → ngày ký → số PL so như chữ: "PL10" trước "PL2") hay (b) giữ cờ "cần xem lại" (làm trống BOQ/giá trị HĐ sau ngày đó tới khi có người xử lý). Lead khuyến nghị (b) + sửa so số PL theo số.
 - **Codex quá tải ("model is at capacity"):** M4-DL4 bị ngắt 2 lần, M4-CD1 vòng 3 1 lần; lead giao lại, đang chạy lần 3 DL4. Nếu lặp lại, giảm số lát Codex song song.
 - Đang chạy: Codex — MTQ-4a0b, MTQ-5b, M4-DL4 (lần 3). Claude — review-lat M3-1c + M2-BR4.
+### 26/10 ~14:00 — MỐC (trước khi phiên nén ngữ cảnh) · hạn mức tuần 88% → chậm lại, không giao lát mới
+- Hợp nhất mới: 69b056a MTQ-4a0b (**M0043**, review Đạt; lead sửa test registry khi gộp), M2-BR4 (review Đạt). Migration cuối hợp nhất = **M0043**.
+- **Chờ PG rồi gộp (đều đã Đạt review hoặc chờ review):**
+  | Lát | Nhánh/commit | Trạng thái | Việc còn |
+  |---|---|---|---|
+  | M3-1c | `lat/m3-1c` 883ecc9 | review vòng 2 Đạt | PG `test_m3_sql`,`test_m3_dang_thuc` → gộp, đổi `M00xx_M3_CO_SO_B` → **M0044** (dấu `# M3-1c — CD-013:`) |
+  | MTQ-5b | `lat/mtq-5b` 6b0b30c | review Đạt + vòng 2 (bỏ nhóm CU, khóa `cap`) | PG `test_mtq_demo_phien`,`test_crm_k2`,`test_m9_k2` → gộp |
+  | M4-DL4 | `lat/m4-dl4` 148b3ae | vòng 2 (chỉ XEM) — review vòng 2 đang chạy | PG `test_m4_review_dot_pg` + DL2/DL3/CD1 → gộp nếu Đạt |
+  | M2-BR4b | `lat/m2-br4b` b917fba | unittest OK | lead kiểm/kiem-nhanh → test M2 → gộp |
+  | MTQ-4a2 | `lat/mtq-4a2` aa0e176 | review Opus đang chạy | PG `test_crm*`+`test_mtq*` → gộp nếu Đạt |
+- PG cả bộ trên hợp nhất (sau M0043) đang chạy → làm nền **PG v4** nếu không có mã lỗi mới so v3.
+- DEMO 8799 (`lat/ui-ky`, CSDL `p8799b`) đang chạy; thử trình duyệt: "Quyền của tôi" đúng; màn Admin chờ lát giao diện nối `/api/demo/vai` (sau MTQ-5b).
+- **Hàng đợi lát sau (chưa giao, chờ hạn mức):** MTQ-4a3 (9 điểm CRM còn lại, cần resolver), MTQ-3b3 (giao diện bộ chọn vai MTQ), M4-DL5a/b, M2-BR1… (một số chờ Anh), M3-2, M3-1d (nên sửa: tiền tố khóa advisory), DL3 nên sửa (`gt_hd_sau_pl` tên, `boq:None` khi NULL).
+- **Cần Anh (gộp):** bảng ánh xạ `ma_hd` Review (chặn nạp thật CD-011); M3 #7, "đủ đợt", hóa đơn chung nhiều HĐ có chia giá trị; M2 hóa đơn bán ra (nguồn, quyền, mẫu XML); PL cùng ngày (khuyến nghị giữ cờ); MTQ: từ chối/duyệt V4 có áp hạn mức tổng HĐ; vai sửa danh mục chung; Mask "đánh dấu không phải định danh" có hộp xác nhận; M2k ngắt chéo pháp nhân.

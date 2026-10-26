@@ -175,3 +175,15 @@
 3. **Không** sinh bút toán có số tài khoản ở giai đoạn này; các tài khoản trong v2 §7.2/§16 chỉ để bước sau (bảng ánh xạ lớp → tài khoản do kế toán trưởng điền). Đề xuất hiển thị: mốc · ngày · căn cứ · lớp trước → lớp sau · giá trị.
 4. Bảng mốc §17 là đề xuất: đưa vào phiếu cổng A M3 để Anh sửa.
 **Trạng thái:** ĐÃ NHẬN 12:05 26/10 — áp vào M3-0/M3-3/M3-4: máy chuyển lớp theo mốc, bảng mốc là cấu hình, dùng ngày dự kiến/thực tế của mốc dự án; không sinh số tài khoản. Lead chờ mục 17 của thiết kế v2 để soạn bảng mốc cho phiếu cổng A M3.
+
+## CD-015 · 26/10/2026 13:45 · Mở lại M9 với phạm vi mới: kho hợp đồng vay + hỏi đáp (RAG, chỉ Local AI) + báo cáo lãi suất
+**Căn cứ:** Anh 26/10 13:28 và chốt qua bảng chọn 13:30–13:40; thiết kế `D:\Claude\Phan mem ho tro ke toan\THIET-KE-MODULE-DE-CHOT-2026-10-20\M9-KHO-HOP-DONG-VAY-HOI-DAP-20261026.md` (**mục 8 = phần đã chốt**). `CLAUDE.md` dòng M9 đã sửa (13:45): M9 mở lại theo phạm vi này. Thiết kế M9 20/10 đổi hướng, giữ làm tham khảo cách lấy dữ liệu.
+**Việc:**
+1. Thêm M9-1…M9-5 vào kế hoạch + `TRANG-THAI.md`, theo CD-004/CD-009; xếp sau CD-011 (M4), CD-012 (ma trận thẩm quyền), CD-013/014 (M3) nhưng dùng làm việc lấp chỗ trống khi các lát kia bị chặn.
+2. **AI: chỉ Local AI** cho chỉ mục và hỏi đáp — **không** gửi Cloud, kể cả qua Mask v2 (ngoại lệ chặt hơn TL 48 cho M9). Lead kiểm bằng grep ở cổng kiểm soát.
+3. Hỏi đáp phải có trích dẫn (file · trang · điều/khoản · câu nguyên văn); số dư/lãi suất chỉ từ snapshot Sheet có mốc; không trích dẫn được thì không trả lời bằng số.
+4. M9-3 (Google Sheets API): khóa chỉ trong `.env` (không đọc `.env` qua công cụ — chỉ code đọc lúc chạy), quyền chỉ đọc; làm và test với Sheet giả; **chờ Anh cung cấp Sheet/tab/tài khoản dịch vụ** để nối thật.
+5. Báo cáo lãi suất hằng tháng: "lãi cao" = cao hơn bình quân gia quyền theo dư nợ của danh mục cùng mốc; cảnh báo trước kỳ điều chỉnh lãi 30 ngày; không tự gửi ra ngoài.
+6. OCR bản scan: dùng lại cách ABBYY Hot Folder của phần mềm review (chép code, không sửa bản gốc đang đóng băng — CD-011).
+**Báo Anh khi:** cần thông tin Sheet; phiếu cổng A M9.
+**Trạng thái:** MỚI
