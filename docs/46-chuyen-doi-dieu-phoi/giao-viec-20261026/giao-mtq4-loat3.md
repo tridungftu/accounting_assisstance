@@ -64,4 +64,9 @@ Thêm nhánh resolver từ nay = `CREATE OR REPLACE master.mtq_giai_doi_tuong` d
 - Không suy `BAN_KY:XEM` từ quyền ký hay XEM hồ sơ. Ghi nhật ký truy cập trước khi trả hash/bytes.
 - Dùng resolver S/K của M0047.
 - Không đụng G5/G6 (4e1a…), tỷ giá (B1), V8 (B2).
+- **Thêm (lead, sau review 4f1b):** thông báo từ chối khi PN bật của helper guard M0050/M0053 (`RAISE EXCEPTION '%: không có quyền hiện hành cho %', …, lenh`) đang đưa khóa catalog (ví dụ `CRM:G2_BAO_GIA:SUA`) ra người dùng.
+  - Trong `MTQ_CRM_C_SQL`, `CREATE OR REPLACE` các helper đó.
+  - Giữ tiền tố mã máy đọc. Phần câu chuyển sang tiếng Việt nghiệp vụ, không chứa khóa/tên bảng/UUID.
+  - **Không** đổi thông báo của đường cũ khi PN tắt (CU giữ nguyên từng bit).
+  - Test thông báo.
 - PN tắt → so oracle đường cũ (cho/chặn + mã lỗi). Bật ở PN A không đổi kết quả PN B tắt.
