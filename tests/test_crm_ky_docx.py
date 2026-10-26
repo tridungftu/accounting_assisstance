@@ -58,7 +58,7 @@ class M36Tinh(unittest.TestCase):
     def test_tra_ham_hien_hanh_theo_thu_tu_migration(self):
         ten = "crm_kiem_g5_xet"
         self.assertEqual(_ham_hien_hanh(ten), _ham(PM.M0037_CRM_G5_TAY, ten))
-        self.assertEqual(_ham_hien_hanh("crm_ky_ket"), _ham(PM.M0036_KY_DOCX, "crm_ky_ket"))
+        self.assertEqual(_ham_hien_hanh("crm_ky_ket"), _ham(PM.M00xx_MTQ_CRM_C, "crm_ky_ket"))
         for schema, guard in (("kho", "crm_kiem_viec_kiem"), ("master", "crm_kiem_ho_so_kiem")):
             self.assertEqual(_ham_hien_hanh(guard, schema), _ham(PM.M0037_CRM_G5_TAY, guard, schema))
         moi = "CREATE OR REPLACE FUNCTION master.crm_kiem_g5_xet(p_ky uuid, p_che_do text) RETURNS jsonb AS $$ SELECT '{}'::jsonb $$"
