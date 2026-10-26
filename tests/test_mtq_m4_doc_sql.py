@@ -18,7 +18,7 @@ from tests import test_mtq_sql as nen
 
 DSN = os.environ.get('KHO_PG_DSN_TEST')
 psycopg = nen.psycopg
-MIGRATION = PM.M00xx_MTQ_M4_B
+MIGRATION = PM.M0061_MTQ_M4_B
 POSITION = next(i for i, m in enumerate(PM.PG_MIGRATIONS) if m is MIGRATION)
 BEFORE = ho_so.definitions(PM.PG_MIGRATIONS[:POSITION])
 AFTER = ho_so.definitions((MIGRATION,))
