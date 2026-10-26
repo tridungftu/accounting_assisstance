@@ -523,3 +523,26 @@ Chi tiết có tệp:dòng: `BANG-DIEU-KIEN-GO-LIVE.md`; quy trình: `CHECKLIST-
 | M4 | Lõi review chép + PG (DL1–DL5c, CD1/CD2); 02C/03A/03B/04 có | Ánh xạ `ma_hd` để nạp thật (CD-011); 8 màn Review chưa đủ (UI0 giữ chờ cổng A trang chủ); MTQ-4f chưa đủ |
 | M9 | Phần thuần đủ (đọc/OCR/tìm/hỏi đáp Local/snapshot/báo cáo) | Duyệt phiếu cổng A M9; Sheet thật; lưu trữ/CSDL/màn hình chưa làm |
 | Chung | Chưa bật ma trận PN nào | B11: PN còn đường cũ chưa được bật; chuỗi MTQ-4/MTQ-NEN còn lại; nền PG v5 |
+### 26/10 ~21:50 — gộp loạt MTQ-4 sau chốt + Xương sống XS-1/3/4a; nhận CD-018, CD-019
+- **Gộp từ 19:40** (mỗi lát có review Codex; Claude kiểm xác suất ~1/4):
+  - MTQ-4: 4b1a (**M0047**), 4f1a (**M0048**), 4i-a (**M0049**), 4b1b (**M0050**), NEN-0 (**M0051**), 4b2a (**M0053**).
+  - Xương sống: XS-1a (**M0052** bus), XS-1b (lớp Python bus), XS-3a (hợp đồng + danh bạ engine), XS-4a (mô hình khai báo module).
+  - Tài liệu: CD-016 (kế hoạch chuyển kho, checklist phát hành, bảng go-live), KK-XUONG-SONG, KK-VUNG-DU-LIEU.
+  - **Migration cuối = M0053.**
+- **Sửa của lead:** test cổng F còn gọi tên tạm `M00xx` sau khi đánh số M0051 → sửa, PG 79 ok. Bài học: khi đánh số lúc gộp, grep cả `tests/` cho tên tạm.
+- **Hộp thư:**
+  - **CD-018 ĐÃ NHẬN.** Bản đồ vùng dữ liệu tóm tắt 1 trang: `BAN-DO-VUNG-DU-LIEU-1-TRANG.md` (70 chỗ đọc chéo, 47 chỗ ghi thẳng vùng chung). Chuỗi XS-5 trong `KK-VUNG-DU-LIEU.md` §5.
+  - **CD-019 ĐÃ NHẬN.** Đã tạo `D:\DU-LIEU-KE-TOAN\{postgresql,kho-file,sao-luu}`. Mẫu review Codex thêm 2 kiểm (không trùng engine/thư viện; không SQL chéo vùng). Đang kiểm kê cột nhạy cảm + mã hóa + đo BitLocker (`KK-MA-HOA-LUU-RIENG.md`).
+- **Chờ Anh:** `XS-4-CAN-CHOT.md` (S1–S6: nghĩa "Thử", ai đổi công tắc, mặc định, tắt khi còn việc, chuyển Thử→Vận hành, pilot M2→M4). XS-4b/4c/XS-2/pilot chờ phiếu này.
+- **Đang chạy (4 Codex):**
+  - NEN-1 vòng 2: review Codex chặn đúng — hàm đọc luôn truyền tiền rỗng; lead quyết thêm tham số tiền tùy chọn.
+  - XS-3b: bọc OCR/AI thành engine qua cổng có sẵn.
+  - XS-3d: bọc bộ đọc hóa đơn XML/ZIP thành E-HOADON.
+  - Kiểm kê CD-019.
+- **Danh bạ engine (CD-017 mục 6):**
+
+| Engine | Phiên bản | Module dùng | Trạng thái test |
+|---|---|---|---|
+| (khung) hợp đồng + danh bạ | — | — | XS-3a 19 ok |
+| E-OCR, E-AI | v1 | M9 (đích M4, CRM) | XS-3b đang làm |
+| E-HOADON | v1 | M2 (đích M3) | XS-3d đang làm; XS-3e cắm vào M3 sau pilot |
