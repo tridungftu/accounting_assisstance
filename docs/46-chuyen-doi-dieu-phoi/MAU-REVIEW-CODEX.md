@@ -22,6 +22,7 @@ Bài gốc:
    - lát rút trúng: lead tự đọc nhanh các điểm nóng của diff (mục C). **Không** gọi subagent Opus/Haiku;
    - ghi "kiểm xác suất: có/không" vào commit gộp.
 5. Lead vẫn giữ gate máy cho **mọi** lát, vì chạy bằng script, không tốn hạn mức review.
+6. Worktree dựng trước khi lead commit tệp review/giao việc vòng sửa thì **không thấy** các tệp đó. Lead chép nguyên văn nội dung vào prompt, hoặc cho reviewer chạy ở repo chính và đọc mã bằng `git show`. Bài học 26/10: worker MTQ-4a3b/M9-3a vòng 2 dừng "Cần lead" vì thiếu tệp.
 
 ## B. Phần cố định của prompt review
 
