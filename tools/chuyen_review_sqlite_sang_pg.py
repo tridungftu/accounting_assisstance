@@ -339,10 +339,12 @@ def main(argv=None):
     def emit(report):
         print(json.dumps(report, ensure_ascii=True, allow_nan=False), flush=True)
 
+    giai_doan = "NAP"
     try:
         if args.doi_chieu and args.thu:
             _loi("M4_REVIEW_METADATA_SAI", "Doi chieu can doc PG; khong dung cung --thu.")
         if args.doi_chieu and args.anh_xa is None and args.chup_luc is None:
+            giai_doan = "DOI_CHIEU"
             if not args.nguon_id.strip():
                 _loi("M4_REVIEW_METADATA_SAI", "Can nguon_id khong rong.")
             dsn = doc_dsn(args.dsn_tep)
@@ -365,24 +367,30 @@ def main(argv=None):
         totals = tong_kiem_soat(data)
         counts = {t: {"da_ghi_moi": 0, "da_co_dich": None} for t in BANG_NGUON}
         comparison = None
+        contracts = {r["ma_hd"] for r in data["hop_dong"]}
+
+        def bao_cao_nap():
+            return {"trang_thai": "THU_KHONG_GHI" if args.thu else "HOAN_TAT",
+                    "sha256_truoc": digest, "sha256_sau": digest,
+                    "bang": {t: dict(da_doc=len(data[t]), **counts[t],
+                                     so_dong_mo_coi=sum(r.get("ma_hd") not in contracts
+                                                        for r in data[t] if r.get("ma_hd") not in (None, "")))
+                             for t in BANG_NGUON},
+                    "tong_kiem_soat": totals}
+
         if not args.thu:
             import psycopg
             with psycopg.connect(dsn, autocommit=True) as con:
                 counts = ghi_pg(con, data, mapping, nguon_id=args.nguon_id, chup_luc=moment,
                                 sha256_nguon=digest,
                                 truoc_commit=lambda: kiem_sha(args.nguon, digest))
+                giai_doan = "DOI_CHIEU"
+                emit(bao_cao_nap())
                 if args.doi_chieu:
                     comparison = doi_chieu(args.nguon, con, nguon_id=args.nguon_id)
         else:
             kiem_sha(args.nguon, digest)
-        contracts = {r["ma_hd"] for r in data["hop_dong"]}
-        emit({"trang_thai": "THU_KHONG_GHI" if args.thu else "HOAN_TAT",
-              "sha256_truoc": digest, "sha256_sau": digest,
-              "bang": {t: dict(da_doc=len(data[t]), **counts[t],
-                               so_dong_mo_coi=sum(r.get("ma_hd") not in contracts
-                                                  for r in data[t] if r.get("ma_hd") not in (None, "")))
-                       for t in BANG_NGUON},
-              "tong_kiem_soat": totals})
+            emit(bao_cao_nap())
         if comparison is not None:
             emit({"trang_thai": "DOI_CHIEU_KHOP" if comparison["khop"] else "DOI_CHIEU_LECH",
                   "doi_chieu": comparison})
@@ -399,12 +407,10 @@ def main(argv=None):
         # Không xuất str(exc), traceback, DSN/path hay nội dung driver/SQL.
         try:
             code = exc.code if isinstance(exc, DataError) and exc.code.startswith("M4_REVIEW_") else "M4_REVIEW_CHUYEN_LOI"
-            message = ("Cùng nguon_id nhưng chup_luc, metadata hoặc dữ liệu khác; dừng, không ghi đè."
-                       if code == "M4_REVIEW_REPLAY_KHAC" else
-                       "Đối chiếu không hoàn tất; dữ liệu đã nạp trước đó vẫn được giữ. Cần Anh kiểm tra nguồn và cấu hình."
-                       if args.doi_chieu else
-                       "Lần chụp không hoàn tất; không ghi dữ liệu một phần. Cần Anh kiểm tra nguồn, ánh xạ và cấu hình.")
-            report = {"trang_thai": "LOI", "ma_loi": code, "thong_bao": message}
+            message = ("Đối chiếu không hoàn tất; dữ liệu đã nạp vẫn được giữ."
+                       if giai_doan == "DOI_CHIEU" else
+                       "Nạp không hoàn tất; không ghi gì (đã hoàn tác).")
+            report = {"trang_thai": "LOI", "ma_loi": code, "giai_doan": giai_doan, "thong_bao": message}
             if isinstance(exc, DataError) and code.startswith("M4_REVIEW_"):
                 # Không lấy tên từ message/giá trị dữ liệu hoặc locator tùy ý.
                 allowed = {*COT, *(f"{t}.{c}" for t in COT for c in COT[t])}
