@@ -306,10 +306,48 @@ class MtqCrmSqlPostgres(unittest.TestCase):
         f2 = self.fixture(self.pn2)
         self.user = self.nguoi("CFO")
         self.legacy(pn=self.pn2, fixture=f2)
-        self.cau_hinh()
+        actors = {"co_quyen_cu": self.user, "khong_quyen_cu": self.sender}
+
+        def capture():
+            results = {}
+            for label, who in actors.items():
+                self.actor(who)
+                for command in COMMANDS:
+                    try:
+                        with self.c.transaction():
+                            result = ("CHO", self.dich(command, f2))
+                    except psycopg.Error as exc:
+                        # Chỉ chấp nhận lỗi quyền của đường cũ, không che lỗi SQL.
+                        self.assertEqual(exc.sqlstate, "P0001")
+                        self.assertRegex(exc.diag.message_primary, r"^CRM_G_(KHONG_THAY|KHONG_CO_QUYEN):")
+                        result = ("CHAN", exc.sqlstate, exc.diag.message_primary)
+                    results[label, command] = result
+            return results
+
+        # Oracle dùng đúng guard và các hàm quyền trước migration, cùng người/đích.
+        # Rollback savepoint khôi phục hàm mới kể cả khi capture thất bại.
+        with self.c.transaction(force_rollback=True):
+            for name in ("master.crm_g_dich", "master.crm_g_mau_doc",
+                         "master.crm_g_chuan_doc_duoc", "master.crm_g_duoc"):
+                self.c.execute(BEFORE[name])
+            oracle = capture()
+        self.assertEqual({result[0] for result in oracle.values()}, {"CHO", "CHAN"})
         for command in COMMANDS:
-            with self.subTest(command=command):
-                self.assertEqual(self.dich(command, f2)[0], self.pn2)
+            self.assertEqual(oracle["khong_quyen_cu", command][0], "CHAN")
+
+        for stage in ("truoc_bat_A", "sau_bat_A"):
+            if stage == "sau_bat_A":
+                self.cau_hinh()  # Cả hai người có tick MTQ tại A, không cấp quyền cũ tại B.
+                self.assertTrue(self.c.execute(
+                    "SELECT EXISTS (SELECT 1 FROM master.mtq_kich_hoat WHERE phap_nhan_id=%s AND bat)",
+                    (self.pn,)).fetchone()[0])
+            self.assertFalse(self.c.execute(
+                "SELECT EXISTS (SELECT 1 FROM master.mtq_kich_hoat WHERE phap_nhan_id=%s AND bat)",
+                (self.pn2,)).fetchone()[0])
+            actual = capture()
+            for (label, command), expected in oracle.items():
+                with self.subTest(stage=stage, actor=label, command=command):
+                    self.assertEqual(actual[label, command], expected)
 
     def test_preflight_replay_kiem_lai_sau_thu_hoi(self):
         grants = self.cau_hinh()
