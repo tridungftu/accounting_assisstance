@@ -43,14 +43,14 @@ O_MAU = {
         "TRUONG_PHONG": (("CRM", "G5_G6_KIEM_KY", "XEM DUYET"),),
         # Ca âm BOTH M2+M5: chỉ tick phía M2 của L11, không tick M5.
         "CFO": (("M2", "HOA_DON", "XEM DUYET"), ("M2", "L11", "XEM DUYET")),
-        "NGUOI_XEM": (("M1", "XEM_TIEN", "XEM"), ("M2", "HOA_DON", "XEM")),
+        "NGUOI_XEM": (("M1", "TIEN", "XEM"), ("M1", "XEM_TIEN", "XEM"), ("M2", "HOA_DON", "XEM")),
     },
     "DU_AN": {
         "THUC_HIEN_1": (("M4", "HO_SO", "XEM LAP SUA"),),
         "THUC_HIEN_2": (("M4", "02A_REVIEW", "XEM KIEM"), ("M4", "02B_CHUNG_TU", "XEM KIEM")),
         "TRUONG_PHONG": (("M4", "02C_DUYET", "XEM DUYET"),),
         "CFO": (("M4", "02C_DUYET", "XEM DUYET"),),
-        "NGUOI_XEM": (("M4", "PDF_DA_DUYET", "XEM"),),
+        "NGUOI_XEM": (("M4", "HO_SO", "XEM"), ("M4", "PDF_DA_DUYET", "XEM")),
     },
 }
 _GUCS = ("ktt.nguoi_dung_id", "ktt.nguoi_dung_dang_nhap", "ktt.mtq_request", "ktt.mtq_lenh", "ktt.mtq_ly_do")

@@ -218,7 +218,14 @@ def chuan_bi(ket_noi: dict, tien_to=TIEN_TO_DB) -> dict:
         try:
             mtq = mtq_demo.khoi_tao(admin, demo=True)
         except Exception as exc:  # noqa: BLE001 — không đưa nội dung lỗi/DSN vào log
-            logging.getLogger(__name__).warning("Seed MTQ DEMO lỗi (%s); CRM tiếp tục khởi động.", type(exc).__name__)
+            sqlstate = getattr(exc, "sqlstate", None)
+            ma = getattr(exc, "code", None)
+            # Chỉ nhận token đúng định dạng; không log message, detail hay conninfo.
+            sqlstate = sqlstate if isinstance(sqlstate, str) and re.fullmatch(r"[A-Z0-9]{5}", sqlstate) else "-"
+            ma = ma if isinstance(ma, str) and re.fullmatch(r"MTQ_[A-Z0-9_]{1,64}", ma) else "-"
+            logging.getLogger(__name__).warning(
+                "Seed MTQ DEMO lỗi (%s; sqlstate=%s; ma=%s); CRM tiếp tục khởi động.",
+                type(exc).__name__, sqlstate, ma)
             mtq = {"trang_thai": "LOI", "can_anh": "Kiểm tra seed MTQ DEMO bằng kết nối chủ bảng."}
         else:
             if mtq["trang_thai"] not in ("DU", "DA_SEED"):

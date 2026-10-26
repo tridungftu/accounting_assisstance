@@ -64,6 +64,24 @@ class MtqDemoTinh(unittest.TestCase):
         self.assertNotIn(("M5", "L11", "DUYET"), cfo_kt)
         self.assertNotEqual(demo.O_MAU["KINH_DOANH"], demo.O_MAU["DU_AN"])
 
+    def test_xem_nhay_cam_khong_thay_xem_man_goc_moi_phong_moi_vai(self):
+        man_goc = {("CRM", "BAN_KY"): "TIEP_NHAN", ("M1", "XEM_TIEN"): "TIEN",
+                   ("M2", "NGUON_THO"): "HOA_DON", ("M5", "NGUON_THO"): "KHO",
+                   ("M4", "PDF_DA_DUYET"): "HO_SO"}
+        for phong, roles in demo.O_MAU.items():
+            for vai, cells in roles.items():
+                xem = {(m, man) for m, man, actions in cells if "XEM" in actions.split()}
+                with self.subTest(phong=phong, vai=vai):
+                    for (module, man), goc in man_goc.items():
+                        if (module, man) in xem:
+                            self.assertIn((module, goc), xem)
+        for phong, module, goc, con in (("DU_AN", "M4", "HO_SO", "PDF_DA_DUYET"),
+                                        ("KE_TOAN", "M1", "TIEN", "XEM_TIEN")):
+            with self.subTest(phong=phong, vai="NGUOI_XEM"):
+                cells = demo.O_MAU[phong]["NGUOI_XEM"]
+                self.assertIn((module, goc, "XEM"), cells)
+                self.assertIn((module, con, "XEM"), cells)
+
     def test_khong_chay_ngoai_demo_khong_cham_ket_noi(self):
         conn = MagicMock()
         for flag in (False, None, 1, "DEMO"):
@@ -140,6 +158,8 @@ class MtqDemoTinh(unittest.TestCase):
                 self.assertIs(demo, True)
                 order.append("mtq")
                 if seed_error:
+                    if isinstance(seed_error, Exception):
+                        raise seed_error
                     raise RuntimeError("Nội dung lỗi không được lộ ra log")
                 return {"trang_thai": "DU"}
 
@@ -159,6 +179,26 @@ class MtqDemoTinh(unittest.TestCase):
         self.assertEqual(result["mtq_seed"]["trang_thai"], "LOI")
         self.assertIn("RuntimeError", " ".join(logs.output))
         self.assertNotIn("Nội dung lỗi", " ".join(logs.output))
+
+    def test_log_seed_chi_ghi_sqlstate_hoac_ma_mtq_dung_dinh_dang(self):
+        secret = "password=BI_MAT host=127.0.0.1 dbname=DU_LIEU"
+        for state, code, expected_state, expected_code in (
+                ("23505", None, "23505", "-"),
+                (None, "MTQ_REVISION", "-", "MTQ_REVISION"),
+                ("P0001", "MTQ_CHI_ADMIN", "P0001", "MTQ_CHI_ADMIN"),
+                ("23505\n" + secret, "MTQ_REVISION\n" + secret, "-", "-"),
+                (secret, secret, "-", "-"),
+                (12345, ["MTQ_REVISION"], "-", "-")):
+            with self.subTest(sqlstate=state, code=code):
+                exc = RuntimeError(secret)
+                exc.sqlstate, exc.code = state, code
+                with self.assertLogs(crm_khoi_dong.__name__, level="WARNING") as logs:
+                    result = self._khoi_dong(seed_error=exc)
+                output = " ".join(logs.output)
+                self.assertEqual(result["mtq_seed"]["trang_thai"], "LOI")
+                self.assertIn(f"sqlstate={expected_state}; ma={expected_code})", output)
+                for forbidden in ("password", "BI_MAT", "127.0.0.1", "DU_LIEU"):
+                    self.assertNotIn(forbidden, output)
 
     def test_utf8_khong_bom(self):
         for path in (Path(demo.__file__), Path(crm_khoi_dong.__file__), Path(__file__)):
@@ -205,6 +245,11 @@ class MtqDemoPostgres(unittest.TestCase):
 
     def seed(self):
         return demo.khoi_tao(self.c, demo=True)
+
+    def dem_dong_seed(self):
+        from psycopg import sql
+        return {t: self.mot(sql.SQL("SELECT count(*) FROM {}").format(sql.Identifier(*t.split("."))))
+                for t in (*_BANG, "master.nguoi_dung", "master.he_thong")}
 
     def admin(self):
         k = self.mot("SELECT id FROM master.nguoi_dung WHERE dang_nhap=%s", (demo.ADMIN,))
@@ -271,6 +316,23 @@ class MtqDemoPostgres(unittest.TestCase):
         old = self.chup((*_BANG, "master.nguoi_dung", "master.he_thong"))
         self.assertEqual(self.seed()["trang_thai"], "XUNG_DOT")
         self.assertEqual(self.chup((*_BANG, "master.nguoi_dung", "master.he_thong")), old)
+
+    def test_phap_nhan_khong_demo_chan_seed_khong_ghi_dong_nao(self):
+        # setUp giữ mọi thay đổi trong BEGIN/ROLLBACK, không thêm master lâu dài.
+        self.c.execute("INSERT INTO master.phap_nhan (ma,ten,ma_don_vi_junsky) VALUES (%s,%s,%s)",
+                       ("PN_KIEM_THU_CHAN_MTQ", "Pháp nhân fixture chặn seed", "FIXTURE_CHAN_MTQ"))
+        self.assertTrue(self.mot("SELECT EXISTS (SELECT 1 FROM master.he_thong WHERE key=%s)", (crm_demo.MARKER,)))
+        old = self.dem_dong_seed()
+        self.assertEqual(self.seed()["trang_thai"], "KHONG_PHAI_DEMO")
+        self.assertEqual(self.dem_dong_seed(), old)
+
+    def test_thieu_marker_crm_demo_chan_seed_khong_ghi_dong_nao(self):
+        self.assertEqual(self.c.execute("UPDATE master.he_thong SET key=%s WHERE key=%s",
+                                       ("fixture_marker_crm_tam_an_mtq", crm_demo.MARKER)).rowcount, 1)
+        self.assertFalse(self.mot("SELECT EXISTS (SELECT 1 FROM master.he_thong WHERE key=%s)", (crm_demo.MARKER,)))
+        old = self.dem_dong_seed()
+        self.assertEqual(self.seed()["trang_thai"], "KHONG_PHAI_DEMO")
+        self.assertEqual(self.dem_dong_seed(), old)
 
     def test_loi_giua_chung_rollback_ca_actor_va_audit(self):
         old = self.chup((*_BANG, "master.nguoi_dung", "master.he_thong"))
