@@ -12394,3 +12394,10 @@ from ..k2.sql_module import MODULE_CONG_TAC_SQL  # noqa: E402 — chỉ hằng S
 M0056_MODULE_CONG_TAC = MODULE_CONG_TAC_SQL
 PG_MIGRATIONS = (*PG_MIGRATIONS, M0056_MODULE_CONG_TAC)
 PG_SCHEMA_VERSION = len(PG_MIGRATIONS)
+
+# MTQ-NEN-2a — CD-012: cổng phiên dùng tập PN; lead đánh số khi gộp.
+from ..k2.sql_mtq_cong import MTQ_CONG_G_SQL  # noqa: E402 — chỉ hằng SQL
+
+M0057_MTQ_CONG_G = MTQ_CONG_G_SQL
+PG_MIGRATIONS = (*PG_MIGRATIONS, M0057_MTQ_CONG_G)
+PG_SCHEMA_VERSION = len(PG_MIGRATIONS)
