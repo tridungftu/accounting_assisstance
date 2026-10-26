@@ -296,3 +296,9 @@ Các giả định trên không phải phê duyệt dữ liệu, mapping Junsky 
 | QD-20261025-25 | Mask v2 · màn che file thủ công (bảng chọn): **giữ như nay** — Anh tự duyệt danh sách "Còn lại cần rà soát"; kiểm "dấu vết" chỉ áp ở chế độ API (MASK-2), không thêm bước chặn duyệt ở màn thủ công. | Anh 25/10 |
 | QD-20261025-26 | CRM · Báo giá/hợp đồng (bảng chọn, theo CLAUDE.md §2 "không Word COM"): thêm **công tắc đổi DOCX → PDF bằng Word, mặc định TẮT** — phần mềm chỉ xuất DOCX và báo "PDF xuất tay"; đường Word giữ trong mã nhưng không chạy cho tới khi Anh bật. Lát PDF-1. | Anh 25/10 |
 | QD-20261025-27 | CRM · hợp đồng (bảng chọn, hệ quả của QD-26): **cho ký trên bản DOCX** — bản soạn sang "Chờ ký" khi đã có DOCX của đúng revision (không cần PDF đạt); PDF (nếu có) chỉ là bản tham khảo. Bản ký gắn bản xuất G3 theo DOCX (PDF khớp khi có). Đối chiếu bản ký ↔ bản sinh (G5) khi bản sinh chỉ có DOCX: thà bỏ sót — không tự kết luận khớp nếu chưa đối chiếu được, chuyển kiểm tay. Lát KY-DOCX (Claude Opus, review riêng). | Anh 25/10 |
+
+## QD-20261026-01 · M2k — nút "Cài đặt lại bộ tải" = khởi động lại bộ tải
+Anh chốt 26/10 (bảng chọn, lead hỏi theo CD-009): nút chỉ **dừng tiến trình bộ tải đang treo rồi chạy lại**; không tải lại gói, không đổi cấu hình. Chỉ kế toán có quyền M2 bấm; ghi nhật ký.
+
+## QD-20261026-02 · E1-4 — màn "Danh mục tham số (sửa + nhật ký)" là màn Danh mục chung riêng
+Anh chốt 26/10 (bảng chọn): một ô riêng trên trang chủ hệ thống "Danh mục tham số" dùng chung cho mọi module (không gộp vào M4 hay M2).
