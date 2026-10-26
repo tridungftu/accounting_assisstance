@@ -48,7 +48,7 @@ class MtqCongFTinh(unittest.TestCase):
         self.assertIs(PM.PG_MIGRATIONS[len(previous)], MTQ_CONG_F_SQL)
         self.assertEqual(sum(m is MTQ_CONG_F_SQL for m in PM.PG_MIGRATIONS), 1)
         self.assertEqual(PM.PG_SCHEMA_VERSION, len(PM.PG_MIGRATIONS))
-        self.assertIs(PM.M00xx_MTQ_CONG_F, MTQ_CONG_F_SQL)
+        self.assertIs(PM.M0051_MTQ_CONG_F, MTQ_CONG_F_SQL)
 
     def test_resolver_stable_khong_ghi_khong_sql_dong(self):
         helper = MTQ_CONG_F_SQL[0]
