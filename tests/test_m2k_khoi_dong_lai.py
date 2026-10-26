@@ -22,6 +22,7 @@ from tests.test_m2_tai_tat_ca import HandlerGia, KetNoiTen, BoTai, TienTrinh, CH
 from tests.test_m2_00b_tien_trinh import ProcGia, JobGia, KhachGia
 from kho_tri_thuc.giao_dien import m2_tai_hoa_don as mod
 from kho_tri_thuc.m2.tai_hoa_don import LoiTienTrinh, TienTrinhNode
+from kho_tri_thuc.m2.tai_hoa_don.khach import LoiKhach
 from kho_tri_thuc.m2.tai_hoa_don.tien_trinh import KIEU_SAN_SANG, PROTOCOL
 
 
@@ -148,6 +149,84 @@ class KhoiDongLaiTest(unittest.TestCase):
             status, body = self.goi(ten="", post=False)
         self.assertEqual(status, 200, body)
         self.assertEqual(body["bo_tai"], {"san_sang": False, "trang_thai": "CHUA_KHOI_DONG"})
+
+    def test_config_cham_khong_giu_khoa_app_hay_giao_dich(self):
+        # Lock thật: RLock có thể che lỗi giữ khóa trong cùng luồng.
+        self.assertIs(type(self.app.mutation_lock), type(threading.Lock()))
+        for co_hang_doi in (False, True):
+            with self.subTest(hang_doi=co_hang_doi):
+                self.dv._hang_doi = ({"dang_chay": True, "dung": threading.Event(),
+                                      "khoa_job": threading.Lock(), "muc": []} if co_hang_doi else None)
+                vao, tiep = threading.Event(), threading.Event()
+                results, loi = [], []
+
+                def config_cham():
+                    self.assertEqual(self.conn._tx, [])
+                    vao.set()
+                    if not tiep.wait(3):
+                        raise AssertionError("Test không nhả RPC config")
+                    raise LoiKhach("KHACH_QUA_HAN")
+
+                def khoi_dong_lai():
+                    try:
+                        results.append(self.goi())
+                    except Exception as exc:
+                        loi.append(exc)
+
+                with patch.object(self.dv, "_khach", return_value=SimpleNamespace(config=config_cham)):
+                    t = threading.Thread(target=khoi_dong_lai, daemon=True)
+                    t.start()
+                    try:
+                        self.assertTrue(vao.wait(3), loi)
+                        lay_duoc = self.app.mutation_lock.acquire(blocking=False)
+                        if lay_duoc:
+                            self.app.mutation_lock.release()
+                        self.assertTrue(lay_duoc, "config chậm đang chặn mutation_lock")
+                        self.assertEqual(self.conn.nhat_ky, [])
+                    finally:
+                        tiep.set()
+                        t.join(4)
+                self.assertFalse(t.is_alive())
+                self.assertEqual(loi, [])
+                self.assertEqual(results[0][0], 200, results)
+                self.conn.nhat_ky.clear()
+
+    def test_kiem_lai_phien_va_quyen_sau_config_truoc_khi_dung(self):
+        for doi in ("phien", "quyen", "danh_tinh"):
+            with self.subTest(doi=doi):
+                def config():
+                    if doi == "phien":
+                        self.app.dat_phien(gia.SID_KT, "MO_PHONG_XEM_A")
+                    elif doi == "quyen":
+                        self.conn.nguoi_dung["MO_PHONG_KE_TOAN"]["vai_tro"] = "XEM"
+                    else:
+                        self.conn.nguoi_dung["MO_PHONG_KE_TOAN"]["id"] = gia.U_XA
+                    raise LoiKhach("KHACH_QUA_HAN")
+
+                with patch.object(self.dv, "_khach", return_value=SimpleNamespace(config=config)):
+                    self.assertIn(self.goi()[0], (403, 409))
+                self.assertEqual((self.tt.so_dung, self.tt.so_start), (0, 0))
+                self.assertEqual(self.conn.nhat_ky, [])
+                self.app.dat_phien(gia.SID_KT, "MO_PHONG_KE_TOAN")
+                self.conn.nguoi_dung["MO_PHONG_KE_TOAN"].update(vai_tro="KE_TOAN", id=gia.U_KT)
+
+    def test_chi_qua_han_va_mat_ket_noi_duoc_coi_la_treo(self):
+        for ma in ("KHACH_QUA_HAN", "KHACH_KHONG_KET_NOI", "KHACH_TU_CHOI", "KHACH_DTO_SAI", "KHACH_CONTENT_TYPE"):
+            with self.subTest(ma=ma):
+                with patch.object(self.tt, "khach", side_effect=LoiKhach(ma)):
+                    status, body = self.goi(ten="", post=False)
+                    self.assertEqual(status, 200, body)
+                    self.assertTrue(all(m["ly_do"] == "NODE_" + ma for m in body["muc"]))
+                    if ma in ("KHACH_QUA_HAN", "KHACH_KHONG_KET_NOI"):
+                        self.assertIs(body["bo_tai"]["treo"], True)
+                        self.assertEqual(self.goi()[0], 200)
+                    else:
+                        # Không điều kiện nào để JS hiện nút khởi động lại.
+                        self.assertEqual(body["bo_tai"], {"san_sang": True, "trang_thai": None})
+                        status, loi = self.goi()
+                        self.assertEqual((status, loi["error"]), (502, "M2_00B_" + ma))
+                        self.assertEqual(loi["message"], "Chưa xác nhận được trạng thái bộ tải. Kiểm tra rồi thử lại.")
+                self.conn.nhat_ky.clear()
 
     def test_phien_sai_va_danh_tinh_db_lech_bi_chan(self):
         self.assertEqual(self.goi(sid="sid-demo-het-han")[0], 400)
