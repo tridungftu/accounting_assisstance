@@ -122,6 +122,82 @@ class TaiLieuVayTests(unittest.TestCase):
                     '<w:tab/><w:t>DEMO</w:t><w:br/><w:t>tiếp</w:t></w:r></w:p>')
         self.assertEqual(doc_docx(raw), [{"trang": 1, "thu_tu": 1, "van_ban": "Hợpđồng DEMO tiếp"}])
 
+    def test_rendered_sau_ngat_tuong_minh_chi_tang_mot_trang(self):
+        for khoang_giua in (
+            '',
+            '</w:r><w:r>',
+            '</w:r></w:p><w:p><w:r>',
+            '</w:r></w:p><w:p/><w:p><w:r><w:t>  </w:t><w:tab/><w:br/>',
+        ):
+            with self.subTest(khoang_giua=khoang_giua):
+                raw = _docx('<w:p><w:r><w:t>Trang một.</w:t><w:br w:type="page"/>'
+                            + khoang_giua + '<w:lastRenderedPageBreak/>'
+                            '<w:t>Trang hai.</w:t></w:r></w:p>')
+                self.assertEqual([(d["trang"], d["van_ban"]) for d in doc_docx(raw)], [
+                    (1, "Trang một."), (2, "Trang hai."),
+                ])
+                self.assertEqual(nhan_thong_tin(
+                    raw, ten_tep="DEMO.docx", loai_tai_lieu="PHU_LUC",
+                )["so_trang"], 2)
+
+    def test_hai_rendered_khong_co_chu_chi_tang_mot_trang(self):
+        for khoang_giua in ('', '</w:r></w:p><w:p><w:r><w:t> </w:t>'):
+            with self.subTest(khoang_giua=khoang_giua):
+                raw = _docx('<w:p><w:r><w:t>Trang một.</w:t><w:lastRenderedPageBreak/>'
+                            + khoang_giua + '<w:lastRenderedPageBreak/>'
+                            '<w:t>Trang hai.</w:t></w:r></w:p>')
+                self.assertEqual([d["trang"] for d in doc_docx(raw)], [1, 2])
+                self.assertEqual(nhan_thong_tin(
+                    raw, ten_tep="DEMO.docx", loai_tai_lieu="PHU_LUC",
+                )["so_trang"], 2)
+
+    def test_rendered_dung_mot_minh_van_tang_trang(self):
+        raw = _docx(_p("Trang một.") + '<w:p><w:r><w:lastRenderedPageBreak/>'
+                    '<w:t>Trang hai.</w:t></w:r></w:p>')
+        self.assertEqual([d["trang"] for d in doc_docx(raw)], [1, 2])
+        self.assertEqual(nhan_thong_tin(
+            raw, ten_tep="DEMO.docx", loai_tai_lieu="PHU_LUC",
+        )["so_trang"], 2)
+
+    def test_ngat_tuong_minh_lien_tiep_giu_trang_trang(self):
+        raw = _docx(_p("Trang một.") + '<w:p><w:r><w:br w:type="page"/>'
+                    '<w:lastRenderedPageBreak/><w:br w:type="page"/>'
+                    '<w:lastRenderedPageBreak/><w:t>Trang ba.</w:t></w:r></w:p>')
+        self.assertEqual([d["trang"] for d in doc_docx(raw)], [1, 3])
+        self.assertEqual(nhan_thong_tin(
+            raw, ten_tep="DEMO.docx", loai_tai_lieu="PHU_LUC",
+        )["so_trang"], 3)
+
+    def test_loi_doc_tai_lieu_trung_tinh(self):
+        for doc in (doc_docx, lambda raw: nhan_thong_tin(
+            raw, ten_tep="DEMO.docx", loai_tai_lieu="PHU_LUC",
+        )):
+            with self.subTest(doc=doc), self.assertRaises(DataError) as loi:
+                doc(b"DEMO khong phai DOCX")
+            self.assertNotIn("Anh", str(loi.exception))
+            self.assertEqual(str(loi.exception),
+                             "Không đọc được tài liệu. Hãy tải lên tệp Word (.docx) hợp lệ.")
+
+    def test_dieu_chuong_khong_dau_cau_can_chu_hoa(self):
+        for nhan, cap in (("Điều", "dieu"), ("Chương", "chuong")):
+            for tieu_de in ("Lãi suất cho vay", "LÃI SUẤT", "Đầu tư", "Ứng vốn"):
+                for tien_to in (nhan, nhan.upper()):
+                    with self.subTest(nhan=tien_to, tieu_de=tieu_de):
+                        doan = cat_doan(doc_docx(_docx(_p(f"{tien_to} 5 {tieu_de}"))))
+                        self.assertEqual(doan[0][cap], f"5 {tieu_de}")
+            for duoi in (" của hợp đồng này quy định", " lãi suất", "Lãi Suất", " 5 ngày", ""):
+                with self.subTest(nhan=nhan, duoi=duoi):
+                    doan = cat_doan(doc_docx(_docx(_p(f"{nhan} 5{duoi}"))))
+                    self.assertEqual(doan[0][cap], "MO_DAU" if cap == "dieu" else None)
+
+    def test_chuong_so_la_ma_khong_dau_cau_va_dau_cau_cu(self):
+        for tieu_de in ("Chương IV Đầu tư", "CHƯƠNG IV ĐẦU TƯ", "Chương 5. lãi suất",
+                        "Điều 5: lãi suất"):
+            with self.subTest(tieu_de=tieu_de):
+                doan = cat_doan(doc_docx(_docx(_p(tieu_de))))
+                cap = "dieu" if tieu_de.startswith("Điều") else "chuong"
+                self.assertEqual(doan[0][cap], tieu_de.split(maxsplit=1)[1])
+
     def test_nhan_thong_tin_khong_luu_tep(self):
         raw = _demo()
         self.assertEqual(nhan_thong_tin(raw, ten_tep="DEMO.docx", loai_tai_lieu="HD_TIN_DUNG"), {
