@@ -12308,3 +12308,11 @@ from ..k2.sql_mtq_nen import MTQ_NEN_A_SQL  # noqa: E402 — chỉ hằng SQL
 M0054_MTQ_NEN_A = MTQ_NEN_A_SQL
 PG_MIGRATIONS = (*PG_MIGRATIONS, M0054_MTQ_NEN_A)
 PG_SCHEMA_VERSION = len(PG_MIGRATIONS)
+
+
+# XS-4b — CD-017: công tắc module × pháp nhân, S1–S5; chỉ append.
+from ..k2.sql_module import MODULE_CONG_TAC_SQL  # noqa: E402 — chỉ hằng SQL
+
+M0055_MODULE_CONG_TAC = MODULE_CONG_TAC_SQL
+PG_MIGRATIONS = (*PG_MIGRATIONS, M0055_MODULE_CONG_TAC)
+PG_SCHEMA_VERSION = len(PG_MIGRATIONS)
