@@ -25,7 +25,7 @@ MTQ_M4_A_SQL = (
                 WHEN 'SUA_DOT', 'GAN_TEP_DOT', 'NOP' THEN
                     bang := 'm4.dot'; lenh := 'M4:HO_SO:SUA';
                 ELSE
-                    RAISE EXCEPTION 'MTQ_CAN_RESOLVER_MTQ4: chưa nối lệnh hồ sơ %', p_hanh_dong USING ERRCODE = 'P0001';
+                    RAISE EXCEPTION 'MTQ_CAN_RESOLVER_MTQ4: Thao tác này trên hồ sơ hợp đồng chưa được hỗ trợ.' USING ERRCODE = 'P0001';
             END CASE;
             -- M0051 giữ nguyên resolver M0048: PN/HĐ/dự án từ FK thật,
             -- HĐ chỉ module_chu=M4. Không nhận PN hoặc phạm vi từ caller.
@@ -37,7 +37,7 @@ MTQ_M4_A_SQL = (
             PERFORM 1 FROM master.nguoi_dung n WHERE n.id = m4.ai_id() FOR SHARE;
             q := master.mtq_quyet_dinh_phien(lenh, jsonb_build_object('bang', bang, 'id', obj), NULL);
             IF q->>'nguon' IS DISTINCT FROM 'MA_TRAN' OR q->'cho_phep' IS DISTINCT FROM 'true'::jsonb THEN
-                RAISE EXCEPTION '%: không có quyền hiện hành cho %', coalesce(q->>'ma', 'MTQ_TU_CHOI'), lenh USING ERRCODE = 'P0001';
+                RAISE EXCEPTION '%: Anh/chị chưa được giao quyền thực hiện thao tác này trên hồ sơ hợp đồng.', coalesce(q->>'ma', 'MTQ_TU_CHOI') USING ERRCODE = 'P0001';
             END IF;
             RETURN true;
         END $$""",
@@ -60,10 +60,10 @@ MTQ_M4_A_SQL = (
                 WHEN 'SUA_DOT', 'GAN_TEP_DOT', 'NOP' THEN obj := (p_yc->>'dot_id')::uuid;
                 ELSE
                     -- Receipt 02A/02B/02C/master có cổng riêng, lát này không mở.
-                    RAISE EXCEPTION 'MTQ_CAN_RESOLVER_MTQ4: chưa nối replay lệnh %', p_hanh_dong USING ERRCODE = 'P0001';
+                    RAISE EXCEPTION 'MTQ_CAN_RESOLVER_MTQ4: Chưa hỗ trợ tra cứu lại biên nhận cho thao tác này.' USING ERRCODE = 'P0001';
             END CASE;
             IF m4._mtq_ho_so_quyen(p_hanh_dong, obj) IS DISTINCT FROM true THEN
-                RAISE EXCEPTION 'MTQ_CAN_RESOLVER_MTQ4: đối tượng receipt không giải được trong PN đã bật' USING ERRCODE = 'P0001';
+                RAISE EXCEPTION 'MTQ_CAN_RESOLVER_MTQ4: Không xác định được hồ sơ hợp đồng của biên nhận trong pháp nhân đã kích hoạt.' USING ERRCODE = 'P0001';
             END IF;
             RETURN true;
         END $$""",

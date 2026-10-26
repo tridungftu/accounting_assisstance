@@ -173,6 +173,21 @@ class MtqM4HoSoTinh(unittest.TestCase):
         self.assertIn("ELSE\n                    -- Receipt", f)
         self.assertIn("MTQ_CAN_RESOLVER_MTQ4", f)
 
+    def test_raise_giu_ma_loi_cau_nghiep_vu_khong_noi_khoa_ky_thuat(self):
+        raises = re.findall(r"RAISE EXCEPTION '([^']+)'(.*?) USING ERRCODE = 'P0001';",
+                            "\n".join(MTQ_M4_A_SQL))
+        self.assertEqual(len(raises), 4)
+        for template, args in raises:
+            with self.subTest(thong_bao=template):
+                code, separator, sentence = template.partition(": ")
+                self.assertEqual(separator, ": ")
+                self.assertNotRegex(sentence, r"[:%]|\b(?:master|m4)\.|\b(?:receipt|replay|PN)\b")
+                if code == "%":
+                    self.assertEqual(args, ", coalesce(q->>'ma', 'MTQ_TU_CHOI')")
+                else:
+                    self.assertEqual(code, "MTQ_CAN_RESOLVER_MTQ4")
+                    self.assertEqual(args, "")
+
     def test_utf8_khong_bom_va_registry_lf(self):
         for path in (Path(PM.__file__), ROOT / "src/kho_tri_thuc/m4/sql_mtq.py", Path(__file__)):
             raw = path.read_bytes()
@@ -333,7 +348,7 @@ class MtqM4HoSoPostgres(unittest.TestCase):
         if name == "xac_nhan_tham_so":
             self.c.execute("UPDATE m4.ho_so_hop_dong SET rev_tham_so=2 WHERE hop_dong_id=%s", ((f or self.f)["hd"],))
 
-    def probe(self, name, f=None, oracle=False, stale=False, web=None, query=None):
+    def probe(self, name, f=None, oracle=False, stale=False, web=None, query=None, full_message=False):
         self.c.execute("SAVEPOINT mtq_m4_probe")
         try:
             if oracle:
@@ -346,7 +361,8 @@ class MtqM4HoSoPostgres(unittest.TestCase):
                 self.c.execute(stmt, args).fetchone()
                 return ("OK",)
             except psycopg.Error as exc:
-                return ("ERR", exc.sqlstate, exc.diag.message_primary.split(":", 1)[0])
+                message = exc.diag.message_primary
+                return ("ERR", exc.sqlstate, message if full_message else message.split(":", 1)[0])
         finally:
             self.c.execute("ROLLBACK TO SAVEPOINT mtq_m4_probe")
             self.c.execute("RELEASE SAVEPOINT mtq_m4_probe")
@@ -386,6 +402,43 @@ class MtqM4HoSoPostgres(unittest.TestCase):
         for name in COMMANDS:
             with self.subTest(lenh=name):
                 self.assertEqual(self.probe(name, stale=True), ("ERR", "P0001", "MTQ_CHUA_TICK"))
+
+    def assert_thong_bao_nghiep_vu(self, result, code):
+        self.assertEqual(result[:2], ("ERR", "P0001"))
+        prefix, separator, sentence = result[2].partition(": ")
+        self.assertEqual((prefix, separator), (code, ": "))
+        self.assertTrue(sentence.strip())
+        self.assertNotRegex(sentence, r":|\b(?:master|m4)\.|\b[A-Z][A-Z0-9_]+\b|[0-9a-f]{8}-[0-9a-f-]{27,}")
+
+    def test_tu_choi_lenh_va_replay_khong_lo_khoa_catalog(self):
+        from psycopg.types.json import Jsonb
+
+        self.configure(actions=())
+        request = Jsonb({key: str(self.f[value]) for key, value in
+                        (("du_an_id", "da"), ("hop_dong_id", "hd"), ("phu_luc_id", "pl"), ("dot_id", "dot"))})
+        for name, (action, _, _, _, _) in COMMANDS.items():
+            with self.subTest(lenh=name):
+                self.assert_thong_bao_nghiep_vu(self.probe(name, full_message=True), "MTQ_CHUA_TICK")
+                query = ("SELECT m4._mtq_ho_so_replay(%s,%s,%s)", (action, request, self.f["da"]))
+                self.assert_thong_bao_nghiep_vu(
+                    self.probe(name, query=query, web=False, full_message=True), "MTQ_CHUA_TICK")
+
+    def test_raise_khong_ho_tro_va_replay_khong_lo_du_lieu_ky_thuat(self):
+        from psycopg.types.json import Jsonb
+
+        self.configure()
+        unsupported = "M4:HO_SO:SUA"
+        other = self.fixture(self.pn2)
+        queries = (
+            ("SELECT m4._mtq_ho_so_quyen(%s,%s)", (unsupported, self.f["hd"])),
+            ("SELECT m4._mtq_ho_so_replay(%s,%s,%s)", (unsupported, Jsonb({}), self.f["da"])),
+            ("SELECT m4._mtq_ho_so_replay(%s,%s,%s)",
+             ("SUA_THAM_SO", Jsonb({"hop_dong_id": str(other["hd"])}), self.f["da"])),
+        )
+        for query in queries:
+            with self.subTest(query=query[0], action=query[1][0]):
+                self.assert_thong_bao_nghiep_vu(
+                    self.probe("replay", query=query, web=False, full_message=True), "MTQ_CAN_RESOLVER_MTQ4")
 
     def test_tick_bat_van_giu_cas_revision(self):
         self.configure()
