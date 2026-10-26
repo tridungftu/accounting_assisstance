@@ -356,7 +356,10 @@ _KHOA_WORD = threading.Lock()  # một lần chuyển Word mỗi tiến trình m
 def chuyen_pdf(thu_muc_lan: Path, docx_path: Path, *, han: float = 180.0, winword: Path = WINWORD_GHIM) -> dict:
     """DOCX đã chuẩn bị (nằm trong thư mục lần chạy riêng, tạo mới) → PDF mới cùng thư mục. Chỉ worker do lần gọi này sở hữu (Job gán TRƯỚC
     stdin) chạm Word, và chỉ Word instance nó chứng minh sở hữu. Trả {trang_thai: PDF_DA_TAO|PDF_CHUA_SAN_SANG|PDF_LOI, ly_do, pha, word}.
+    Mặc định xuất PDF thủ công; chỉ KHO_CRM_WORD_PDF == "1" mới cho phép tạo worker/Word.
     Không xóa/ghi đè/đổi tên tệp nào; không giả PDF. Các lần chuyển trong cùng tiến trình được tuần tự hóa (hạn chờ hữu hạn)."""
+    if os.environ.get("KHO_CRM_WORD_PDF") != "1":
+        return {"trang_thai": "PDF_CHUA_SAN_SANG", "ly_do": "PDF_XUAT_TAY", "pha": "KIEM_CONG_TAC"}
     if not _KHOA_WORD.acquire(timeout=max(1.0, han)):
         return {"trang_thai": "PDF_CHUA_SAN_SANG", "ly_do": "WORD_DANG_BAN", "pha": "CHO_LUOT"}
     try:

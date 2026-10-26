@@ -9,6 +9,7 @@ Phân loại (ghi rõ để không lẫn bằng chứng):
 - `ServiceMock`: MOCK — CSDL/khóa giả ghi lại thứ tự lệnh; KHÔNG phải bằng chứng PostgreSQL. Kiểm quyền trước parse bytes, replay không đọc căn cứ/kho,
   kho G3 sai hash → không ghi, PDF bản ký ghi bất biến TRƯỚC hàm lệnh, digest yêu cầu không gồm khóa, tải kiểm quyền trước kho; bản ký trùng byte
   bản xuất là lần ký đầu riêng (mock). Fixture báo giá ở dạng producer đã chuẩn hóa (chuan_hoa_bao_gia), kỳ vọng tóm tắt độc lập.
+  KY-DOCX (QD-20261025-27, M0036): ký trên DOCX khi PDF xuất tay/lỗi (PDF G3 NULL, chỉ DOCX được kiểm lại); DA_CU/thiếu DOCX vẫn chặn.
 - `GuardCsdlThat`: PostgreSQL THẬT (KHO_PG_DSN_TEST) — CHỈ âm/catalog (trigger/hàm/ràng buộc M0023) trên DB test mới; KHÔNG chứng minh dương phạm vi
   thực tế/đồng thời/producer. Thiếu DSN/psycopg → skip (NOT_RUN, KHÔNG PASS).
   Không tạo PDF_DAT giả qua chủ bảng (gate Word/G3 thật vẫn mở) — chỉ kiểm guard âm/ràng buộc không cần bản xuất đạt.
@@ -517,11 +518,54 @@ class ServiceMock(unittest.TestCase):
         with self.assertRaises(DataError) as cm:
             self._ky()
         self.assertEqual(cm.exception.code, "CRM_KY_XUAT_CU")
-        self.setUp()
-        self.mau.xuat["trang_thai"] = "PDF_LOI"
+        # QD-20261025-27 (M0036): PDF_LOI/PDF_CHUA_SAN_SANG vẫn có DOCX của revision → ký được (ca dương ở test_ky_tren_docx_*);
+        # chỉ bản xuất DA_CU (revision cũ/đã ký) hoặc thiếu DOCX mới là "chưa đạt".
+        for sua in ({"trang_thai": "DA_CU", "pdf_sha256": None, "pdf_len": None}, {"docx_sha256": None}):
+            self.setUp()
+            self.mau.xuat.update(sua)
+            with self.assertRaises(DataError) as cm:
+                self._ky()
+            self.assertEqual(cm.exception.code, "CRM_KY_XUAT_CHUA_DAT", sua)
+            self.assertEqual(self._kho_ky(), [], sua)
+            self.assertFalse(any(n[0] == "SQL" and n[1].startswith("SELECT master.crm_ky_ket(") for n in self.mau.nhat), sua)
+
+    def _chi_docx(self, tt):
+        """Bản xuất chỉ DOCX (PDF xuất tay / PDF lỗi): không hash/độ dài PDF (ràng buộc crm_gk_xuat: chỉ PDF_DAT có PDF)."""
+        self.mau.xuat.update({"trang_thai": tt, "pdf_sha256": None, "pdf_len": None})
+
+    def test_ky_tren_docx_khi_pdf_xuat_tay_hoac_loi(self):
+        """MOCK (không PG) — QD-27: căn cứ ký là DOCX đã kiểm của revision; PDF G3 NULL truyền NULL cho hàm lệnh (M0036 cho phép), không đọc PDF."""
+        for tt in ("PDF_CHUA_SAN_SANG", "PDF_LOI"):
+            self.setUp()
+            self._chi_docx(tt)
+            doc = []
+            goc = self.svc._doc_g3
+            with mock.patch.object(self.svc, "_doc_g3", side_effect=lambda s, d: doc.append(s) or goc(s, d)):
+                r = self._ky()
+            self.assertEqual((r["trang_thai"], r["lap_lai"]), ("DA_KY", False), tt)
+            self.assertEqual(doc, [self.mau.xuat["docx_sha256"]], tt)  # chỉ DOCX được kiểm lại trong kho
+            p = next(n[2] for n in self.mau.nhat if n[0] == "SQL" and n[1].startswith("SELECT master.crm_ky_ket("))
+            self.assertEqual((p[4], p[5], p[6], p[7]), (XU, self.mau.xuat["input_sha256"], None, None), tt)
+            self.assertEqual(self._kho_ky(), [hashlib.sha256(self.raw).hexdigest()], tt)
+
+    def test_ky_tren_docx_van_kiem_docx_trong_kho(self):
+        """MOCK — bản xuất chỉ DOCX nhưng DOCX trong kho thiếu/sai hash → CRM_KY_G3_LECH, không ghi bản ký, không gọi hàm lệnh."""
+        for sua in ({"docx_len": 1}, {"docx_sha256": "f" * 64}):
+            self.setUp()
+            self._chi_docx("PDF_CHUA_SAN_SANG")
+            self.mau.xuat.update(sua)
+            with self.assertRaises(DataError) as cm:
+                self._ky()
+            self.assertEqual(cm.exception.code, "CRM_KY_G3_LECH", sua)
+            self.assertEqual(self._kho_ky(), [], sua)
+            self.assertFalse(any(n[0] == "SQL" and n[1].startswith("SELECT master.crm_ky_ket(") for n in self.mau.nhat), sua)
+
+    def test_co_pdf_thi_pdf_phai_khop_kho(self):
+        """MOCK — bản xuất PDF_DAT: PDF G3 vẫn được kiểm hash/độ dài trong kho (khớp khi có) và truyền đúng cho hàm lệnh."""
+        self.mau.xuat["pdf_sha256"] = "e" * 64  # hàng nói có PDF nhưng kho không có tệp đó
         with self.assertRaises(DataError) as cm:
             self._ky()
-        self.assertEqual(cm.exception.code, "CRM_KY_XUAT_CHUA_DAT")
+        self.assertEqual(cm.exception.code, "CRM_KY_G3_LECH")
         self.assertEqual(self._kho_ky(), [])
 
     def test_kho_g3_sai_hash_do_dai_hoac_lineage(self):
