@@ -119,6 +119,7 @@ class SaoLuuMaHoaTests(unittest.TestCase):
         final = self.folder / "postgresql.gpg"
         self.assertEqual(final.read_bytes(), ciphertext)
         self.assertEqual(row["sha256"], hashlib.sha256(ciphertext).hexdigest())
+        self.assertEqual(row["sha256"], hashlib.sha256(final.read_bytes()).hexdigest())
         self.assertEqual(row["dung_luong"], len(ciphertext))
         self.assertEqual(row["phien_ban"], {"pg_dump": "16.15", "gpg": "2.4.9"})
         self.assertEqual(set(row["giay"]), {"kiem_tra", "pg_dump", "gpg", "sha256"})
@@ -162,6 +163,89 @@ class SaoLuuMaHoaTests(unittest.TestCase):
     def test_bien_ban_loi_tra_ve_partial(self):
         missing = self.tmp / "chua-co-thu-muc" / "bien-ban.jsonl"
         self.assert_failure("SL_BIEN_BAN", bien_ban=missing)
+
+    def test_bien_ban_mac_dinh_rieng_o_goc_va_sha_sau_ghi(self):
+        original = sl.sha256
+        reads = []
+        journal = self.root / "bien-ban-sao-luu.jsonl"
+        def read_hash(path):
+            reads.append((path, journal.exists()))
+            return original(path)
+        with patch.object(sl, "sha256", side_effect=read_hash):
+            row = self.backup(bien_ban=None)
+        final = self.folder / "postgresql.gpg"
+        self.assertEqual(reads, [(self.folder / "postgresql.partial.gpg", False),
+                                 (final, True)])
+        self.assertEqual(json.loads(journal.read_text(encoding="utf-8")), row)
+        self.assertEqual(row["sha256"], hashlib.sha256(final.read_bytes()).hexdigest())
+        self.assertEqual(row["dung_luong"], final.stat().st_size)
+        self.assertEqual([p.name for p in self.folder.iterdir()], ["postgresql.gpg"])
+
+    def test_bien_ban_trong_moi_thu_muc_lan_chan_truoc_dump(self):
+        paths = [self.folder, self.folder / "bien-ban.jsonl",
+                 self.folder / "con" / "bien-ban.jsonl",
+                 self.folder / "postgresql.gpg",
+                 self.folder / "postgresql.partial.gpg",
+                 self.root / "20251026-230000" / "bien-ban.jsonl",
+                 self.root / "20271026-230000" / "bien-ban.jsonl",
+                 self.root / "con" / ".." / self.folder.name / "bien-ban.jsonl"]
+        with patch.object(sl.subprocess, "run") as run, patch.object(sl, "_ong_dan") as pipe:
+            for path in paths:
+                with self.subTest(path=str(path)), self.assertRaises(sl.LoiSaoLuu) as ctx:
+                    self.backup(bien_ban=path)
+                self.assertEqual(ctx.exception.ma, "SL_BIEN_BAN_SAI")
+            run.assert_not_called()
+            pipe.assert_not_called()
+        self.assertFalse(self.root.exists())
+        self.assertFalse(self.trace.exists())
+
+    def test_bien_ban_duoi_gpg_va_thu_muc_cam_chan_truoc_dump(self):
+        paths = [self.root / "bien-ban.gpg", self.root / "bien-ban.partial.gpg",
+                 self.tmp / "bien-ban.GPG", self.tmp / "bien-ban.PARTIAL.GPG",
+                 self.goc_cam[0] / "bien-ban.jsonl", self.goc_cam[0], self.home]
+        with patch.object(sl.subprocess, "run") as run, patch.object(sl, "_ong_dan") as pipe:
+            for path in paths:
+                with self.subTest(path=str(path)), self.assertRaises(sl.LoiSaoLuu) as ctx:
+                    self.backup(bien_ban=path)
+                self.assertEqual(ctx.exception.ma, "SL_BIEN_BAN_SAI")
+            run.assert_not_called()
+            pipe.assert_not_called()
+        self.assertFalse(self.root.exists())
+        self.assertFalse(self.trace.exists())
+
+    def test_bien_ban_cam_repo_that_voi_goc_cam_mac_dinh(self):
+        # Chỉ gọi helper kiểm đường, không tạo/đọc biên bản trong repo thật.
+        for root in sl._goc_cam():
+            with self.subTest(root=str(root)), self.assertRaises(sl.LoiSaoLuu) as ctx:
+                sl._kiem_bien_ban(root / "bien-ban.jsonl", self.root.resolve(),
+                                  self.folder / "postgresql.partial.gpg",
+                                  self.folder / "postgresql.gpg", None)
+            self.assertEqual(ctx.exception.ma, "SL_BIEN_BAN_SAI")
+
+    def test_ban_ma_doi_sau_ghi_bien_ban_khong_tra_thanh_cong(self):
+        original = sl.os.fsync
+        final = self.folder / "postgresql.gpg"
+        def sync_and_corrupt(fd):
+            original(fd)
+            if self.journal.exists():
+                with final.open("ab") as f:
+                    f.write(b"HONG_SAU_GHI_BIEN_BAN")
+        with patch.object(sl.os, "fsync", side_effect=sync_and_corrupt):
+            with self.assertRaises(sl.LoiSaoLuu) as ctx:
+                self.backup()
+        self.assertEqual(ctx.exception.ma, "SL_SHA_SAU_BIEN_BAN")
+        row = json.loads(self.journal.read_text(encoding="utf-8"))
+        self.assertNotEqual(row["sha256"], hashlib.sha256(final.read_bytes()).hexdigest())
+
+    def test_cli_bien_ban_khong_bat_buoc(self):
+        args = ["sao-luu", "--pg-dump", "fake-dump", "--gpg", "fake-gpg",
+                "--homedir", str(self.home), "--fingerprint", FP,
+                "--ket-noi", str(self.config), "--goc", str(self.root),
+                "--min-free-bytes", "1"]
+        with patch.object(sl, "sao_luu", return_value={}) as backup:
+            with contextlib.redirect_stdout(io.StringIO()):
+                self.assertEqual(sl.main(args), 0)
+        self.assertIsNone(backup.call_args.kwargs["bien_ban"])
 
     def test_argv_khong_bi_mat_va_gpg_khong_nhan_pg_env(self):
         with patch.dict(sl.os.environ, {"KHO_PG_DSN": self.dsn,

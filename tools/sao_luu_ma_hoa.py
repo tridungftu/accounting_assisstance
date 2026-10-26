@@ -2,7 +2,7 @@
 
 CLI: sao-luu --pg-dump ... --gpg ... --homedir ... --fingerprint ...
      --ket-noi ... --goc ... --min-free-bytes <ngân sách dung lượng đã duyệt>
-     --bien-ban <biên bản JSONL hiện có của đợt>
+     [--bien-ban <biên bản JSONL riêng, mặc định <gốc>/bien-ban-sao-luu.jsonl>]
      [--vai-tro app|admin] [--timeout 3600]
      giu --goc ... ; chep --nguon ...gpg --sha256 ... --dich ...
 
@@ -174,6 +174,23 @@ def sha256(path: Path) -> str:
     return h.hexdigest()
 
 
+def _kiem_bien_ban(path: Path, root: Path, partial: Path, final: Path,
+                  goc_cam: tuple[Path, ...] | None) -> Path:
+    try:
+        journal = _ngoai_repo(path, goc_cam)
+        if (journal in (partial, final) or journal.is_dir()
+                or any(p.name.lower().endswith(".gpg") for p in (Path(path), journal))):
+            raise ValueError
+        if journal.is_relative_to(root):
+            parts = journal.relative_to(root).parts
+            # Mọi thư mục lần, kể cả lần cũ/chưa tạo, đều dành riêng cho bản mã.
+            if parts and re.fullmatch(r"\d{8}-\d{6}", parts[0]):
+                raise ValueError
+        return journal
+    except Exception:
+        raise LoiSaoLuu("SL_BIEN_BAN_SAI") from None
+
+
 def _ong_dan(pg: list[str], gpg: list[str], env_pg: dict, env_gpg: dict,
              partial: Path, timeout: float) -> dict:
     dump = encrypt = None
@@ -222,7 +239,7 @@ def _ong_dan(pg: list[str], gpg: list[str], env_pg: dict, env_gpg: dict,
 
 
 def sao_luu(*, pg_dump, gpg, homedir: Path, fingerprint: str, ket_noi: Path,
-            goc: Path, bien_ban: Path, min_free_bytes: int,
+            goc: Path, bien_ban: Path | None = None, min_free_bytes: int,
             vai_tro: str = "admin", timeout: float = 3600,
             thoi_diem: datetime | None = None,
             goc_cam: tuple[Path, ...] | None = None) -> dict:
@@ -233,6 +250,12 @@ def sao_luu(*, pg_dump, gpg, homedir: Path, fingerprint: str, ket_noi: Path,
     try:
         start = time.monotonic()
         root = _ngoai_repo(goc, goc_cam)
+        run_id = (thoi_diem or datetime.now()).strftime("%Y%m%d-%H%M%S")
+        folder = root / run_id
+        partial, final = folder / "postgresql.partial.gpg", folder / "postgresql.gpg"
+        journal = _kiem_bien_ban(
+            root / "bien-ban-sao-luu.jsonl" if bien_ban is None else Path(bien_ban),
+            root, partial, final, goc_cam)
         home = _ngoai_repo(homedir, goc_cam)
         if not math.isfinite(timeout) or timeout <= 0 or not home.is_dir():
             raise LoiSaoLuu("SL_CAU_HINH")
@@ -244,11 +267,8 @@ def sao_luu(*, pg_dump, gpg, homedir: Path, fingerprint: str, ket_noi: Path,
                     "gpg": _phien_ban(gp, env, min(timeout, 30), "gpg")}
         fp = _kiem_khoa(gp, home, fingerprint, env, min(timeout, 30))
         preflight = time.monotonic() - start
-        run_id = (thoi_diem or datetime.now()).strftime("%Y%m%d-%H%M%S")
         root.mkdir(parents=True, exist_ok=True)
-        folder = root / run_id
         folder.mkdir()  # độc quyền, trùng giây -> lỗi, không ghi đè
-        partial, final = folder / "postgresql.partial.gpg", folder / "postgresql.gpg"
         cmd = gp + ["--no-options", "--homedir", str(home), "--encrypt",
                     "--recipient", fp, "--cipher-algo", "AES256", "--trust-model",
                     "always", "--batch", "--no-tty"]
@@ -264,7 +284,7 @@ def sao_luu(*, pg_dump, gpg, homedir: Path, fingerprint: str, ket_noi: Path,
             raise LoiSaoLuu("SL_DICH_DA_CO")
         partial.rename(final)
         try:
-            with Path(bien_ban).open("a", encoding="utf-8", newline="\n") as f:
+            with journal.open("a", encoding="utf-8", newline="\n") as f:
                 f.write(json.dumps(row, ensure_ascii=False) + "\n")
                 f.flush()
                 os.fsync(f.fileno())
@@ -275,6 +295,8 @@ def sao_luu(*, pg_dump, gpg, homedir: Path, fingerprint: str, ket_noi: Path,
             except OSError:
                 raise LoiSaoLuu("SL_BIEN_BAN_SAU_CONG_BO") from None
             raise LoiSaoLuu("SL_BIEN_BAN") from None
+        if sha256(final) != digest:
+            raise LoiSaoLuu("SL_SHA_SAU_BIEN_BAN")
         return row
     except LoiSaoLuu:
         raise
@@ -350,8 +372,9 @@ def main(argv=None) -> int:
         parser = _Parser(description=__doc__)
         sub = parser.add_subparsers(dest="lenh", required=True, parser_class=_Parser)
         b = sub.add_parser("sao-luu")
-        for name in ("pg-dump", "gpg", "homedir", "fingerprint", "ket-noi", "goc", "bien-ban"):
+        for name in ("pg-dump", "gpg", "homedir", "fingerprint", "ket-noi", "goc"):
             b.add_argument("--" + name, required=True)
+        b.add_argument("--bien-ban")
         b.add_argument("--min-free-bytes", type=int, required=True)
         b.add_argument("--timeout", type=float, default=3600)
         b.add_argument("--vai-tro", choices=("app", "admin"), default="admin")
