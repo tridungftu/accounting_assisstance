@@ -64,7 +64,7 @@ class HangViecTinh(unittest.TestCase):
         previous = old['PG_MIGRATIONS']
         self.assertEqual(PM.PG_MIGRATIONS, (*previous, HANG_VIEC_B_SQL))
         self.assertIs(old['M0060_HANG_VIEC'], HANG_VIEC_SQL)
-        self.assertIs(PM.M0061_HANG_VIEC_B, HANG_VIEC_B_SQL)
+        self.assertIs(PM.M0062_HANG_VIEC_B, HANG_VIEC_B_SQL)
         self.assertEqual(sum(m is HANG_VIEC_B_SQL for m in PM.PG_MIGRATIONS), 1)
         self.assertEqual(PM.PG_SCHEMA_VERSION, len(PM.PG_MIGRATIONS))
 
