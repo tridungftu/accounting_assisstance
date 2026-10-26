@@ -983,6 +983,9 @@ class Handler(BaseHTTPRequestHandler):
                 from . import ma_tran_tham_quyen as mtq_http
                 # Module tự lấy mutation_lock; chuyển cả đường lạ để trả 404.
                 return mtq_http.dieu_huong(self, app, post, path, query)
+            if path.startswith("/api/cong-tac-module/"):
+                from . import module_cong_tac as module_http
+                return module_http.dieu_huong(self, app, post, path, query)
             if path.startswith("/api/m4-request"):  # M4-6: ĐÚNG ba route Request nháp, TRƯỚC dispatcher /api/m4* chung; route lạ cùng tiền tố rơi xuống đó → 404
                 from . import m4_request as m4_request_http
                 if path in m4_request_http.ROUTE:  # query THÔ giữ giá trị rỗng (x=, version_id=, lặp có rỗng) để dieu_huong từ chối 400 — parse_qs mặc định sẽ nuốt chúng
