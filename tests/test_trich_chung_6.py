@@ -19,6 +19,7 @@ import os
 import re
 import tempfile
 import unittest
+from contextlib import nullcontext
 from pathlib import Path
 
 from kho_tri_thuc.ha_tang.primitives import DataError, sha256
@@ -757,6 +758,10 @@ class WiringTests(unittest.TestCase):
 
         class CrmGia:
             CRM_TRICH_ENV = CrmK2.CRM_TRICH_ENV
+            conn = None  # UNIT: cổng thẩm quyền dùng nhánh kiem_cu, không PG.
+
+            def _tx(self, dt):
+                return nullcontext()
 
             def __init__(self, root):
                 self.root, self.ghi = root, []
@@ -778,7 +783,8 @@ class WiringTests(unittest.TestCase):
         def anh():  # toàn bộ đường dẫn tương đối + SHA-256 + độ dài của mọi TỆP dưới gốc (không chỉ đếm/basename)
             return sorted((p.relative_to(goc).as_posix(), sha256(p.read_bytes()), p.stat().st_size) for p in goc.rglob("*") if p.is_file())
         info = {"phap_nhan": "PN_DEMO_A", "loai_hinh": "KCN", "du_an": "DA1", "loai_ban": "GOC"}
-        with patch("kho_tri_thuc.k2.crm.quyen.kiem", lambda *a, **k: None):
+        with patch("kho_tri_thuc.k2.crm.quyen.kiem_tham_quyen", lambda c, ma, doi_tuong, ctx: ctx["kiem_cu"]()), \
+                patch("kho_tri_thuc.k2.crm.quyen.kiem", lambda *a, **k: None):
             goi("A", info)
             goi("A", dict(info))  # thử lại đúng ý định (đúng actor/nội dung): cùng ID nguồn
             self.assertEqual(c.goi[0][3], c.goi[1][3])
@@ -889,6 +895,10 @@ class WiringTests(unittest.TestCase):
 
         class CrmGia:
             CRM_TRICH_ENV = CrmK2.CRM_TRICH_ENV
+            conn = None  # UNIT: cổng thẩm quyền dùng nhánh kiem_cu, không PG.
+
+            def _tx(self, dt):
+                return nullcontext()
 
             def __init__(self, root):
                 self.root, self.ghi = root, []
@@ -911,12 +921,14 @@ class WiringTests(unittest.TestCase):
 
         def cam_quyen(*a, **k):
             raise DataError("KHONG_CO_QUYEN_PHAP_NHAN", "x")
-        with patch("kho_tri_thuc.k2.crm.quyen.kiem", cam_quyen):
+        with patch("kho_tri_thuc.k2.crm.quyen.kiem_tham_quyen", lambda c, ma, doi_tuong, ctx: ctx["kiem_cu"]()), \
+                patch("kho_tri_thuc.k2.crm.quyen.kiem", cam_quyen):
             with self.assertRaises(DataError) as cm:
                 goi(chua)
             self.assertEqual(cm.exception.code, "KHONG_CO_QUYEN_PHAP_NHAN")
         self.assertEqual(anh(), [])
-        with patch("kho_tri_thuc.k2.crm.quyen.kiem", lambda *a, **k: None):
+        with patch("kho_tri_thuc.k2.crm.quyen.kiem_tham_quyen", lambda c, ma, doi_tuong, ctx: ctx["kiem_cu"]()), \
+                patch("kho_tri_thuc.k2.crm.quyen.kiem", lambda *a, **k: None):
             with self.assertRaises(DataError) as cm:
                 goi(chua)
             self.assertNotIsInstance(cm.exception, T6.ChuaRo)

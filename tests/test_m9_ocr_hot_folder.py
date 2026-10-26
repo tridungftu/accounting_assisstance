@@ -5,15 +5,21 @@ import io
 import json
 import os
 from pathlib import Path
+from queue import Queue
 import tempfile
 import threading
 import time
+from types import SimpleNamespace
 import unittest
 from unittest.mock import patch
 import zipfile
 
 from kho_tri_thuc.ha_tang.primitives import DataError
 from kho_tri_thuc.m9.ocr_hot_folder import HotFolderM9
+from kho_tri_thuc.m9 import ocr_hot_folder as OCR
+
+
+CHO = 20  # Giới hạn phát hiện treo, không phải khoảng ngủ để đoán tiến độ.
 
 
 def _docx_demo():
@@ -52,43 +58,58 @@ class HotFolderM9Tests(unittest.TestCase):
         self.loi_gia = []
 
     def _moi(self, **kwargs):
-        cau_hinh = dict(cho_nhan=1, cho_toi_da=3, nghi=0.05, on_dinh=0.1)
+        cau_hinh = dict(cho_nhan=CHO, cho_toi_da=CHO, nghi=0.05, on_dinh=0.1)
         cau_hinh.update(kwargs)
         return HotFolderM9(self.hot, thu_muc_du_lieu=self.du_lieu, **cau_hinh)
 
     def _gia(self, xu_ly=None):
-        """Theo dõi in, giả ABBYY nhận bằng unlink rồi ghi kết quả theo phần."""
+        """Chuyển file vừa publish qua Queue; xác nhận nhận trước khi OCR tính giờ."""
         d = self.bo_noi.thu_muc()
         dung = threading.Event()
+        hang = Queue()
+        replace = os.replace
+
+        def doi(src, dst):
+            ket_qua = replace(src, dst)
+            if Path(dst).parent == d["in"]:
+                nhan = threading.Event()
+                hang.put((Path(dst), nhan))
+                self.assertTrue(nhan.wait(CHO), "ABBYY giả chưa nhận file DEMO")
+                self.assertEqual(self.loi_gia, [])
+            return ket_qua
 
         def chay():
             try:
-                while not dung.is_set():
-                    for tep in d["in"].iterdir():
+                while True:
+                    viec = hang.get()
+                    if viec is None:
+                        return
+                    tep, nhan = viec
+                    try:
                         self.da_thay.append(tep.read_bytes())
                         ma = tep.stem
                         tep.unlink()  # Chỉ file DEMO trong TemporaryDirectory.
-                        if xu_ly:
-                            xu_ly(d, ma, dung)
-                        else:
-                            with (d["out"] / f"{ma}.docx").open("wb") as f:
-                                nua = len(self.docx) // 2
-                                f.write(self.docx[:nua])
-                                f.flush()
-                                dung.wait(0.07)
-                                f.write(self.docx[nua:])
-                    dung.wait(0.01)
+                    finally:
+                        nhan.set()
+                    if xu_ly:
+                        xu_ly(d, ma, dung)
+                    else:
+                        (d["out"] / f"{ma}.docx").write_bytes(self.docx)
             except Exception as exc:
                 self.loi_gia.append(exc)
 
         luong = threading.Thread(target=chay, daemon=True)
         luong.start()
+        thay = patch.object(OCR.os, "replace", side_effect=doi)
+        thay.start()
 
         def don():
             dung.set()
-            luong.join(3)
+            hang.put(None)
+            luong.join(CHO)
             self.assertFalse(luong.is_alive())
             self.assertEqual(self.loi_gia, [])
+        self.addCleanup(thay.stop)
         self.addCleanup(don)
         return dung
 
@@ -104,7 +125,11 @@ class HotFolderM9Tests(unittest.TestCase):
                 xong.set()
         luong = threading.Thread(target=chay, daemon=True)
         luong.start()
-        self.addCleanup(luong.join, 4)
+
+        def don():
+            luong.join(CHO)
+            self.assertFalse(luong.is_alive())
+        self.addCleanup(don)
         return xong, ket_qua, loi
 
     def _sach(self):
@@ -149,7 +174,7 @@ class HotFolderM9Tests(unittest.TestCase):
         self._sach()
 
     def test_khong_nhan_rut_file_va_hoan_trang(self):
-        self._loi("M9_OCR_KHONG_NHAN", lambda: self.bo_noi.ocr(self.pdf, "pdf"))
+        self._loi("M9_OCR_KHONG_NHAN", lambda: self._moi(cho_nhan=0.2).ocr(self.pdf, "pdf"))
         self._sach()
         self.assertEqual(self._trang(), 0)
 
@@ -165,27 +190,29 @@ class HotFolderM9Tests(unittest.TestCase):
         self.assertEqual(self._trang(), 0)
 
     def test_qua_gio_don_ket_qua_den_muon_chi_dung_ma(self):
-        da_ra = threading.Event()
+        da_ra, qua_gio = threading.Event(), threading.Event()
         hen = []
-        timer = threading.Timer
 
-        def hen_ngan(giay, ham, args):
-            t = timer(0.3, ham, args=args)
-            hen.append(t)
-            return t
+        class HenGia:
+            def __init__(self, giay, ham, args):
+                self.lam = lambda: ham(*args)
+                hen.append(self)
+
+            def start(self):
+                qua_gio.set()  # Kết quả chỉ đến sau khi production hẹn dọn muộn.
 
         def xu_ly(d, ma, dung):
-            dung.wait(0.3)
+            if not qua_gio.wait(CHO):
+                raise AssertionError("Chưa hẹn dọn kết quả DEMO đến muộn")
             (d["out"] / f"{ma}.docx").write_bytes(self.docx)
             (d["out"] / "nguoi_dung.demo").write_bytes(b"DEMO")
             da_ra.set()
         self._gia(xu_ly)
-        with patch("kho_tri_thuc.m9.ocr_hot_folder.threading.Timer", side_effect=hen_ngan):
+        with patch.object(OCR.threading, "Timer", HenGia):
             self._loi("M9_OCR_QUA_GIO", lambda: self._moi(cho_toi_da=0.2).ocr(self.pdf, "pdf"))
-        self.assertTrue(da_ra.wait(1))
+        self.assertTrue(da_ra.wait(CHO))
         self.assertEqual(len(hen), 1)
-        hen[0].join(1)
-        self.assertFalse(hen[0].is_alive())
+        hen[0].lam()
         self.assertEqual([p.name for p in (self.hot / "out").iterdir()], ["nguoi_dung.demo"])
         self.assertEqual(self._trang(), 1)
 
@@ -197,16 +224,23 @@ class HotFolderM9Tests(unittest.TestCase):
         self.assertFalse(self.du_lieu.exists())
 
     def test_huy_dang_cho_nhan_rut_file(self):
-        huy = threading.Event()
-        xong, _, loi = self._nen(lambda: self.bo_noi.ocr(self.pdf, "pdf", huy=huy))
-        moc = time.monotonic() + 1
-        while time.monotonic() < moc:
-            if (self.hot / "in").exists() and list((self.hot / "in").iterdir()):
-                break
-            time.sleep(0.01)
-        self.assertTrue(list((self.hot / "in").iterdir()))
-        huy.set()
-        self.assertTrue(xong.wait(1))
+        huy, da_gui = threading.Event(), threading.Event()
+        replace = os.replace
+
+        def doi(src, dst):
+            ket_qua = replace(src, dst)
+            if Path(dst).parent == self.hot / "in":
+                da_gui.set()
+                self.assertTrue(huy.wait(CHO))
+            return ket_qua
+
+        with patch.object(OCR.os, "replace", side_effect=doi):
+            xong, _, loi = self._nen(lambda: self.bo_noi.ocr(self.pdf, "pdf", huy=huy))
+            self.addCleanup(huy.set)
+            self.assertTrue(da_gui.wait(CHO))
+            self.assertTrue(list((self.hot / "in").iterdir()))
+            huy.set()
+            self.assertTrue(xong.wait(CHO))
         self.assertEqual([x.code for x in loi], ["M9_OCR_HUY"])
         self.assertNotIn(str(self.goc), str(loi[0]))
         self._sach()
@@ -220,8 +254,7 @@ class HotFolderM9Tests(unittest.TestCase):
         self.assertEqual(self._trang(), 1)
 
     def test_docx_dang_ghi_do_du_dung_yen_van_chua_nhan(self):
-        da_ghi, ghi_tiep = threading.Event(), threading.Event()
-        self.addCleanup(ghi_tiep.set)
+        da_ghi, ghi_tiep, da_kiem = threading.Event(), threading.Event(), threading.Event()
 
         def xu_ly(d, ma, dung):
             with (d["out"] / f"{ma}.docx").open("wb") as f:
@@ -229,43 +262,68 @@ class HotFolderM9Tests(unittest.TestCase):
                 f.write(self.docx[:nua])
                 f.flush()
                 da_ghi.set()
-                if not ghi_tiep.wait(2):
+                if not ghi_tiep.wait(CHO):
                     raise AssertionError("Chưa cho ghi tiếp DOCX DEMO")
                 f.write(self.docx[nua:])
         self._gia(xu_ly)
-        xong, ket_qua, loi = self._nen(lambda: self.bo_noi.ocr(self.pdf, "pdf"))
-        self.assertTrue(da_ghi.wait(1))
-        self.assertFalse(xong.wait(0.25))
-        self.assertEqual(len(list((self.hot / "out").iterdir())), 1)
-        self.assertEqual(list((self.hot / "nhan").iterdir()), [])
-        ghi_tiep.set()
-        self.assertTrue(xong.wait(1))
+        hop_le = OCR._docx_hop_le
+
+        def kiem(raw):
+            ket_qua = hop_le(raw)
+            if not ket_qua:
+                da_kiem.set()
+            return ket_qua
+
+        with patch.object(OCR, "_docx_hop_le", side_effect=kiem):
+            xong, ket_qua, loi = self._nen(lambda: self.bo_noi.ocr(self.pdf, "pdf"))
+            self.addCleanup(ghi_tiep.set)
+            self.assertTrue(da_ghi.wait(CHO))
+            self.assertTrue(da_kiem.wait(CHO))  # Đã kiểm sau on_dinh, DOCX dở vẫn bị từ chối.
+            self.assertFalse(xong.is_set())
+            self.assertEqual(len(list((self.hot / "out").iterdir())), 1)
+            self.assertEqual(list((self.hot / "nhan").iterdir()), [])
+            ghi_tiep.set()
+            self.assertTrue(xong.wait(CHO))
         self.assertEqual(loi, [])
         self.assertEqual(ket_qua, [self.docx])
         self._sach()
 
     def test_docx_hop_le_nhung_kich_thuoc_con_doi_phai_cho_on_dinh(self):
-        bat_dau, dang_ghi = threading.Event(), threading.Event()
-        dang_ghi.set()
+        bat_dau, da_ghi, da_dong = threading.Event(), threading.Event(), threading.Event()
+        lenh = Queue()
+        dong_ho, so_lan = [0.0], [0]
 
         def xu_ly(d, ma, dung):
             with (d["out"] / f"{ma}.docx").open("wb") as f:
                 f.write(self.docx)
                 f.flush()
                 bat_dau.set()
-                for _ in range(6):
-                    dung.wait(0.05)
+                while lenh.get() == "ghi":
                     f.write(b" ")
                     f.flush()
-            dang_ghi.clear()
+                    da_ghi.set()
+            da_dong.set()
         self._gia(xu_ly)
-        xong, ket_qua, loi = self._nen(lambda: self.bo_noi.ocr(self.pdf, "pdf"))
-        self.assertTrue(bat_dau.wait(1))
-        self.assertFalse(xong.wait(0.2))
-        self.assertTrue(dang_ghi.is_set())
-        self.assertTrue(xong.wait(1))
-        self.assertEqual(loi, [])
-        self.assertEqual(ket_qua, [self.docx + b" " * 6])
+        self.addCleanup(lenh.put, "dung")
+
+        def nhip(giay):
+            self.assertTrue(bat_dau.wait(CHO))
+            if so_lan[0] < 6:
+                self.assertEqual(list((self.hot / "nhan").iterdir()), [])
+                da_ghi.clear()
+                lenh.put("ghi")
+                self.assertTrue(da_ghi.wait(CHO))
+                so_lan[0] += 1
+                if so_lan[0] == 6:
+                    lenh.put("dung")
+                    self.assertTrue(da_dong.wait(CHO))
+            dong_ho[0] += giay
+
+        # Thời gian logic: mỗi lần poll đã ghi xong mới tiến giờ, không đua scheduler.
+        gia_gio = SimpleNamespace(time=time.time, monotonic=lambda: dong_ho[0], sleep=nhip)
+        with patch.object(OCR, "time", gia_gio):
+            self.assertEqual(self.bo_noi.ocr(self.pdf, "pdf"), self.docx + b" " * 6)
+        self.assertEqual(so_lan[0], 6)
         self._sach()
 
     def test_vuot_han_muc_chan_truoc_khi_ghi_vao_in(self):
@@ -347,8 +405,8 @@ class HotFolderM9Tests(unittest.TestCase):
         self._gia()
         xong1, kq1, loi1 = self._nen(lambda: self.bo_noi.ocr(self.pdf, "pdf"))
         xong2, kq2, loi2 = self._nen(lambda: bo_hai.ocr(self.pdf, "pdf"))
-        self.assertTrue(xong1.wait(2))
-        self.assertTrue(xong2.wait(2))
+        self.assertTrue(xong1.wait(CHO))
+        self.assertTrue(xong2.wait(CHO))
         self.assertEqual(loi1 + loi2, [])
         self.assertEqual(kq1 + kq2, [self.docx, self.docx])
         self.assertEqual(len(self.da_thay), 1)
@@ -360,7 +418,7 @@ class HotFolderM9Tests(unittest.TestCase):
         try:
             xong, _, loi = self._nen(lambda: self._moi().ocr(self.pdf, "pdf", huy=huy))
             huy.set()
-            self.assertTrue(xong.wait(1))
+            self.assertTrue(xong.wait(CHO))
             self.assertEqual([x.code for x in loi], ["M9_OCR_HUY"])
         finally:
             self.bo_noi._khoa.release()
