@@ -31,6 +31,10 @@ from decimal import Decimal
 from ..ha_tang.primitives import DataError
 
 
+# Integration owner dùng khi nối route, cùng quy ước ke_toan_nghiem_thu.
+MA_HTTP = {"M4_REVIEW_KHONG_THAY": 404}
+
+
 _COT = {
     "che_do": ("id", "sua"),
     "hop_dong": (
@@ -275,35 +279,52 @@ class ReviewDataPG:
     def _khac(table, truong="dong_sha256 (hash dòng)"):
         raise DataError("M4_REVIEW_REPLAY_KHAC", f"Lần chụp đã có nhưng khác {truong} ở {table}; không ghi đè.")
 
-    def doc_hien_hanh(self, hop_dong_id, *, conn_phien):
-        """Ghim nguon_id từ hàm DL1b rồi đọc tất cả con của đúng bản bất biến.
-
-        conn_phien bắt buộc là kết nối thường, mang danh tính phiên đã được
-        máy chủ xác thực/ghim; không nhận danh tính hay dự án từ body UI.
-        Kiểm master.m4_duoc(XEM hoặc REVIEW) theo dự án của master HĐ trên
-        kết nối này TRƯỚC mọi đọc chủ bảng; không thấy/không quyền cùng 404.
-        NULL từ hàm DL1b được phân biệt trong cùng giao dịch bằng hai EXISTS:
-        CHUA_CO_LAN_CHUP / CHUA_CO_TRONG_NGUON / DA_XOA_O_NGUON.
-        Không quay về bản cũ, không tạo giá trị/xác nhận khi thiếu chứng cứ.
-        """
+    def _kiem_quyen_doc(self, hop_dong_id, *, conn_phien):
+        """Dùng chung DL2/DL3; kiểm UUID trước SQL để không hỏng giao dịch phiên."""
+        try:
+            identity = str(uuid.UUID(str(hop_dong_id)))
+        except (ValueError, TypeError, AttributeError):
+            raise DataError("M4_REVIEW_KHONG_THAY", "Không tìm thấy hợp đồng.") from None
         if conn_phien is None or conn_phien is self.conn:
-            raise DataError("404", "Không tìm thấy hợp đồng.")
+            raise DataError("M4_REVIEW_KHONG_THAY", "Không tìm thấy hợp đồng.")
         allowed = conn_phien.execute("""SELECT EXISTS (
             SELECT 1 FROM master.hop_dong h
             WHERE h.id=%s::uuid AND h.module_chu='M4'
               AND (master.m4_duoc(h.du_an_id, 'XEM')
                    OR master.m4_duoc(h.du_an_id, 'REVIEW'))
-            ) AS duoc""", (str(hop_dong_id),)).fetchone()
+            ) AS duoc""", (identity,)).fetchone()
         if not (allowed["duoc"] if isinstance(allowed, Mapping) else allowed[0]):
-            raise DataError("404", "Không tìm thấy hợp đồng.")
+            raise DataError("M4_REVIEW_KHONG_THAY", "Không tìm thấy hợp đồng.")
+        return identity
+
+    def _nguon_hien_hanh(self, hop_dong_id):
+        """Caller đã kiểm quyền và mở transaction; ba giá trị cùng snapshot SQL."""
+        current = self._rows("""SELECT m4.review_chep_hien_hanh(%s::uuid) AS nguon_id,
+            EXISTS (SELECT 1 FROM m4.review_chep_nguon) AS co_nguon,
+            EXISTS (SELECT 1 FROM m4.review_chep_hop_dong
+                WHERE hop_dong_id=%s::uuid) AS co_hd""", (hop_dong_id, hop_dong_id))[0]
+        state = ("CHUA_CO_LAN_CHUP" if not current["co_nguon"] else
+                 "DA_XOA_O_NGUON" if current["co_hd"] else "CHUA_CO_TRONG_NGUON")
+        return current["nguon_id"], state
+
+    def doc_hien_hanh(self, hop_dong_id, *, conn_phien):
+        """Ghim nguon_id từ hàm DL1b rồi đọc tất cả con của đúng bản bất biến.
+
+        conn_phien là kết nối thường mang danh tính đã được máy chủ ghim.
+        Kiểm XEM/REVIEW theo master.hop_dong.du_an_id TRƯỚC mọi đọc chủ bảng;
+        không thấy/không quyền/UUID sai cùng M4_REVIEW_KHONG_THAY (HTTP 404).
+        Khe hở giữa kiểm quyền trên kết nối phiên và đọc trên kết nối chủ bảng
+        được chấp nhận cho lần đọc này: quyền xét tại thời điểm kiểm; bản chụp
+        chỉ đọc, bất biến, không phát sinh ghi hay thay đổi quyền. Thu hồi quyền
+        đồng thời có hiệu lực từ lần kiểm tiếp theo, không bảo đảm nguyên tử
+        giữa hai kết nối.
+        Hàm DL1b và hai EXISTS nằm trong một SELECT để ba trạng thái NULL
+        nhất quán dưới READ COMMITTED. Không lùi về bản cũ hay tạo chứng cứ giả.
+        """
+        hop_dong_id = self._kiem_quyen_doc(hop_dong_id, conn_phien=conn_phien)
         with self._tx():
-            source = self._rows("SELECT m4.review_chep_hien_hanh(%s::uuid) AS nguon_id", (str(hop_dong_id),))[0]["nguon_id"]
+            source, state = self._nguon_hien_hanh(hop_dong_id)
             if source is None:
-                co_nguon = self._rows("SELECT EXISTS (SELECT 1 FROM m4.review_chep_nguon) AS co")[0]["co"]
-                co_hd = self._rows("""SELECT EXISTS (SELECT 1 FROM m4.review_chep_hop_dong
-                    WHERE hop_dong_id=%s::uuid) AS co""", (str(hop_dong_id),))[0]["co"]
-                state = ("CHUA_CO_LAN_CHUP" if not co_nguon else
-                         "DA_XOA_O_NGUON" if co_hd else "CHUA_CO_TRONG_NGUON")
                 return dto_man_hinh(None, [], [], trang_thai=state)
             contracts = self._rows("SELECT * FROM m4.review_chep_hop_dong WHERE nguon_id=%s AND hop_dong_id=%s::uuid", (source, str(hop_dong_id)))
             if len(contracts) != 1:

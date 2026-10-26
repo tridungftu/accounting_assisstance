@@ -1,0 +1,5 @@
+- Đã chặn traceback lộ bí mật, xử lý HĐ mồ côi, thêm `bang` an toàn và SHA256 vào `mo_ta`.
+- Chỉ sửa đúng 2 tệp được giao, UTF-8 không BOM.
+- Test: **21 đạt/27**, 6 bỏ qua PostgreSQL; không lỗi mới trong module.
+- Đã thử `cp1252`, console hỏng, UUID mồ côi NULL; không truy cập dữ liệu thật, không commit.
+- Thông điệp commit: `[M4-CD1] vòng 2: chặn lộ bí mật, xử lý HĐ mồ côi và lưu SHA256`

@@ -17,7 +17,7 @@ from unittest.mock import MagicMock, Mock, patch
 
 from kho_tri_thuc.ha_tang.primitives import DataError
 from kho_tri_thuc.m4.review_data_pg import (
-    ReviewDataPG, dong_sha256, dto_man_hinh, real_sang_decimal,
+    MA_HTTP, ReviewDataPG, dong_sha256, dto_man_hinh, real_sang_decimal,
 )
 
 try:
@@ -193,7 +193,7 @@ class ReviewDataTinh(unittest.TestCase):
                 session.execute.return_value.fetchone.return_value = result
                 with self.subTest(denied=denied, result=result), self.assertRaises(DataError) as caught:
                     repo.doc_hien_hanh(uuid.UUID(int=1), conn_phien=denied)
-                self.assertEqual(caught.exception.code, "404")
+                self.assertEqual(caught.exception.code, "M4_REVIEW_KHONG_THAY")
                 self.assertEqual(str(caught.exception), "Không tìm thấy hợp đồng.")
         query, params = session.execute.call_args.args
         self.assertIn("master.hop_dong", query)
@@ -203,7 +203,19 @@ class ReviewDataTinh(unittest.TestCase):
         owner.transaction.assert_not_called()
         owner.execute.assert_not_called()
 
-    def test_doc_null_hai_exists_cung_giao_dich_sau_kiem_quyen(self):
+    def test_uuid_sai_tra_404_truoc_moi_sql(self):
+        owner, session = Mock(), Mock()
+        for identity in (None, "", "DEMO-khong-phai-uuid", "' OR 1=1 --", 123, []):
+            with self.subTest(identity=identity), self.assertRaises(DataError) as caught:
+                ReviewDataPG(owner).doc_hien_hanh(identity, conn_phien=session)
+            self.assertEqual(caught.exception.code, "M4_REVIEW_KHONG_THAY")
+            self.assertEqual(str(caught.exception), "Không tìm thấy hợp đồng.")
+        self.assertEqual(MA_HTTP["M4_REVIEW_KHONG_THAY"], 404)
+        session.execute.assert_not_called()
+        owner.execute.assert_not_called()
+        owner.transaction.assert_not_called()
+
+    def test_doc_null_mot_select_cung_snapshot_sau_kiem_quyen(self):
         for session_result in ((True,), {"duoc": True}):
             for co_nguon, co_hd, state in (
                 (False, False, "CHUA_CO_LAN_CHUP"),
@@ -215,21 +227,44 @@ class ReviewDataTinh(unittest.TestCase):
                 repo, active = ReviewDataPG(owner), []
                 owner.transaction.return_value.__enter__.side_effect = lambda: active.append(True)
                 owner.transaction.return_value.__exit__.side_effect = lambda *args: active.pop() and False
-                values = iter(([{"nguon_id": None}], [{"co": co_nguon}], [{"co": co_hd}]))
 
                 def read(query, params=()):
                     self.assertEqual(active, [True])
                     session.execute.assert_called_once()
-                    return next(values)
+                    return [dict(nguon_id=None, co_nguon=co_nguon, co_hd=co_hd)]
 
                 with self.subTest(state=state, session_result=session_result), patch.object(repo, "_rows", side_effect=read) as rows:
                     result = repo.doc_hien_hanh(uuid.UUID(int=1), conn_phien=session)
                 self.assertEqual(result, dto_man_hinh(None, [], [], trang_thai=state))
-                self.assertEqual(rows.call_count, 3)
-                self.assertIn("SELECT EXISTS (SELECT 1 FROM m4.review_chep_nguon)", rows.call_args_list[1].args[0])
-                self.assertIn("WHERE hop_dong_id=%s::uuid", rows.call_args_list[2].args[0])
-                self.assertEqual(rows.call_args_list[2].args[1], (str(uuid.UUID(int=1)),))
+                rows.assert_called_once()
+                query, params = rows.call_args.args
+                self.assertIn("m4.review_chep_hien_hanh(%s::uuid)", query)
+                self.assertEqual(query.count("EXISTS"), 2)
+                self.assertIn("FROM m4.review_chep_nguon", query)
+                self.assertIn("FROM m4.review_chep_hop_dong", query)
+                self.assertIn("WHERE hop_dong_id=%s::uuid", query)
+                self.assertEqual(params, (str(uuid.UUID(int=1)),) * 2)
                 self.assertEqual(active, [])
+
+    def test_doc_hien_hanh_ghim_nguon_sau_kiem_quyen(self):
+        owner, session = MagicMock(), Mock()
+        session.execute.return_value.fetchone.return_value = (True,)
+        repo, data = ReviewDataPG(owner), _demo()
+        responses = [
+            [dict(nguon_id="DEMO-MOI", co_nguon=True, co_hd=True)],
+            data["hop_dong"], data["tham_so"], data["tham_so_nguon"],
+        ]
+
+        def read(query, params=()):
+            session.execute.assert_called_once()
+            return responses.pop(0)
+
+        with patch.object(repo, "_rows", side_effect=read) as rows:
+            actual = repo.doc_hien_hanh(uuid.UUID(int=1), conn_phien=session)
+        self.assertEqual(actual, dto_man_hinh(data["hop_dong"][0], data["tham_so"], data["tham_so_nguon"]))
+        self.assertEqual(rows.call_count, 4)
+        for call in rows.call_args_list[1:]:
+            self.assertEqual(call.args[1][0], "DEMO-MOI")
 
     def test_replay_bao_ro_truong_khac_khong_ghi(self):
         for field in ("chup_luc", "nhap_boi", "mo_ta", "dong_sha256", "hop_dong_id", "du_an_id"):
@@ -430,7 +465,7 @@ class ReviewDataPGTests(unittest.TestCase):
                     self._doc(hd)
                 errors.append((caught.exception.code, str(caught.exception)))
             rows.assert_not_called()
-        self.assertEqual(errors, [("404", "Không tìm thấy hợp đồng.")] * 2)
+        self.assertEqual(errors, [("M4_REVIEW_KHONG_THAY", "Không tìm thấy hợp đồng.")] * 2)
 
     def test_co_xem_doc_duoc_bang_login_thuong(self):
         self._ghi()
