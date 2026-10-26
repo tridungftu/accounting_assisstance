@@ -12401,3 +12401,10 @@ from ..k2.sql_mtq_cong import MTQ_CONG_G_SQL  # noqa: E402 — chỉ hằng SQL
 M0057_MTQ_CONG_G = MTQ_CONG_G_SQL
 PG_MIGRATIONS = (*PG_MIGRATIONS, M0057_MTQ_CONG_G)
 PG_SCHEMA_VERSION = len(PG_MIGRATIONS)
+
+# XS-2a — CD-017: hàng việc nền dùng chung; lead đánh số khi gộp.
+from ..k2.sql_hang_viec import HANG_VIEC_SQL  # noqa: E402 — chỉ hằng SQL
+
+M0058_HANG_VIEC = HANG_VIEC_SQL
+PG_MIGRATIONS = (*PG_MIGRATIONS, M0058_HANG_VIEC)
+PG_SCHEMA_VERSION = len(PG_MIGRATIONS)
