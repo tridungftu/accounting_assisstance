@@ -12149,3 +12149,10 @@ from ..k2.sql_m3 import M3_CO_SO_SQL  # noqa: E402 — chỉ hằng SQL
 M0042_M3_CO_SO = M3_CO_SO_SQL
 PG_MIGRATIONS = (*PG_MIGRATIONS, M0042_M3_CO_SO)
 PG_SCHEMA_VERSION = len(PG_MIGRATIONS)
+
+# MTQ-4a0b — CD-012: chống dùng lại request ID cho nhật ký từ chối khác; lead đánh số khi gộp.
+from ..k2.sql_mtq_cong import MTQ_CONG_B_SQL  # noqa: E402 — chỉ hằng SQL
+
+M00xx_MTQ_CONG_B = MTQ_CONG_B_SQL
+PG_MIGRATIONS = (*PG_MIGRATIONS, M00xx_MTQ_CONG_B)
+PG_SCHEMA_VERSION = len(PG_MIGRATIONS)

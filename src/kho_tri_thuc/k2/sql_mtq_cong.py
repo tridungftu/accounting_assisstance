@@ -156,3 +156,67 @@ MTQ_CONG_SQL = (
         END IF;
         END $$""",
 )
+
+
+# MTQ-4a0b: bổ sung sau M0041; CREATE OR REPLACE giữ nguyên ACL của hàm.
+MTQ_CONG_B_SQL = (
+    """CREATE INDEX IF NOT EXISTS mtq_tu_choi_request_id_idx
+        ON nhat_ky.mtq_tu_choi (request_id)""",
+    """CREATE OR REPLACE FUNCTION master.mtq_ghi_tu_choi_phien(
+        p_request uuid, p_hanh_dong text, p_doi_tuong jsonb, p_so_tien numeric) RETURNS uuid
+        LANGUAGE plpgsql SECURITY DEFINER
+        SET search_path = pg_catalog, master, nhat_ky, pg_temp AS $$
+        DECLARE login text := master.ktt_danh_tinh(); ai uuid; kq jsonb; k uuid;
+            pn uuid; phong uuid; vai_hd text; cu nhat_ky.mtq_tu_choi%ROWTYPE;
+        BEGIN
+            -- Caller rollback nghiệp vụ, mở giao dịch khác, đặt lại GUC ID/login,
+            -- gọi hàm này rồi commit. Hàm không tự commit, không tin JSON quyết định.
+            IF p_request IS NULL THEN RAISE EXCEPTION 'MTQ_REQUEST: cần request ID'; END IF;
+            SELECT id INTO ai FROM master.nguoi_dung WHERE dang_nhap = login AND trang_thai = 'HOAT_DONG';
+            IF ai IS NULL THEN RAISE EXCEPTION 'MTQ_DANH_TINH: cần danh tính phiên hợp lệ để ghi'; END IF;
+            IF NOT EXISTS (SELECT 1 FROM master.mtq_danh_muc_hanh_dong
+                    WHERE catalog_version = 1 AND lenh_ky_thuat = p_hanh_dong) THEN
+                RAISE EXCEPTION 'MTQ_HANH_DONG: hành động chưa có trong catalog';
+            END IF;
+            -- Khóa theo request trước khi đọc/ghi để các lần gọi đồng thời
+            -- không cùng thấy thiếu dòng; không cần đổi bảng M0039.
+            PERFORM pg_advisory_xact_lock(hashtextextended(p_request::text, 0));
+            SELECT * INTO cu FROM nhat_ky.mtq_tu_choi
+                WHERE request_id = p_request ORDER BY luc, id LIMIT 1;
+            IF FOUND THEN
+                -- Request chỉ idempotent khi cùng người, lệnh và ID đối tượng.
+                IF cu.actor_id IS DISTINCT FROM ai
+                        OR cu.actor_login IS DISTINCT FROM login
+                        OR cu.lenh_ky_thuat IS DISTINCT FROM p_hanh_dong
+                        OR cu.doi_tuong IS DISTINCT FROM (p_doi_tuong->>'id') THEN
+                    RAISE EXCEPTION 'MTQ_REQUEST_TRUNG: request ID đã dùng cho người, hành động hoặc đối tượng khác';
+                END IF;
+                RETURN cu.id;
+            END IF;
+            kq := master.mtq_quyet_dinh_phien(p_hanh_dong, p_doi_tuong, p_so_tien);
+            -- Quyền đổi thành CU/cho phép sau rollback: báo lỗi, không giả mạo
+            -- quyết định cũ và không chuyển lần thử nghiệp vụ thành thành công.
+            IF kq->>'nguon' IS DISTINCT FROM 'MA_TRAN' OR kq->'cho_phep' IS DISTINCT FROM 'false'::jsonb THEN
+                RAISE EXCEPTION 'MTQ_KHONG_PHAI_TU_CHOI: chỉ ghi quyết định từ chối hiện hành';
+            END IF;
+            IF p_doi_tuong->>'bang' = 'master.hop_dong' THEN
+                SELECT phap_nhan_id INTO pn FROM master.hop_dong WHERE id::text = kq->>'doi_tuong';
+            ELSIF p_doi_tuong->>'bang' = 'master.du_an' THEN
+                SELECT phap_nhan_id INTO pn FROM master.du_an WHERE id::text = kq->>'doi_tuong';
+            END IF;
+            SELECT g.phong_id, g.vai INTO phong, vai_hd FROM master.mtq_gan_vai g
+                WHERE g.id = (kq->>'gan_vai_id')::uuid AND g.nguoi_dung_id = ai;
+            INSERT INTO nhat_ky.mtq_tu_choi
+                (request_id, actor_id, actor_login, phap_nhan_id, phong_id, vai, phien_ban_id, revision,
+                 gan_vai_id, gan_vai_revision, pham_vi_id, pham_vi_revision, module, man, hanh_dong,
+                 lenh_ky_thuat, doi_tuong, ma, ly_do, gioi_han_vnd, so_tien_vnd)
+                VALUES (p_request, ai, login, pn, phong, vai_hd, (kq->>'phien_ban_id')::uuid,
+                    (kq->>'revision')::bigint, (kq->>'gan_vai_id')::uuid, (kq->>'gan_vai_revision')::bigint,
+                    (kq->>'pham_vi_id')::uuid, (kq->>'pham_vi_revision')::bigint,
+                    kq->>'module', kq->>'man', kq->>'hanh_dong', p_hanh_dong,
+                    kq->>'doi_tuong', kq->>'ma', kq->>'ly_do', (kq->>'gioi_han_vnd')::numeric,
+                    (kq->>'so_tien_vnd')::numeric) RETURNING id INTO k;
+            -- Không bắt/nuốt lỗi INSERT: audit lỗi phải trả lỗi hệ thống, không cho phép.
+            RETURN k;
+        END $$""",
+)
