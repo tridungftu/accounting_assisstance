@@ -4,3 +4,4 @@
 - Nếu cùng số nhưng `m4_dot_id` NULL hoặc trỏ đợt khác → `CAN_XEM_LAI`, không cộng.
 Bỏ gạch đầu dòng test cũ "Đợt M4 cùng số đang mở chưa seal → không dùng Review"; thay bằng hai ca trên. Môi trường không có `python` thì ghi NOT_RUN — lead chạy test.
 
+**Trả lời lead (Claude) cho câu Cần lead lần 2:** không sửa `sql_duyet.py`; seal chỉ niêm phong số liệu, nguồn `REVIEW_CHEP` nằm trong JSON kết luận là đủ (giao việc ghi 'kết luận/seal' là chưa chính xác).
