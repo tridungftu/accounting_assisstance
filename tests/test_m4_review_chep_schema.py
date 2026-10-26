@@ -14,6 +14,7 @@ import re
 import sqlite3
 import unittest
 import uuid
+from decimal import Decimal
 from pathlib import Path
 
 from kho_tri_thuc.ha_tang import pg_migrations as PM
@@ -49,15 +50,15 @@ PK = {t: [r[1] for r in sorted(rows, key=lambda r: r[5]) if r[5]] for t, rows in
 
 
 def _bang(t):
-    return "m4.ho_so_hop_dong" if t == "hop_dong" else "m4.review_chep_" + t
+    return "m4.review_chep_" + t
 
 
 def _cot(t, c):
-    return "review_" + c if t == "hop_dong" else c
+    return c
 
 
 def _ddl(t):
-    prefix = "ALTER TABLE m4.ho_so_hop_dong\n" if t == "hop_dong" else "CREATE TABLE " + _bang(t) + " ("
+    prefix = "CREATE TABLE " + _bang(t) + " ("
     return next(s for s in SQL if s.startswith(prefix))
 
 
@@ -104,29 +105,25 @@ class ReviewChepThuan(unittest.TestCase):
     def test_du_12_bang_va_tung_cot_kieu_null_default_goc(self):
         self.assertEqual(len(NGUON), 12)
         self.assertEqual(set(S.BANG_NGUON), set(NGUON))
-        types = {"TEXT": "text", "REAL": "double precision", "INTEGER": "bigint"}
+        types = {"TEXT": "text", "REAL": "numeric", "INTEGER": "bigint"}
         for t, rows in NGUON.items():
             ddl = _ddl(t)
             for _, c, typ, notnull, default, pk in rows:
                 with self.subTest(bang=t, cot=c):
                     match = re.search(r"\b" + _cot(t, c) + r"\s+(" + types[typ] + r")\b([^,\n]*)", ddl)
                     self.assertIsNotNone(match, f"Thiếu cột/kiểu {t}.{c}")
-                    if t != "hop_dong":
-                        self.assertEqual("NOT NULL" in match[2], bool(notnull or pk))
-                        if default is not None:
-                            self.assertIn("DEFAULT " + default, match[2])
+                    self.assertEqual("NOT NULL" in match[2], bool(notnull or pk))
+                    if default is not None:
+                        self.assertIn("DEFAULT " + default, match[2])
             self.assertEqual(set(_demo()[t]), {r[1] for r in rows})
 
     def test_khoa_nguon_duy_nhat_dung_pk_goc_khong_dung_sha_file(self):
         for t in NGUON:
             with self.subTest(bang=t):
-                if t == "hop_dong":
-                    self.assertIn("UNIQUE (review_nguon_id, review_ma_hd)", _ddl(t))
-                    self.assertIn("UNIQUE (review_nguon_id, review_so_hd)", _ddl(t))
-                    self.assertIn("review_dong_sha256 ~ '^[0-9a-f]{64}$'", _ddl(t))
-                else:
-                    self.assertIn("PRIMARY KEY (" + ", ".join(["nguon_id", *PK[t]]) + ")", _ddl(t))
-                    self.assertIn("dong_sha256 text NOT NULL", _ddl(t))
+                self.assertIn("PRIMARY KEY (" + ", ".join(["nguon_id", *PK[t]]) + ")", _ddl(t))
+                self.assertIn("dong_sha256 text NOT NULL", _ddl(t))
+        self.assertIn("UNIQUE (nguon_id, so_hd)", _ddl("hop_dong"))
+        self.assertNotRegex(_ddl("hop_dong"), r"UNIQUE \(hop_dong_id(?:, du_an_id)?\)")
         self.assertIn("coalesce(pl_id, 0)", TOAN)
         self.assertIn("WHERE trang_thai <> 'Đã hủy'", TOAN)
         self.assertIn("'GOC','THAY','THEM','BO'", _ddl("boq_dong"))
@@ -134,10 +131,14 @@ class ReviewChepThuan(unittest.TestCase):
     def test_fk_nguon_va_tai_dung_dich_khong_tao_can_cu_gia(self):
         self.assertNotIn("CREATE TABLE master.hop_dong", TOAN)
         self.assertNotIn("CREATE TABLE m4.ho_so_hop_dong", TOAN)
+        self.assertNotIn("ALTER TABLE m4.ho_so_hop_dong", TOAN)
         for target in ("m4.tham_so", "m4.phu_luc", "m4.boq", "m4.boq_dong", "m4.dot", "m4.review_manual_map", "m4.nhat_ky"):
             self.assertIn("REFERENCES " + target + " (", TOAN)
         self.assertIn("REFERENCES m4.review_chep_dot_thanh_toan (nguon_id, ma_hd, dot, du_an_id)", TOAN)
         self.assertIn("REFERENCES m4.review_chep_phu_luc (nguon_id, id, du_an_id)", TOAN)
+        self.assertIn("REFERENCES m4.review_chep_hop_dong (nguon_id, ma_hd, hop_dong_id, du_an_id)", TOAN)
+        self.assertIn("REFERENCES m4.ho_so_hop_dong (hop_dong_id, du_an_id)", _ddl("hop_dong"))
+        self.assertNotRegex(TOAN, r"\breview_(?:nguon_id|ma_hd|so_hd|file_nguon)\b")
         self.assertNotIn("trich_xuat_id", _ddl("tham_so"))
         self.assertNotIn("danh_muc_tham_so", _ddl("tham_so"))
         self.assertNotRegex(TOAN, r"(?i)\b(?:INSERT INTO|DROP|DISABLE TRIGGER|DROP NOT NULL)\b")
@@ -155,19 +156,42 @@ class ReviewChepThuan(unittest.TestCase):
         self.assertNotIn("current_setting", TOAN)
         self.assertIn("master.m4_duoc(du_an_id, 'XEM')", TOAN)
 
+    def test_rls_dung_nhom_xem_review_va_chi_xem(self):
+        review = {"hop_dong", "tham_so", "phu_luc", "thay_doi_tham_so", "boq_dong", "tham_so_nguon"}
+        for t in NGUON.keys() - {"che_do"}:
+            with self.subTest(bang=t):
+                policy = next(q for q in SQL if f"CREATE POLICY review_chep_{t}_web " in q)
+                expected = "master.m4_duoc(du_an_id, 'XEM')"
+                if t in review:
+                    expected += " OR master.m4_duoc(du_an_id, 'REVIEW')"
+                self.assertIn(f"USING ({expected});", policy)
+
+    def test_16_cot_real_sang_numeric_va_quy_uoc_lan_chup(self):
+        real = [(t, c) for t, rows in NGUON.items() for _, c, typ, *_ in rows if typ == "REAL"]
+        self.assertEqual(len(real), 16)
+        for t, c in real:
+            self.assertRegex(_ddl(t), rf"\b{c} numeric\b")
+        self.assertNotIn("double precision", TOAN)
+        self.assertIn("Decimal(repr(x))", S.__doc__)
+        self.assertIn("ORDER BY n.nhap_luc DESC, n.id DESC LIMIT 1", S.__doc__)
+        self.assertIn("một transaction", S.__doc__)
+
     def test_chi_hang_sql_va_registry_append_khong_ghim_ordinal(self):
         tree = ast.parse(SQL_PATH.read_text(encoding="utf-8"))
         self.assertFalse(any(isinstance(n, (ast.Import, ast.ImportFrom, ast.FunctionDef, ast.ClassDef)) for n in ast.walk(tree)))
         self.assertTrue(all(isinstance(s, str) and s.strip() for s in SQL))
         self.assertEqual(sum(m is SQL for m in PM.PG_MIGRATIONS), 1)
-        self.assertIs(PM.PG_MIGRATIONS[-1], SQL)
+        idx = next(i for i, migration in enumerate(PM.PG_MIGRATIONS) if migration is SQL)
         self.assertEqual(PM.PG_SCHEMA_VERSION, len(PM.PG_MIGRATIONS))
         # Định vị bằng module marker, không ghi cứng số; prefix vẫn nạp độc lập.
         path = ROOT / "src/kho_tri_thuc/ha_tang/pg_migrations.py"
-        prefix = path.read_text(encoding="utf-8").split("# M4-DL1 — CD-011:")[0]
+        registry = path.read_text(encoding="utf-8")
+        marker = "# M4-DL1 — CD-011:"
+        self.assertEqual(registry.count(marker), 1)
+        prefix = registry.split(marker)[0]
         ns = {"__package__": "kho_tri_thuc.ha_tang", "__name__": "kho_tri_thuc.ha_tang._dl1_baseline"}
         exec(compile(prefix, str(path), "exec"), ns)
-        self.assertEqual(PM.PG_MIGRATIONS[:-1], ns["PG_MIGRATIONS"])
+        self.assertEqual(PM.PG_MIGRATIONS[:idx], ns["PG_MIGRATIONS"])
 
 
 @unittest.skipUnless(DSN and psycopg is not None, "Thiếu KHO_PG_DSN_TEST/psycopg — PG do lead chạy (NOT_RUN)")
@@ -188,35 +212,36 @@ class ReviewChepPG(unittest.TestCase):
     def _insert(self, table, row, *, replay=False):
         query = sql.SQL("INSERT INTO {} ({}) VALUES ({})" + (" ON CONFLICT DO NOTHING" if replay else ""))
         self.con.execute(query.format(sql.Identifier(*table.split(".")), sql.SQL(",").join(map(sql.Identifier, row)),
-                                      sql.SQL(",").join(sql.Placeholder() for _ in row)), list(row.values()))
+                                      sql.SQL(",").join(sql.Placeholder() for _ in row)), [Decimal(repr(v)) if isinstance(v, float) else v for v in row.values()])
 
-    def _fixture(self):
+    def _fixture(self, *, hd=None, originals=None, nhap_luc="2026-10-26T07:00:00+07:00", lien_ket_log=False):
         source = "DEMO-DL1-" + uuid.uuid4().hex
-        self._insert("m4.review_chep_nguon", dict(id=source, mo_ta="DEMO giả", nhap_boi="MO_PHONG_NHAP"))
-        hd = self._master_hd()
-        originals = _demo()
+        self._insert("m4.review_chep_nguon", dict(id=source, mo_ta="DEMO giả", nhap_boi="MO_PHONG_NHAP", nhap_luc=nhap_luc))
+        hd = self._master_hd() if hd is None else hd
+        originals = _demo() if originals is None else originals
         rows = {}
         for t, original in originals.items():
-            if t == "hop_dong":
-                row = {"review_" + c: v for c, v in original.items()}
-                row.update(hop_dong_id=hd, phap_nhan_id=self.pn, du_an_id=self.da, ten="Hồ sơ DEMO DL1",
-                           tao_boi="MO_PHONG_NHAP", review_nguon_id=source, review_dong_sha256=_hash(original),
-                           review_nhap_boi="MO_PHONG_NHAP", review_nhap_luc="2026-10-26T07:00:00+07:00")
-            else:
-                row = dict(original, nguon_id=source, dong_sha256=_hash(original), nhap_boi="MO_PHONG_NHAP")
-                if t not in ("che_do", "khop_hang_muc", "canh_bao", "nhat_ky"):
-                    row["du_an_id"] = self.da
-                if t in ("tham_so", "phu_luc", "boq_dong", "dot_thanh_toan", "tham_so_nguon"):
-                    row["hop_dong_id"] = hd
+            if original is None:  # dòng không còn trong lần chụp mới
+                continue
+            if lien_ket_log and t in ("khop_hang_muc", "canh_bao", "nhat_ky"):
+                original = dict(original, ma_hd="DEMO-HD")
+            row = dict(original, nguon_id=source, dong_sha256=_hash(original), nhap_boi="MO_PHONG_NHAP")
+            if t != "che_do" and (t not in ("khop_hang_muc", "canh_bao", "nhat_ky") or lien_ket_log):
+                row["du_an_id"] = self.da
+            if t in ("hop_dong", "tham_so", "phu_luc", "boq_dong", "dot_thanh_toan", "tham_so_nguon") or (lien_ket_log and t in ("khop_hang_muc", "canh_bao", "nhat_ky")):
+                row["hop_dong_id"] = hd
             rows[t] = row
             self._insert(_bang(t), row)
         return source, hd, originals, rows
 
     def _master_hd(self):
         code = "DEMO-HD-" + uuid.uuid4().hex
-        return self.con.execute("""INSERT INTO master.hop_dong
+        hd = self.con.execute("""INSERT INTO master.hop_dong
             (phap_nhan_id,du_an_id,loai,module_chu,ma_noi_bo,so_hop_dong,trang_thai)
             VALUES (%s,%s,'XAY_DUNG','M4',%s,%s,'SOAN_THAO') RETURNING id""", (self.pn, self.da, code, code)).fetchone()[0]
+        self._insert("m4.ho_so_hop_dong", dict(hop_dong_id=hd, phap_nhan_id=self.pn, du_an_id=self.da,
+                                             ten="Hồ sơ DEMO DL1", tao_boi="MO_PHONG_NHAP"))
+        return hd
 
     def _loi(self, error, table, row):
         with self.assertRaises(error):
@@ -231,7 +256,57 @@ class ReviewChepPG(unittest.TestCase):
             schema, table = _bang(t).split(".")
             cols = dict(self.con.execute("SELECT column_name,data_type FROM information_schema.columns WHERE table_schema=%s AND table_name=%s", (schema, table)).fetchall())
             for _, c, typ, *_ in rows:
-                self.assertEqual(cols[_cot(t, c)], {"TEXT": "text", "REAL": "double precision", "INTEGER": "bigint"}[typ])
+                self.assertEqual(cols[_cot(t, c)], {"TEXT": "text", "REAL": "numeric", "INTEGER": "bigint"}[typ])
+        cols = self.con.execute("""SELECT column_name FROM information_schema.columns
+            WHERE table_schema='m4' AND table_name='ho_so_hop_dong'""").fetchall()
+        self.assertTrue(cols)
+        self.assertFalse(any(c.startswith("review_") for (c,) in cols))
+
+    def test_hai_lan_chup_dong_doi_xoa_id_dung_lai_va_ban_hien_hanh(self):
+        source1, hd, old, _ = self._fixture()
+        new = _demo()
+        new["hop_dong"]["gia_tri_hd"] = 1234567890123.45
+        new["tham_so"]["gia_tri"] = "DEMO đã đổi"
+        new["phu_luc"]["so_pl"] = "DEMO-PL-id-dùng-lại"
+        new["boq_dong"]["ma_hm"] = "DEMO-HM-id-dùng-lại"
+        new["tham_so_nguon"] = None  # đã xóa ở nguồn; không DELETE bản cũ
+        source2, same_hd, _, _ = self._fixture(hd=hd, originals=new, nhap_luc="2026-10-27T07:00:00+07:00")
+        self.assertEqual(same_hd, hd)
+        for t in NGUON:
+            with self.subTest(bang=t):
+                q = sql.SQL("SELECT nguon_id FROM {} WHERE nguon_id IN (%s,%s)").format(sql.Identifier(*_bang(t).split(".")))
+                sources = {r[0] for r in self.con.execute(q, (source1, source2))}
+                self.assertEqual(sources, {source1} if new[t] is None else {source1, source2})
+        # Đúng công thức docstring: chọn lần chụp của HĐ trước, rồi lọc bảng con.
+        current = self.con.execute("""SELECT h.nguon_id FROM m4.review_chep_hop_dong h
+            JOIN m4.review_chep_nguon n ON n.id=h.nguon_id WHERE h.hop_dong_id=%s
+            ORDER BY n.nhap_luc DESC, n.id DESC LIMIT 1""", (hd,)).fetchone()[0]
+        self.assertEqual(current, source2)
+        values = dict(self.con.execute("""SELECT nguon_id,gia_tri FROM m4.review_chep_tham_so
+            WHERE nguon_id IN (%s,%s)""", (source1, source2)).fetchall())
+        self.assertEqual(values, {source1: old["tham_so"]["gia_tri"], source2: "DEMO đã đổi"})
+        self.assertEqual(self.con.execute("SELECT count(*) FROM m4.review_chep_tham_so_nguon WHERE nguon_id=%s", (current,)).fetchone()[0], 0)
+        self.assertEqual(self.con.execute("SELECT so_pl FROM m4.review_chep_phu_luc WHERE nguon_id=%s AND id=7", (current,)).fetchone()[0], new["phu_luc"]["so_pl"])
+        self.assertEqual(self.con.execute("SELECT ma_hm FROM m4.review_chep_boq_dong WHERE nguon_id=%s AND id=11", (current,)).fetchone()[0], new["boq_dong"]["ma_hm"])
+
+    def test_numeric_giu_chinh_xac_16_cot_va_null(self):
+        originals = _demo()
+        # Các số không biểu diễn chính xác ở binary64 và giá trị tiền lớn.
+        values = (0.1, 0.30000000000000004, 1234567890123.45, -0.000000123456789)
+        real = [(t, c) for t, rows in NGUON.items() for _, c, typ, *_ in rows if typ == "REAL"]
+        for i, (t, c) in enumerate(real):
+            originals[t][c] = values[i % len(values)] if i % 5 else None
+        source, _, _, _ = self._fixture(originals=originals)
+        for t, c in real:
+            with self.subTest(bang=t, cot=c):
+                q = sql.SQL("SELECT {} FROM {} WHERE nguon_id=%s").format(sql.Identifier(c), sql.Identifier(*_bang(t).split(".")))
+                got = self.con.execute(q, (source,)).fetchone()[0]
+                expected = originals[t][c]
+                if expected is None:
+                    self.assertIsNone(got)
+                else:
+                    self.assertIsInstance(got, Decimal)
+                    self.assertEqual(str(got), str(Decimal(repr(expected))))
 
     def test_ghi_doc_demo_du_12_bang_giu_null_chuoi_so_am(self):
         source, hd, originals, _ = self._fixture()
@@ -239,8 +314,8 @@ class ReviewChepPG(unittest.TestCase):
             with self.subTest(bang=t):
                 query = sql.SQL("SELECT {} FROM {} WHERE {}=%s").format(
                     sql.SQL(",").join(sql.Identifier(_cot(t, c)) for c in original), sql.Identifier(*_bang(t).split(".")),
-                    sql.Identifier("review_nguon_id" if t == "hop_dong" else "nguon_id"))
-                self.assertEqual(self.con.execute(query, (source,)).fetchall(), [tuple(original.values())])
+                    sql.Identifier("nguon_id"))
+                self.assertEqual(self.con.execute(query, (source,)).fetchall(), [tuple(Decimal(repr(v)) if isinstance(v, float) else v for v in original.values())])
         self.assertIsNone(self.con.execute("SELECT gia_tri_minor FROM master.hop_dong WHERE id=%s", (hd,)).fetchone()[0])
         for table in ("m4.trich_xuat", "m4.review_run", "m4.boq", "m4.dot", "m4.nop"):
             self.assertEqual(self.con.execute(sql.SQL("SELECT count(*) FROM {} WHERE hop_dong_id=%s").format(sql.Identifier(*table.split("."))), (hd,)).fetchone()[0], 0)
@@ -252,12 +327,12 @@ class ReviewChepPG(unittest.TestCase):
                 duplicate = dict(row, hop_dong_id=self._master_hd()) if t == "hop_dong" else row
                 self._loi(psycopg.errors.UniqueViolation, _bang(t), duplicate)
                 self._insert(_bang(t), row, replay=True)
-                column = "review_nguon_id" if t == "hop_dong" else "nguon_id"
+                column = "nguon_id"
                 q = sql.SQL("SELECT count(*) FROM {} WHERE {}=%s").format(sql.Identifier(*_bang(t).split(".")), sql.Identifier(column))
                 self.assertEqual(self.con.execute(q, (source,)).fetchone()[0], 1)
         # UQ số HĐ nguồn độc lập với PK ma_hd và UUID master.
         self._loi(psycopg.errors.UniqueViolation, _bang("hop_dong"),
-                  dict(rows["hop_dong"], hop_dong_id=self._master_hd(), review_ma_hd="DEMO-KHAC"))
+                  dict(rows["hop_dong"], hop_dong_id=self._master_hd(), ma_hd="DEMO-KHAC"))
         # Cùng PK gốc trong kho khác được phép; SHA DB không tham gia khóa.
         self._fixture()
 
@@ -297,7 +372,7 @@ class ReviewChepPG(unittest.TestCase):
         self._loi(psycopg.errors.UniqueViolation, _bang("boq_dong"), dict(goc, id=13))
         self._loi(psycopg.errors.CheckViolation, _bang("boq_dong"), dict(goc, id=14, ma_hm="DEMO-KHAC", thao_tac="SAI"))
 
-    def test_ban_nguon_bat_bien_ke_ca_nhat_ky_va_ho_so(self):
+    def test_ban_nguon_bat_bien_ke_ca_nhat_ky_va_hop_dong(self):
         source, hd, _, _ = self._fixture()
         for table in ("m4.review_chep_nhat_ky", "m4.review_chep_che_do", "m4.review_chep_tham_so"):
             with self.assertRaises(psycopg.errors.RaiseException):
@@ -305,7 +380,7 @@ class ReviewChepPG(unittest.TestCase):
                     self.con.execute(sql.SQL("UPDATE {} SET dong_sha256=%s WHERE nguon_id=%s").format(sql.Identifier(*table.split("."))), ("b" * 64, source))
         with self.assertRaises(psycopg.errors.RaiseException):
             with self.con.transaction():
-                self.con.execute("UPDATE m4.ho_so_hop_dong SET review_so_hd='DEMO đổi' WHERE hop_dong_id=%s", (hd,))
+                self.con.execute("UPDATE m4.review_chep_hop_dong SET so_hd='DEMO đổi' WHERE hop_dong_id=%s", (hd,))
 
     def test_acl_rls_khong_co_quyen_khong_doc_ghi(self):
         self._fixture()
@@ -323,6 +398,40 @@ class ReviewChepPG(unittest.TestCase):
                             self.con.execute(sql.SQL("SELECT * FROM m4.{}").format(sql.Identifier(t)))
                 else:
                     self.assertEqual(self.con.execute(sql.SQL("SELECT count(*) FROM m4.{}").format(sql.Identifier(t))).fetchone()[0], 0)
+
+    def test_rls_theo_vai_pham_vi_va_thu_hoi(self):
+        source, _, _, _ = self._fixture(lien_ket_log=True)
+        other_da = self.con.execute("""INSERT INTO master.du_an (phap_nhan_id,ma_junsky,ten)
+            VALUES (%s,%s,'Dự án DEMO ngoài phạm vi') RETURNING id""", (self.pn, "DEMO-" + uuid.uuid4().hex)).fetchone()[0]
+        actors = {}
+        grants = {}
+        for vai in ("XEM", "REVIEW", "KHONG_QUYEN", "KHAC_DU_AN"):
+            login = "MO_PHONG_DL1_" + vai + "_" + uuid.uuid4().hex
+            uid = self.con.execute("""INSERT INTO master.nguoi_dung (ten,dang_nhap,vai_tro,mo_phong)
+                VALUES ('DEMO DL1',%s,'XEM',true) RETURNING id""", (login,)).fetchone()[0]
+            actors[vai] = (str(uid), login)
+            self._insert("master.phan_quyen", dict(nguoi_dung_id=uid, phap_nhan_id=self.pn, module=["M4"]))
+            if vai != "KHONG_QUYEN":
+                grants[vai] = self.con.execute("""INSERT INTO m4.quyen_du_an (nguoi_dung_id,phap_nhan_id,du_an_id,vai)
+                    VALUES (%s,%s,%s,%s) RETURNING id""", (uid, self.pn, other_da if vai == "KHAC_DU_AN" else self.da,
+                                                          "XEM" if vai == "KHAC_DU_AN" else vai)).fetchone()[0]
+
+        review = {"hop_dong", "tham_so", "phu_luc", "thay_doi_tham_so", "boq_dong", "tham_so_nguon"}
+
+        def check(vai, revoked=False):
+            with self.con.transaction():
+                self.con.execute("SET LOCAL ROLE app_web")
+                self.con.execute("SELECT set_config('ktt.nguoi_dung_id',%s,true), set_config('ktt.nguoi_dung_dang_nhap',%s,true)", actors[vai])
+                for t in NGUON.keys() - {"che_do"}:
+                    with self.subTest(vai=vai, bang=t, thu_hoi=revoked):
+                        q = sql.SQL("SELECT count(*) FROM {} WHERE nguon_id=%s").format(sql.Identifier(*_bang(t).split(".")))
+                        visible = not revoked and (vai == "XEM" or (vai == "REVIEW" and t in review))
+                        self.assertEqual(self.con.execute(q, (source,)).fetchone()[0], int(visible))
+
+        for vai in actors:
+            check(vai)
+        self.con.execute("SELECT m4.thu_hoi_quyen_du_an(%s,'MO_PHONG_QUAN_TRI_TEST','DEMO thu hồi DL1')", (grants["REVIEW"],))
+        check("REVIEW", revoked=True)
 
 
 if __name__ == "__main__":

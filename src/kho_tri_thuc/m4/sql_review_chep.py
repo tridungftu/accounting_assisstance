@@ -1,7 +1,7 @@
 """M4-DL1 — bổ sung chứng cứ nguồn Review SQLite (CD-011). Chỉ hằng SQL.
 
-Ánh xạ: hop_dong dùng NGUYÊN master.hop_dong + m4.ho_so_hop_dong; các cột
-review_* của hồ sơ giữ bản nguồn, không thay tiền minor/ngày chuẩn hóa của master.
+Ánh xạ: master.hop_dong + m4.ho_so_hop_dong giữ hồ sơ vận hành;
+review_chep_hop_dong giữ bản nguồn riêng, không thêm review_* vào hồ sơ.
 11 bảng còn lại là phần bổ sung lịch sử chưa có ngữ nghĩa tương đương đầy đủ:
 tham_so không đòi trich_xuat/catalog; phu_luc không đoán ngày/actor hủy;
 boq_dong không tạo lần nhập/tệp giả; dot_thanh_toan không tạo seal/DA_NOP;
@@ -9,12 +9,24 @@ khop_hang_muc/canh_bao không tạo review_run; nhat_ky không đoán timezone/J
 Các con trỏ m4_* tái dùng bản ghi vận hành nếu đã có, FK kiểm đúng HĐ/dự án.
 Không lập master HĐ/BOQ/run/log vận hành thứ hai để chứa dữ liệu nguồn.
 
-Khóa nguồn = nguon_id ổn định do người nhập khai + PK SQLite, KHÔNG dùng SHA
-file DB (thay đổi sau mỗi lần cập nhật). dong_sha256 là hash từng dòng cho DL2/
-công cụ import so sánh; bản nguồn bất biến, dòng đổi cần lịch sử/audit ở lát sau,
-không ON CONFLICT DO UPDATE. Không chép che_do.sua thành quyền ứng dụng.
-REAL -> double precision (binary64 như SQLite); INTEGER -> bigint; ngày/JSON
-nguồn vẫn TEXT, giữ NULL/rỗng/âm. Không ép tiền VND sang BIGINT minor.
+Mỗi nguon_id là MỘT lần chụp đầy đủ (một lần chạy công cụ), không phải mã kho
+SQLite cố định; lần chạy sau dùng nguon_id mới. Khóa mọi bảng chép là
+(nguon_id, PK SQLite); dòng sửa/xóa/id dùng lại ở lần sau không đè lần trước.
+Replay cùng lần chụp chỉ ON CONFLICT DO NOTHING sau khi đối chiếu dong_sha256;
+không dùng SHA file DB làm khóa, không ON CONFLICT DO UPDATE.
+Công cụ nạp toàn bộ lần chụp trong một transaction; nguon.nhap_luc là thời
+điểm lần chụp (tăng theo thời gian chụp, kể cả khi nạp bù bản cũ).
+Bản hiện hành của HĐ: chọn h.nguon_id từ review_chep_hop_dong h JOIN
+review_chep_nguon n ON n.id = h.nguon_id WHERE h.hop_dong_id = :hop_dong_id
+ORDER BY n.nhap_luc DESC, n.id DESC LIMIT 1 (id phân xử khi trùng thời điểm).
+Sau đó lấy bảng con với nguon_id đó và khóa HĐ tương ứng (qua PL/đợt nếu cần);
+không chọn dòng mới nhất riêng từng khóa, vì dòng đã xóa ở lần chụp mới phải
+biến mất khỏi bản hiện hành.
+Điều kiện trước khi nạp: người chốt bảng ánh xạ ma_hd → master.hop_dong /
+pháp nhân / dự án; không suy từ chuỗi nguồn. Không chép che_do.sua thành quyền.
+REAL -> numeric: công cụ nạp truyền Decimal(repr(x)), giữ NULL; không truyền
+float trực tiếp hoặc ép tiền VND sang BIGINT minor. INTEGER -> bigint;
+ngày/JSON nguồn vẫn TEXT, giữ NULL/rỗng/âm.
 Các FK nguồn có thật được giữ; cảnh báo/nhật ký/ghép nguồn không có FK ma_hd
 thì không tự thêm, tránh mất log orphan. Dòng không rõ dự án chỉ chủ bảng đọc.
 """
@@ -24,7 +36,11 @@ BANG_NGUON = (
     "boq_dong", "dot_thanh_toan", "kl_thanh_toan", "khop_hang_muc",
     "canh_bao", "nhat_ky", "tham_so_nguon",
 )
-BANG_BO_SUNG = ("review_chep_nguon", *("review_chep_" + t for t in BANG_NGUON if t != "hop_dong"))
+BANG_BO_SUNG = ("review_chep_nguon", *("review_chep_" + t for t in BANG_NGUON))
+_BANG_REVIEW = (
+    "review_chep_hop_dong", "review_chep_tham_so", "review_chep_phu_luc",
+    "review_chep_thay_doi_tham_so", "review_chep_boq_dong", "review_chep_tham_so_nguon",
+)
 _HASH = "text NOT NULL CHECK (dong_sha256 ~ '^[0-9a-f]{64}$')"
 # HĐ/PN/dự án được chỉ định rõ qua hồ sơ đang có; không suy từ chuỗi nguồn.
 _HD = """nguon_id text NOT NULL REFERENCES m4.review_chep_nguon(id),
@@ -32,7 +48,7 @@ _HD = """nguon_id text NOT NULL REFERENCES m4.review_chep_nguon(id),
         hop_dong_id uuid NOT NULL,
         du_an_id uuid NOT NULL,"""
 _FK_HD = """FOREIGN KEY (nguon_id, ma_hd, hop_dong_id, du_an_id)
-        REFERENCES m4.ho_so_hop_dong (review_nguon_id, review_ma_hd, hop_dong_id, du_an_id)"""
+        REFERENCES m4.review_chep_hop_dong (nguon_id, ma_hd, hop_dong_id, du_an_id)"""
 _CHUNG = f"""chep_id uuid NOT NULL DEFAULT gen_random_uuid() UNIQUE,
         dong_sha256 {_HASH},
         nhap_boi text NOT NULL,
@@ -44,47 +60,17 @@ M4_REVIEW_CHEP_SQL = (
         mo_ta text,
         nhap_boi text NOT NULL,
         nhap_luc timestamptz NOT NULL DEFAULT now())""",
-    # Không đổi định nghĩa/constraint cũ: phần typed nguyên bản gắn hồ sơ có sẵn.
-    """ALTER TABLE m4.ho_so_hop_dong
-        ADD COLUMN review_nguon_id text REFERENCES m4.review_chep_nguon(id),
-        ADD COLUMN review_ma_hd text,
-        ADD COLUMN review_so_hd text,
-        ADD COLUMN review_phan_loai text,
-        ADD COLUMN review_loai_gia text,
-        ADD COLUMN review_ngay_ky text,
-        ADD COLUMN review_goi_thau text,
-        ADD COLUMN review_gia_tri_hd double precision,
-        ADD COLUMN review_gom_vat text,
-        ADD COLUMN review_vat double precision,
-        ADD COLUMN review_file_nguon text,
-        ADD COLUMN review_ngay_nap text,
-        ADD COLUMN review_dong_sha256 text,
-        ADD COLUMN review_nhap_boi text,
-        ADD COLUMN review_nhap_luc timestamptz,
-        ADD CONSTRAINT ho_so_review_nguon_ck CHECK (
-            (review_nguon_id IS NOT NULL AND review_ma_hd IS NOT NULL AND review_so_hd IS NOT NULL
-             AND review_dong_sha256 IS NOT NULL AND review_dong_sha256 ~ '^[0-9a-f]{64}$'
-             AND review_nhap_boi IS NOT NULL AND review_nhap_luc IS NOT NULL)
-            OR (review_nguon_id IS NULL AND review_ma_hd IS NULL AND review_so_hd IS NULL
-                AND review_phan_loai IS NULL AND review_loai_gia IS NULL AND review_ngay_ky IS NULL
-                AND review_goi_thau IS NULL AND review_gia_tri_hd IS NULL AND review_gom_vat IS NULL
-                AND review_vat IS NULL AND review_file_nguon IS NULL AND review_ngay_nap IS NULL
-                AND review_dong_sha256 IS NULL AND review_nhap_boi IS NULL AND review_nhap_luc IS NULL)),
-        ADD CONSTRAINT ho_so_review_ma_uq UNIQUE (review_nguon_id, review_ma_hd),
-        ADD CONSTRAINT ho_so_review_so_uq UNIQUE (review_nguon_id, review_so_hd),
-        ADD CONSTRAINT ho_so_review_pham_vi_uq UNIQUE (review_nguon_id, review_ma_hd, hop_dong_id, du_an_id)""",
-    """CREATE FUNCTION m4.review_chep_hd_bat_bien() RETURNS trigger
-        LANGUAGE plpgsql SET search_path = pg_catalog, pg_temp AS $$
-        BEGIN
-            IF OLD.review_nguon_id IS NOT NULL AND
-               (SELECT jsonb_object_agg(key, value) FROM jsonb_each(to_jsonb(OLD)) WHERE left(key, 7) = 'review_')
-               IS DISTINCT FROM
-               (SELECT jsonb_object_agg(key, value) FROM jsonb_each(to_jsonb(NEW)) WHERE left(key, 7) = 'review_') THEN
-                RAISE EXCEPTION 'M4_BAT_BIEN: không sửa bản nguồn hợp đồng Review' USING ERRCODE = 'P0001';
-            END IF;
-            RETURN NEW;
-        END $$""",
-    "CREATE TRIGGER ho_so_review_bat_bien BEFORE UPDATE ON m4.ho_so_hop_dong FOR EACH ROW EXECUTE FUNCTION m4.review_chep_hd_bat_bien()",
+    f"""CREATE TABLE m4.review_chep_hop_dong (
+        {_HD}
+        so_hd text NOT NULL, phan_loai text, loai_gia text, ngay_ky text,
+        goi_thau text, gia_tri_hd numeric, gom_vat text, vat numeric,
+        file_nguon text, ngay_nap text,
+        {_CHUNG}
+        PRIMARY KEY (nguon_id, ma_hd),
+        UNIQUE (nguon_id, so_hd),
+        UNIQUE (nguon_id, ma_hd, hop_dong_id, du_an_id),
+        FOREIGN KEY (hop_dong_id, du_an_id)
+            REFERENCES m4.ho_so_hop_dong (hop_dong_id, du_an_id))""",
     f"""CREATE TABLE m4.review_chep_che_do (
         nguon_id text NOT NULL REFERENCES m4.review_chep_nguon(id),
         id bigint NOT NULL CHECK (id = 1), sua bigint NOT NULL DEFAULT 0,
@@ -103,7 +89,7 @@ M4_REVIEW_CHEP_SQL = (
         id bigint NOT NULL, so_pl text NOT NULL,
         ngay_ky text NOT NULL, ngay_hieu_luc text NOT NULL,
         loai text, doi_boq bigint NOT NULL,
-        gt_truoc_vat double precision, gt_sau_vat double precision, gt_hd_sau_pl double precision,
+        gt_truoc_vat numeric, gt_sau_vat numeric, gt_hd_sau_pl numeric,
         noi_dung text, can_cu text, file_nguon text, phieu text,
         trang_thai text NOT NULL, nguoi_nhap text, ngay_nap text, ly_do_huy text,
         m4_phu_luc_id uuid,
@@ -129,7 +115,7 @@ M4_REVIEW_CHEP_SQL = (
         id bigint NOT NULL, pl_id bigint,
         thao_tac text NOT NULL CHECK (thao_tac IN ('GOC','THAY','THEM','BO')),
         ma_hm text NOT NULL, stt text, nhom text, ten text, dvt text,
-        kl double precision, don_gia double precision, thanh_tien_ghi double precision,
+        kl numeric, don_gia numeric, thanh_tien_ghi numeric,
         khoa text, vi_tri_nguon text, ghi_chu text, ma_rieng text,
         m4_boq_id uuid, m4_dong integer,
         {_CHUNG}
@@ -145,8 +131,8 @@ M4_REVIEW_CHEP_SQL = (
     f"""CREATE TABLE m4.review_chep_dot_thanh_toan (
         {_HD}
         dot bigint NOT NULL, ngay_nghiem_thu text, ngay_nhan_hs text,
-        gt_ky double precision, gt_luy_ke double precision, giu_lai double precision,
-        thu_hoi_tu double precision, gt_tt_ky double precision, file_nguon text, ngay_nap text,
+        gt_ky numeric, gt_luy_ke numeric, giu_lai numeric,
+        thu_hoi_tu numeric, gt_tt_ky numeric, file_nguon text, ngay_nap text,
         m4_dot_id uuid,
         {_CHUNG}
         PRIMARY KEY (nguon_id, ma_hd, dot),
@@ -156,7 +142,7 @@ M4_REVIEW_CHEP_SQL = (
         nguon_id text NOT NULL REFERENCES m4.review_chep_nguon(id),
         ma_hd text NOT NULL, dot bigint NOT NULL, ma_hm text NOT NULL,
         du_an_id uuid NOT NULL,
-        kl_ky double precision, kl_luy_ke double precision, don_gia_tt double precision, vi_tri_nguon text,
+        kl_ky numeric, kl_luy_ke numeric, don_gia_tt numeric, vi_tri_nguon text,
         {_CHUNG}
         PRIMARY KEY (nguon_id, ma_hd, dot, ma_hm),
         FOREIGN KEY (nguon_id, ma_hd, dot, du_an_id)
@@ -208,7 +194,6 @@ M4_REVIEW_CHEP_SQL = (
         PRIMARY KEY (nguon_id, ma_hd, ma_ts), {_FK_HD})""",
     # Không grant ghi, không SECURITY DEFINER cho import. Chỉ kết nối chủ bảng
     # tin cậy ghi được; không nhận cờ sửa/GUC làm đường vượt quyền.
-    "REVOKE EXECUTE ON FUNCTION m4.review_chep_hd_bat_bien() FROM PUBLIC",
     *(f"CREATE TRIGGER {t}_chi_ghi_them BEFORE INSERT OR UPDATE OR DELETE ON m4.{t} FOR EACH ROW EXECUTE FUNCTION m4.chi_ghi_them()"
       for t in BANG_BO_SUNG),
     *(f"CREATE TRIGGER {t}_chan_truncate BEFORE TRUNCATE ON m4.{t} FOR EACH STATEMENT EXECUTE FUNCTION m4.chi_ghi_them()"
@@ -218,17 +203,17 @@ M4_REVIEW_CHEP_SQL = (
     """DO $$
     BEGIN
         IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'app_web') THEN
-            REVOKE EXECUTE ON FUNCTION m4.review_chep_hd_bat_bien() FROM app_web;
             REVOKE ALL ON """ + ", ".join("m4." + t for t in BANG_BO_SUNG) + """ FROM app_web;
         END IF;
     END $$""",
     # Nguồn/cờ sửa không có phạm vi dự án: owner-only. Lịch sử đợt chưa nộp
     # chỉ XEM, không cho REVIEW đọc như đợt đã nộp. Thu hồi quyền có hiệu lực ngay.
+    # HĐ/tham số/phụ lục/BOQ theo mẫu XEM OR REVIEW của M4; bảng khác chỉ XEM.
     *(f"""DO $$ BEGIN
         IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'app_web') THEN
             GRANT SELECT ON m4.{t} TO app_web;
             CREATE POLICY {t}_web ON m4.{t} FOR SELECT TO app_web
-                USING (master.m4_duoc(du_an_id, 'XEM'));
+                USING (master.m4_duoc(du_an_id, 'XEM'){" OR master.m4_duoc(du_an_id, 'REVIEW')" if t in _BANG_REVIEW else ''});
         END IF;
     END $$""" for t in BANG_BO_SUNG if t not in ("review_chep_nguon", "review_chep_che_do")),
 )

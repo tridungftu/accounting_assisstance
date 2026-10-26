@@ -12084,6 +12084,7 @@ PG_SCHEMA_VERSION = len(PG_MIGRATIONS)
 # ---------------------------------------------------------------------------
 # M4-DL1 — CD-011: chứng cứ nguồn Review SQLite; lead cấp ordinal khi gộp.
 # Chỉ append, không đổi migration đã phát hành.
+# Lát chưa gộp: vòng 2 sửa trực tiếp SQL sang lần chụp riêng, không thêm migration.
 # ---------------------------------------------------------------------------
 from ..m4.sql_review_chep import M4_REVIEW_CHEP_SQL  # noqa: E402 — chỉ hằng SQL
 
