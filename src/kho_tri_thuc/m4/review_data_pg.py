@@ -279,7 +279,7 @@ class ReviewDataPG:
     def _khac(table, truong="dong_sha256 (hash dòng)"):
         raise DataError("M4_REVIEW_REPLAY_KHAC", f"Lần chụp đã có nhưng khác {truong} ở {table}; không ghi đè.")
 
-    def _kiem_quyen_doc(self, hop_dong_id, *, conn_phien):
+    def kiem_quyen_doc(self, hop_dong_id, *, conn_phien):
         """Dùng chung DL2/DL3; kiểm UUID trước SQL để không hỏng giao dịch phiên."""
         try:
             identity = str(uuid.UUID(str(hop_dong_id)))
@@ -297,7 +297,7 @@ class ReviewDataPG:
             raise DataError("M4_REVIEW_KHONG_THAY", "Không tìm thấy hợp đồng.")
         return identity
 
-    def _nguon_hien_hanh(self, hop_dong_id):
+    def nguon_hien_hanh(self, hop_dong_id):
         """Caller đã kiểm quyền và mở transaction; ba giá trị cùng snapshot SQL."""
         current = self._rows("""SELECT m4.review_chep_hien_hanh(%s::uuid) AS nguon_id,
             EXISTS (SELECT 1 FROM m4.review_chep_nguon) AS co_nguon,
@@ -306,6 +306,10 @@ class ReviewDataPG:
         state = ("CHUA_CO_LAN_CHUP" if not current["co_nguon"] else
                  "DA_XOA_O_NGUON" if current["co_hd"] else "CHUA_CO_TRONG_NGUON")
         return current["nguon_id"], state
+
+    # Giữ bí danh cho caller DL3/DL4 đang dùng tên cũ.
+    _kiem_quyen_doc = kiem_quyen_doc
+    _nguon_hien_hanh = nguon_hien_hanh
 
     def doc_hien_hanh(self, hop_dong_id, *, conn_phien):
         """Ghim nguon_id từ hàm DL1b rồi đọc tất cả con của đúng bản bất biến.
@@ -321,9 +325,9 @@ class ReviewDataPG:
         Hàm DL1b và hai EXISTS nằm trong một SELECT để ba trạng thái NULL
         nhất quán dưới READ COMMITTED. Không lùi về bản cũ hay tạo chứng cứ giả.
         """
-        hop_dong_id = self._kiem_quyen_doc(hop_dong_id, conn_phien=conn_phien)
+        hop_dong_id = self.kiem_quyen_doc(hop_dong_id, conn_phien=conn_phien)
         with self._tx():
-            source, state = self._nguon_hien_hanh(hop_dong_id)
+            source, state = self.nguon_hien_hanh(hop_dong_id)
             if source is None:
                 return dto_man_hinh(None, [], [], trang_thai=state)
             contracts = self._rows("SELECT * FROM m4.review_chep_hop_dong WHERE nguon_id=%s AND hop_dong_id=%s::uuid", (source, str(hop_dong_id)))

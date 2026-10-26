@@ -15,6 +15,7 @@ from decimal import Decimal
 from unittest.mock import MagicMock, Mock
 
 from kho_tri_thuc.ha_tang.primitives import DataError
+from kho_tri_thuc.m4.review_data_pg import ReviewDataPG, dto_man_hinh
 from kho_tri_thuc.m4.review_phu_luc_pg import (
     ReviewPhuLucPG, _chuan_bi, dto_phu_luc,
 )
@@ -112,7 +113,9 @@ class ReviewPhuLucTinh(unittest.TestCase):
             result = _dto(data)
             self.assertTrue(result["can_xem_lai"])
             self.assertIsNone(result["boq"])
-            self.assertIsNone(result["gt_hd_sau_pl"])
+            self.assertIsNone(result["gt_hd_ghi_tren_pl_cuoi"])
+            self.assertTrue(any("DEMO-PL-1" in reason and "DEMO-PL-2" in reason
+                                for reason in result["ly_do"]))
         self.assertFalse(_dto(data, "2026-01-31")["can_xem_lai"])
 
     def test_phu_luc_huy_va_du_thao_khong_ap(self):
@@ -129,9 +132,11 @@ class ReviewPhuLucTinh(unittest.TestCase):
         self.assertNotIn("nguoi_huy", actual["phu_luc"][2])
 
     def test_gt_hd_lay_nguyen_nguon_khong_cong_khong_fallback_null(self):
-        self.assertIsNone(_dto(day="2026-01-01")["gt_hd_sau_pl"])
-        self.assertEqual(_dto(day="2026-02-01")["gt_hd_sau_pl"], Decimal("1000.125"))
-        self.assertIsNone(_dto()["gt_hd_sau_pl"])
+        self.assertIsNone(_dto(day="2026-01-01")["gt_hd_ghi_tren_pl_cuoi"])
+        self.assertEqual(_dto(day="2026-02-01")["gt_hd_ghi_tren_pl_cuoi"], Decimal("1000.125"))
+        self.assertIsNone(_dto()["gt_hd_ghi_tren_pl_cuoi"])
+        self.assertNotIn("gt_hd_sau_pl", _dto())
+        self.assertEqual(_dto()["phu_luc"][0]["gt_hd_sau_pl"], Decimal("1000.125"))
         self.assertIsNone(_dto()["phu_luc"][0]["gt_sau_vat"])
 
     def test_allowlist_khong_lo_file_actor_id_hash_phieu(self):
@@ -154,7 +159,7 @@ class ReviewPhuLucTinh(unittest.TestCase):
         check(_dto(data))
 
     def test_ngay_sai_trang_thai_la_orphan_bat_co_khong_tra_bo_phan(self):
-        for change in ("ngay", "trang_thai", "orphan", "thay_thieu", "them_trung"):
+        for change in ("ngay", "trang_thai", "orphan", "thay_thieu", "them_trung", "trung_ma", "trung_id"):
             data = _demo()
             if change == "ngay":
                 data["phu_luc"][0]["ngay_hieu_luc"] = "01/02/2026"
@@ -164,12 +169,20 @@ class ReviewPhuLucTinh(unittest.TestCase):
                 data["boq_dong"][2]["pl_id"] = 999
             elif change == "thay_thieu":
                 data["boq_dong"][2]["ma_hm"] = "DEMO-THIEU"
-            else:
+            elif change == "them_trung":
                 data["boq_dong"][3]["ma_hm"] = "DEMO-B"
+            elif change == "trung_ma":
+                data["boq_dong"][3]["ma_hm"] = "DEMO-A"
+            else:
+                data["phu_luc"].append(dict(data["phu_luc"][0], so_pl="DEMO-PL-TRUNG"))
             with self.subTest(change=change):
                 actual = _dto(data)
                 self.assertTrue(actual["can_xem_lai"])
                 self.assertIsNone(actual["boq"])
+                if change != "orphan":
+                    self.assertTrue(any("DEMO-PL-1" in reason for reason in actual["ly_do"]))
+                if change == "trung_id":
+                    self.assertTrue(any("DEMO-PL-TRUNG" in reason for reason in actual["ly_do"]))
         for bad in (None, "20260201", "01/02/2026"):
             with self.subTest(bad=bad), self.assertRaises(DataError):
                 _dto(day=bad)
@@ -224,6 +237,10 @@ class ReviewPhuLucTinh(unittest.TestCase):
 
 
 class ReviewPhuLucDocTinh(unittest.TestCase):
+    def test_ham_doc_cong_khai_giu_bi_danh_cu(self):
+        self.assertIs(ReviewDataPG.kiem_quyen_doc, ReviewDataPG._kiem_quyen_doc)
+        self.assertIs(ReviewDataPG.nguon_hien_hanh, ReviewDataPG._nguon_hien_hanh)
+
     def test_phien_bat_buoc_khong_quyen_giong_uuid_ngau_nhien(self):
         owner, session = Mock(), Mock()
         repo = ReviewPhuLucPG(owner)
@@ -287,7 +304,14 @@ class ReviewPhuLucDocTinh(unittest.TestCase):
                 owner, active = self._owner(session, [[dict(nguon_id=None, co_nguon=co_nguon, co_hd=co_hd)]])
                 with self.subTest(result=result, state=state):
                     actual = ReviewPhuLucPG(owner).doc_hien_hanh(uuid.UUID(int=1), ngay="2026-03-01", conn_phien=session)
-                    self.assertEqual(actual, dict(dto_phu_luc([], [], [], "2026-03-01"), trang_thai=state))
+                    self.assertEqual(actual["trang_thai"], state)
+                    self.assertIsNone(actual["boq"])
+                    self.assertIsNone(actual["gt_hd_ghi_tren_pl_cuoi"])
+                    self.assertEqual(actual["phu_luc"], [])
+                    self.assertFalse(actual["can_xem_lai"])
+                    self.assertEqual(actual["ly_do"], [])
+                    self.assertEqual(actual["thong_bao"],
+                                     dto_man_hinh(None, [], [], trang_thai=state)["thong_bao"])
                     owner.execute.assert_called_once()
                     query, params = owner.execute.call_args.args
                     self.assertIn("m4.review_chep_hien_hanh(%s::uuid)", query)

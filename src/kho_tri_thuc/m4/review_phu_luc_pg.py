@@ -20,7 +20,7 @@ from collections.abc import Mapping
 from datetime import date
 
 from ..ha_tang.primitives import DataError
-from .review_data_pg import ReviewDataPG, dong_sha256, real_sang_decimal
+from .review_data_pg import ReviewDataPG, dong_sha256, dto_man_hinh, real_sang_decimal
 
 
 _COT = {
@@ -87,17 +87,19 @@ def _phu_luc_tai_ngay(phu_luc, ngay):
         if state in ("Đã hủy", "Dự thảo"):
             continue
         if state != "Đã ký":
-            reasons.append("Trạng thái phụ lục chưa có quy tắc áp dụng.")
+            reasons.append(f"Phụ lục {pl['so_pl']}: trạng thái chưa có quy tắc áp dụng.")
             continue
         try:
             effective = _ngay(pl.get("ngay_hieu_luc"))
         except DataError:
-            reasons.append("Ngày hiệu lực phụ lục chưa xác định được.")
+            reasons.append(f"Phụ lục {pl['so_pl']}: ngày hiệu lực chưa xác định được.")
             continue
         if effective <= cutoff:
             active.append((effective, pl))
-    if any(n > 1 for n in Counter(d for d, _ in active).values()):
-        reasons.append("Hai phụ lục cùng ngày hiệu lực; cần chốt thứ tự áp dụng.")
+    counts = Counter(d for d, _ in active)
+    if any(n > 1 for n in counts.values()):
+        numbers = ", ".join(p["so_pl"] for d, p in active if counts[d] > 1)
+        reasons.append(f"Các phụ lục {numbers} cùng ngày hiệu lực; cần chốt thứ tự áp dụng.")
     return [p for _, p in sorted(active, key=lambda item: item[0])], reasons
 
 
@@ -110,7 +112,9 @@ def boq_tai_ngay(phu_luc, boq_dong, ngay):
     active, reasons = _phu_luc_tai_ngay(phu_luc, ngay)
     parents = {p["id"]: p for p in phu_luc}
     if len(parents) != len(phu_luc):
-        reasons.append("Trùng khóa phụ lục nguồn.")
+        counts = Counter(p["id"] for p in phu_luc)
+        numbers = ", ".join(p["so_pl"] for p in phu_luc if counts[p["id"]] > 1)
+        reasons.append(f"Trùng khóa phụ lục nguồn: {numbers}.")
     lines, changes = {}, {}
     for row in sorted(boq_dong, key=lambda r: r["id"]):
         parent, op, code = row.get("pl_id"), row.get("thao_tac"), row["ma_hm"]
@@ -128,7 +132,7 @@ def boq_tai_ngay(phu_luc, boq_dong, ngay):
         for row in changes.get(pl["id"], []):
             code, op = row["ma_hm"], row.get("thao_tac")
             if code in seen:
-                reasons.append("Trùng mã hạng mục trong cùng phụ lục.")
+                reasons.append(f"Phụ lục {pl['so_pl']}: trùng mã hạng mục.")
                 continue
             seen.add(code)
             if op == "THEM" and code not in lines:
@@ -140,7 +144,7 @@ def boq_tai_ngay(phu_luc, boq_dong, ngay):
             elif op == "BO" and code in lines:
                 lines.pop(code)
             else:
-                reasons.append("Thao tác BOQ không khớp hạng mục đang hiệu lực.")
+                reasons.append(f"Phụ lục {pl['so_pl']}: thao tác BOQ không khớp hạng mục đang hiệu lực.")
     return {"boq": None if reasons else list(lines.values()),
             "can_xem_lai": bool(reasons), "ly_do": list(dict.fromkeys(reasons))}
 
@@ -149,8 +153,10 @@ def dto_phu_luc(phu_luc, thay_doi_tham_so, boq_dong, ngay):
     """Allowlist; thay đổi nằm trong từng phiên PL, kể cả PL đã hủy trùng số.
 
     Không xuất phieu JSON thô, file, vị trí/đường dẫn, actor nạp, ID/hash.
-    gt_hd_sau_pl trên từng PL luôn là số nguồn; giá trị tại ngày là số của
-    PL cuối có hiệu lực, kể cả NULL, không fallback/cộng lại.
+    gt_hd_sau_pl trên từng PL luôn là số nguồn. gt_hd_ghi_tren_pl_cuoi là
+    giá trị HĐ ghi trên PL cuối còn hiệu lực tại ngày, kể cả NULL, không
+    fallback/cộng lại. Giá trị HĐ hiệu lực của Review gốc được tính bằng
+    gốc sau VAT + tổng gt_sau_vat; trường này không biểu diễn giá trị đó.
     """
     projection = boq_tai_ngay(phu_luc, boq_dong, ngay)
     active, reasons = _phu_luc_tai_ngay(phu_luc, ngay)
@@ -163,7 +169,7 @@ def dto_phu_luc(phu_luc, thay_doi_tham_so, boq_dong, ngay):
         value["thay_doi_tham_so"] = changes.get(row["id"], [])
         result.append(value)
     return dict(projection, phu_luc=result,
-                gt_hd_sau_pl=real_sang_decimal(active[-1].get("gt_hd_sau_pl")) if active and not reasons else None)
+                gt_hd_ghi_tren_pl_cuoi=real_sang_decimal(active[-1].get("gt_hd_sau_pl")) if active and not reasons else None)
 
 
 def _chuan_bi(du_lieu, contracts):
@@ -284,12 +290,14 @@ class ReviewPhuLucPG:
         Ba trạng thái NULL được xác định trong cùng một SELECT của DL2.
         """
         reader = ReviewDataPG(self.conn)
-        hop_dong_id = reader._kiem_quyen_doc(hop_dong_id, conn_phien=conn_phien)
+        hop_dong_id = reader.kiem_quyen_doc(hop_dong_id, conn_phien=conn_phien)
         _ngay(ngay)
         with self.conn.transaction():
-            source, state = reader._nguon_hien_hanh(hop_dong_id)
+            source, state = reader.nguon_hien_hanh(hop_dong_id)
             if source is None:
-                return dict(dto_phu_luc([], [], [], ngay), trang_thai=state)
+                missing = dto_man_hinh(None, [], [], trang_thai=state)
+                return dict(dto_phu_luc([], [], [], ngay), trang_thai=state,
+                            boq=None, thong_bao=missing["thong_bao"])
             params = (source, str(hop_dong_id))
             pls = _rows(self.conn, "SELECT * FROM m4.review_chep_phu_luc WHERE nguon_id=%s AND hop_dong_id=%s::uuid ORDER BY id", params)
             changes = _rows(self.conn, """SELECT t.* FROM m4.review_chep_thay_doi_tham_so t
