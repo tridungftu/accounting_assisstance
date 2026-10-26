@@ -209,7 +209,7 @@
 5. **Độc lập module:** thiếu dữ liệu từ module khác → trạng thái **chờ có lý do**, không lỗi, không suy đoán; trao đổi chỉ qua danh mục chung, bus sự kiện, dữ liệu công bố chỉ đọc.
 6. Ghi danh bạ engine vào `TRANG-THAI.md` (engine · phiên bản · module dùng · trạng thái test).
 **Báo Anh khi:** XS-1…XS-4 xong (kèm ví dụ: tắt một module, module kia vẫn chạy và hiện "chờ"); engine đầu tiên được cắm lại vào module thứ hai.
-**Trạng thái:** ĐÃ NHẬN 20:40 26/10 — giao Codex kiểm kê + chia lát XS-1…XS-4 theo TL 53 (chỉ tài liệu) rồi giao code từng lát; các lát MTQ-4/CD-016 đang chạy giữ nguyên.
+**Trạng thái:** ĐÃ NHẬN 20:40 26/10 · 22:50 Anh chốt công tắc S1–S6 (QD-20261026-11), giao XS-4b → XS-4c → XS-2 → pilot · — giao Codex kiểm kê + chia lát XS-1…XS-4 theo TL 53 (chỉ tài liệu) rồi giao code từng lát; các lát MTQ-4/CD-016 đang chạy giữ nguyên.
 
 ## CD-018 · 26/10/2026 20:30 · Mỗi module khai báo vùng dữ liệu ghi/đọc — nguyên tắc triển khai toàn phần mềm
 **Căn cứ:** Anh 26/10 20:26: "mỗi module vào phải xác định được vùng chức năng của cơ sở dữ liệu để ghi nhận hoặc lấy thông tin từ cơ sở dữ liệu… triển khai phần mềm với nguyên tắc như vậy." TL 53 §7 (đã thêm 20:30). `CLAUDE.md` đã thêm dòng "Kiến trúc" (ràng buộc cứng).
@@ -232,4 +232,4 @@
 5. **BitLocker:** đo trước — chạy bộ đo (pgbench + vài thao tác lưu thật của phần mềm trên DEMO) trên `D:\DU-LIEU-KE-TOAN` khi chưa mã hóa, ghi số; khi Anh bật BitLocker, đo lại cùng bộ, báo chênh lệch để Anh quyết giữ hay dùng mã hóa phần cứng.
 6. SSL: ghi vào checklist chuyển lên máy chủ.
 **Báo Anh khi:** danh sách cột nhạy cảm cần duyệt; số đo trước BitLocker; biên bản thử khôi phục bản sao lưu mã hóa.
-**Trạng thái:** ĐÃ NHẬN 21:10 26/10 — (1) thêm kiểm "không trùng engine/thư viện/mô hình/kết nối" vào `MAU-REVIEW-CODEX.md` và cổng lead; (2) lead tạo `D:\DU-LIEU-KE-TOAN\{postgresql,kho-file,sao-luu}` (thư mục rỗng); cụm PG thật dựng sau XS-5b và khi Anh duyệt kế hoạch chuyển kho — đăng ký dịch vụ Windows cần quyền quản trị: sẽ hỏi Anh đúng bước đó; (3) giao Codex lập danh sách cột nhạy cảm + thiết kế pgcrypto/xoay khóa/sao lưu mã hóa/thử khôi phục + bộ đo trước BitLocker (tài liệu `KK-MA-HOA-LUU-RIENG.md`) → gửi Anh duyệt danh sách cột trước khi bật.
+**Trạng thái:** ĐÃ NHẬN 21:10 26/10 · 22:50 Anh duyệt danh sách cột nhóm A, cách giữ khóa, lịch sao lưu (M1–M3, QD-20261026-11); giao MH-1, SL-1; người giữ ổ ngoài Anh chỉ định khi tới bước tạo khóa · — (1) thêm kiểm "không trùng engine/thư viện/mô hình/kết nối" vào `MAU-REVIEW-CODEX.md` và cổng lead; (2) lead tạo `D:\DU-LIEU-KE-TOAN\{postgresql,kho-file,sao-luu}` (thư mục rỗng); cụm PG thật dựng sau XS-5b và khi Anh duyệt kế hoạch chuyển kho — đăng ký dịch vụ Windows cần quyền quản trị: sẽ hỏi Anh đúng bước đó; (3) giao Codex lập danh sách cột nhạy cảm + thiết kế pgcrypto/xoay khóa/sao lưu mã hóa/thử khôi phục + bộ đo trước BitLocker (tài liệu `KK-MA-HOA-LUU-RIENG.md`) → gửi Anh duyệt danh sách cột trước khi bật.

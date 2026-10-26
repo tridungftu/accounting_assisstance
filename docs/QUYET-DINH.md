@@ -372,3 +372,18 @@ Lead quyết 26/10 ~22:40 khi MTQ-4i-b1 dừng "Cần lead" (resolver chỉ tr�
 - `mtq_duoc_doc`: mọi PN tắt → NULL; hỗn hợp → false; mọi PN bật → true khi tất cả true.
 - Đối tượng một PN giữ nguyên kết quả.
 - Lát NEN-2a (cổng), NEN-2b (đọc), rồi 4i-b1 làm tiếp. Chi tiết: `docs/46-chuyen-doi-dieu-phoi/giao-viec-20261026/giao-mtq-nen-2.md`.
+
+## QD-20261026-11 · Công tắc module (S1–S6) và mã hóa/sao lưu (M1–M3)
+Anh chốt 26/10 ~22:50: "Đồng ý toàn bộ đề xuất S1–S6 và M1–M3 trong CAN-ANH-CHOT-TOI-26-10.md; giao tiếp các lát."
+- **Công tắc Tắt / Thử / Vận hành theo module × pháp nhân** (không thay ma trận thẩm quyền):
+  - S1 Thử = chỉ Admin và người được chỉ định thấy; không xuất ra ngoài; không đẩy kết quả chính thức sang module khác; dải "Đang thử".
+  - S2 chỉ Admin đổi, bắt buộc lý do, có nhật ký.
+  - S3 module đang dùng (CRM, M2, M4, lõi) mặc định Vận hành; module mới mặc định Tắt.
+  - S4 Tắt = không nhận việc mới, ẩn khỏi lưới; việc đang chạy chạy nốt; dữ liệu xem chỉ đọc; module khác hiện "Chờ".
+  - S5 Thử → Vận hành phải đạt bảng điều kiện go-live; dữ liệu thử không tự thành chính thức.
+  - S6 thử nghiệm đầu: tắt M2 → M4 hiện "Chờ hóa đơn M2".
+- **Mã hóa và sao lưu (CD-019):**
+  - M1 mã hóa 10 nhóm A ngay; 5 nhóm B chờ; 3 nhóm C (tiền, ngày, mã nội bộ) để nguyên.
+  - M2 khóa cột bọc DPAPI theo tài khoản chạy phần mềm, trong `D:\DU-LIEU-KE-TOANi-mat\`; khóa sao lưu riêng cất ổ ngoài + bản dự phòng. **Người giữ ổ ngoài: Anh chỉ định khi tới bước tạo khóa sao lưu.**
+  - M3 sao lưu mã hóa 23:00 hằng ngày và trước/sau nâng cấp hoặc nạp; chép ổ khác hằng ngày, ổ ngoài hằng tuần; giữ 30 bản ngày + 12 bản tháng, không tự xóa; mục tiêu mất ≤ 24 giờ, khôi phục ≤ 2 giờ; báo Anh nếu BitLocker làm chậm > 10% (pgbench) hoặc > 15% (thao tác lưu).
+- Lát mở: XS-4b (SQL công tắc), XS-4c (máy chủ), XS-2 (hàng việc nền), pilot XS-T1; MH-1 (cổng mã hóa cột), SL-1 (sao lưu mã hóa), rồi MH-2…, SL-2, DO-1.

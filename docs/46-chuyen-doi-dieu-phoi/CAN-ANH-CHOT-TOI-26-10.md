@@ -1,5 +1,7 @@
 # Phiếu cần Anh chốt — tối 26/10/2026
 
+> **ĐÃ CHỐT 26/10 ~22:50 (QD-20261026-11):** Anh đồng ý toàn bộ S1–S6 và M1–M3. H1 đã trả lời trước đó (QD-20261026-09).
+
 Ba nhóm câu, mỗi câu có **đề xuất của lead**. Anh trả lời "Đồng ý toàn bộ", hoặc ghi mã câu muốn đổi.
 
 ## I. Công tắc module Tắt / Thử / Vận hành (CD-017)

@@ -1,5 +1,7 @@
 # XS-4 — Công tắc module × pháp nhân: các điểm cần Anh chốt
 
+> **ĐÃ CHỐT 26/10 ~22:50 (QD-20261026-11):** Anh đồng ý toàn bộ S1–S6.
+
 26/10/2026 · lead soạn từ TL 53, CD-017, `KK-XUONG-SONG.md` §5–§6. Mỗi dòng có **đề xuất của lead**. Anh chỉ cần trả lời "Đồng ý toàn bộ", hoặc ghi mã dòng muốn đổi.
 
 Công tắc có 3 chế độ **Tắt / Thử / Vận hành**, đặt riêng cho từng module ở từng pháp nhân. Công tắc **không thay** ma trận thẩm quyền:
