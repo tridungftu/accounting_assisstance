@@ -16,7 +16,7 @@ import uuid
 
 from kho_tri_thuc.giao_dien import server, ma_tran_tham_quyen as mtq_http
 from kho_tri_thuc.ha_tang.primitives import DataError
-from kho_tri_thuc.k2 import crm_demo, m4_demo, mtq_demo, m5_demo
+from kho_tri_thuc.k2 import crm_demo, crm_g_demo, m4_demo, mtq_demo, m5_demo
 
 
 class DanhTinhSqlite:
@@ -79,20 +79,22 @@ class MtqDemoPhienTinh(unittest.TestCase):
     def test_nhom_mtq_dung_nam_vai_admin_tach(self):
         before = list(self.conn.c.execute("SELECT * FROM master.nguoi_dung"))
         data = self.app.demo_vai(self.app.CRM_MAC_DINH)
-        mtq, admin, cu = data["danh_tinh_demo_nhom"]
+        self.assertEqual([g["ma"] for g in data["danh_tinh_demo_nhom"]], ["MTQ", "QUAN_TRI"])
+        self.assertNotIn("CU", {g["ma"] for g in data["danh_tinh_demo_nhom"]})
+        mtq, admin = data["danh_tinh_demo_nhom"]
         self.assertEqual(mtq["ten"], "Ma trận thẩm quyền (DEMO)")
         self.assertEqual([v["ten"] for v in mtq["vai"]],
                          ["Người thực hiện 1", "Người thực hiện 2", "Trưởng phòng", "CFO", "Người xem"])
-        self.assertEqual([v["vai_tro"] for v in mtq["vai"]], [n[2] for n in mtq_demo.NGUOI_DUNG])
+        self.assertEqual([v["cap"] for v in mtq["vai"]], [n[2] for n in mtq_demo.NGUOI_DUNG])
+        self.assertTrue(all(set(v) == {"dang_nhap", "ten", "cap"} for v in mtq["vai"]))
         self.assertEqual(admin, {"ma": "QUAN_TRI", "ten": "Quản trị DEMO",
                                "vai": [{"dang_nhap": mtq_demo.ADMIN, "ten": "Admin DEMO"}]})
-        self.assertTrue({n[0] for n in crm_demo.NGUOI_DUNG} <= {v["dang_nhap"] for v in cu["vai"]})
         self.assertEqual(before, list(self.conn.c.execute("SELECT * FROM master.nguoi_dung")))
 
     def test_khong_hien_actor_ngung_hoac_khong_mo_phong(self):
         self.conn.c.execute("UPDATE master.nguoi_dung SET trang_thai='NGUNG' WHERE dang_nhap=?", (mtq_demo.ADMIN,))
         self.conn.c.execute("UPDATE master.nguoi_dung SET mo_phong=false WHERE dang_nhap=?", (mtq_demo.NGUOI_DUNG[0][0],))
-        mtq, admin, _ = self.app.demo_vai("cu")["danh_tinh_demo_nhom"]
+        mtq, admin = self.app.demo_vai("cu")["danh_tinh_demo_nhom"]
         self.assertEqual(len(mtq["vai"]), 4)
         self.assertEqual(admin["vai"], [])
 
@@ -118,6 +120,16 @@ class MtqDemoPhienTinh(unittest.TestCase):
         sid = headers["Set-Cookie"].split(";", 1)[0].split("=", 1)[1]
         self.assertEqual(self.app.crm_phien(sid)[1], data["dang_nhap"])
         self.assertEqual(goi(self.app, "/api/demo/vai", sid=sid)[2], {})
+
+    def test_crm_chua_cau_hinh_tra_200_nhom_rong(self):
+        self.app._crm = None
+        status, data, _ = goi(self.app, "/api/demo/vai")
+        self.assertEqual((status, data), (200, {"cau_hinh": False, "nhom": []}))
+
+    def test_loi_crm_khac_khong_bi_coi_la_chua_cau_hinh(self):
+        with patch.object(self.app, "crm", side_effect=DataError("CRM_LOI", "Lỗi fixture")):
+            status, data, _ = goi(self.app, "/api/demo/vai")
+        self.assertEqual((status, data["error"]), (400, "CRM_LOI"))
 
     def test_doi_du_sau_actor_dung_phien_khong_anh_huong_phien_khac(self):
         sid, _, _ = self.app.crm_phien(None, tao=True)
@@ -190,8 +202,32 @@ class MtqDemoPhienPostgres(unittest.TestCase):
         cls.addClassCleanup(cls.c.close)
         crm_demo.khoi_tao(cls.c)
         m4_demo.khoi_tao(cls.c)
+        crm_g_demo.khoi_tao(cls.c)
         if mtq_demo.khoi_tao(cls.c, demo=True)["trang_thai"] != "DU":
             raise AssertionError("Seed MTQ DEMO chưa đủ")
+
+    def test_get_demo_vai_sql_pg_that(self):
+        from psycopg.rows import dict_row
+        from kho_tri_thuc.k2.crm import CrmK2
+        with psycopg.connect(self.conninfo, autocommit=True, row_factory=dict_row) as c:
+            app = app_gia(c)
+            app._crm = CrmK2(c, app.root)
+            # GET qua Handler thật; không thay execute hay cú pháp ANY của PostgreSQL.
+            status, data, _ = goi(app, "/api/demo/vai")
+            self.assertEqual(status, 200)
+            self.assertEqual([g["ma"] for g in data["danh_tinh_demo_nhom"]], ["MTQ", "QUAN_TRI"])
+            self.assertNotIn("CU", {g["ma"] for g in data["danh_tinh_demo_nhom"]})
+            mtq, admin = data["danh_tinh_demo_nhom"]
+            self.assertEqual(mtq, {"ma": "MTQ", "ten": "Ma trận thẩm quyền (DEMO)", "vai": [
+                {"dang_nhap": login, "ten": ten.removesuffix(" DEMO"), "cap": cap}
+                for login, ten, cap, _ in mtq_demo.NGUOI_DUNG]})
+            self.assertEqual(len(mtq["vai"]), 5)
+            self.assertEqual(admin, {"ma": "QUAN_TRI", "ten": "Quản trị DEMO",
+                                    "vai": [{"dang_nhap": mtq_demo.ADMIN, "ten": "Admin DEMO"}]})
+            # starts_with chỉ còn ở bộ chọn phân hệ sau khi bỏ nhóm CU.
+            cu = app._demo_vai_cu(c)
+            self.assertTrue({n[0] for n in crm_demo.NGUOI_DUNG} <= {v["dang_nhap"] for v in cu})
+            self.assertFalse(any(v["dang_nhap"].startswith("MO_PHONG_MTQ_") for v in cu))
 
     def test_doi_admin_cua_toi_la_admin_theo_phien(self):
         from psycopg.rows import dict_row

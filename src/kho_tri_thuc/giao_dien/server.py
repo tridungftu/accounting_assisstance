@@ -301,17 +301,21 @@ class LocalApp:
         if self.is_that:
             raise DataError("THAT_UI", "Bản vận hành không có bộ chọn vai DEMO.")
         from ..k2.mtq_demo import ADMIN, NGUOI_DUNG
-        crm = self.crm()
+        try:
+            crm = self.crm()
+        except DataError as exc:
+            if exc.code == "CRM_CHUA_CAU_HINH":
+                return {"cau_hinh": False, "nhom": []}
+            raise
         actors = [ADMIN, *(n[0] for n in NGUOI_DUNG)]
         active = {r["dang_nhap"] for r in crm.conn.execute("""SELECT dang_nhap FROM master.nguoi_dung
             WHERE mo_phong AND trang_thai = 'HOAT_DONG' AND dang_nhap = ANY(%s)""", (actors,))}
         return {"dang_nhap": me, "danh_tinh_demo_nhom": [
             {"ma": "MTQ", "ten": "Ma trận thẩm quyền (DEMO)", "vai": [
-                {"dang_nhap": login, "ten": ten.removesuffix(" DEMO"), "vai_tro": vai}
+                {"dang_nhap": login, "ten": ten.removesuffix(" DEMO"), "cap": vai}
                 for login, ten, vai, _ in NGUOI_DUNG if login in active]},
             {"ma": "QUAN_TRI", "ten": "Quản trị DEMO", "vai": [
                 {"dang_nhap": ADMIN, "ten": "Admin DEMO"}] if ADMIN in active else []},
-            {"ma": "CU", "ten": "Vai DEMO hiện có", "vai": self._demo_vai_cu(crm.conn)},
         ]}
 
     @staticmethod
