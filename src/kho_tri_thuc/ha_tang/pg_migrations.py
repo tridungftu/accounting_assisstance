@@ -12423,3 +12423,10 @@ from ..k2.sql_hang_viec import HANG_VIEC_SQL  # noqa: E402 — chỉ hằng SQL
 M0060_HANG_VIEC = HANG_VIEC_SQL
 PG_MIGRATIONS = (*PG_MIGRATIONS, M0060_HANG_VIEC)
 PG_SCHEMA_VERSION = len(PG_MIGRATIONS)
+
+# XS-2a2 — CD-017: đọc trạng thái lease/yêu cầu dừng cho worker; không đổi M0060.
+from ..k2.sql_hang_viec import HANG_VIEC_B_SQL  # noqa: E402 — chỉ hằng SQL
+
+M0061_HANG_VIEC_B = HANG_VIEC_B_SQL
+PG_MIGRATIONS = (*PG_MIGRATIONS, M0061_HANG_VIEC_B)
+PG_SCHEMA_VERSION = len(PG_MIGRATIONS)

@@ -21,7 +21,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'src'))
 
 from kho_tri_thuc.ha_tang import pg_migrations as PM
-from kho_tri_thuc.k2.sql_hang_viec import HANG_VIEC_SQL
+from kho_tri_thuc.k2.sql_hang_viec import HANG_VIEC_B_SQL, HANG_VIEC_SQL
 
 try:
     import psycopg
@@ -36,8 +36,10 @@ SIGNATURES = (
     'viec.gia_han(uuid,uuid,uuid,uuid,integer)', 'viec.tien_do(uuid,uuid,uuid,uuid,integer)',
     'viec.ket_thuc(uuid,uuid,uuid,uuid,text,uuid,text)',
     'viec.thu_lai(uuid,uuid,uuid,uuid,text)', 'viec.yeu_cau_dung(uuid,uuid)',
+    'viec.trang_thai_lease(uuid,uuid,uuid,uuid)',
 )
 PRIVATE = ('viec._kiem_quyen(uuid,text)', 'viec._giu(uuid,uuid,uuid,uuid)', 'viec._nhat_ky()')
+KHONG_GIU = {'con_giu': False, 'yeu_cau_dung': None, 'het_han_luc': None, 'trang_thai': None}
 
 
 class HangViecTinh(unittest.TestCase):
@@ -51,6 +53,19 @@ class HangViecTinh(unittest.TestCase):
         self.assertEqual(PM.PG_MIGRATIONS[:len(previous)], previous)
         self.assertIs(PM.PG_MIGRATIONS[len(previous)], HANG_VIEC_SQL)
         self.assertEqual(sum(m is HANG_VIEC_SQL for m in PM.PG_MIGRATIONS), 1)
+        self.assertEqual(PM.PG_SCHEMA_VERSION, len(PM.PG_MIGRATIONS))
+
+    def test_migration_b_chi_noi_them_giu_nguyen_m0060(self):
+        source = Path(PM.__file__).read_text(encoding='utf-8')
+        marker = '# XS-2a2 — CD-017:'
+        self.assertEqual(source.count(marker), 1)
+        old = {'__name__': PM.__name__, '__package__': PM.__package__}
+        exec(compile(source.split(marker, 1)[0], PM.__file__, 'exec'), old)
+        previous = old['PG_MIGRATIONS']
+        self.assertEqual(PM.PG_MIGRATIONS, (*previous, HANG_VIEC_B_SQL))
+        self.assertIs(old['M0060_HANG_VIEC'], HANG_VIEC_SQL)
+        self.assertIs(PM.M0061_HANG_VIEC_B, HANG_VIEC_B_SQL)
+        self.assertEqual(sum(m is HANG_VIEC_B_SQL for m in PM.PG_MIGRATIONS), 1)
         self.assertEqual(PM.PG_SCHEMA_VERSION, len(PM.PG_MIGRATIONS))
 
     def test_chi_mot_bang_chung_khong_sua_quyen_hay_hang_viec_cu(self):
@@ -285,6 +300,101 @@ class HangViecPostgres(unittest.TestCase):
         self.assertEqual(self.doc(key)['trang_thai'], 'DA_DUNG')
         self.assertIsNotNone(self.doc(key)['ket_thuc_luc'])
         self.assertEqual(self.nhan(), [])
+
+    def test_trang_thai_lease_nguoi_giu_thay_yeu_cau_dung_tu_ket_noi_khac(self):
+        key = self.tao()
+        v = self.nhan()[0]
+        before = self.cap_nhat(v, 'trang_thai_lease')
+        self.assertEqual(before['con_giu'], True)
+        self.assertEqual(before['yeu_cau_dung'], False)
+        self.assertEqual(before['trang_thai'], 'DANG_CHAY')
+        self.assertEqual(before['het_han_luc'], v['lease_den'])
+        c = self.ket_noi()
+        self.assertTrue(c.execute('SELECT viec.yeu_cau_dung(%s,%s)', (self.pn, key)).fetchone()[0])
+        self.assertEqual(self.cap_nhat(v, 'trang_thai_lease'), {**before, 'yeu_cau_dung': True})
+
+    def test_trang_thai_lease_sai_token_worker_null_khong_lo(self):
+        key = self.tao()
+        v = self.nhan()[0]
+        self.c.execute('SELECT viec.yeu_cau_dung(%s,%s)', (self.pn, key))
+        for worker, token in ((v['lease_boi'], uuid.uuid4()),
+                              (uuid.uuid4(), v['lease_token']),
+                              (None, v['lease_token']), (v['lease_boi'], None)):
+            with self.subTest(worker=worker, token=token):
+                result = self.c.execute('SELECT viec.trang_thai_lease(%s,%s,%s,%s)',
+                                        (self.pn, key, worker, token)).fetchone()[0]
+                self.assertEqual(result, KHONG_GIU)
+
+    def test_trang_thai_lease_het_han_khong_lo_du_chua_phuc_hoi(self):
+        key = self.tao()
+        v = self.nhan()[0]
+        self.c.execute('SELECT viec.yeu_cau_dung(%s,%s)', (self.pn, key))
+        self.het_lease(key)
+        self.assertEqual(self.cap_nhat(v, 'trang_thai_lease'), KHONG_GIU)
+
+    def test_trang_thai_lease_het_trong_cung_transaction(self):
+        self.tao()
+        with self.c.transaction():
+            v = self.nhan(giay=1)[0]
+            self.assertTrue(self.cap_nhat(v, 'trang_thai_lease')['con_giu'])
+            self.c.execute('SELECT pg_sleep(1.1)')
+            self.assertEqual(self.cap_nhat(v, 'trang_thai_lease'), KHONG_GIU)
+
+    def test_trang_thai_lease_chua_nhan_da_dong_va_id_khong_co_khong_lo(self):
+        key = self.tao()
+        for key_doc in (key, uuid.uuid4(), None):
+            with self.subTest(key=key_doc):
+                result = self.c.execute('SELECT viec.trang_thai_lease(%s,%s,%s,%s)',
+                                        (self.pn, key_doc, self.worker, uuid.uuid4())).fetchone()[0]
+                self.assertEqual(result, KHONG_GIU)
+        v = self.nhan()[0]
+        self.assertTrue(self.cap_nhat(v, 'ket_thuc', 'XONG'))
+        self.assertEqual(self.cap_nhat(v, 'trang_thai_lease'), KHONG_GIU)
+
+    def test_trang_thai_lease_sai_pn_bi_chan_nhu_m0060(self):
+        self.tao()
+        v = self.nhan()[0]
+        self.assertEqual(self.cap_nhat(v, 'trang_thai_lease', pn=self.pn2), KHONG_GIU)
+        self.danh_tinh(self.c, self.other)
+        self.loi('VIEC_PHAM_VI', lambda: self.cap_nhat(v, 'trang_thai_lease'))
+
+    def test_trang_thai_lease_khac_danh_tinh_va_thu_hoi_module(self):
+        self.tao(pn=self.pn2)
+        v = self.nhan(pn=self.pn2)[0]
+        self.danh_tinh(self.c, self.other)
+        self.assertEqual(self.cap_nhat(v, 'trang_thai_lease', pn=self.pn2), KHONG_GIU)
+        self.danh_tinh(self.c, self.actor)
+        self.owner_sql("UPDATE master.phan_quyen SET module=ARRAY['M4']::text[] "
+                       'WHERE nguoi_dung_id=%s AND phap_nhan_id=%s RETURNING id',
+                       (self.actor[0], self.pn2))
+        self.loi('VIEC_PHAM_VI', lambda: self.cap_nhat(v, 'trang_thai_lease', pn=self.pn2))
+
+    def test_trang_thai_lease_stable_goi_duoc_read_only(self):
+        key = self.tao()
+        v = self.nhan()[0]
+        self.c.execute('SELECT viec.yeu_cau_dung(%s,%s)', (self.pn, key))
+        volatility = self.c.execute("SELECT provolatile FROM pg_proc "
+                                    "WHERE oid='viec.trang_thai_lease(uuid,uuid,uuid,uuid)'"
+                                    '::regprocedure').fetchone()[0]
+        self.assertEqual(volatility, 's')
+        before = self.doc(key)
+        with self.c.transaction():
+            self.c.execute('SET TRANSACTION READ ONLY')
+            self.assertEqual(self.c.execute('SHOW transaction_read_only').fetchone()[0], 'on')
+            self.assertEqual(self.cap_nhat(v, 'trang_thai_lease'), {
+                'con_giu': True, 'yeu_cau_dung': True,
+                'het_han_luc': v['lease_den'], 'trang_thai': 'DANG_CHAY'})
+            self.assertEqual(self.cap_nhat(v, 'trang_thai_lease', token=uuid.uuid4()), KHONG_GIU)
+        self.assertEqual(self.doc(key), before)
+
+    def test_trang_thai_lease_khong_cho_khoa_dong_worker_khac(self):
+        self.tao()
+        v = self.nhan()[0]
+        c = self.ket_noi()
+        with c.transaction():
+            self.assertTrue(self.cap_nhat(v, 'gia_han', 180, c=c))
+            # Đọc snapshot đã commit dù kết nối kia đang giữ khóa UPDATE.
+            self.assertTrue(self.cap_nhat(v, 'trang_thai_lease')['con_giu'])
 
     def test_dung_viec_cho_va_dung_khong_bien_unknown_thanh_an_toan(self):
         key = self.tao()
