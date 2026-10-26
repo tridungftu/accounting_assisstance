@@ -12401,3 +12401,11 @@ from ..k2.sql_mtq_cong import MTQ_CONG_G_SQL  # noqa: E402 — chỉ hằng SQL
 M0057_MTQ_CONG_G = MTQ_CONG_G_SQL
 PG_MIGRATIONS = (*PG_MIGRATIONS, M0057_MTQ_CONG_G)
 PG_SCHEMA_VERSION = len(PG_MIGRATIONS)
+
+
+# MTQ-4i-b1 — CD-012: resolver nguồn/ánh xạ và phạm vi NGUON; lead đánh số khi gộp.
+from ..k2.sql_mtq_cong import MTQ_CONG_H_SQL  # noqa: E402 — chỉ hằng SQL
+
+M00xx_MTQ_CONG_H = MTQ_CONG_H_SQL
+PG_MIGRATIONS = (*PG_MIGRATIONS, M00xx_MTQ_CONG_H)
+PG_SCHEMA_VERSION = len(PG_MIGRATIONS)

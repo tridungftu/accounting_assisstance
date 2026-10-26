@@ -2092,3 +2092,370 @@ MTQ_CONG_G_SQL = (
         END $$""",
     """REVOKE ALL ON FUNCTION master.mtq_giai_doi_tuong_tap(text,jsonb) FROM PUBLIC""",
 )
+
+
+# MTQ-4i-b1: rS/rA và NGUON; giữ nguyên các hằng/migration trước M0057.
+MTQ_CONG_H_SQL = (
+    """CREATE OR REPLACE FUNCTION master.mtq_giai_doi_tuong_tap(
+        p_hanh_dong text, p_doi_tuong jsonb) RETURNS jsonb
+        LANGUAGE plpgsql STABLE SECURITY DEFINER
+        SET search_path = pg_catalog, master, nhat_ky, pg_temp AS $$
+        DECLARE
+            cu jsonb; tap jsonb := '[]'::jsonb; kq jsonb; r record;
+            obj uuid; phong uuid; pn uuid; n bigint; loai text; man_hinh text; module_hd text;
+            kind text; nguon_khoa text; khoa_profile text; khoa_instance text; hop_le boolean;
+        BEGIN
+            -- Nhánh cũ đi nguyên qua resolver đơn M0051, kể cả JSON lỗi.
+            cu := master.mtq_giai_doi_tuong(p_hanh_dong, p_doi_tuong);
+            IF NOT coalesce((
+                (p_doi_tuong->>'bang' IN ('master.nguon_pham_vi','master.nguon_profile')
+                    AND p_hanh_dong IN (
+                        'M2:HOA_DON:XEM','M2:HOA_DON:LAP','M2:HOA_DON:DUYET','M2:HOA_DON:HUY',
+                        'M2:NGUON_THO:XEM','M5:KHO:XEM','M5:KHO:LAP','M5:KHO:DUYET','M5:NGUON_THO:XEM')) OR
+                (p_doi_tuong->>'bang' IN ('master.anh_xa_nguon','master.phap_nhan')
+                    AND p_hanh_dong IN ('M2:HOA_DON:DUYET','M5:KHO:DUYET'))), false) THEN
+                RETURN jsonb_build_array(cu);
+            END IF;
+            IF jsonb_typeof(p_doi_tuong) IS DISTINCT FROM 'object'
+                    OR (p_doi_tuong - ARRAY['bang','id','phong_id']) <> '{}'::jsonb THEN
+                RETURN jsonb_build_array(cu);
+            END IF;
+            BEGIN
+                obj := (p_doi_tuong->>'id')::uuid;
+                phong := (p_doi_tuong->>'phong_id')::uuid;
+            EXCEPTION WHEN invalid_text_representation THEN
+                RETURN jsonb_build_array(cu);
+            END;
+            SELECT c.loai_doi_tuong, c.man, c.module INTO loai, man_hinh, module_hd
+                FROM master.mtq_danh_muc_hanh_dong c
+                WHERE c.catalog_version = 1 AND c.lenh_ky_thuat = p_hanh_dong;
+            IF loai IS NULL THEN RETURN jsonb_build_array(cu); END IF;
+            kind := CASE module_hd WHEN 'M2' THEN 'INVOICE_SET' WHEN 'M5' THEN 'KHO10_PHIEU' END;
+            IF p_doi_tuong->>'bang' = 'master.phap_nhan' THEN
+                -- Retarget: PN mới là đối tượng riêng, không phải tham số quyền.
+                -- Bên ghi 4i-d phải kiểm cả A(PN cũ) và PN(PN mới), trước replay.
+                SELECT p.id INTO pn FROM master.phap_nhan p WHERE p.id = obj;
+                IF pn IS NULL THEN RETURN jsonb_build_array(cu); END IF;
+                RETURN jsonb_build_array(cu || jsonb_build_object(
+                    'pn',pn,'phong',phong,'loai',loai,'man',man_hinh,'module',module_hd,
+                    'hop_le',true,'ma',NULL,'ly_do',NULL));
+            END IF;
+            -- rS: scope ghim instance/ref/SHA; profile là hợp mọi scope đúng module.
+            -- rA: chỉ dòng ánh xạ hiện tại; không nhận PN đích hay subject từ JSON.
+            FOR r IN
+                SELECT DISTINCT pr.id AS profile_id, pr.source_instance_id, pr.profile_ref, pr.profile_sha256,
+                    i.trang_thai, s.scope_kind, u.subject_key, NULL::uuid AS mapping_id, NULL::uuid AS mapping_pn
+                FROM master.nguon_pham_vi s
+                JOIN master.nguon_profile pr ON pr.source_instance_id = s.source_instance_id
+                    AND pr.profile_ref = s.profile_ref AND pr.profile_sha256 = s.profile_sha256
+                JOIN master.nguon_instance i ON i.source_instance_id = pr.source_instance_id
+                CROSS JOIN LATERAL unnest(CASE s.scope_kind WHEN 'INVOICE_SET' THEN s.company_keys
+                    WHEN 'KHO10_PHIEU' THEN ARRAY[s.ma_kho] ELSE ARRAY[NULL::text] END) u(subject_key)
+                WHERE (p_doi_tuong->>'bang' = 'master.nguon_pham_vi' AND s.id = obj)
+                    OR (p_doi_tuong->>'bang' = 'master.nguon_profile' AND pr.id = obj AND s.scope_kind = kind)
+                UNION ALL
+                SELECT pr.id, pr.source_instance_id, pr.profile_ref, pr.profile_sha256,
+                    i.trang_thai, CASE m.subject_kind WHEN 'COMPANY' THEN 'INVOICE_SET'
+                        WHEN 'WAREHOUSE' THEN 'KHO10_PHIEU' END, m.subject_key, m.id, m.phap_nhan_id
+                FROM master.anh_xa_nguon m
+                JOIN master.nguon_profile pr ON pr.source_instance_id = m.source_instance_id
+                    AND pr.profile_ref = m.profile_ref AND pr.profile_sha256 = m.profile_sha256
+                JOIN master.nguon_instance i ON i.source_instance_id = pr.source_instance_id
+                WHERE p_doi_tuong->>'bang' = 'master.anh_xa_nguon' AND m.id = obj
+            LOOP
+                r.subject_key := upper(btrim(regexp_replace(r.subject_key, '[[:space:]]+', ' ', 'g')));
+                -- Như M0049: đúng một mapping đang hiệu lực sau chuẩn hóa khóa.
+                -- Không bỏ subject thiếu mapping khỏi tập, không chọn PN đầu tiên.
+                SELECT count(*), (array_agg(m.phap_nhan_id))[1] INTO n, pn
+                    FROM master.anh_xa_nguon m
+                    WHERE m.source_instance_id = r.source_instance_id AND m.profile_ref = r.profile_ref
+                        AND m.profile_sha256 = r.profile_sha256
+                        AND m.subject_kind = CASE r.scope_kind WHEN 'INVOICE_SET' THEN 'COMPANY'
+                            WHEN 'KHO10_PHIEU' THEN 'WAREHOUSE' END
+                        AND upper(btrim(regexp_replace(m.subject_key, '[[:space:]]+', ' ', 'g'))) = r.subject_key
+                        AND m.state = 'DA_DUYET' AND m.valid_from <= now()
+                        AND (m.valid_to IS NULL OR m.valid_to > now());
+                hop_le := n = 1 AND r.trang_thai = 'HOAT_DONG'
+                    AND r.scope_kind = kind AND coalesce(r.subject_key <> '', false);
+                IF n <> 1 THEN pn := NULL; END IF;
+                IF r.mapping_id IS NOT NULL THEN
+                    -- ID lịch sử/đã đóng không được thay bằng mapping kế nhiệm.
+                    SELECT coalesce(hop_le AND m.phap_nhan_id = pn
+                        AND m.state = 'DA_DUYET' AND m.valid_from <= now()
+                        AND (m.valid_to IS NULL OR m.valid_to > now()), false)
+                        INTO hop_le FROM master.anh_xa_nguon m WHERE m.id = r.mapping_id;
+                    pn := r.mapping_pn;
+                END IF;
+                khoa_profile := r.scope_kind || '|' || upper(r.profile_id::text) || '|' || r.subject_key;
+                khoa_instance := r.scope_kind || '|' || upper(r.source_instance_id) || '|' || r.subject_key;
+                nguon_khoa := NULL;
+                -- Cùng identity có hai cách cấp của M0049. Chỉ chọn alias đã cấp
+                -- cho phiên/PN; cổng vẫn tự kiểm lại phòng, vai và scope đó.
+                -- Alias instance chỉ hợp lệ nếu instance còn đúng một profile.
+                SELECT s.khoa INTO nguon_khoa FROM master.mtq_pham_vi s
+                    JOIN master.mtq_gan_vai g ON g.id = s.gan_vai_id AND g.phap_nhan_id = s.phap_nhan_id
+                    JOIN master.mtq_phong p ON p.id = g.phong_id AND p.phap_nhan_id = g.phap_nhan_id AND p.hoat_dong
+                    JOIN master.nguoi_dung a ON a.id = g.nguoi_dung_id
+                    WHERE a.dang_nhap = master.ktt_danh_tinh() AND a.trang_thai = 'HOAT_DONG'
+                        AND g.phap_nhan_id = pn AND g.thu_hoi_luc IS NULL AND s.thu_hoi_luc IS NULL
+                        AND (phong IS NULL OR g.phong_id = phong)
+                        AND s.loai = 'NGUON' AND (s.khoa = khoa_profile OR (s.khoa = khoa_instance
+                            AND (SELECT count(*) FROM master.nguon_profile p
+                                WHERE p.source_instance_id = r.source_instance_id) = 1))
+                    ORDER BY CASE WHEN s.khoa = khoa_profile THEN 0 ELSE 1 END, s.id LIMIT 1;
+                nguon_khoa := coalesce(nguon_khoa, khoa_profile);
+                kq := cu || jsonb_build_object('pn',pn,'phong',phong,'loai',loai,
+                    'man',man_hinh,'module',module_hd,'nguon_khoa',nguon_khoa,
+                    'hop_le',coalesce(hop_le,false),
+                    'ma',CASE WHEN hop_le THEN NULL ELSE 'MTQ_CAN_RESOLVER_MTQ4' END,
+                    'ly_do',CASE WHEN hop_le THEN NULL ELSE 'Chưa xác định duy nhất nguồn/ánh xạ hiện hành đúng module từ CSDL' END);
+                tap := tap || jsonb_build_array(kq);
+            END LOOP;
+            IF jsonb_array_length(tap) = 0 THEN RETURN jsonb_build_array(cu); END IF;
+            -- Không trùng PN. Nếu nhiều subject cùng PN thì không chọn một khóa
+            -- hẹp đại diện cả nguồn: ngữ cảnh gộp chỉ dùng phạm vi PHAP_NHAN.
+            -- Mọi PN/subject chưa giải được vẫn ở tập để cổng chặn.
+            SELECT jsonb_agg(x.context ORDER BY (x.context->>'pn')::uuid NULLS FIRST) INTO tap
+                FROM (SELECT jsonb_build_object(
+                    'pn',t.value->>'pn','hd',NULL,'da',NULL,'lh',NULL,'khach',NULL,
+                    'phong',phong,'loai',loai,'man',man_hinh,'module',module_hd,
+                    'nguon_khoa',CASE WHEN count(DISTINCT t.value->>'nguon_khoa') = 1
+                        THEN min(t.value->>'nguon_khoa') END,
+                    'hop_le',bool_and((t.value->>'hop_le')::boolean),
+                    'ma',CASE WHEN bool_and((t.value->>'hop_le')::boolean) THEN NULL ELSE 'MTQ_CAN_RESOLVER_MTQ4' END,
+                    'ly_do',CASE WHEN bool_and((t.value->>'hop_le')::boolean) THEN NULL
+                        ELSE 'Chưa xác định duy nhất nguồn/ánh xạ hiện hành đúng module từ CSDL' END) AS context
+                    FROM jsonb_array_elements(tap) t GROUP BY t.value->>'pn') x;
+            RETURN tap;
+        END $$""",
+    """CREATE OR REPLACE FUNCTION master.mtq_quyet_dinh_phien(
+        p_hanh_dong text, p_doi_tuong jsonb, p_so_tien numeric) RETURNS jsonb
+        LANGUAGE plpgsql SECURITY DEFINER
+        SET search_path = pg_catalog, master, nhat_ky, pg_temp AS $$
+        DECLARE
+            login text := master.ktt_danh_tinh(); ai uuid;
+            pn uuid; phong uuid; scope_id uuid; khoa text; scope_loai text; nguon_khoa text;
+            obj uuid; hd uuid; da uuid; lh uuid; khach uuid;
+            loai text; giai jsonb; tap jsonb; dau jsonb; so_pn bigint; so_bat bigint; thieu_pn boolean;
+            n bigint; kq jsonb; ma text; ly_do text;
+        BEGIN
+            -- JSON là tham chiếu đối tượng, không phải danh tính/quyền client.
+            -- Hợp đồng: {bang, id, phong_id?}. Pháp nhân, vai, phạm vi lấy từ DB.
+            -- Resolver chưa có: chỉ chặn khi MTQ đã bật, không đoán pháp nhân.
+            SELECT id INTO ai FROM master.nguoi_dung
+                WHERE dang_nhap = login AND trang_thai = 'HOAT_DONG';
+            IF ai IS NULL THEN
+                ma := 'MTQ_DANH_TINH'; ly_do := 'Danh tính phiên ID/login không hợp lệ';
+            ELSIF jsonb_typeof(p_doi_tuong) IS DISTINCT FROM 'object' THEN
+                ma := 'MTQ_DOI_TUONG'; ly_do := 'Cần tham chiếu đối tượng máy chủ';
+            ELSIF (p_doi_tuong - ARRAY['bang','id','phong_id']) <> '{}'::jsonb THEN
+                ma := 'MTQ_DOI_TUONG'; ly_do := 'Không nhận danh tính, pháp nhân, vai hay quyết định từ tham số';
+            ELSE
+                BEGIN
+                    obj := (p_doi_tuong->>'id')::uuid;
+                    phong := (p_doi_tuong->>'phong_id')::uuid;
+                EXCEPTION WHEN invalid_text_representation THEN
+                    ma := 'MTQ_DOI_TUONG'; ly_do := 'Tham chiếu đối tượng/phòng không hợp lệ';
+                END;
+                IF ma IS NULL THEN
+                    PERFORM pg_advisory_xact_lock_shared(742601, 1);
+                    tap := master.mtq_giai_doi_tuong_tap(p_hanh_dong, p_doi_tuong);
+                    SELECT count(*), count(*) FILTER (WHERE EXISTS (
+                            SELECT 1 FROM master.mtq_kich_hoat k
+                            WHERE k.bat AND k.phap_nhan_id = (t.value->>'pn')::uuid)),
+                            coalesce(bool_or(t.value->>'pn' IS NULL), true)
+                        INTO so_pn, so_bat, thieu_pn FROM jsonb_array_elements(tap) t;
+                    IF so_bat = 0 AND NOT (thieu_pn AND EXISTS (
+                            SELECT 1 FROM master.mtq_kich_hoat WHERE bat)) THEN
+                        RETURN jsonb_build_object('nguon', 'CU', 'can_thiep', false, 'cho_phep', NULL,
+                            'ma', 'MTQ_TAT', 'ly_do', 'Giữ đường kiểm quyền cũ');
+                    ELSIF thieu_pn THEN
+                        ma := 'MTQ_CAN_RESOLVER_MTQ4'; ly_do := 'Chưa xác định được đối tượng/pháp nhân từ CSDL';
+                    ELSIF so_bat <> so_pn THEN
+                        ma := 'MTQ_PN_HON_HOP';
+                        ly_do := 'Đối tượng thuộc nhiều pháp nhân, có pháp nhân chưa bật ma trận';
+                    ELSIF so_pn > 1 AND phong IS NOT NULL THEN
+                        ma := 'MTQ_PHONG_MO_HO'; ly_do := 'Cần xác định đúng một phòng, không hợp nhất quyền';
+                    ELSE
+                        FOR giai IN SELECT value FROM jsonb_array_elements(tap)
+                                ORDER BY (value->>'pn')::uuid LOOP
+                            pn := (giai->>'pn')::uuid; hd := (giai->>'hd')::uuid;
+                            da := (giai->>'da')::uuid; lh := (giai->>'lh')::uuid;
+                            khach := (giai->>'khach')::uuid; phong := (giai->>'phong')::uuid;
+                            loai := giai->>'loai';
+                            nguon_khoa := giai->>'nguon_khoa';
+                            -- Mỗi PN dùng phòng/phạm vi riêng; không giữ biến vòng trước.
+                            scope_id := NULL; khoa := NULL; scope_loai := NULL;
+                            IF NOT (giai->>'hop_le')::boolean THEN
+                                ma := giai->>'ma'; ly_do := giai->>'ly_do';
+                            ELSE
+                                SELECT count(*), (array_agg(g.phong_id))[1] INTO n, phong
+                                    FROM master.mtq_gan_vai g
+                                    JOIN master.mtq_phong p ON p.id = g.phong_id AND p.phap_nhan_id = g.phap_nhan_id AND p.hoat_dong
+                                    WHERE g.nguoi_dung_id = ai AND g.phap_nhan_id = pn AND g.thu_hoi_luc IS NULL
+                                        AND (phong IS NULL OR g.phong_id = phong);
+                                IF n > 1 THEN
+                                    ma := 'MTQ_PHONG_MO_HO'; ly_do := 'Cần xác định đúng một phòng, không hợp nhất quyền';
+                                ELSE
+                                    SELECT s.id, s.khoa, s.loai INTO scope_id, khoa, scope_loai
+                                        FROM master.mtq_pham_vi s JOIN master.mtq_gan_vai g ON g.id = s.gan_vai_id
+                                        WHERE g.nguoi_dung_id = ai AND g.phap_nhan_id = pn AND g.phong_id = phong
+                                            AND g.thu_hoi_luc IS NULL AND s.phap_nhan_id = pn AND s.thu_hoi_luc IS NULL
+                                            AND ((s.loai = 'PHAP_NHAN' AND s.khoa = pn::text)
+                                                OR (s.loai = 'HOP_DONG' AND s.khoa = hd::text)
+                                                OR (s.loai = 'DU_AN' AND s.khoa = da::text)
+                                                OR (s.loai = 'LOAI_HINH' AND s.khoa = lh::text)
+                                                OR (s.loai = 'KHACH' AND s.khoa = khach::text)
+                                                OR (s.loai = 'NGUON' AND s.khoa = nguon_khoa))
+                                        ORDER BY CASE s.loai WHEN 'HOP_DONG' THEN 1 WHEN 'DU_AN' THEN 2
+                                            WHEN 'LOAI_HINH' THEN 3 WHEN 'KHACH' THEN 4 WHEN 'NGUON' THEN 5 ELSE 6 END, s.id LIMIT 1;
+                                END IF;
+                            END IF;
+                            IF ma IS NOT NULL THEN
+                                RETURN jsonb_build_object('nguon','MA_TRAN','can_thiep',true,'cho_phep',false,
+                                    'ma',ma,'ly_do',ly_do,'revision',NULL,'gioi_han_vnd',NULL,
+                                    'doi_tuong',obj,'so_tien_vnd',p_so_tien);
+                            END IF;
+                            -- M0039 INSERT audit trong lõi. Rollback riêng INSERT đó để hàm hỏi
+                            -- không ghi trùng/ghi từng hàng RLS; biến PL/pgSQL giữ nguyên kq.
+                            -- Như hợp đồng lõi M0039, p_so_tien do resolver máy chủ lấy từ phiên
+                            -- bản nghiệp vụ đã khóa/tỷ giá ghim; adapter không chuyển số client.
+                            BEGIN
+                                kq := master.mtq_quyet_dinh(pn, phong, p_hanh_dong, loai, obj::text,
+                                    khoa, scope_loai, p_so_tien, scope_id, NULL);
+                                RAISE SQLSTATE 'ZMT01' USING MESSAGE = 'MTQ_CONG_HOI_KHONG_GHI';
+                            EXCEPTION WHEN SQLSTATE 'ZMT01' THEN NULL;
+                            END;
+                            IF kq IS NULL THEN RAISE EXCEPTION 'MTQ_LOI_QUYET_DINH: lõi không trả quyết định'; END IF;
+                            IF kq->'cho_phep' IS DISTINCT FROM 'true'::jsonb THEN RETURN kq; END IF;
+                            IF dau IS NULL THEN dau := kq; END IF;
+                        END LOOP;
+                        RETURN dau;
+                    END IF;
+                END IF;
+            END IF;
+            IF ma IS NOT NULL THEN
+                RETURN jsonb_build_object('nguon','MA_TRAN','can_thiep',true,'cho_phep',false,
+                    'ma',ma,'ly_do',ly_do,'revision',NULL,'gioi_han_vnd',NULL,
+                    'doi_tuong',obj,'so_tien_vnd',p_so_tien);
+            END IF;
+        END $$""",
+    """CREATE OR REPLACE FUNCTION master.mtq_ghi_tu_choi_phien(
+        p_request uuid, p_hanh_dong text, p_doi_tuong jsonb, p_so_tien numeric) RETURNS uuid
+        LANGUAGE plpgsql SECURITY DEFINER
+        SET search_path = pg_catalog, master, nhat_ky, pg_temp AS $$
+        DECLARE login text := master.ktt_danh_tinh(); ai uuid; kq jsonb; k uuid;
+            pn uuid; phong uuid; vai_hd text; cu nhat_ky.mtq_tu_choi%ROWTYPE;
+            tap jsonb; giai jsonb; kq_pn jsonb; obj uuid; hd uuid; da uuid; lh uuid; khach uuid;
+            scope_id uuid; khoa text; scope_loai text; nguon_khoa text; loai text; n bigint; ma text; ly_do text;
+        BEGIN
+            -- Caller rollback nghiệp vụ, mở giao dịch khác, đặt lại GUC ID/login,
+            -- gọi hàm này rồi commit. Hàm không tự commit, không tin JSON quyết định.
+            IF p_request IS NULL THEN RAISE EXCEPTION 'MTQ_REQUEST: cần request ID'; END IF;
+            SELECT id INTO ai FROM master.nguoi_dung WHERE dang_nhap = login AND trang_thai = 'HOAT_DONG';
+            IF ai IS NULL THEN RAISE EXCEPTION 'MTQ_DANH_TINH: cần danh tính phiên hợp lệ để ghi'; END IF;
+            IF NOT EXISTS (SELECT 1 FROM master.mtq_danh_muc_hanh_dong
+                    WHERE catalog_version = 1 AND lenh_ky_thuat = p_hanh_dong) THEN
+                RAISE EXCEPTION 'MTQ_HANH_DONG: hành động chưa có trong catalog';
+            END IF;
+            -- Khóa theo request trước khi đọc/ghi để các lần gọi đồng thời
+            -- không cùng thấy thiếu dòng; không cần đổi bảng M0039.
+            PERFORM pg_advisory_xact_lock(hashtextextended(p_request::text, 0));
+            SELECT * INTO cu FROM nhat_ky.mtq_tu_choi
+                WHERE request_id = p_request ORDER BY luc, id LIMIT 1;
+            IF FOUND THEN
+                -- Request chỉ idempotent khi cùng người, lệnh và ID đối tượng.
+                IF cu.actor_id IS DISTINCT FROM ai
+                        OR cu.actor_login IS DISTINCT FROM login
+                        OR cu.lenh_ky_thuat IS DISTINCT FROM p_hanh_dong
+                        OR cu.doi_tuong IS DISTINCT FROM (p_doi_tuong->>'id') THEN
+                    RAISE EXCEPTION 'MTQ_REQUEST_TRUNG: request ID đã dùng cho người, hành động hoặc đối tượng khác';
+                END IF;
+                RETURN cu.id;
+            END IF;
+            kq := master.mtq_quyet_dinh_phien(p_hanh_dong, p_doi_tuong, p_so_tien);
+            -- Quyền đổi thành CU/cho phép sau rollback: báo lỗi, không giả mạo
+            -- quyết định cũ và không chuyển lần thử nghiệp vụ thành thành công.
+            IF kq->>'nguon' IS DISTINCT FROM 'MA_TRAN' OR kq->'cho_phep' IS DISTINCT FROM 'false'::jsonb THEN
+                RAISE EXCEPTION 'MTQ_KHONG_PHAI_TU_CHOI: chỉ ghi quyết định từ chối hiện hành';
+            END IF;
+            -- Giữ đúng ID chuẩn hóa trong quyết định M0048, kể cả đầu vào lỗi:
+            -- không giải lại ID/phòng do caller gửi khi kq không có đối tượng.
+            tap := master.mtq_giai_doi_tuong_tap(p_hanh_dong,
+                jsonb_build_object('bang',p_doi_tuong->>'bang','id',kq->>'doi_tuong'));
+            IF kq->>'ma' = 'MTQ_CAN_RESOLVER_MTQ4' AND EXISTS (
+                    SELECT 1 FROM jsonb_array_elements(tap) t WHERE t.value->>'pn' IS NULL) THEN
+                pn := NULL;
+            ELSIF jsonb_array_length(tap) = 1 THEN
+                -- Một PN: đúng cách giải PN của M0051, kể cả đầu vào lỗi.
+                pn := (tap->0->>'pn')::uuid;
+            ELSE
+                obj := (kq->>'doi_tuong')::uuid;
+                -- Ràng buộc một dòng/request: chỉ ghi PN từ chối đầu theo thứ tự.
+                -- Lỗi toàn tập (hỗn hợp/phòng caller) áp dụng cho mọi PN.
+                FOR giai IN SELECT value FROM jsonb_array_elements(tap)
+                        ORDER BY (value->>'pn')::uuid LOOP
+                    pn := (giai->>'pn')::uuid; hd := (giai->>'hd')::uuid;
+                    da := (giai->>'da')::uuid; lh := (giai->>'lh')::uuid;
+                    khach := (giai->>'khach')::uuid; phong := (giai->>'phong')::uuid;
+                    loai := giai->>'loai';
+                    nguon_khoa := giai->>'nguon_khoa';
+                    -- Mỗi PN dùng phòng/phạm vi riêng; không giữ biến vòng trước.
+                    scope_id := NULL; khoa := NULL; scope_loai := NULL;
+                    IF kq->>'ma' IN ('MTQ_DOI_TUONG','MTQ_PN_HON_HOP','MTQ_PHONG_MO_HO')
+                            AND (kq->>'ma' IN ('MTQ_DOI_TUONG','MTQ_PN_HON_HOP')
+                                OR p_doi_tuong->>'phong_id' IS NOT NULL) THEN EXIT; END IF;
+                    IF pn IS NULL THEN EXIT; END IF;
+                    IF NOT (giai->>'hop_le')::boolean THEN
+                        ma := giai->>'ma'; ly_do := giai->>'ly_do';
+                    ELSE
+                        SELECT count(*), (array_agg(g.phong_id))[1] INTO n, phong
+                            FROM master.mtq_gan_vai g
+                            JOIN master.mtq_phong p ON p.id = g.phong_id AND p.phap_nhan_id = g.phap_nhan_id AND p.hoat_dong
+                            WHERE g.nguoi_dung_id = ai AND g.phap_nhan_id = pn AND g.thu_hoi_luc IS NULL
+                                AND (phong IS NULL OR g.phong_id = phong);
+                        IF n > 1 THEN
+                            ma := 'MTQ_PHONG_MO_HO'; ly_do := 'Cần xác định đúng một phòng, không hợp nhất quyền';
+                        ELSE
+                            SELECT s.id, s.khoa, s.loai INTO scope_id, khoa, scope_loai
+                                FROM master.mtq_pham_vi s JOIN master.mtq_gan_vai g ON g.id = s.gan_vai_id
+                                WHERE g.nguoi_dung_id = ai AND g.phap_nhan_id = pn AND g.phong_id = phong
+                                    AND g.thu_hoi_luc IS NULL AND s.phap_nhan_id = pn AND s.thu_hoi_luc IS NULL
+                                    AND ((s.loai = 'PHAP_NHAN' AND s.khoa = pn::text)
+                                        OR (s.loai = 'HOP_DONG' AND s.khoa = hd::text)
+                                        OR (s.loai = 'DU_AN' AND s.khoa = da::text)
+                                        OR (s.loai = 'LOAI_HINH' AND s.khoa = lh::text)
+                                        OR (s.loai = 'KHACH' AND s.khoa = khach::text)
+                                        OR (s.loai = 'NGUON' AND s.khoa = nguon_khoa))
+                                ORDER BY CASE s.loai WHEN 'HOP_DONG' THEN 1 WHEN 'DU_AN' THEN 2
+                                    WHEN 'LOAI_HINH' THEN 3 WHEN 'KHACH' THEN 4 WHEN 'NGUON' THEN 5 ELSE 6 END, s.id LIMIT 1;
+                        END IF;
+                    END IF;
+                    IF ma IS NOT NULL THEN EXIT; END IF;
+                    -- Tính lại đúng từng PN dưới khóa cấu hình; hoàn tác audit lõi.
+                    BEGIN
+                        kq_pn := master.mtq_quyet_dinh(pn, phong, p_hanh_dong, loai, obj::text,
+                            khoa, scope_loai, p_so_tien, scope_id, NULL);
+                        RAISE SQLSTATE 'ZMT01' USING MESSAGE = 'MTQ_CONG_HOI_KHONG_GHI';
+                    EXCEPTION WHEN SQLSTATE 'ZMT01' THEN NULL;
+                    END;
+                    IF kq_pn IS NULL THEN RAISE EXCEPTION 'MTQ_LOI_QUYET_DINH: lõi không trả quyết định'; END IF;
+                    IF kq_pn->'cho_phep' IS DISTINCT FROM 'true'::jsonb THEN EXIT; END IF;
+                END LOOP;
+            END IF;
+            SELECT g.phong_id, g.vai INTO phong, vai_hd FROM master.mtq_gan_vai g
+                WHERE g.id = (kq->>'gan_vai_id')::uuid AND g.nguoi_dung_id = ai;
+            INSERT INTO nhat_ky.mtq_tu_choi
+                (request_id, actor_id, actor_login, phap_nhan_id, phong_id, vai, phien_ban_id, revision,
+                 gan_vai_id, gan_vai_revision, pham_vi_id, pham_vi_revision, module, man, hanh_dong,
+                 lenh_ky_thuat, doi_tuong, ma, ly_do, gioi_han_vnd, so_tien_vnd)
+                VALUES (p_request, ai, login, pn, phong, vai_hd, (kq->>'phien_ban_id')::uuid,
+                    (kq->>'revision')::bigint, (kq->>'gan_vai_id')::uuid, (kq->>'gan_vai_revision')::bigint,
+                    (kq->>'pham_vi_id')::uuid, (kq->>'pham_vi_revision')::bigint,
+                    kq->>'module', kq->>'man', kq->>'hanh_dong', p_hanh_dong,
+                    kq->>'doi_tuong', kq->>'ma', kq->>'ly_do', (kq->>'gioi_han_vnd')::numeric,
+                    (kq->>'so_tien_vnd')::numeric) RETURNING id INTO k;
+            -- Không bắt/nuốt lỗi INSERT: audit lỗi phải trả lỗi hệ thống, không cho phép.
+            RETURN k;
+        END $$""",
+)
