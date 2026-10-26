@@ -70,6 +70,18 @@ _ALLOWED_CHILDREN = {"HDon": {"DLHDon"}, "DLHDon": {"TTChung", "NDHDon"}, "TTChu
                      "NDHDon": {"NBan", "NMua", "DSHHDVu", "TToan"}, "NBan": {"MST"}, "NMua": {"MST"}, "DSHHDVu": {"HHDVu"},
                      "HHDVu": set(LINE_TAGS)}
 
+# BR4: phần đọc bổ sung có allowlist riêng; envelope V1 vẫn được kiểm bằng
+# allowlist cũ để không đổi bất kỳ field/issue/digest đã phát hành nào.
+_LEGACY_ALLOWED_CHILDREN = _ALLOWED_CHILDREN
+MONEY_TAGS = ("TgTCThue", "TgTThue", "TgTTTBSo", "TGTKCThue")
+TAX_TAGS = ("TSuat", "ThTien", "TThue")
+RELATION_TAGS = ("TCHDon", "LHDCLQuan", "KHMSHDCLQuan", "KHHDCLQuan", "SHDCLQuan", "NLHDCLQuan")
+_ALLOWED_CHILDREN = {**_ALLOWED_CHILDREN,
+                     "TTChung": set(HEADER_TAGS) | {"TTHDLQuan"},
+                     "TToan": set(MONEY_TAGS) | {"THTTLTSuat"},
+                     "THTTLTSuat": {"LTSuat"}, "LTSuat": set(TAX_TAGS),
+                     "TTHDLQuan": set(RELATION_TAGS)}
+
 _WARNING = {"PBAN_ABSENT", "MODEL_ABSENT", "MODEL_EMPTY", "SERIES_ABSENT", "SERIES_EMPTY", "NUMBER_ABSENT", "NUMBER_EMPTY", "DATE_ABSENT",
             "DATE_EMPTY", "CURRENCY_ABSENT", "CURRENCY_EMPTY", "SELLER_TAX_ID_ABSENT", "SELLER_TAX_ID_EMPTY", "BUYER_TAX_ID_ABSENT",
             "BUYER_TAX_ID_EMPTY", "STT_ABSENT", "STT_EMPTY", "STT_DUPLICATE", "STT_AMBIGUOUS", "LINE_IDENTITY_UNRESOLVED", "NATURE_ABSENT",
@@ -431,6 +443,52 @@ class DecimalFact:
 
 
 @dataclass(frozen=True)
+class InvoiceTaxComponent:
+    source_locator: str
+    fields: tuple
+    rate: str | None
+    net_amount: DecimalFact
+    tax_amount: DecimalFact
+
+
+@dataclass(frozen=True)
+class InvoiceMoney:
+    """Chỉ số nguồn, chưa phải minor/cơ sở thuế đã duyệt; không cộng/trừ/suy số thiếu."""
+    state: str = "HOLD"
+    fields: tuple = ()
+    currency: str | None = None
+    net_amount: DecimalFact = DecimalFact("ABSENT")
+    tax_amount: DecimalFact = DecimalFact("ABSENT")
+    non_taxable_amount: DecimalFact = DecimalFact("ABSENT")
+    total_amount: DecimalFact = DecimalFact("ABSENT")
+    tax_components: tuple = ()
+    issues: tuple = ()
+    reasons: tuple = ("INPUT_NOT_READ",)
+
+
+@dataclass(frozen=True)
+class InvoiceRelation:
+    state: str
+    source_locator: str
+    fields: tuple
+    relation_type: str | None
+    original_model: str | None
+    original_series: str | None
+    original_number: str | None
+    original_date: str | None
+    issues: tuple
+
+
+@dataclass(frozen=True)
+class InvoiceRelations:
+    # ABSENT chỉ nghĩa là không có thẻ, không khẳng định hóa đơn không có quan hệ.
+    state: str = "HOLD"
+    items: tuple = ()
+    issues: tuple = ()
+    reasons: tuple = ("INPUT_NOT_READ",)
+
+
+@dataclass(frozen=True)
 class InvoiceLine:
     source_ordinal: int
     source_locator: str
@@ -499,6 +557,10 @@ class InvoiceReadResult:
     L11_eligibility: str = "NOT_EVALUATED"
     request_digest: str = "NOT_DEFINED_IN_THIS_SLICE"
     profile_payload_binding: str = "NOT_BOUND"
+
+    # BR4 bổ sung độc lập: không dùng cho semantic V1 hoặc quyết định promote.
+    money: InvoiceMoney = InvoiceMoney()
+    relations: InvoiceRelations = InvoiceRelations()
 
     def __post_init__(self):
         for f, typ in (("header_fields", InvoiceField), ("lines", InvoiceLine), ("issues", InvoiceIssue), ("candidate_reasons", str)):
@@ -642,6 +704,141 @@ def _literal_not_proven(raw: bytes) -> bool:
     return (b"&" in raw or b"<![CDATA[" in raw or b"\r" in raw or b"<!--" in raw or raw.count(b"<?") > prolog)
 
 
+def _component_structure(el, path, g, issues):
+    """Kiểm cả scalar, thuộc tính và tail trong phần mở rộng; không bỏ qua thẻ lạ."""
+    if el.attrib:
+        issues.append(g.issue("UNSUPPORTED_ATTRIBUTE", path))
+    allowed = _ALLOWED_CHILDREN.get(el.tag, set())
+    if allowed and el.text and el.text.strip():
+        issues.append(g.issue("UNSUPPORTED_TEXT", path))
+    counts = {}
+    for child in el:
+        counts[child.tag] = counts.get(child.tag, 0) + 1
+        loc = f"{path}/{child.tag}[{counts[child.tag]}]"
+        if child.tag not in allowed:
+            issues.append(g.issue("UNSUPPORTED_ELEMENT", loc))
+        else:
+            _component_structure(child, loc, g, issues)
+        if child.tail and child.tail.strip():
+            issues.append(g.issue("UNSUPPORTED_TEXT", loc))
+
+
+def _component_text(field, g, issues, *, required=True):
+    fv = field.duy_nhat
+    if fv is None:
+        code = "FIELD_AMBIGUOUS"
+    elif fv.state in ("ABSENT", "EMPTY"):
+        if not required and fv.state == "ABSENT":
+            return None
+        code = "FIELD_" + fv.state
+    elif fv.lexeme != fv.lexeme.strip():
+        code = "FIELD_LEXEME_INVALID"
+    else:
+        return fv.lexeme
+    issues.append(g.issue(code, field.locator, f"{field.name}: thiếu, rỗng hoặc mơ hồ; HOLD."))
+    return None
+
+
+def _component_number(field, g, issues):
+    fact, codes = _so(field, "MONEY", False, True)
+    issues.extend(g.issue(code, field.locator, f"{field.name}: {code}; HOLD, không thay bằng 0.") for code in codes)
+    return fact
+
+
+def _read_money(tt, nd, raw, g):
+    path = _PATH_NDHDON + "/TToan"
+    sections = _children(nd, "TToan")
+    issues = []
+    if len(sections) != 1:
+        issues.append(g.issue("MONEY_SECTION_ABSENT" if not sections else "MONEY_SECTION_AMBIGUOUS", path,
+                              "Cần đúng một TToan; HOLD."))
+    for section in sections:
+        _component_structure(section, path, g, issues)
+    fields = tuple(_field(sections, tag, tag, path + "/" + tag) for tag in MONEY_TAGS)
+    fd = {f.name: f for f in fields}
+    currency_field = _field(tt, "DVTTe", "DVTTe", _PATH_TTCHUNG + "/DVTTe")
+    currency = _component_text(currency_field, g, issues)
+    if currency is not None and not re.fullmatch(r"[A-Z]{3}", currency):
+        issues.append(g.issue("MONEY_CURRENCY_INVALID", currency_field.locator, "DVTTe không phải mã 3 chữ hoa; HOLD."))
+        currency = None
+    for el in _children(tt[0], "DVTTe"):
+        _component_structure(el, currency_field.locator, g, issues)
+    net, tax, total = (_component_number(fd[tag], g, issues) for tag in MONEY_TAGS[:3])
+    groups = [el for section in sections for el in _children(section, "THTTLTSuat")]
+    if len(groups) != 1:
+        issues.append(g.issue("MONEY_TAX_GROUP_AMBIGUOUS" if groups else "MONEY_TAX_GROUP_ABSENT", path + "/THTTLTSuat",
+                              "Cần đúng một bảng tổng hợp thuế suất; HOLD."))
+    components, rates, non_taxable = [], set(), []
+    rows = [el for group in groups for el in _children(group, "LTSuat")]
+    if not rows:
+        issues.append(g.issue("MONEY_TAX_ROWS_ABSENT", path + "/THTTLTSuat", "Thiếu LTSuat; HOLD."))
+    for i, el in enumerate(rows, 1):
+        loc = f"{path}/THTTLTSuat/LTSuat[{i}]"
+        fs = tuple(_field([el], tag, tag, loc + "/" + tag) for tag in TAX_TAGS)
+        rate = _component_text(fs[0], g, issues)
+        if rate is not None:
+            # Chỉ phân loại mã nguồn, không tính tiền/thuế từ thuế suất.
+            if rate not in ("0", "5", "8", "10", "0%", "5%", "8%", "10%", "KCT", "KKKNT"):
+                issues.append(g.issue("MONEY_TAX_RATE_UNSUPPORTED", fs[0].locator, "Thuế suất ngoài profile; HOLD."))
+                rate = None
+            elif rate.rstrip("%") in rates:
+                issues.append(g.issue("MONEY_TAX_RATE_AMBIGUOUS", loc, "Nhiều dòng cùng thuế suất; không cộng hoặc chọn; HOLD."))
+            else:
+                rates.add(rate.rstrip("%"))
+        base = _component_number(fs[1], g, issues)
+        vat = _component_number(fs[2], g, issues)
+        components.append(InvoiceTaxComponent(loc, fs, rate, base, vat))
+        if rate == "KCT":
+            non_taxable.append(base)
+    # TGTKCThue hoặc đúng một dòng KCT là số nguồn tường minh, không suy từ tổng.
+    explicit = fd["TGTKCThue"].occurrences[0].state != "ABSENT"
+    if explicit:
+        non = _component_number(fd["TGTKCThue"], g, issues)
+        if non_taxable and (len(non_taxable) != 1 or non_taxable[0].exact_value is None
+                            or non.exact_value != non_taxable[0].exact_value):
+            non = DecimalFact("INVALID")
+            issues.append(g.issue("MONEY_NON_TAXABLE_CONFLICT", path, "TGTKCThue và dòng KCT mâu thuẫn; HOLD."))
+    elif len(non_taxable) == 1:
+        non = non_taxable[0]
+    else:
+        non = DecimalFact("ABSENT" if not non_taxable else "INVALID")
+        issues.append(g.issue("MONEY_NON_TAXABLE_UNPROVEN", path, "Phần không chịu thuế thiếu hoặc mơ hồ; HOLD."))
+    if _literal_not_proven(raw):
+        issues.append(g.issue("XML_LITERAL_LEXEME_NOT_PROVEN", path))
+    return InvoiceMoney("HOLD" if issues else "EXACT", fields + (currency_field,), currency, net, tax, non, total,
+                        tuple(components), tuple(issues), tuple(dict.fromkeys(i.code for i in issues)))
+
+
+def _read_relations(tt, raw, g):
+    items, all_issues = [], []
+    for i, el in enumerate(_children(tt[0], "TTHDLQuan"), 1):
+        loc = f"{_PATH_TTCHUNG}/TTHDLQuan[{i}]"
+        issues = []
+        _component_structure(el, loc, g, issues)
+        fs = tuple(_field([el], tag, tag, loc + "/" + tag) for tag in RELATION_TAGS)
+        vals = {f.name: _component_text(f, g, issues, required=f.name != "LHDCLQuan") for f in fs}
+        kind = {"1": "THAY_THE", "2": "DIEU_CHINH"}.get(vals["TCHDon"])
+        if kind is None:
+            issues.append(g.issue("RELATION_TYPE_UNSUPPORTED", loc + "/TCHDon", "TCHDon phải là 1 (thay thế) hoặc 2 (điều chỉnh); HOLD."))
+        number, day = vals["SHDCLQuan"], vals["NLHDCLQuan"]
+        if number is not None and not _DIGITS.fullmatch(number):
+            issues.append(g.issue("RELATION_NUMBER_INVALID", loc + "/SHDCLQuan", "Số hóa đơn gốc không phải chữ số ASCII; HOLD."))
+            number = None
+        if day is not None:
+            try:
+                date_iso(day)
+            except DataError:
+                issues.append(g.issue("RELATION_DATE_INVALID", loc + "/NLHDCLQuan", "Ngày hóa đơn gốc không hợp lệ; HOLD."))
+                day = None
+        if _literal_not_proven(raw):
+            issues.append(g.issue("XML_LITERAL_LEXEME_NOT_PROVEN", loc))
+        items.append(InvoiceRelation("HOLD" if issues else "EXACT", loc, fs, kind, vals["KHMSHDCLQuan"],
+                                     vals["KHHDCLQuan"], number, day, tuple(issues)))
+        all_issues.extend(issues)
+    return InvoiceRelations("HOLD" if all_issues else "EXACT" if items else "ABSENT", tuple(items), tuple(all_issues),
+                            tuple(dict.fromkeys(i.code for i in all_issues)))
+
+
 def _identity_text(fv: FieldValue | None) -> str | None:
     if fv is None or fv.state != "TEXT":
         return None
@@ -653,6 +850,7 @@ def _doc(raw: bytes, ctx: InvoiceReadContext | None, ref: XmlRawRef, artifact_na
     g = _Ghi(_prefix(ref))
     issues: list[InvoiceIssue] = []
     ly_do: list[str] = []  # candidate_reasons (thứ tự ổn định, không trùng)
+    money, relations = InvoiceMoney(), InvoiceRelations()
 
     def ld(code: str):
         if code not in ly_do:
@@ -704,7 +902,8 @@ def _doc(raw: bytes, ctx: InvoiceReadContext | None, ref: XmlRawRef, artifact_na
             profile_payload_sha256=None if ctx is None else ctx.profile_payload_sha256,
             header_fields=tuple(header), header_total_section=total, lines=tuple(lines), canonical_identity=identity,
             semantic_envelope=env, semantic_digest=None if env is None else env.digest, issues=tuple(issues),
-            candidate_reasons=tuple(ly_do), profile_payload_binding="NOT_BOUND" if ctx is None else ctx.profile_payload_binding)
+            candidate_reasons=tuple(ly_do), profile_payload_binding="NOT_BOUND" if ctx is None else ctx.profile_payload_binding,
+            money=money, relations=relations)
 
     # ---- tiền kiểm bytes (không parse khi ngoài profile)
     if len(raw) > MAX_XML_BYTES:
@@ -747,6 +946,9 @@ def _doc(raw: bytes, ctx: InvoiceReadContext | None, ref: XmlRawRef, artifact_na
         issues.append(g.issue("STRUCTURE_DUPLICATE", _PATH_NDHDON + "/DSHHDVu")); ld("STRUCTURE_UNSUPPORTED")
         return ket_qua("STRUCTURE_DUPLICATE")
 
+    money = _read_money(tt, nd[0], raw, g)
+    relations = _read_relations(tt, raw, g)
+
     # ---- phần tử/thuộc tính/text ngoài profile: giữ bằng chứng, không alias, chặn content digest
     ngoai = False
 
@@ -754,7 +956,7 @@ def _doc(raw: bytes, ctx: InvoiceReadContext | None, ref: XmlRawRef, artifact_na
         nonlocal ngoai
         if el.attrib:
             issues.append(g.issue("UNSUPPORTED_ATTRIBUTE", path)); ngoai = True
-        allowed = _ALLOWED_CHILDREN.get(el.tag)
+        allowed = _LEGACY_ALLOWED_CHILDREN.get(el.tag)
         if allowed is None:  # leaf scalar: kiểm mixed riêng ở _field
             return
         if el.text is not None and el.text.strip():

@@ -517,6 +517,163 @@ class Pure02ChuanHoa(unittest.TestCase):
         self.assertEqual(z.entries[0].result.lines[0].normalized_quantity_text, "10")  # binding ZIP đúng: dương
 
 
+class M2BR4MoneyRelations(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.raw = (ROOT / "tests/fixtures/m2_ban_ra.xml").read_bytes()
+
+    def read(self, *changes):
+        raw = self.raw
+        for old, new in changes:
+            old, new = old.encode("utf-8"), new.encode("utf-8")
+            self.assertIn(old, raw)
+            raw = raw.replace(old, new, 1)
+        return doc_hoa_don_xml(raw, ctx_facts())
+
+    def test_tien_exact_nhieu_thue_suat_khong_tinh_lai(self):
+        result = self.read()
+        money = result.money
+        self.assertIn(b"DEMO", result.raw_xml)
+        self.assertEqual((money.state, money.currency, money.issues, money.reasons), ("EXACT", "VND", (), ()))
+        self.assertEqual([money.net_amount.exact_value, money.tax_amount.exact_value, money.non_taxable_amount.exact_value,
+                          money.total_amount.exact_value], [Decimal("600.06"), Decimal("25.0025"), Decimal("300.03"), Decimal("625.0625")])
+        self.assertTrue(all(isinstance(f.exact_value, Decimal) for f in
+                            (money.net_amount, money.tax_amount, money.non_taxable_amount, money.total_amount)))
+        self.assertEqual([(c.rate, c.net_amount.exact_value, c.tax_amount.exact_value) for c in money.tax_components],
+                         [("5%", Decimal("100.01"), Decimal("5.0005")), ("10%", Decimal("200.02"), Decimal("20.002")),
+                          ("KCT", Decimal("300.03"), Decimal("0"))])
+        self.assertEqual(money.total_amount.state, "PRECISION_UNDECLARED")
+        # TgTCThue giữ đúng tổng chưa thuế, không gán thành net chịu thuế.
+        self.assertEqual(money.net_amount.exact_value, Decimal("600.06"))
+        j = ra_json(result)
+        self.assertEqual(j["money"]["tax_components"][0]["tax_amount"]["exact_value"], "5.0005")
+        json.dumps(j, allow_nan=False)
+        with self.assertRaises(dataclasses.FrozenInstanceError):
+            money.state = "SUA"
+
+    def test_tien_thieu_khong_thanh_0(self):
+        for tag, val, attr in (("TgTCThue", "600.06", "net_amount"), ("TgTThue", "25.0025", "tax_amount"),
+                               ("TgTTTBSo", "625.0625", "total_amount")):
+            with self.subTest(tag=tag):
+                money = self.read((f"<{tag}>{val}</{tag}>", "")).money
+                self.assertEqual(money.state, "HOLD")
+                self.assertEqual(getattr(money, attr).state, "ABSENT")
+                self.assertIsNone(getattr(money, attr).exact_value)
+                self.assertIn("MONEY_ABSENT", money.reasons)
+                self.assertTrue(any(tag in issue.locator for issue in money.issues))
+        result = doc_hoa_don_xml(G01_RAW, ctx_facts())
+        self.assertEqual(result.money.state, "HOLD")
+        self.assertIsNone(result.money.total_amount.exact_value)
+
+    def test_tien_mau_thuan_giu_occurrences(self):
+        money = self.read(("<TgTTTBSo>625.0625</TgTTTBSo>", "<TgTTTBSo>625.0625</TgTTTBSo><TgTTTBSo>999</TgTTTBSo>")).money
+        self.assertEqual((money.state, money.total_amount.state, money.total_amount.exact_value), ("HOLD", "INVALID", None))
+        self.assertIn("MONEY_AMBIGUOUS", money.reasons)
+        field = next(f for f in money.fields if f.name == "TgTTTBSo")
+        self.assertEqual([o.lexeme for o in field.occurrences], ["625.0625", "999"])
+        money = self.read(("<TGTKCThue>300.03</TGTKCThue>", "<TGTKCThue>301</TGTKCThue>")).money
+        self.assertEqual((money.state, money.non_taxable_amount.state), ("HOLD", "INVALID"))
+        self.assertIn("MONEY_NON_TAXABLE_CONFLICT", money.reasons)
+
+    def test_phan_khong_chiu_thue_chi_doc_so_tuong_minh(self):
+        money = self.read(("<TGTKCThue>300.03</TGTKCThue>", "")).money
+        self.assertEqual((money.state, money.non_taxable_amount.exact_value), ("EXACT", Decimal("300.03")))
+        money = self.read(("<TGTKCThue>300.03</TGTKCThue>", ""), ("<TSuat>KCT</TSuat>", "<TSuat>KKKNT</TSuat>"),
+                          ("<TSuat>KCT</TSuat>", "<TSuat>KKKNT</TSuat>")).money
+        self.assertEqual((money.state, money.non_taxable_amount.state), ("HOLD", "ABSENT"))
+        self.assertIsNone(money.non_taxable_amount.exact_value)
+
+    def test_dinh_dang_tien_la_va_rong_hold(self):
+        for value in ("", "1,000", "1e3", "NaN", "Infinity", "+1", " 1", "１", "1 000"):
+            with self.subTest(value=value):
+                money = self.read(("<TgTTTBSo>625.0625</TgTTTBSo>", f"<TgTTTBSo>{value}</TgTTTBSo>")).money
+                self.assertEqual(money.state, "HOLD")
+                self.assertIsNone(money.total_amount.exact_value)
+
+    def test_am_ngoai_te_va_decimal_khong_mat_chinh_xac(self):
+        exact = "-123456789012345678901234567890.123456789"
+        money = self.read(("<DVTTe>VND</DVTTe>", "<DVTTe>USD</DVTTe>"),
+                          ("<TgTTTBSo>625.0625</TgTTTBSo>", f"<TgTTTBSo>{exact}</TgTTTBSo>")).money
+        self.assertEqual((money.state, money.currency, money.total_amount.exact_value), ("EXACT", "USD", Decimal(exact)))
+        self.assertEqual(money.total_amount.exact_text, exact)  # Không cộng hoặc đối chiếu lại tổng.
+
+    def test_thue_suat_thieu_trung_hoac_la_hold(self):
+        for old, new, reason in (("<TThue>5.0005</TThue>", "", "MONEY_ABSENT"),
+                                 ("<TSuat>5%</TSuat>", "<TSuat>99%</TSuat>", "MONEY_TAX_RATE_UNSUPPORTED"),
+                                 ("<TSuat>5%</TSuat>", "<TSuat>10%</TSuat>", "MONEY_TAX_RATE_AMBIGUOUS"),
+                                 ("<ThTien>100.01</ThTien>", "<ThTien>100.01</ThTien><ThTien>200</ThTien>", "MONEY_AMBIGUOUS")):
+            with self.subTest(reason=reason):
+                # Chỉ thay trong bảng tổng hợp, giữ nguyên dòng hàng.
+                before, section = self.raw.decode("utf-8").split("<TToan>")
+                raw = (before + "<TToan>" + section.replace(old, new, 1)).encode("utf-8")
+                money = doc_hoa_don_xml(raw).money
+                self.assertEqual(money.state, "HOLD")
+                self.assertIn(reason, money.reasons)
+
+    def test_don_vi_tien_thieu_trung_va_la_hold(self):
+        for text in ("", "<DVTTe/>", "<DVTTe>vnd</DVTTe>", "<DVTTe>VND</DVTTe><DVTTe>USD</DVTTe>"):
+            with self.subTest(text=text):
+                money = self.read(("<DVTTe>VND</DVTTe>", text)).money
+                self.assertEqual(money.state, "HOLD")
+                self.assertIsNone(money.currency)
+
+    def test_quan_he_dieu_chinh_va_thay_the(self):
+        for code, kind in (("2", "DIEU_CHINH"), ("1", "THAY_THE")):
+            result = self.read(("<TCHDon>2</TCHDon>", f"<TCHDon>{code}</TCHDon>"))
+            self.assertEqual(result.relations.state, "EXACT")
+            rel, = result.relations.items
+            self.assertEqual((rel.state, rel.relation_type, rel.original_model, rel.original_series, rel.original_number, rel.original_date),
+                             ("EXACT", kind, "1", "DEMO_GOC", "000001", "2026-10-01"))
+            self.assertTrue(rel.source_locator.endswith("/TTChung/TTHDLQuan[1]"))
+            self.assertEqual(result.canonical_identity[1], "BAN_RA")
+        self.assertEqual(doc_hoa_don_xml(G01_RAW).relations.state, "ABSENT")
+
+    def test_quan_he_thieu_truong_hold(self):
+        for tag, value in (("TCHDon", "2"), ("KHMSHDCLQuan", "1"), ("KHHDCLQuan", "DEMO_GOC"),
+                           ("SHDCLQuan", "000001"), ("NLHDCLQuan", "2026-10-01")):
+            with self.subTest(tag=tag):
+                rels = self.read((f"<{tag}>{value}</{tag}>", "")).relations
+                self.assertEqual((rels.state, rels.items[0].state), ("HOLD", "HOLD"))
+                self.assertIn("FIELD_ABSENT", rels.reasons)
+
+    def test_quan_he_mau_thuan_ngay_so_loai_la_hold(self):
+        for old, new, code in (("<SHDCLQuan>000001</SHDCLQuan>", "<SHDCLQuan>000001</SHDCLQuan><SHDCLQuan>000002</SHDCLQuan>", "FIELD_AMBIGUOUS"),
+                               ("<NLHDCLQuan>2026-10-01</NLHDCLQuan>", "<NLHDCLQuan>2026-02-30</NLHDCLQuan>", "RELATION_DATE_INVALID"),
+                               ("<SHDCLQuan>000001</SHDCLQuan>", "<SHDCLQuan>DEMO_1</SHDCLQuan>", "RELATION_NUMBER_INVALID"),
+                               ("<TCHDon>2</TCHDon>", "<TCHDon>3</TCHDon>", "RELATION_TYPE_UNSUPPORTED")):
+            with self.subTest(code=code):
+                rels = self.read((old, new)).relations
+                self.assertEqual(rels.state, "HOLD")
+                self.assertIn(code, rels.reasons)
+
+    def test_allowlist_strict_va_cau_truc_mo_ho(self):
+        self.assertEqual(m._ALLOWED_CHILDREN["TTHDLQuan"], set(m.RELATION_TAGS))
+        for old, new in (("<TToan>", "<TToan DEMO='1'>"), ("<TgTThue>25.0025</TgTThue>", "<TgTThue><DEMO/>25.0025</TgTThue>"),
+                         ("</TToan>", "<DEMO>1</DEMO></TToan>"), ("</TToan>", "</TToan><TToan/>"),
+                         ("</THTTLTSuat>", "</THTTLTSuat><THTTLTSuat/>")):
+            with self.subTest(new=new):
+                self.assertEqual(self.read((old, new)).money.state, "HOLD")
+        for old, new in (("<TTHDLQuan>", "<TTHDLQuan DEMO='1'>"), ("</TTHDLQuan>", "<DEMO/></TTHDLQuan>"),
+                         ("<KHHDCLQuan>DEMO_GOC</KHHDCLQuan>", "<KHHDCLQuan>DEMO<DEMO/></KHHDCLQuan>")):
+            with self.subTest(new=new):
+                self.assertEqual(self.read((old, new)).relations.state, "HOLD")
+        result = doc_hoa_don_xml(b"<HDon>DEMO")
+        self.assertEqual((result.money.state, result.relations.state), ("HOLD", "HOLD"))
+
+    def test_contract_cu_tren_toan_bo_fixture_xml_khong_doi(self):
+        # Kết quả đo TRƯỚC BR4: 16 XML × 2 context, mọi trường cũ gồm issues,
+        # locator, semantic envelope/digest, raw hash và Decimal đã serialize.
+        rows = []
+        for p in sorted((FIX / "inputs").glob("*.xml")):
+            for label, ctx in (("none", None), ("facts", ctx_facts())):
+                value = ra_json(doc_hoa_don_xml(p.read_bytes(), ctx))
+                value.pop("money")
+                value.pop("relations")
+                rows.append([p.name, label, value])
+        self.assertEqual(len(rows), 32)
+        self.assertEqual(sha256(canonical_json(rows).encode("utf-8")), "3d9908af6ed1d3e5fb85ee779a5e1962ab3e565ad4e317e8ec02685cd42e41b1")
+
+
 class Immutability(unittest.TestCase):
     def test_context_snapshot_sau_va_key_cam(self):
         d = {"source_instance": "DEMO_M2_XML_INSTANCE_A", "source_profile_ref": m.PROFILE_REF, "profile_document_sha256": ORACLE["profile_sha256"],
