@@ -384,6 +384,6 @@ Anh chốt 26/10 ~22:50: "Đồng ý toàn bộ đề xuất S1–S6 và M1–M3
   - S6 thử nghiệm đầu: tắt M2 → M4 hiện "Chờ hóa đơn M2".
 - **Mã hóa và sao lưu (CD-019):**
   - M1 mã hóa 10 nhóm A ngay; 5 nhóm B chờ; 3 nhóm C (tiền, ngày, mã nội bộ) để nguyên.
-  - M2 khóa cột bọc DPAPI theo tài khoản chạy phần mềm, trong `D:\DU-LIEU-KE-TOANi-mat\`; khóa sao lưu riêng cất ổ ngoài + bản dự phòng. **Người giữ ổ ngoài: Anh chỉ định khi tới bước tạo khóa sao lưu.**
+  - M2 khóa cột bọc DPAPI theo tài khoản chạy phần mềm, trong `D:\DU-LIEU-KE-TOAN\bi-mat\`; khóa sao lưu riêng cất ổ ngoài + bản dự phòng. **Người giữ ổ ngoài: Anh chỉ định khi tới bước tạo khóa sao lưu.**
   - M3 sao lưu mã hóa 23:00 hằng ngày và trước/sau nâng cấp hoặc nạp; chép ổ khác hằng ngày, ổ ngoài hằng tuần; giữ 30 bản ngày + 12 bản tháng, không tự xóa; mục tiêu mất ≤ 24 giờ, khôi phục ≤ 2 giờ; báo Anh nếu BitLocker làm chậm > 10% (pgbench) hoặc > 15% (thao tác lưu).
 - Lát mở: XS-4b (SQL công tắc), XS-4c (máy chủ), XS-2 (hàng việc nền), pilot XS-T1; MH-1 (cổng mã hóa cột), SL-1 (sao lưu mã hóa), rồi MH-2…, SL-2, DO-1.
