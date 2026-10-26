@@ -12080,3 +12080,13 @@ M0036_KY_DOCX = (
 
 PG_MIGRATIONS = (*PG_MIGRATIONS, M0036_KY_DOCX)
 PG_SCHEMA_VERSION = len(PG_MIGRATIONS)
+
+# ---------------------------------------------------------------------------
+# M4-DL1 — CD-011: chứng cứ nguồn Review SQLite; lead cấp ordinal khi gộp.
+# Chỉ append, không đổi migration đã phát hành.
+# ---------------------------------------------------------------------------
+from ..m4.sql_review_chep import M4_REVIEW_CHEP_SQL  # noqa: E402 — chỉ hằng SQL
+
+M00xx_M4_REVIEW_CHEP = M4_REVIEW_CHEP_SQL
+PG_MIGRATIONS = (*PG_MIGRATIONS, M00xx_M4_REVIEW_CHEP)
+PG_SCHEMA_VERSION = len(PG_MIGRATIONS)
