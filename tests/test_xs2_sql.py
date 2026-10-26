@@ -62,7 +62,8 @@ class HangViecTinh(unittest.TestCase):
         old = {'__name__': PM.__name__, '__package__': PM.__package__}
         exec(compile(source.split(marker, 1)[0], PM.__file__, 'exec'), old)
         previous = old['PG_MIGRATIONS']
-        self.assertEqual(PM.PG_MIGRATIONS, (*previous, HANG_VIEC_B_SQL))
+        # Chỉ kiểm tiền tố: không ghim migration cuối (lát sau được nối thêm).
+        self.assertEqual(PM.PG_MIGRATIONS[:len(previous) + 1], (*previous, HANG_VIEC_B_SQL))
         self.assertIs(old['M0060_HANG_VIEC'], HANG_VIEC_SQL)
         self.assertIs(PM.M0062_HANG_VIEC_B, HANG_VIEC_B_SQL)
         self.assertEqual(sum(m is HANG_VIEC_B_SQL for m in PM.PG_MIGRATIONS), 1)

@@ -488,12 +488,15 @@ class BoqGhiPostgres(unittest.TestCase):
     def probe(self, rows, pl=None, oracle=False, web=False):
         self.c.execute("SAVEPOINT bo_oracle")
         try:
+            # Đọc revision trước khi hạ vai: từ M0061 (4f1c) app_web không thấy hồ sơ khi chưa có quyền xem.
+            rev = self.c.execute("SELECT revision FROM m4.ho_so_hop_dong WHERE hop_dong_id=%s",
+                                 (self.f["hd"],)).fetchone()[0]
             if oracle:
                 self.c.execute(OLD_WRITER)
             if web:
                 self.c.execute("SET LOCAL ROLE app_web")
             try:
-                result = self.call(rows, pl)
+                result = self.call(rows, pl, rev=rev)
                 meta = {k: v for k, v in result["ket_qua"].items() if k != "boq_id"}
                 return ("OK", meta, self.stored(result))
             except psycopg.Error as exc:
