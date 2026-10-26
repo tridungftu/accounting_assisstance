@@ -8,6 +8,10 @@ trình chọn vai DEMO KHÔNG phải hệ đăng nhập production (TL40 §8 cò
 
 from __future__ import annotations
 
+import json
+from decimal import Decimal, InvalidOperation
+from uuid import UUID
+
 from ..ha_tang.primitives import DataError
 
 KE_TOAN = {"KE_TOAN", "KE_TOAN_TRUONG"}
@@ -112,6 +116,128 @@ def kiem(dt: dict, hanh_dong: str, phap_nhan_id) -> None:
     can = LOAI_VIEC_CAN.get(hanh_dong)
     if can and can not in pn["duyet"]:
         raise DataError("KHONG_CO_QUYEN_LOAI_VIEC", f"Chưa được giao duyệt loại việc {can}.")
+
+
+class TuChoiThamQuyen(DataError):
+    """Biên nhận nội bộ để caller rollback rồi ghi bằng cổng phiên M0041.
+
+    Không giữ snapshot/revision trong lỗi gửi ra ngoài. Caller phải bắt lỗi này
+    ở NGOÀI giao dịch nghiệp vụ; không tự biến lỗi ghi nhật ký thành thành công.
+    """
+
+    def __init__(self, ma, ly_do, hanh_dong, doi_tuong, so_tien):
+        super().__init__(ma, ly_do)
+        self.hanh_dong = hanh_dong
+        self.doi_tuong = dict(doi_tuong) if isinstance(doi_tuong, dict) else None
+        self.so_tien = so_tien
+
+
+def kiem_tham_quyen(conn, hanh_dong_ky_thuat, doi_tuong, ngu_canh_tin_cay):
+    """Cổng trong transaction đã đặt GUC danh tính ID/login từ phiên máy chủ.
+
+    `doi_tuong` là {bang, id, phong_id?} dựng từ bản ghi thật. Ngữ cảnh chỉ
+    chứa callback `kiem_cu`, resolver `so_tien_vnd` và lỗi `khong_thay` của
+    service; tuyệt đối không truyền body/header làm ngữ cảnh. SQL xác thực
+    danh tính/phạm vi hiện hành, kể cả khi trả CU. Resolver tiền được gọi
+    sau kiểm phạm vi và chỉ ở nhánh ma trận (không đổi đường cũ khi tắt).
+    """
+    obj = dict(doi_tuong) if isinstance(doi_tuong, dict) else None
+    tien = None
+    can_tien = hanh_dong_ky_thuat in {"CRM:TIEP_NHAN:DUYET", "CRM:G5_G6_KIEM_KY:DUYET"}
+
+    def chan(ma, ly_do):
+        # Mã gốc SQL vẫn được giữ khi ghi qua mtq_ghi_tu_choi_phien.
+        if ma == "MTQ_THIEU_TIEN":
+            ma = "MTQ_THIEU_CO_SO_TIEN"
+        if ma in {"MTQ_GAN_VAI", "MTQ_PHAM_VI", "MTQ_PHAP_NHAN"}:
+            ma, ly_do = ngu_canh_tin_cay.get(
+                "khong_thay", ("HOP_DONG", "Không thấy hợp đồng (hoặc ngoài quyền)."))
+        raise TuChoiThamQuyen(ma, ly_do, hanh_dong_ky_thuat, obj, tien) from None
+
+    def hoi():
+        try:
+            row = conn.execute(
+                "SELECT master.mtq_quyet_dinh_phien(%s,%s::jsonb,%s) AS q",
+                (hanh_dong_ky_thuat, json.dumps(obj, ensure_ascii=False), tien)).fetchone()
+            q = row["q"]
+            if not isinstance(q, dict) or q.get("nguon") not in {"CU", "MA_TRAN"}:
+                raise ValueError("Quyết định không đúng hợp đồng")
+            if any(not isinstance(q.get(k), str) or not q[k] for k in ("ma", "ly_do")):
+                raise ValueError("Thiếu quyết định")
+            if q["nguon"] == "MA_TRAN":
+                if type(q.get("cho_phep")) is not bool:
+                    raise ValueError("Thiếu quyết định")
+                if q["cho_phep"]:
+                    if (q["ma"] != "MTQ_CHO_PHEP" or type(q.get("revision")) is not int
+                            or q["revision"] < 1 or "gioi_han_vnd" not in q
+                            or [q.get(k) for k in ("module", "man", "hanh_dong")] != hanh_dong_ky_thuat.split(":")):
+                        raise ValueError("Thiếu snapshot/ô áp dụng")
+                    UUID(q["phien_ban_id"])
+                    UUID(q["dong_id"])
+            return q
+        except Exception:
+            chan("MTQ_LOI_QUYET_DINH", "Không xác định được thẩm quyền; thao tác bị chặn. Cần Anh kiểm tra cổng quyền.")
+
+    q = hoi()
+    try:
+        if not isinstance(obj, dict) or set(obj) - {"bang", "id", "phong_id"}:
+            raise ValueError("Sai tham chiếu")
+        if not isinstance(obj.get("bang"), str) or not obj["bang"]:
+            raise ValueError("Thiếu bảng")
+        UUID(obj["id"])
+        if obj.get("phong_id") is not None:
+            UUID(obj["phong_id"])
+    except (ValueError, TypeError, KeyError, AttributeError):
+        chan("MTQ_DOI_TUONG", "Cần tham chiếu đối tượng thật hợp lệ từ máy chủ; thao tác bị chặn.")
+    if q["nguon"] == "CU":
+        # Không bắt/đổi lỗi, không kết hợp OR/AND với quyết định ma trận.
+        ngu_canh_tin_cay["kiem_cu"]()
+        return {"nguon": "CU", "cho_phep": True, "revision": None, "o_ap_dung": None,
+                "gioi_han_vnd": None, "so_tien_vnd": None, "ma": q["ma"], "ly_do": q["ly_do"]}
+    if not q["cho_phep"] and q["ma"] != "MTQ_THIEU_TIEN":
+        chan(q["ma"], q["ly_do"])
+
+    resolver = ngu_canh_tin_cay.get("so_tien_vnd")
+    try:
+        value = resolver() if callable(resolver) else resolver
+        # Không đi qua float; VND phải nguyên, hữu hạn, không âm như lõi SQL.
+        if value is not None and not isinstance(value, (bool, float)):
+            tien = Decimal(value)
+            if not tien.is_finite() or tien < 0 or tien != tien.to_integral_value():
+                tien = None
+    except (ValueError, TypeError, InvalidOperation):
+        tien = None
+    except Exception:
+        chan("MTQ_LOI_QUYET_DINH", "Không đọc được căn cứ tiền đã khóa; thao tác bị chặn. Cần Anh kiểm tra.")
+    q = hoi()
+    if q["nguon"] != "MA_TRAN":
+        chan("MTQ_LOI_QUYET_DINH", "Chế độ thẩm quyền thay đổi trong thao tác; không thực hiện.")
+    if not q["cho_phep"]:
+        chan(q["ma"], q["ly_do"])
+    if can_tien and tien is None:
+        chan("MTQ_THIEU_CO_SO_TIEN", "Chưa có tổng giá trị hợp đồng VND từ phiên bản đã khóa. Cần Anh bổ sung căn cứ tiền.")
+    try:
+        han_muc = None if q.get("gioi_han_vnd") is None else Decimal(str(q["gioi_han_vnd"]))
+        if han_muc is not None and (not han_muc.is_finite() or han_muc < 0):
+            raise ValueError("Hạn mức sai")
+    except (ValueError, TypeError, InvalidOperation):
+        chan("MTQ_LOI_QUYET_DINH", "Hạn mức thẩm quyền không hợp lệ; thao tác bị chặn.")
+    if can_tien and tien is not None and han_muc is not None and tien > han_muc:
+        chan("MTQ_VUOT_HAN_MUC", "Số tiền duyệt vượt giới hạn tiền VND của dòng.")
+    return {**q, "so_tien_vnd": tien, "gioi_han_vnd": han_muc,
+            "o_ap_dung": {k: q.get(k) for k in ("dong_id", "module", "man", "hanh_dong")}}
+
+
+def ghi_tu_choi_tham_quyen(conn, request_id, loi):
+    """Gọi trong transaction RIÊNG sau rollback, đã đặt lại GUC phiên."""
+    try:
+        row = conn.execute("SELECT master.mtq_ghi_tu_choi_phien(%s::uuid,%s,%s::jsonb,%s) AS id",
+                           (request_id, loi.hanh_dong, json.dumps(loi.doi_tuong, ensure_ascii=False),
+                            loi.so_tien)).fetchone()
+        if not row or not row["id"]:
+            raise ValueError("Không có biên nhận nhật ký")
+    except Exception:
+        raise DataError("MTQ_NHAT_KY_LOI", "Chưa ghi được nhật ký thẩm quyền, thao tác không được thực hiện. Báo quản trị.") from None
 
 
 def kiem_l11(dt: dict, loai: str, phap_nhan_id) -> None:

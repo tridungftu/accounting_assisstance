@@ -1,0 +1,5 @@
+- Anh, đã sửa registry, đếm audit trước/sau, nhánh `CU` và audit chống trùng/kiểm tra danh tính/catalog; thêm các test yêu cầu.
+- Chỉ đổi `src/kho_tri_thuc/k2/sql_mtq_cong.py` và `tests/test_mtq_cong_sql.py`; UTF-8 không BOM, LF; giữ nguyên `pg_migrations.py`.
+- Test bằng Python 3.14.7: **19 đạt/56**, **37 PG skip**, không lỗi; `git diff --check` đạt. Chưa kiểm chứng runtime PostgreSQL.
+- Không mở server/PostgreSQL, không commit.
+- Thông điệp commit đề xuất: `[MTQ-4a0] vòng 2: sửa registry, nhánh CU và kiểm soát audit từ chối`.
