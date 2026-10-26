@@ -383,3 +383,10 @@ H3 phân loại 36 đầu việc: 19 gói đã nhập `hop-nhat`, 13 xung đột
 - **Lỗi lặp lại ở test PG mới (M3-1a, M3-1b):** test tự skip dưới bộ chạy của lead (đọc biến nội bộ `KHO_PG_DEMO_*`, hoặc đòi DSN đã trỏ vào `kho_test_*`). Bài học: cổng gộp phải kiểm **`tao=`/`skip`** của từng module PG mới, không chỉ `ids_loi`. M3-1a vòng 2 đã sửa (PG 16 ok); M3-1b vòng 2 chờ suất.
 - Thiết kế M3 v2 vẫn chưa có mục 17 (bảng mốc) → M3-3/M3-4 và phiếu cổng A M3 chờ.
 - Đang chạy: Codex — MTQ-4a, MTQ-3b2, M2-BR0, M4-CD1 v2 (4/4). Claude — review-lat M3-1a+1b (1/2). Chờ suất: M3-1b v2, M4-DL3 v2.
+### 26/10 ~13:45 — gộp M3-1a (M0042), M3-1b, M2-BR0, M4-DL3, MTQ-4a, M4-CD1 · DEMO 8799 · Codex quá tải
+- Hợp nhất: 0258fbd M3-1a (**M0042**), c653aeb M3-1b (PG 37 ok, CSDL thật), 9c77a62 M2-BR0 (tài liệu 9 lát BR1–BR9), c1ed1d7 M4-DL3 (review Đạt; PG 83 ok), 7bab9b1 MTQ-4a (review Đạt; PG 35 module 794 ok, 0 mã mới), 031d043 M4-CD1 (review vòng 2 Đạt + vòng 3; PG 30 ok — **chưa chạy dữ liệu thật**).
+- `lat/ui-ky` 27f135b = + MTQ-3b2 (ô Ma trận thẩm quyền). **Thử trình duyệt DEMO 8799 (CSDL riêng `p8799b`):** vai thường → "Quyền của tôi" + "Pháp nhân chưa dùng ma trận…" đúng; vai Admin chưa thử được vì bộ chọn vai chưa có actor MTQ → lát MTQ-5b. CSDL cũ `kho_crm_demo_lt_p8799` lệch lineage (M0035 cũ) — để nguyên, không DROP.
+- Review MTQ-4a — **Cần Anh (xác nhận, không chặn):** (A) Từ chối HĐ dùng chung ô Duyệt nên cũng áp hạn mức tổng HĐ (người hạn mức thấp không từ chối được HĐ lớn) — đúng ý Anh? (B) Duyệt V4 (HĐ/danh mục mới) cũng bị áp hạn mức tổng HĐ; tách ô riêng không áp tiền?
+- Review M4-DL3 — **Cần Anh:** hai phụ lục cùng ngày hiệu lực: (a) theo Review gốc (ngày hiệu lực → ngày ký → số PL so như chữ: "PL10" trước "PL2") hay (b) giữ cờ "cần xem lại" (làm trống BOQ/giá trị HĐ sau ngày đó tới khi có người xử lý). Lead khuyến nghị (b) + sửa so số PL theo số.
+- **Codex quá tải ("model is at capacity"):** M4-DL4 bị ngắt 2 lần, M4-CD1 vòng 3 1 lần; lead giao lại, đang chạy lần 3 DL4. Nếu lặp lại, giảm số lát Codex song song.
+- Đang chạy: Codex — MTQ-4a0b, MTQ-5b, M4-DL4 (lần 3). Claude — review-lat M3-1c + M2-BR4.
