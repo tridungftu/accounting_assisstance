@@ -309,3 +309,24 @@ Lead ghi 26/10 theo review MTQ-4a3a: trong resolver SQL M0045, HĐ thuộc CRM =
 ## QD-20261026-04 · Review chéo giao Codex; Claude chỉ kiểm xác suất
 Anh chốt 26/10 ~16:00: "do hạn mức đã gần đầy, hãy giao cho cả codex tự kiểm theo bài của Claude, để claude code chỉ kiểm xác suất thôi". Thay phần review của CD-004 (kiem-nhanh Haiku + review-lat Opus): mỗi lát Codex được một Codex khác review chỉ đọc theo `docs/46-chuyen-doi-dieu-phoi/MAU-REVIEW-CODEX.md`; lead giữ gate máy (diff/mã hóa/test + PG so nền/skip) cho mọi lát và rút ngẫu nhiên ~1/4 lát đã Đạt để tự đọc nhanh điểm nóng, không gọi subagent. Vẫn tối đa 4 Codex (kể cả việc review).
 Bổ sung cùng ngày (Anh nhắc): kiểm soát Codex để không review quá phạm vi/lệch trọng tâm (mẫu mục B "Giữ đúng trọng tâm", mục E lead lọc); và **mọi điểm Chặn gây hỏng cụ thể hoặc chỗ không rõ phải hỏi lại Claude (lead) trước khi thực hiện tiếp** — reviewer ghi mục "Hỏi Claude", worker dừng và báo "Cần lead".
+
+## QD-20261026-05 · M4 — lịch sử đợt chép từ Review tính vào lũy kế chính thức
+Anh chốt 26/10 ~17:20 (bảng chọn): "Tính vào lũy kế chính thức" (thay mặc định "chỉ hiển thị riêng" của M4-DL5b). Áp dụng với các điều kiện:
+- seal M4 luôn thắng, không cộng trùng;
+- chỉ đợt không có seal M4;
+- cùng đơn vị tính; mã hạng mục trùng → cần xem lại;
+- ngày nghiệm thu hợp lệ;
+- nguồn ghi rõ "REVIEW_CHEP".
+
+Làm ở lát M4-DL5c.
+
+## QD-20261026-06 · OCR — một engine dùng chung cho mọi module, gộp sổ đếm trang với Review
+Anh chốt 26/10 ~17:20: "Gộp sổ chung. Lưu ý OCR dùng chung 1 engine cho tất cả model".
+- Một cổng OCR dùng chung (giống cổng AI) cho M4/M9/…: cùng Hot Folder ABBYY và cùng sổ đếm trang với phần mềm Review (hạn mức 5.000 trang/30 ngày).
+- Có khóa tệp khi ghi sổ; tiền tố mã việc riêng để không đụng việc của Review.
+- Bản gốc Review đóng băng, không sửa. Đường dẫn lấy từ cấu hình.
+
+Làm ở lát OCR-1.
+
+## QD-20261026-07 · Nhịp khi hàng đợi chỉ còn việc chờ Anh
+Anh chốt 26/10 ~17:20: làm tiếp việc phụ M9 (thuần, chưa CSDL/màn hình) trong lúc chờ.
