@@ -408,3 +408,7 @@ H3 phân loại 36 đầu việc: 19 gói đã nhập `hop-nhat`, 13 xung đột
 - PG cả bộ hợp nhất (fd9b991): 149 module, 2877 ok / 21 ERROR / 67 FAIL / 65 skip, 0 treo; 4 lỗi mới `test_hoa_don_xml` (test BR4 đọc fixture CRLF) hết sau khi gộp BR4b; `test_trich6_host` chập chờn (đã biết). → **Nền PG v4** `nen-test-hop-nhat-pg-v4.json`.
 - Gộp: 2b634ed M2-BR4b, e84e59c M3-1c (**M0044**), 856380c MTQ-5b, 61875fb M4-DL4, c91ae4b MTQ-4a2 — PG từng lát 0 mã lỗi mới so v4. Migration cuối hợp nhất = **M0044**. CLAUDE.md (M9 mở lại, sửa bởi phiên điều phối của Anh) đã commit.
 - Không còn lát nào đang chạy. Hàng đợi sau (chưa giao vì hạn mức tuần ~88–90%): MTQ-4a3 (9 điểm CRM cần resolver), MTQ-3b3 (giao diện bộ chọn vai MTQ trên `lat/ui-ky`), M4-DL5a/b, M3-2/M3-1d, M2-BR1…, M9-1…5.
+### 26/10 ~14:40 — Anh chốt nhịp: 4 Codex, Opus chỉ review lát rủi ro cao
+- Anh 14:35: "Cứ giao nhịp nhanh, 4 codex cho tôi" (sau khi lead đề xuất chậm lại vì hạn mức tuần ~88–90%). Lát nhỏ/vòng sửa: `kiem-nhanh` (Haiku) hoặc lead tự kiểm; Opus cho quyền/SECURITY DEFINER/migration/dữ liệu thật/Mask.
+- `lat/ui-ky` 2419503 nhận hợp nhất; xung đột `server.py` (dòng giao diện có `_danh_tinh_demo` giàu hơn) → giữ hàm dòng giao diện + thêm lọc `MO_PHONG_MTQ_`; ca test giả `test_mtq_demo_phien.test_crm_m9_m5_khong_co_mtq` sửa ở MTQ-3b3.
+- Giao 4 Codex: **MTQ-3b3** (bộ chọn vai MTQ trên màn ma trận, dòng giao diện), **M4-CD2** (đối chiếu độc lập sau nạp), **M4-DL3b** (nên sửa DL3), **M4-DL5a** (nối PL/BOQ chép vào snapshot tính toán, parity).
