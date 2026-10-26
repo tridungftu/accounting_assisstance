@@ -181,3 +181,12 @@ M3_CO_SO_SQL = (
         END IF;
     END $$""",
 )
+
+# M3-1c — CD-013: chưa có quy tắc chia giá trị; chỉ một liên kết xác nhận/hóa đơn.
+# Cần Anh: hóa đơn chung cho nhiều hợp đồng có cần chia giá trị không.
+# Bản xác nhận bất biến vẫn giữ chỗ; không tự chuyển sang hợp đồng/bản khác.
+M3_CO_SO_B_SQL = (
+    """CREATE UNIQUE INDEX hoa_don_hop_dong_mot_xac_nhan
+        ON m3.hoa_don_hop_dong (phap_nhan_id, hoa_don_id)
+        WHERE trang_thai = 'DA_XAC_NHAN'""",
+)
