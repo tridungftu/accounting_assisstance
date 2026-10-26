@@ -12226,3 +12226,10 @@ from ..k2.sql_mtq_cong import MTQ_CONG_F_SQL  # noqa: E402 — chỉ hằng SQL
 M0051_MTQ_CONG_F = MTQ_CONG_F_SQL
 PG_MIGRATIONS = (*PG_MIGRATIONS, M0051_MTQ_CONG_F)
 PG_SCHEMA_VERSION = len(PG_MIGRATIONS)
+
+# XS-1a — CD-017: bus outbox/inbox; tên tạm, lead đánh số khi gộp.
+from ..k2.sql_bus_su_kien import BUS_SU_KIEN_SQL  # noqa: E402 — chỉ hằng SQL
+
+M0052_BUS_SU_KIEN = BUS_SU_KIEN_SQL
+PG_MIGRATIONS = (*PG_MIGRATIONS, M0052_BUS_SU_KIEN)
+PG_SCHEMA_VERSION = len(PG_MIGRATIONS)
