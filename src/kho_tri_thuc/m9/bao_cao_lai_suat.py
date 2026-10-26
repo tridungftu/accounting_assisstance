@@ -15,6 +15,10 @@ _ZERO = Decimal(0)
 _CHO_TRICH_DAN = "chờ nối trích dẫn hợp đồng (M9-2)"
 _GHI_CHU = "Lãi trả thêm là ước tính; không gửi ra ngoài khi chưa duyệt."
 _SO_LE_TIEN = {"VND": 0, "USD": 2}
+_CHU_DE_DAM_PHAN = (
+    "biên độ lãi suất", "điều chỉnh lãi suất", "phí trả nợ trước hạn",
+)
+_KHONG_THAY = "Không thấy trong hợp đồng"
 
 
 def _so(gia_tri) -> Decimal | None:
@@ -46,7 +50,8 @@ def _kiem_nguon(du_lieu: dict) -> None:
         raise ValueError("Cần Anh/lead: mốc Sheet phải có dạng dd/mm/yyyy hh:mm.") from None
 
 
-def lap_bao_cao(snapshot: dict, *, ngay_bao_cao: date) -> dict:
+def lap_bao_cao(snapshot: dict, *, ngay_bao_cao: date, chi_muc=None,
+                tai_lieu_theo_khoan_vay: dict[str, set[str]] | None = None) -> dict:
     """Lập báo cáo, giữ Decimal theo precision hiện hành, không quantize.
 
     binh_quan_theo_tien_te chỉ dùng khoản có dư nợ dương và đủ lãi suất.
@@ -54,6 +59,8 @@ def lap_bao_cao(snapshot: dict, *, ngay_bao_cao: date) -> dict:
     None nghĩa là không có dư nợ hợp lệ, không thay thiếu dữ liệu bằng 0.
     Khoản không đủ số liệu có lai_cao/chenh_lech/ước tính = None.
     Trường tài chính sai kiểu/không hữu hạn được coi là thiếu, không suy đoán.
+    Có chỉ mục và ánh xạ thì trích tối đa một câu gốc cho mỗi chủ đề,
+    chỉ trong tài liệu của khoản vay; mã chưa ánh xạ dùng bộ lọc rỗng.
     """
     _kiem_nguon(snapshot)
     if type(ngay_bao_cao) is not date:
@@ -106,14 +113,30 @@ def lap_bao_cao(snapshot: dict, *, ngay_bao_cao: date) -> dict:
             "dieu_khoan_lien_quan_toi_dam_phan": "",
             "ghi_chu": _CHO_TRICH_DAN,
         }
+        if chi_muc is not None and tai_lieu_theo_khoan_vay is not None:
+            tai_lieu = tai_lieu_theo_khoan_vay.get(khoan["ma_khoan_vay"], set())
+            dieu_khoan = []
+            for chu_de in _CHU_DE_DAM_PHAN:
+                ket_qua = chi_muc.tim(chu_de, so_ket_qua=1, loc_tai_lieu=tai_lieu)
+                trich = ket_qua[0]["trich_dan"] if ket_qua else {
+                    "ten_tep": None, "trang": None, "dieu": None,
+                    "khoan": None, "cau": _KHONG_THAY,
+                }
+                dieu_khoan.append({"chu_de": chu_de, **{
+                    truong: trich[truong]
+                    for truong in ("ten_tep", "trang", "dieu", "khoan", "cau")
+                }})
+            khoan["dieu_khoan_lien_quan_toi_dam_phan"] = dieu_khoan
+            khoan["ghi_chu"] = ""
         if thieu:
-            khoan["ghi_chu"] += "; Cần Anh/lead: bổ sung " + ", ".join(thieu)
+            khoan["ghi_chu"] += (("; " if khoan["ghi_chu"] else "")
+                                 + "Cần Anh/lead: bổ sung " + ", ".join(thieu))
             can_anh.append(khoan["ghi_chu"])
         # Ngày sai kiểu không được âm thầm coi là không có cảnh báo.
         for truong in ("ky_dieu_chinh_ke_tiep", "ngay_dao_han"):
             if dau_vao.get(truong) is not None and khoan[truong] is None:
                 ghi_chu = "Cần Anh/lead: chuẩn hóa " + truong + " thành date."
-                khoan["ghi_chu"] += "; " + ghi_chu
+                khoan["ghi_chu"] += ("; " if khoan["ghi_chu"] else "") + ghi_chu
                 can_anh.append(ghi_chu)
         ky = khoan["ky_dieu_chinh_ke_tiep"]
         if ky is not None:
@@ -184,6 +207,23 @@ def _dinh_dang_tien(tien_te: str) -> str:
     return "#,##0.################"
 
 
+def _dieu_khoan_excel(dieu_khoan) -> str:
+    if not dieu_khoan:
+        return ""
+    cac_dong = []
+    for muc in dieu_khoan:
+        nguon = []
+        for truong, nhan in (("ten_tep", ""), ("trang", "trang "),
+                             ("dieu", "Điều "), ("khoan", "Khoản ")):
+            if muc[truong] is not None:
+                nguon.append(nhan + str(muc[truong]))
+        dong = muc["chu_de"] + ": " + muc["cau"]
+        if nguon:
+            dong += " (" + ", ".join(nguon) + ")"
+        cac_dong.append(dong)
+    return "\n".join(cac_dong)
+
+
 def xuat_excel(bao_cao: dict) -> bytes:
     """Xuất một sheet trong bộ nhớ; VND 0, USD 2 số lẻ, ROUND_HALF_UP.
 
@@ -246,7 +286,8 @@ def xuat_excel(bao_cao: dict) -> bytes:
             None if k["lai_cao"] is None else ("Có" if k["lai_cao"] else "Không"),
             _tien_excel(k["lai_tra_them_uoc_tinh_nam"], tien),
             k["ky_dieu_chinh_ke_tiep"], k["ngay_dao_han"], k["trang_thai"],
-            ", ".join(k["canh_bao"]), "", k["ghi_chu"],
+            ", ".join(k["canh_bao"]),
+            _dieu_khoan_excel(k["dieu_khoan_lien_quan_toi_dam_phan"]), k["ghi_chu"],
         ])
         dong = ws.max_row
         for cot in (5, 13):
@@ -265,8 +306,10 @@ def xuat_excel(bao_cao: dict) -> bytes:
     for ghi_chu in bao_cao.get("can_anh", []):
         them_hang([ghi_chu])
         ws.merge_cells(start_row=ws.max_row, start_column=1, end_row=ws.max_row, end_column=19)
-    them_hang([_CHO_TRICH_DAN])
-    ws.merge_cells(start_row=ws.max_row, start_column=1, end_row=ws.max_row, end_column=19)
+    if not bao_cao["khoan_vay"] or any(
+            k["dieu_khoan_lien_quan_toi_dam_phan"] == "" for k in bao_cao["khoan_vay"]):
+        them_hang([_CHO_TRICH_DAN])
+        ws.merge_cells(start_row=ws.max_row, start_column=1, end_row=ws.max_row, end_column=19)
     them_hang([_GHI_CHU])
     ws.merge_cells(start_row=ws.max_row, start_column=1, end_row=ws.max_row, end_column=19)
     for cot in range(1, 20):
