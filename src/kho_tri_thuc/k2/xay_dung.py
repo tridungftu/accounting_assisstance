@@ -786,7 +786,7 @@ class XayDungK2:
             "trang_thai": "CHUA_CO_NGUON",
             "ly_do": "Gói M4-02A chưa có lịch sử đợt trước đã được reviewer duyệt (DA_NOP chỉ là đã nộp) — không suy từ số đợt/vắng dữ "
                      "liệu, không coi vắng là 0; nối khi có quyết định duyệt bất biến"}
-        return co
+        return NR.chup_review_l2(co, c)
 
     @staticmethod
     def _sha_co_so(co: dict) -> str:
@@ -848,6 +848,9 @@ class XayDungK2:
         # lỗi dựng → FAILED đúng nguyên nhân (giữ phần đã ghi), không để RUNNING vĩnh viễn, không tự thử lại/khóa mới.
         try:
             thu_muc.mkdir(parents=True, exist_ok=False)  # đường dẫn riêng, tạo mới cho đúng lần chạy này (không ghi đè lần khác)
+            chep = co.get("review_chep") or {}
+            if chep.get("can_xem_lai"):
+                raise DataError("M4_REVIEW_CAN_XEM_LAI", "Cần xem lại nguồn phụ lục/BOQ: " + " ".join(chep["ly_do"]) + " Chưa tính.")
             raw = self._raw(tep["raw_sha256"], tep["byte_length"])
             xlsx = NR.ban_lam_viec(raw, self.root / "m4-lam-viec", ".xlsx")
             vao = {"run_id": run_id, "basis": co, "basis_sha256": sha_co_so, "xlsx": str(xlsx), "raw_sha256": tep["raw_sha256"], "che_do": che_do,
@@ -949,11 +952,13 @@ class XayDungK2:
                 if dot:  # ổn định basis trong giao dịch công bố: mọi lệnh M4 sửa HĐ/đợt/BOQ/PL/tham số/ghép tay đều cần FOR UPDATE hàng này
                     c.execute("""SELECT 1 FROM m4.ho_so_hop_dong WHERE hop_dong_id = (SELECT hop_dong_id FROM m4.dot WHERE id = %s::uuid) FOR SHARE""", (dot,))
                 c.execute("SELECT m4.review_kiem(%s::uuid, %s::uuid, %s::uuid)", (du_an, dot, tep))
-                sha_nay = self._sha_co_so(self._co_so(c, du_an=du_an, tep=tep, dot=dot, che_do=che_do, o_dich=o_dich))
+                # FAILED không công bố kết quả tính; không đọc lại nguồn đang lỗi
+                # ở lần đóng dự phòng (NULL không được dùng như một basis đã kiểm).
+                sha_nay = None if tt == "FAILED" else self._sha_co_so(self._co_so(c, du_an=du_an, tep=tep, dot=dot, che_do=che_do, o_dich=o_dich))
                 r = self._r1(c, "SELECT m4.review_cong_bo(%s::uuid, %s::jsonb, %s, %s::jsonb, %s, %s, %s::jsonb, %s) AS r",
                              (run_id, kq_j, kq_sha, json.dumps(kq.get("coverage") or {}, ensure_ascii=False), tt, sha_nay, art_j, ly_do))["r"]
-        except psycopg.Error as exc:
-            ma = ((getattr(getattr(exc, "diag", None), "message_primary", "") or "").split(":", 1)[0]).strip()
+        except (psycopg.Error, DataError) as exc:
+            ma = getattr(exc, "code", None) or ((getattr(getattr(exc, "diag", None), "message_primary", "") or "").split(":", 1)[0]).strip()
             if ma in ("M4_KHONG_CO_QUYEN_DU_AN", "M4_REVIEW_PHAM_VI", "M4_DANH_TINH"):
                 with self._tx_review(dt) as c:
                     c.execute("SELECT m4.review_huy(%s::uuid, %s, %s::jsonb, %s::jsonb)",
@@ -965,7 +970,7 @@ class XayDungK2:
                     return self._review_cong_bo(dt, run_id, {"trang_thai": "FAILED", "loi": f"Công bố lỗi ({ma or type(exc).__name__})"}, art,
                                                 f"Công bố kết quả lỗi ({ma or type(exc).__name__}) — đóng FAILED, giữ bằng chứng",
                                                 du_an=du_an, tep=tep, dot=dot, che_do=che_do, o_dich=o_dich)
-                except psycopg.Error:
+                except (psycopg.Error, DataError):
                     pass
             raise
         return {**r["ket_qua"], "lap_lai": bool(r["lap_lai"])}
@@ -1218,7 +1223,7 @@ class XayDungK2:
 
     # phần basis Review L1+L2 mà KL kỳ này/lũy kế của L2 phụ thuộc (tệp hồ sơ + raw, HĐ/tham số/trích/xác nhận, PL, BOQ hiện hành, ghép tay L2, engine,
     # ô đích, ngày NT/HĐ của đợt). KHÔNG gồm danh sách tệp gắn đợt/trạng thái nộp — gắn thêm chứng từ L3 không làm L2 cũ đi.
-    L2_PHU_THUOC = ("tep", "hop_dong", "tham_so", "trich_xuat", "xac_nhan", "phu_luc", "boq", "manual_map", "engine_sha256", "o_dich", "che_do")
+    L2_PHU_THUOC = ("tep", "hop_dong", "tham_so", "trich_xuat", "xac_nhan", "phu_luc", "boq", "manual_map", "engine_sha256", "o_dich", "che_do", "review_chep")
 
     @classmethod
     def _l2_phan_phu_thuoc(cls, co: dict) -> dict:
