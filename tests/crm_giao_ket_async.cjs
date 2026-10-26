@@ -267,8 +267,9 @@ async function main() {
   // ---------------------------------------------------------------- A5 blob về sau khi đổi vai → không click tải
   {
     nut(gk(), "Mở").click(); await chay();
-    cho(get("/api/crm/bao-gia/bg-1"), "GET chi tiết A5").resolve(phanHoi(200, CT("LO-1", 10, [{id: "x-1", revision: 10, trang_thai: "PDF_DAT", ly_do: null, tao_luc: "2026-10-21T00:00:00Z"}])));
+    cho(get("/api/crm/bao-gia/bg-1"), "GET chi tiết A5").resolve(phanHoi(200, CT("LO-1", 10, [{id: "x-1", revision: 10, trang_thai: "PDF_CHUA_SAN_SANG", ly_do: "PDF_XUAT_TAY", tao_luc: "2026-10-21T00:00:00Z"}])));
     await chay();
+    assert.strictEqual(tim(gk(), e => e.textContent === "PDF xuất tay từ tệp DOCX (chưa bật chuyển PDF tự động)")?.textContent, "PDF xuất tay từ tệp DOCX (chưa bật chuyển PDF tự động)", "A5: PDF xuất tay hiện đúng câu tiếng Việt, không kèm mã");
     nut(gk(), "DOCX ↓").click(); await chay();
     const t = cho(c => c.method === "GET" && c.url === "/api/crm/giao-ket/tep/x-1/docx", "GET tệp");
     const truoc = soClickTai;

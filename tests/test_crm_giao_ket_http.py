@@ -6,7 +6,7 @@ Chạy khi Root cấp KHO_PG_DSN_TEST lúc chạy (DSN chủ CSDL; không đọc
 module vay). Mẫu hợp đồng và bộ chuẩn G7 được dựng bằng LUỒNG DỊCH VỤ THẬT qua HTTP (tải → ánh xạ → gửi kiểm → KT kiểm → CFO duyệt; KT lập/gửi →
 CFO duyệt) — không owner INSERT đối tượng đã duyệt. Word/PDF: metadata Word/guard không chứng minh worker được phép chạy COM; PDF_DAT cần
 bằng chứng Word sở hữu đã dừng. Mặc định tắt → PDF_CHUA_SAN_SANG/PDF_XUAT_TAY; guard/PermissionError khi bật → lý do cụ thể,
-DOCX vẫn giữ. KY-DOCX (QD-20261025-27, M0035): lần xuất ĐÚNG revision có DOCX → Chờ ký dù PDF xuất tay/lỗi (PDF chỉ tham khảo); lần xuất DA_CU
+DOCX vẫn giữ. KY-DOCX (QD-20261025-27, M0036): lần xuất ĐÚNG revision có DOCX → Chờ ký dù PDF xuất tay/lỗi (PDF chỉ tham khảo); lần xuất DA_CU
 (revision đổi khi render) KHÔNG Chờ ký. Các ca thuần bật cờ chỉ chạy mock, không khởi chạy Word.
 Không DROP/DELETE/cleanup — DB/role/thư mục giữ làm bằng chứng.
 Thiếu driver/DSN → skip = NOT_RUN (không tính đạt). Không chứng minh GUI/1440 click (Root chạy riêng).
@@ -434,7 +434,7 @@ class CrmGiaoKetHttp(unittest.TestCase):
         x = self.ok(BH, "soan/xuat", {"soan_id": sid, "expected_revision": 2, "khoa": self.K("x1")})
         self.s["soan_pdf_dat"] = self.pdf_dat(x)
         tt = self.q("SELECT trang_thai FROM master.crm_hd_soan WHERE id = %s", (sid,))
-        self.assertEqual(tt, "CHO_KY")  # QD-27 (M0035): DOCX đúng revision → Chờ ký, không phụ thuộc PDF
+        self.assertEqual(tt, "CHO_KY")  # QD-27 (M0036): DOCX đúng revision → Chờ ký, không phụ thuộc PDF
         docx1 = self.goi(f"/api/crm/giao-ket/tep/{x['xuat_id']}/docx", cookie=self.sid(BH))[1]
         self.assertEqual(hashlib.sha256(docx1).hexdigest(), x["docx_sha256"])
         v2, v2_sha = self.mau_hieu_luc("HD_GK_" + self.run_id, ngay(-1), "MAU V2")  # cùng mã mẫu → v2; đóng v1
@@ -470,7 +470,7 @@ class CrmGiaoKetHttp(unittest.TestCase):
         from kho_tri_thuc.nguon import crm_docx as R
         sid = self.s["soan"]
         rev = self.q("SELECT revision_hien_hanh FROM master.crm_hd_soan WHERE id = %s", (sid,))
-        # FIX01 (fixture g07) + QD-27 (M0035): lần xuất cuối của g06 (đúng revision, có DOCX) đã đưa bản soạn sang CHO_KY. Lần xuất SAU cùng
+        # FIX01 (fixture g07) + QD-27 (M0036): lần xuất cuối của g06 (đúng revision, có DOCX) đã đưa bản soạn sang CHO_KY. Lần xuất SAU cùng
         # revision (PDF xuất tay hoặc PDF lỗi) giữ CHO_KY — không hạ về SOAN_THAO; DOCX luôn giữ.
         truoc = tuple(self.admin.execute("""SELECT s.trang_thai, h.trang_thai, h.crm_giao_ket FROM master.crm_hd_soan s JOIN master.hop_dong h
                                              ON h.id = s.hop_dong_id WHERE s.id = %s""", (sid,)).fetchone())

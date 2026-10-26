@@ -9,7 +9,7 @@ Phân loại (ghi rõ để không lẫn bằng chứng):
 - `ServiceMock`: MOCK — CSDL/khóa giả ghi lại thứ tự lệnh; KHÔNG phải bằng chứng PostgreSQL. Kiểm quyền trước parse bytes, replay không đọc căn cứ/kho,
   kho G3 sai hash → không ghi, PDF bản ký ghi bất biến TRƯỚC hàm lệnh, digest yêu cầu không gồm khóa, tải kiểm quyền trước kho; bản ký trùng byte
   bản xuất là lần ký đầu riêng (mock). Fixture báo giá ở dạng producer đã chuẩn hóa (chuan_hoa_bao_gia), kỳ vọng tóm tắt độc lập.
-  KY-DOCX (QD-20261025-27, M0035): ký trên DOCX khi PDF xuất tay/lỗi (PDF G3 NULL, chỉ DOCX được kiểm lại); DA_CU/thiếu DOCX vẫn chặn.
+  KY-DOCX (QD-20261025-27, M0036): ký trên DOCX khi PDF xuất tay/lỗi (PDF G3 NULL, chỉ DOCX được kiểm lại); DA_CU/thiếu DOCX vẫn chặn.
 - `GuardCsdlThat`: PostgreSQL THẬT (KHO_PG_DSN_TEST) — CHỈ âm/catalog (trigger/hàm/ràng buộc M0023) trên DB test mới; KHÔNG chứng minh dương phạm vi
   thực tế/đồng thời/producer. Thiếu DSN/psycopg → skip (NOT_RUN, KHÔNG PASS).
   Không tạo PDF_DAT giả qua chủ bảng (gate Word/G3 thật vẫn mở) — chỉ kiểm guard âm/ràng buộc không cần bản xuất đạt.
@@ -518,7 +518,7 @@ class ServiceMock(unittest.TestCase):
         with self.assertRaises(DataError) as cm:
             self._ky()
         self.assertEqual(cm.exception.code, "CRM_KY_XUAT_CU")
-        # QD-20261025-27 (M0035): PDF_LOI/PDF_CHUA_SAN_SANG vẫn có DOCX của revision → ký được (ca dương ở test_ky_tren_docx_*);
+        # QD-20261025-27 (M0036): PDF_LOI/PDF_CHUA_SAN_SANG vẫn có DOCX của revision → ký được (ca dương ở test_ky_tren_docx_*);
         # chỉ bản xuất DA_CU (revision cũ/đã ký) hoặc thiếu DOCX mới là "chưa đạt".
         for sua in ({"trang_thai": "DA_CU", "pdf_sha256": None, "pdf_len": None}, {"docx_sha256": None}):
             self.setUp()
@@ -534,7 +534,7 @@ class ServiceMock(unittest.TestCase):
         self.mau.xuat.update({"trang_thai": tt, "pdf_sha256": None, "pdf_len": None})
 
     def test_ky_tren_docx_khi_pdf_xuat_tay_hoac_loi(self):
-        """MOCK (không PG) — QD-27: căn cứ ký là DOCX đã kiểm của revision; PDF G3 NULL truyền NULL cho hàm lệnh (M0035 cho phép), không đọc PDF."""
+        """MOCK (không PG) — QD-27: căn cứ ký là DOCX đã kiểm của revision; PDF G3 NULL truyền NULL cho hàm lệnh (M0036 cho phép), không đọc PDF."""
         for tt in ("PDF_CHUA_SAN_SANG", "PDF_LOI"):
             self.setUp()
             self._chi_docx(tt)

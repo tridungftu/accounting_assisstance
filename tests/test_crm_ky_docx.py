@@ -1,10 +1,10 @@
-"""KY-DOCX (QD-20261025-27, M0035) — cho ký trên bản DOCX: kiểm TĨNH hằng SQL M0035 + (có điều kiện) PostgreSQL THẬT "áp sạch".
+"""KY-DOCX (QD-20261025-27, M0036) — cho ký trên bản DOCX: kiểm TĨNH hằng SQL M0036 + (có điều kiện) PostgreSQL THẬT "áp sạch".
 
 Phân loại (không lẫn bằng chứng):
-- `M35Tinh`: TĨNH trên byte mã nguồn/hằng SQL — M0035 append đúng thứ tự 35, M0001–M0034 nguyên byte (ghim tiền tố tệp), mỗi hàm tạo lại từ
+- `M36Tinh`: TĨNH trên byte mã nguồn/hằng SQL — M0036 append đúng thứ tự 36, M0001–M0035 nguyên byte (ghim tiền tố tệp), mỗi hàm tạo lại từ
   định nghĩa HIỆN HÀNH (M0023/M0032) chỉ khác đúng các dòng chủ đích; G5 bản sinh chỉ DOCX → HOLD/cần kiểm tay, không bao giờ tự KHOP.
-- `M35CsdlThat`: PostgreSQL THẬT (KHO_PG_DSN_TEST) — DB mới `kho_test_kydocx_*` migrate tới bản hiện hành: hàng 35 + checksum, cột PDF G3 cho NULL,
-  CHECK cặp, thân hàm đã triển khai đúng hằng M0035. Thiếu DSN/psycopg → skip (NOT_RUN, không tính đạt). Ca luồng thật (soạn → xuất DOCX →
+- `M36CsdlThat`: PostgreSQL THẬT (KHO_PG_DSN_TEST) — DB mới `kho_test_kydocx_*` migrate tới bản hiện hành: hàng 36 + checksum, cột PDF G3 cho NULL,
+  CHECK cặp, thân hàm đã triển khai đúng hằng M0036. Thiếu DSN/psycopg → skip (NOT_RUN, không tính đạt). Ca luồng thật (soạn → xuất DOCX →
   Chờ ký → ký trên DOCX; ký sai/DA_CU/PDF lệch bị chặn; G5 đánh dấu kiểm tay) ở tests/test_crm_ky_ket_http.py (k01, k05, k09).
 Dữ liệu tổng hợp; không dữ liệu thật, không M9, không xóa tệp/CSDL (runner dọn `kho_test_*`).
 """
@@ -25,10 +25,12 @@ from kho_tri_thuc.k2.sql_crm_doi_chieu import CRM_G5_SQL
 
 GOC = Path(__file__).resolve().parents[1]
 SRC = GOC / "src" / "kho_tri_thuc"
-PREFIX_M34_BYTES = 982_239  # toàn pg_migrations.py tới hết M0034 (hop-nhat 6e571f4) — M0035 chỉ nối sau
+PREFIX_M34_BYTES = 982_239  # toàn pg_migrations.py tới hết M0034 (hop-nhat 6e571f4), giữ ghim cũ
+PREFIX_M35_BYTES = 982_757  # toàn tệp tới hết M0035 (mốc dự án), trước khối KY-DOCX
+PREFIX_M35_SHA256 = "aa6dbe40a5749e2a796069c2b0158c86d82f7c926a770b18665a26d0dc81092c"
 PREFIX_M34_SHA256 = "bab8ad3706dac269f2523831b2b2d7203ac61f439f9278d0388152dee21d2ce0"
 TT_DOCX = "('PDF_DAT','PDF_CHUA_SAN_SANG','PDF_LOI')"
-M35 = "\n".join(PM.M0035_KY_DOCX)
+M36 = "\n".join(PM.M0036_KY_DOCX)
 
 
 def _ham(goc, ten):
@@ -38,46 +40,48 @@ def _ham(goc, ten):
 
 
 def _khac(goc, ten):
-    """(dòng bỏ, dòng thêm) giữa định nghĩa hiện hành trước M0035 và định nghĩa M0035."""
-    a, b = _ham(goc, ten).splitlines(), _ham(PM.M0035_KY_DOCX, ten).splitlines()
+    """(dòng bỏ, dòng thêm) giữa định nghĩa hiện hành trước M0036 và định nghĩa M0036."""
+    a, b = _ham(goc, ten).splitlines(), _ham(PM.M0036_KY_DOCX, ten).splitlines()
     bo = [x[1:] for x in difflib.unified_diff(a, b, lineterm="", n=0) if x.startswith("-") and not x.startswith("---")]
     them = [x[1:] for x in difflib.unified_diff(a, b, lineterm="", n=0) if x.startswith("+") and not x.startswith("+++")]
     return bo, them
 
 
-class M35Tinh(unittest.TestCase):
-    def test_dang_ky_thu_tu_35_va_tien_to_nguyen_byte(self):
-        self.assertIs(PM.PG_MIGRATIONS[34], PM.M0035_KY_DOCX)
+class M36Tinh(unittest.TestCase):
+    def test_dang_ky_thu_tu_36_va_tien_to_nguyen_byte(self):
+        self.assertIs(PM.PG_MIGRATIONS[35], PM.M0036_KY_DOCX)
+        self.assertIs(PM.PG_MIGRATIONS[34], PM.M0035_CRM_DU_AN_MOC)
         self.assertIs(PM.PG_MIGRATIONS[33], PM.M0034_CONG_AI_NHAT_KY)
-        self.assertGreaterEqual(PM.PG_SCHEMA_VERSION, 35)
+        self.assertGreaterEqual(PM.PG_SCHEMA_VERSION, 36)
         self.assertEqual(PM.PG_SCHEMA_VERSION, len(PM.PG_MIGRATIONS))
-        self.assertEqual(sum(m is PM.M0035_KY_DOCX for m in PM.PG_MIGRATIONS), 1)
-        self.assertNotIn(PM._hash(PM.M0035_KY_DOCX), [PM._hash(m) for m in PM.PG_MIGRATIONS[:34]])
-        self.assertFalse(any(m is PM.M0035_KY_DOCX for m in PM.PG_MIGRATIONS_LICH_SU_FULL_M9))
+        self.assertEqual(sum(m is PM.M0036_KY_DOCX for m in PM.PG_MIGRATIONS), 1)
+        self.assertNotIn(PM._hash(PM.M0036_KY_DOCX), [PM._hash(m) for m in PM.PG_MIGRATIONS[:35]])
+        self.assertFalse(any(m is PM.M0036_KY_DOCX for m in PM.PG_MIGRATIONS_LICH_SU_FULL_M9))
         raw = (SRC / "ha_tang" / "pg_migrations.py").read_bytes()
         self.assertEqual(hashlib.sha256(raw[:PREFIX_M34_BYTES]).hexdigest(), PREFIX_M34_SHA256)  # M0001–M0034 nguyên byte
-        duoi = raw[PREFIX_M34_BYTES:].decode("utf-8")
-        self.assertTrue(duoi.startswith("\n# ---------------------------------------------------------------------------\n# 0035 — KY-DOCX"), duoi[:120])
-        self.assertEqual(duoi.count("PG_MIGRATIONS = (*PG_MIGRATIONS, M0035_KY_DOCX)\nPG_SCHEMA_VERSION = len(PG_MIGRATIONS)"), 1)
+        self.assertEqual(hashlib.sha256(raw[:PREFIX_M35_BYTES]).hexdigest(), PREFIX_M35_SHA256)  # M0001–M0035 nguyên byte
+        duoi = raw[PREFIX_M35_BYTES:].decode("utf-8")
+        self.assertTrue(duoi.startswith("\n# ---------------------------------------------------------------------------\n# 0036 — KY-DOCX"), duoi[:120])
+        self.assertEqual(duoi.count("PG_MIGRATIONS = (*PG_MIGRATIONS, M0036_KY_DOCX)\nPG_SCHEMA_VERSION = len(PG_MIGRATIONS)"), 1)
 
     def test_bang_ky_pdf_g3_tuy_chon_cap_cung_null(self):
-        self.assertEqual(PM.M0035_KY_DOCX[0],
+        self.assertEqual(PM.M0036_KY_DOCX[0],
                          "ALTER TABLE master.crm_hd_ky ALTER COLUMN g3_pdf_sha256 DROP NOT NULL, ALTER COLUMN g3_pdf_len DROP NOT NULL")
-        self.assertEqual(PM.M0035_KY_DOCX[1],
+        self.assertEqual(PM.M0036_KY_DOCX[1],
                          "ALTER TABLE master.crm_hd_ky ADD CONSTRAINT crm_hd_ky_g3_pdf_cap CHECK ((g3_pdf_sha256 IS NULL) = (g3_pdf_len IS NULL))")
         # chỉ HAI câu DDL bảng, đều trên crm_hd_ky: DOCX của bản ký vẫn bắt buộc; bảng G5/G6A giữ PDF G3 NOT NULL (bản sinh chỉ DOCX không tới đó)
-        ddl = [s for s in PM.M0035_KY_DOCX if not s.lstrip().startswith("CREATE OR REPLACE FUNCTION master.")]
-        self.assertEqual(ddl, list(PM.M0035_KY_DOCX[:2]))
+        ddl = [s for s in PM.M0036_KY_DOCX if not s.lstrip().startswith("CREATE OR REPLACE FUNCTION master.")]
+        self.assertEqual(ddl, list(PM.M0036_KY_DOCX[:2]))
         for cam in ("g3_docx_sha256 DROP NOT NULL", "g3_docx_len DROP NOT NULL", "DROP CONSTRAINT", "DROP TABLE", "DROP FUNCTION", "DROP TRIGGER",
                     "CREATE TRIGGER", "CREATE TABLE", "ALTER TABLE master.crm_g5", "ALTER TABLE master.crm_kiem"):
-            self.assertNotIn(cam, M35, cam)
+            self.assertNotIn(cam, M36, cam)
 
     def test_xuat_ghi_cho_ky_khi_co_docx_dung_revision(self):
         bo, them = _khac(PM.M0023_CRM_KY, "crm_gk_xuat_ghi")
         self.assertEqual(bo, ["                IF tt = 'PDF_DAT' THEN"])
         self.assertEqual(len(them), 1)
         self.assertTrue(them[0].startswith(f"                IF tt IN {TT_DOCX} THEN"), them)
-        moi = _ham(PM.M0035_KY_DOCX, "crm_gk_xuat_ghi")
+        moi = _ham(PM.M0036_KY_DOCX, "crm_gk_xuat_ghi")
         # giữ: CAS revision + đã ký → DA_CU (không CHO_KY); lần đặt chỗ phải khớp; PDF chỉ lưu khi PDF_DAT
         for can in ("cu_rev := s.revision_hien_hanh <> p_revision OR s.trang_thai = 'DA_KY';", "IF cu_rev THEN tt := 'DA_CU'; END IF;",
                     "CRM_GK_LAN_KHONG_KHOP", "CASE WHEN tt = 'PDF_DAT' THEN p_pdf_sha END",
@@ -95,7 +99,7 @@ class M35Tinh(unittest.TestCase):
                          [f"OR x.trang_thai IS NULL OR x.trang_thai NOT IN {TT_DOCX}",
                           "OR x.pdf_sha256 IS DISTINCT FROM NEW.g3_pdf_sha256 OR x.pdf_len IS DISTINCT FROM NEW.g3_pdf_len"])
         self.assertIn("DOCX của revision hiện hành, PDF khớp khi có", them[2])
-        moi = _ham(PM.M0035_KY_DOCX, "crm_hd_ky_kiem")
+        moi = _ham(PM.M0036_KY_DOCX, "crm_hd_ky_kiem")
         for can in ("s.trang_thai IS DISTINCT FROM 'CHO_KY'", "s.revision_hien_hanh IS DISTINCT FROM NEW.revision", "x.loai IS DISTINCT FROM 'HOP_DONG'",
                     "x.revision IS DISTINCT FROM NEW.revision", "x.docx_sha256 IS DISTINCT FROM NEW.g3_docx_sha256",
                     "x.docx_len IS DISTINCT FROM NEW.g3_docx_len", "x.input_sha256 IS DISTINCT FROM NEW.g3_input_sha256",
@@ -107,7 +111,7 @@ class M35Tinh(unittest.TestCase):
         bo, them = _khac(PM.M0023_CRM_KY, "crm_ky_ket")
         self.assertEqual(len(bo), 4, bo)
         self.assertEqual(len(them), 4, them)
-        f = _ham(PM.M0035_KY_DOCX, "crm_ky_ket")
+        f = _ham(PM.M0036_KY_DOCX, "crm_ky_ket")
         thu_tu = ["crm_g_ghim_quyen", "crm_ky_pham_vi b", "crm_ky_dich(p_soan)", "crm_g_bn_tra", "CRM_KY_KHAI_SAI", "CRM_KY_NGAY_SAI", "CRM_G_YEU_CAU_SAI",
                   "FOR UPDATE", "CRM_KY_DA_KY", "CRM_KY_TRANG_THAI", "CRM_GK_REVISION_CU", "ORDER BY tao_luc DESC, id DESC LIMIT 1", "CRM_KY_XUAT_CU",
                   "CRM_KY_XUAT_CHUA_DAT", "CRM_KY_G3_LECH", "CRM_GK_MAU_LECH_GHIM", "INSERT INTO master.crm_hd_ky ", "INSERT INTO master.crm_hd_ky_g5",
@@ -128,19 +132,19 @@ class M35Tinh(unittest.TestCase):
             bo, them = _khac(CRM_G5_SQL, ten)
             self.assertEqual(bo, [], ten)
             self.assertTrue(any("g3_pdf_sha256 IS NULL" in x for x in them), ten)
-        xet = _ham(PM.M0035_KY_DOCX, "crm_kiem_g5_xet")
+        xet = _ham(PM.M0036_KY_DOCX, "crm_kiem_g5_xet")
         i = xet.index("k0.g3_pdf_sha256 IS NULL")
         self.assertLess(i, xet.index("IF p_che_do IS DISTINCT FROM 'SYNTHETIC_FIXTURE' THEN"))  # mọi chế độ
         khoi = xet[i:xet.index("END IF;", i)]
         self.assertIn("'trang_thai', 'HOLD'", khoi)
         self.assertIn("'chan', jsonb_build_array(jsonb_build_object('ma', 'G5_BAN_SINH_CHI_DOCX'))", khoi)
         self.assertNotIn("KHOP", khoi)
-        hd = _ham(PM.M0035_KY_DOCX, "crm_g5_hang_doi")
+        hd = _ham(PM.M0036_KY_DOCX, "crm_g5_hang_doi")
         j = hd.index("k0.g3_pdf_sha256 IS NULL")
         self.assertLess(j, hd.index("crm_g5_nguoi_chay_hien_hanh"))
         self.assertLess(j, hd.index("kq := kq || jsonb_build_array"))  # không giao worker
         self.assertIn("CONTINUE;", hd[j:hd.index("kq := kq || jsonb_build_array")])
-        nh = _ham(PM.M0035_KY_DOCX, "crm_g5_nhan")
+        nh = _ham(PM.M0036_KY_DOCX, "crm_g5_nhan")
         k = nh.index("k0.g3_pdf_sha256 IS NULL")
         self.assertLess(nh.index("'KHONG_DEN_HAN'"), k)
         for sau in ("SET trang_thai = 'DANG_CHAY'", "SELECT * INTO y FROM master.crm_g5_y_dinh", "'nhan', true"):
@@ -148,10 +152,10 @@ class M35Tinh(unittest.TestCase):
         for f, ly in ((hd, "'G5_BAN_SINH_CHI_DOCX'"), (nh, "'G5_BAN_SINH_CHI_DOCX'")):
             self.assertIn("trang_thai = 'CHO_CAU_HINH', ly_do = " + ly, f)  # việc vẫn MỞ (nghĩa vụ không đóng)
             self.assertNotIn("'XONG', ly_do = 'G5_BAN_SINH", f)
-        doc = _ham(PM.M0035_KY_DOCX, "crm_g5_doc")
+        doc = _ham(PM.M0036_KY_DOCX, "crm_g5_doc")
         self.assertIn("v_ly := v_ly || jsonb_build_array('G5_BAN_SINH_CHI_DOCX');\n                v_chay := false;", doc)
         self.assertLess(doc.index("v_chay := false;\n            END IF;\n"), doc.index("'quyen', jsonb_build_object('chay', v_chay"))
-        chay = _ham(PM.M0035_KY_DOCX, "crm_g5_chay")
+        chay = _ham(PM.M0036_KY_DOCX, "crm_g5_chay")
         self.assertLess(chay.index("CRM_G5_NGU_CANH_CU"), chay.index("CRM_G5_CAN_KIEM_TAY"))
         self.assertLess(chay.index("CRM_G5_CAN_KIEM_TAY"), chay.index("INSERT INTO master.crm_g5_viec"))
         # mã lý do hợp CHECK crm_g5_viec.ly_do / crm_g5_su_kien.loai
@@ -159,11 +163,11 @@ class M35Tinh(unittest.TestCase):
         self.assertRegex("CHO_CAU_HINH", r"^[A-Z0-9_]{1,40}$")
 
     def test_khong_producer_g5_khong_quyen_moi_khong_m4_m9(self):
-        """M0035 = đúng 2 ALTER + 8 hàm tạo lại; phần THÊM (so với định nghĩa hiện hành) không có producer/kết quả G5, quyền mới, M4/M9."""
+        """M0036 = đúng 2 ALTER + 8 hàm tạo lại; phần THÊM (so với định nghĩa hiện hành) không có producer/kết quả G5, quyền mới, M4/M9."""
         ham = [(PM.M0023_CRM_KY, t) for t in ("crm_gk_xuat_ghi", "crm_hd_ky_kiem", "crm_ky_ket")] + \
               [(CRM_G5_SQL, t) for t in ("crm_kiem_g5_xet", "crm_g5_hang_doi", "crm_g5_nhan", "crm_g5_doc", "crm_g5_chay")]
-        self.assertEqual(len(PM.M0035_KY_DOCX), 2 + len(ham))
-        them = list(PM.M0035_KY_DOCX[:2])
+        self.assertEqual(len(PM.M0036_KY_DOCX), 2 + len(ham))
+        them = list(PM.M0036_KY_DOCX[:2])
         for goc, ten in ham:
             them += _khac(goc, ten)[1]
         moi = "\n".join(them)
@@ -188,7 +192,7 @@ def _than(stmt: str) -> str:
 
 
 @unittest.skipUnless(psycopg is not None and ADMIN_DSN, "PostgreSQL thật chưa cấu hình (KHO_PG_DSN_TEST) — NOT_RUN, không tính đạt")
-class M35CsdlThat(unittest.TestCase):
+class M36CsdlThat(unittest.TestCase):
     """DB test MỚI (kho_test_kydocx_*), migrate tới bản hiện hành; chỉ đọc catalog. DB giữ lại (runner dọn kho_test_*)."""
 
     @classmethod
@@ -204,11 +208,11 @@ class M35CsdlThat(unittest.TestCase):
     def q(self, sql, *p):
         return self.c.execute(sql, p).fetchall()
 
-    def test_m35_ap_sach_checksum(self):
+    def test_m36_ap_sach_checksum(self):
         self.assertEqual(self.version, PM.PG_SCHEMA_VERSION)
         rows = [tuple(r) for r in self.q("SELECT version, checksum FROM master.schema_migrations ORDER BY version")]
         self.assertEqual(rows, [(i + 1, PM._hash(m)) for i, m in enumerate(PM.PG_MIGRATIONS)])
-        self.assertEqual(rows[34], (35, PM._hash(PM.M0035_KY_DOCX)))
+        self.assertEqual(rows[35], (36, PM._hash(PM.M0036_KY_DOCX)))
 
     def test_cot_pdf_g3_null_duoc_cap_check(self):
         cot = dict(self.q("""SELECT column_name, is_nullable FROM information_schema.columns WHERE table_schema = 'master' AND table_name = 'crm_hd_ky'
@@ -224,14 +228,14 @@ class M35CsdlThat(unittest.TestCase):
             self.assertEqual(self.q("""SELECT is_nullable FROM information_schema.columns WHERE table_schema = 'master' AND table_name = %s
                                        AND column_name = 'g3_pdf_sha256'""", t), [("NO",)], t)
 
-    def test_than_ham_trien_khai_dung_m35(self):
+    def test_than_ham_trien_khai_dung_m36(self):
         for ten, sig in (("crm_gk_xuat_ghi", "(text, text, text, uuid, integer, text, text, bigint, text, bigint, text, text, text, jsonb)"),
                          ("crm_hd_ky_kiem", "()"),
                          ("crm_ky_ket", "(text, text, uuid, integer, uuid, text, text, bigint, text, bigint, integer, text, date, boolean, text, text, jsonb)"),
                          ("crm_kiem_g5_xet", "(uuid, text)"), ("crm_g5_hang_doi", "(integer)"), ("crm_g5_nhan", "(uuid, text, integer)"),
                          ("crm_g5_doc", "(uuid)"), ("crm_g5_chay", "(text, text, uuid, text)")):
             src = self.q(f"SELECT prosrc FROM pg_proc WHERE oid = 'master.{ten}{sig}'::regprocedure")[0][0]
-            self.assertEqual(src, _than(_ham(PM.M0035_KY_DOCX, ten)), ten)
+            self.assertEqual(src, _than(_ham(PM.M0036_KY_DOCX, ten)), ten)
         # quyền giữ nguyên: hàm lệnh không cấp PUBLIC/vai ứng dụng
         for vai in ("app_web", "app_ke_toan", "app_doc", "app_cong_ai"):
             if not self.q("SELECT 1 FROM pg_roles WHERE rolname = %s", vai):
