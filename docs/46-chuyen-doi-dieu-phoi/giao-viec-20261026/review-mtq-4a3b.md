@@ -32,3 +32,25 @@
 **Lead lọc (Claude):**
 - Chặn `crm.py:245` (nhan_ket_qua_6 kiểm quyền ở giao dịch riêng rồi commit trước giao dịch ghi): **giữ Chặn** (§5.1, TOCTOU khi MTQ bật) → vòng 2.
 - Hỏi 2 (`_pn()` trước GUC ở :183,:247,:695): **bỏ** — chỉ tra mã PN → UUID (danh mục không bí mật), quyền do cổng SQL quyết theo PN/phạm vi; chấp nhận ngoại lệ.
+
+## Review Codex VÒNG 2 (chỉ đọc) · 26/10 ~16:15
+
+1. **Đạt — Chặn vòng 1 đã sửa:** gate `CRM:TIEP_NHAN:LAP` nằm trong cùng `_tx` với các INSERT và `_lap_ho_so`; không còn commit giao dịch kiểm riêng trước giao dịch ghi. Đáp ứng §5.1 — `src/kho_tri_thuc/k2/crm.py:245,246,252,262,274`.
+2. **Đạt — không thấy lỗi mới do diff vòng sửa:** callback CU giữ nguyên lệnh/tham số và chạy trước adapter/ghi kho. Test mới kiểm cả CU/MTQ × commit/rollback, xác nhận không có commit giữa gate và ghi — `src/kho_tri_thuc/k2/crm.py:248,250`; `tests/test_mtq_crm.py:635,681,685`.
+
+| Việc kiểm | Kết luận trong phạm vi vòng 2 |
+|---|---|
+| Phạm vi | **Đạt:** đúng 2 tệp được giao; fixture thêm dùng DEMO/UUID. Báo cáo khớp thay đổi; đếm tĩnh có 53 test method, gồm 5 test PG. |
+| Đúng yêu cầu | **Đạt:** kiểm quyền và ghi cùng giao dịch; bổ sung test hồi quy theo giao việc vòng 2. |
+| Tiền, số liệu, quyền | **Đạt:** khắc phục việc nhả khóa quyền trước ghi; diff không đổi phép tính hay truyền tiền. |
+| Không phá phần cũ | **Đạt qua diff:** giữ callback CU; không đổi luồng engine #6, không thêm gọi API AI trực tiếp. |
+| Giao diện/câu người dùng | **Đạt:** diff không thay đổi thông báo, ngày hay tiền hiển thị. |
+
+`git diff --check a3a635a lat/mtq-4a3b` đạt. Tôi không chạy unittest/PostgreSQL trong phiên chỉ đọc; kết quả gate thuần OK, 28 skip PG là thông tin lead cung cấp. Số **48 đạt/53, 5 skip PG** của worker khớp cấu trúc test, chưa được tôi chạy xác minh.
+
+**Chặn / Nên sửa / Để sau:** không có phát hiện trong phạm vi vòng 2.
+
+**Hỏi Claude:** không có.
+
+**Kết luận: đạt review vòng 2; điểm Chặn vòng 1 đã được xử lý.**
+**Lead lọc (Claude):** Đạt, không lọc. Kiểm xác suất: khong.

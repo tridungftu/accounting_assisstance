@@ -34,3 +34,24 @@
 **Lead lọc (Claude):**
 - Chặn ô lỗi Sheet (`#N/A`…) ở trường chữ lọt vào khoản vay: **giữ Chặn** → vòng 2.
 - `ghi_chu` "Cần Anh/lead" tại :173: **Nên sửa, làm cùng vòng 2** (câu trung tính; ghi chú cấu hình không phải chỗ ghi việc cần Anh).
+
+## Review Codex VÒNG 2 (chỉ đọc) · 26/10 ~16:15
+
+- **Ô lỗi Sheet — Đạt:** `src/kho_tri_thuc/m9/snapshot_sheet.py:202`, `:204`, `:237` nhận đủ 11 loại lỗi được giao ở mọi cột, ghi `O_LOI_SHEET` kèm dòng/cột và loại khỏi `khoan_vay`. Test tại `tests/test_m9_snapshot_sheet.py:164`, `:202` kiểm cả trường chữ và báo cáo không sinh nhóm tiền tệ lỗi.
+- **Ghi chú trung tính — Đạt:** `src/kho_tri_thuc/m9/snapshot_sheet.py:195`; toàn tệp không còn “Cần Anh”/“Cần lead”.
+- **Diff vòng sửa — Đạt trong phạm vi kiểm:** `src/kho_tri_thuc/m9/snapshot_sheet.py:84`, `:215` chuẩn hóa chữ hoa và kiểm danh sách tiền tệ/cách tính theo giao việc v2; chưa thấy hồi quy do phần sửa gây ra.
+
+| Việc kiểm | Kết luận vòng 2 |
+|---|---|
+| Phạm vi | **Đạt:** đúng hai tệp được giao; dữ liệu test DEMO; báo cáo khớp nội dung diff và số lượng 48 test, không khai báo skip. |
+| Đúng yêu cầu | **Đạt:** điểm Chặn vòng 1 đã sửa; đáp ứng các yêu cầu bổ sung trong giao việc v2. |
+| Tiền, số liệu, quyền | **Đạt:** dòng lỗi bị loại trước báo cáo; tiền tệ ngoài cấu hình bị loại; diff không đổi phép tính hoặc quyền. |
+| Không phá phần cũ | **Đạt trong phạm vi kiểm:** không đổi đường tính Decimal/date/hash; không thêm mạng hay AI. |
+| Câu cho người dùng | **Đạt:** câu thông báo trung tính; định dạng ngày và đơn vị tiền không bị thay đổi. |
+
+**Kiểm chứng:** đối chiếu mã nhánh bằng `git show`, diff đúng `f0a9caf → lat/m9-3a`. Không chạy lại test được vì sandbox từ chối thực thi Python; **48/48 đạt** là kết quả gate máy lead Anh cung cấp.
+
+**Kết luận: Đạt để gộp trong phạm vi vòng 2.** Không còn **Chặn**; không có **Nên sửa / Để sau**.
+
+**Hỏi Claude:** Không có mục cần làm rõ.
+**Lead lọc (Claude):** Đạt, không lọc. Kiểm xác suất: khong.
