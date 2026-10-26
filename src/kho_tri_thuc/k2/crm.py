@@ -10,6 +10,8 @@ Mọi thay đổi ghi `nhat_ky.su_kien` (chỉ ghi thêm). Không tạo bút to�
 from __future__ import annotations
 
 import json
+import logging
+import uuid
 from contextlib import contextmanager
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
@@ -62,10 +64,60 @@ class CrmK2:
 
     @contextmanager
     def _tx(self, dt):
-        with self.conn.transaction():
-            self.conn.execute("SELECT set_config('ktt.nguoi_dung_id', %s, true), set_config('ktt.nguoi_dung_dang_nhap', %s, true), "
-                              "set_config('ktt.ngay_hieu_luc', %s, true)", (dt["id"], dt["dang_nhap"], self.hom_nay().isoformat()))
-            yield
+        request_id = str(uuid.uuid4())  # một lần/thao tác; không dùng request ID của trình duyệt
+        try:
+            with self.conn.transaction():
+                self._dat_phien(dt)
+                yield
+        except quyen.TuChoiThamQuyen as exc:
+            # __exit__ transaction ở trên đã rollback trước khi mở transaction audit.
+            try:
+                # Với ambient transaction, transaction() chỉ là savepoint; không
+                # được báo đã ghi bền khi commit còn phụ thuộc caller bên ngoài.
+                if getattr(getattr(self.conn, "info", None), "transaction_status", 0) != 0:
+                    raise RuntimeError("Nhật ký cần transaction cấp cao nhất")
+                with self.conn.transaction():
+                    self._dat_phien(dt)
+                    quyen.ghi_tu_choi_tham_quyen(self.conn, request_id, exc)
+            except Exception:
+                logging.getLogger(__name__).error("MTQ_NHAT_KY_LOI request_id=%s", request_id)
+                raise DataError("MTQ_NHAT_KY_LOI", "Chưa ghi được nhật ký thẩm quyền, thao tác không được thực hiện. Báo quản trị.") from None
+            raise
+
+    def _dat_phien(self, dt):
+        self.conn.execute("SELECT set_config('ktt.nguoi_dung_id', %s, true), set_config('ktt.nguoi_dung_dang_nhap', %s, true), "
+                          "set_config('ktt.ngay_hieu_luc', %s, true)", (dt["id"], dt["dang_nhap"], self.hom_nay().isoformat()))
+
+    def _tien_mtq(self, hd_id, pb_id=None):
+        """Chỉ MA_TRAN: tổng HĐ của đúng bản quyết định, khóa HĐ → bản → tham số.
+
+        V4 không có khóa phiên bản ở API: chỉ dùng khi đúng một bản CHO_DUYET.
+        Chưa có resolver ngoại tệ/tỷ giá ghim: trả thiếu tiền để lõi chặn.
+        Không lấy tiền trên master.hop_dong, lịch thu hay payload trình duyệt.
+        """
+        self._khoa_hop_dong(hd_id)
+        rows = self.conn.execute("""SELECT id FROM master.hop_dong_phien_ban WHERE hop_dong_id = %s
+                                    AND ((%s::uuid IS NOT NULL AND id = %s::uuid)
+                                      OR (%s::uuid IS NULL AND trang_thai = 'CHO_DUYET')) FOR UPDATE""",
+                                 (hd_id, pb_id, pb_id, pb_id)).fetchall()
+        if len(rows) != 1:
+            return None
+        pb_id = rows[0]["id"]
+        self.conn.execute("SELECT id FROM master.hop_dong_tham_so WHERE phien_ban_id = %s ORDER BY ten FOR UPDATE",
+                          (pb_id,)).fetchall()
+        total = self._phan_tich_pb(pb_id)[2]["fields"].get("gia_tri_hop_dong")
+        if not total or total.get("tien_te") != "VND":
+            return None
+        return total.get("minor")
+
+    def _kiem_mtq_duyet(self, dt, hanh_dong_cu, hd_id, pn, *, pb_id=None):
+        # hd_id lấy từ HĐ/bản đã đọc qua RLS trong transaction có GUC, không từ body.
+        return quyen.kiem_tham_quyen(
+            self.conn, "CRM:TIEP_NHAN:DUYET", {"bang": "master.hop_dong", "id": str(hd_id)},
+            {"kiem_cu": lambda: quyen.kiem(dt, hanh_dong_cu, pn),
+             "so_tien_vnd": lambda: self._tien_mtq(hd_id, pb_id),
+             "khong_thay": ("PHIEN_BAN", "Không thấy phiên bản hợp đồng (hoặc ngoài quyền).") if pb_id
+                           else ("HOP_DONG", "Không thấy hợp đồng (hoặc ngoài quyền).")})
 
     def _su_kien(self, pn, dt, loai, bang, doi_tuong_id, hanh_dong, *, truoc=None, sau=None, ly_do=None, can_cu=None):
         self.conn.execute("""INSERT INTO nhat_ky.su_kien (phap_nhan_id, nguoi, loai, doi_tuong_bang, doi_tuong_id, hanh_dong, truoc, sau, ly_do, can_cu)
@@ -542,7 +594,7 @@ class CrmK2:
         dt = self.danh_tinh(dang_nhap)
         with self._tx(dt):
             hd = self._khoa_hop_dong(hd_id)
-            quyen.kiem(dt, "DUYET_V4", hd["phap_nhan_id"])
+            self._kiem_mtq_duyet(dt, "DUYET_V4", hd["id"], hd["phap_nhan_id"])
             open_v4 = self.conn.execute("""SELECT id, ly_do_cho FROM kho.viec_can_duyet WHERE tham_chieu_bang = 'master.hop_dong' AND tham_chieu_id = %s AND loai = 'V4'
                                            AND trang_thai = 'CHO_DUYET'""", (hd_id,)).fetchone()
             if not open_v4:
@@ -561,7 +613,7 @@ class CrmK2:
                 raise DataError("PHIEN_BAN", "Không thấy phiên bản hợp đồng (hoặc ngoài quyền).")
             self._khoa_hop_dong(pb0["hop_dong_id"])  # serialize với nối tiền cùng hợp đồng; tính lại kế hoạch SAU khi khóa
             pb, _, th, chan, plan = self._phan_tich_pb(pb_id)
-            quyen.kiem(dt, "DUYET", pb["phap_nhan_id"])
+            qd = self._kiem_mtq_duyet(dt, "DUYET", pb["hop_dong_id"], pb["phap_nhan_id"], pb_id=pb["id"])
             if pb["trang_thai"] != "CHO_DUYET":
                 raise DataError("PHIEN_BAN_DA_CHOT", "Phiên bản không còn chờ duyệt.")
             if pb["kiem_luc"] is None:
@@ -571,7 +623,7 @@ class CrmK2:
             pn = pb["phap_nhan_id"]
             if pb["loai"] == "GOC" and self.conn.execute("""SELECT 1 FROM kho.viec_can_duyet WHERE tham_chieu_bang = 'master.hop_dong' AND tham_chieu_id = %s
                                                             AND loai = 'V4' AND trang_thai = 'CHO_DUYET'""", (pb["hop_dong_id"],)).fetchone():
-                if not quyen.duoc(dt, "DUYET_V4", pn):
+                if qd["nguon"] == "CU" and not quyen.duoc(dt, "DUYET_V4", pn):
                     raise DataError("KHONG_CO_QUYEN_LOAI_VIEC", "Hợp đồng mới còn việc V4 — cần người có quyền V4 duyệt trước hoặc cùng lúc.")
                 self._dong_viec("master.hop_dong", pb["hop_dong_id"], "DA_DUYET", dt, loai="V4")
                 self._su_kien(pn, dt, "QUYET_DINH", "master.hop_dong", pb["hop_dong_id"], "DUYET_V4")
@@ -604,7 +656,7 @@ class CrmK2:
             raise DataError("CAN_LY_DO", "Từ chối cần lý do.")
         with self._tx(dt):
             pb = self._phan_tich_pb(pb_id)[0]
-            quyen.kiem(dt, "DUYET", pb["phap_nhan_id"])
+            self._kiem_mtq_duyet(dt, "DUYET", pb["hop_dong_id"], pb["phap_nhan_id"], pb_id=pb["id"])
             self.conn.execute("UPDATE master.hop_dong_phien_ban SET trang_thai = 'TU_CHOI', nguoi_duyet = %s, duyet_luc = now(), ly_do = %s WHERE id = %s",
                               (dt["dang_nhap"], str(ly_do)[:500], pb_id))
             self._dong_viec("master.hop_dong_phien_ban", pb_id, "BO_QUA", dt)
