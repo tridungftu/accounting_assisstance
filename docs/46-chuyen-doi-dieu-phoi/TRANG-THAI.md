@@ -354,3 +354,6 @@ H3 phân loại 36 đầu việc: 19 gói đã nhập `hop-nhat`, 13 xung đột
 | MTQ-3b | `app.js` đang do E1-4u giữ — chờ E1-4u gộp |
 | M4-DL3 | cùng tệp DL2 — chờ DL2 gộp (sau DL1b) |
 | Nạp dữ liệu Review thật (CD-011) | **Cần Anh**: bảng ánh xạ `ma_hd → HĐ/pháp nhân/dự án` |
+- 12:05 **MASK-3 (Mask v2 2.7.2) xong vòng 2:** lead chạy pytest `-m "not ocr"` 476 đạt (chỉ còn `test_local_ai::test_cancel_and_reset…` có sẵn từ 2.7.0); benchmark bộ chính lộ 1/101, held_out lộ 6/51 — giữ nguyên so 2.7.1; smoke giao diện đạt (không còn tự tải lại `/api/pending`). Điểm Chặn review vòng 1 (phiên không hết hạn) lead kiểm đã hết. Sửa tại chỗ trong Mask v2 (không git).
+- **Thiếu sót quy trình (lead tự báo):** trước MASK-3 lead **không** sao lưu Mask v2 vào `LUU-TRU` như MASK-1/2 (thư mục `tam-20261026` trống). Đã sao lưu trạng thái sau sửa: `LUU-TRU\mask3-v2-sau-sua-20261026-120235\` (133 tệp mã/tài liệu + `SHA256SUMS.txt`; không chép `config\`, `tmp\`, `data\`, khóa). Bản gần nhất trước MASK-3 là `mask2-v3-sao-luu-20261025-211809` (trước MASK-2 vòng 3). Từ nay mỗi lát Mask sao lưu trước khi giao.
+- M2k-b: Python M2 291 ok (0 mã mới), node 3 bộ đạt — chờ review-lat (đổi thứ tự khóa).
