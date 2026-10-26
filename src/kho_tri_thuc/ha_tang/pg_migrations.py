@@ -12416,3 +12416,10 @@ from ..m4.sql_boq_bo import M4_BOQ_BO_SQL  # noqa: E402 — chỉ hằng SQL
 M0059_M4_BOQ_BO = M4_BOQ_BO_SQL
 PG_MIGRATIONS = (*PG_MIGRATIONS, M0059_M4_BOQ_BO)
 PG_SCHEMA_VERSION = len(PG_MIGRATIONS)
+
+# XS-2a — CD-017: hàng việc nền dùng chung; lead đánh số khi gộp.
+from ..k2.sql_hang_viec import HANG_VIEC_SQL  # noqa: E402 — chỉ hằng SQL
+
+M0060_HANG_VIEC = HANG_VIEC_SQL
+PG_MIGRATIONS = (*PG_MIGRATIONS, M0060_HANG_VIEC)
+PG_SCHEMA_VERSION = len(PG_MIGRATIONS)
