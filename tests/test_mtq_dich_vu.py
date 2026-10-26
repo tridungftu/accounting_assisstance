@@ -19,7 +19,10 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'src'))
 
 from kho_tri_thuc.ha_tang.primitives import DataError
-from kho_tri_thuc.k2.ma_tran_tham_quyen import MaTranThamQuyenK2, VAI, _payload
+from kho_tri_thuc.k2.ma_tran_tham_quyen import (
+    MaTranThamQuyenK2, VAI, O_HOP_LE, MAX_DONG_LUU, MAX_O_LUU,
+    MA_LOI_NHAT_KY, LOI_NHAT_KY, _payload,
+)
 from kho_tri_thuc.giao_dien import ma_tran_tham_quyen as HTTP
 
 ADMIN, USER, PN, PN2, ROOM, PB, DONG = (str(uuid.uuid4()) for _ in range(7))
@@ -43,6 +46,8 @@ class Connection:
         self.denials = []
         self.fail_audit = False
         self.fail_denial = False
+        self.state = []
+        self.audit_rows = []
 
     def execute(self, sql, params=()):
         self.calls.append((sql, params))
@@ -57,13 +62,19 @@ class Connection:
             r.fetchone.return_value = dict(VERSION)
         elif 'FROM master.mtq_phong WHERE id=' in sql:
             r.fetchone.return_value = {'phap_nhan_id': PN}
+        elif 'LEFT JOIN master.mtq_o' in sql:
+            r.__iter__.return_value = copy.deepcopy(self.state)
+        elif 'FROM nhat_ky.mtq_thay_doi ORDER BY' in sql:
+            columns = sql.split('FROM', 1)[0].removeprefix('SELECT').replace(' ', '').replace('\n', '').split(',')
+            r.__iter__.return_value = [{k: v for k, v in row.items() if k in columns}
+                                       for row in self.audit_rows[:params[0]]]
         elif 'INSERT INTO nhat_ky.mtq_thay_doi' in sql:
             if self.fail_audit:
-                raise RuntimeError('DEMO lỗi ghi biên nhận')
+                raise self.fail_audit
             self.journal.append(params)
         elif 'INSERT INTO nhat_ky.mtq_tu_choi' in sql:
             if self.fail_denial:
-                raise RuntimeError('DEMO lỗi audit từ chối')
+                raise self.fail_denial
             self.denials.append(params)
         else:
             r.fetchone.return_value = None
@@ -112,9 +123,12 @@ class Handler:
 
 class App:
     def __init__(self, login=DT['dang_nhap']):
-        self.mutation_lock = threading.RLock()
+        self.mutation_lock = threading.Lock()
         self.login = login
         self.crm_phien = MagicMock(return_value=('cookie-may-chu', login, False))
+        self.root = ROOT
+        self.crm = MagicMock(return_value=MagicMock())
+        self._m5_ket_noi_chu = MagicMock(return_value=MagicMock())
 
     @staticmethod
     def _crm_db(fn, *args):
@@ -214,15 +228,18 @@ class MtqMock(unittest.TestCase):
 
     def test_audit_failure_rollback_khong_thanh_cong(self):
         self.sql_save()
-        self.mau.c.fail_audit = True
-        with self.assertRaisesRegex(RuntimeError, 'biên nhận'):
-            self.svc.luu_nhap(DT['dang_nhap'], payload())
+        self.mau.c.fail_audit = ValueError('DEMO lỗi ghi biên nhận')
+        status, result = http(self.svc, HTTP.PREFIX + 'luu-nhap', payload(), post=True)
+        self.assertEqual((status, result), (503, {'error': MA_LOI_NHAT_KY, 'message': LOI_NHAT_KY}))
         self.assertEqual(self.mau.trace[-1], 'rollback')
         self.assertEqual(self.mau.c.journal, [])
         self.mau.c.admin = False
-        self.mau.c.fail_denial = True
-        with self.assertRaisesRegex(RuntimeError, 'audit từ chối'):
-            self.svc.luu_nhap(DT['dang_nhap'], payload())
+        self.mau.c.fail_denial = DataError('DEMO_AUDIT', 'DEMO lỗi ghi từ chối')
+        self.svc._sql.reset_mock()
+        status, result = http(self.svc, HTTP.PREFIX + 'luu-nhap', payload(), post=True)
+        self.assertEqual((status, result), (503, {'error': MA_LOI_NHAT_KY, 'message': LOI_NHAT_KY}))
+        self.svc._sql.assert_not_called()
+        self.assertEqual(self.mau.c.denials, [])
 
     def test_sql_exception_ma_an_toan_va_audit_sau_rollback(self):
         exc = RuntimeError('DEMO chi tiết không được trả cho browser')
@@ -271,7 +288,7 @@ class MtqMock(unittest.TestCase):
     def test_doc_cua_toi_loc_sql_truoc_khi_doc_o(self):
         self.mau.c.admin = False
         self.svc._many = MagicMock(return_value=[])
-        result = self.svc.ma_tran(DT['dang_nhap'])
+        result = self.svc.ma_tran(DT['dang_nhap'], cua_toi=True)
         self.assertFalse(result['admin'])
         self.assertEqual(result['phien_ban'], [])
         sql, args = self.svc._many.call_args_list[0].args[1:]
@@ -286,6 +303,196 @@ class MtqMock(unittest.TestCase):
         self.svc._many.reset_mock()
         self.assertFalse(self.svc.ma_tran(DT['dang_nhap'], cua_toi=True)['admin'])
         self.assertFalse(any('SELECT * FROM master.mtq_phien_ban' in str(x) for x in self.svc._many.call_args_list))
+
+    def test_get_ma_tran_nonadmin_403_truoc_doc_du_lieu(self):
+        self.mau.c.admin = False
+        self.svc._many = MagicMock(return_value=[])
+        status, result = http(self.svc, HTTP.PREFIX + 'ma-tran')
+        self.assertEqual((status, result['message']),
+                         (403, 'Chỉ quản trị xem được toàn bộ ma trận; xem Quyền của tôi.'))
+        self.svc._many.assert_not_called()
+        self.assertEqual(http(self.svc, HTTP.PREFIX + 'cua-toi')[0], 200)
+
+    def test_body_sai_400_khong_khoa_khong_mo_ket_noi(self):
+        bad = [None, [], payload(actor_id=ADMIN), payload(khoa='sai'),
+               payload(expected_revision='1')]
+        nested = payload()
+        nested['dong'][0]['o'][0]['actor_id'] = ADMIN
+        bad.append(nested)
+        for action in ('luu-nhap', 'cong-bo', 'kich-hoat'):
+            for body in bad:
+                with self.subTest(action=action, body=body):
+                    app = App()
+                    # Giữ sẵn Lock: đọc body trong khóa sẽ treo; dùng thread có hạn chờ.
+                    app.mutation_lock.acquire()
+                    h = Handler(HTTP.PREFIX + action, body)
+                    output = []
+                    thread = threading.Thread(target=lambda: output.append(
+                        HTTP.dieu_huong(h, app, True, h.path, {})), daemon=True)
+                    try:
+                        thread.start()
+                        thread.join(1)
+                        self.assertFalse(thread.is_alive(), 'Body sai đang đợi khóa')
+                    finally:
+                        app.mutation_lock.release()
+                        thread.join(1)
+                    self.assertEqual(output[0][0], 400)
+                    app.crm_phien.assert_not_called()
+                    app.crm.assert_not_called()
+                    app._m5_ket_noi_chu.assert_not_called()
+        app = App()
+        h = Handler(HTTP.PREFIX + 'luu-nhap')
+        h.json_body = MagicMock(side_effect=ValueError('JSON sai DEMO'))
+        self.assertEqual(HTTP.dieu_huong(h, app, True, h.path, {})[0], 400)
+        app._m5_ket_noi_chu.assert_not_called()
+
+    def test_dich_vu_that_khong_treo_nha_khoa_dong_chu(self):
+        for failure in (None, 'service', 'factory'):
+            with self.subTest(failure=failure):
+                app = App()
+                h = Handler(HTTP.PREFIX + 'ma-tran')
+                owner = app._m5_ket_noi_chu.return_value
+                output, errors = [], []
+                def run():
+                    try:
+                        output.append(HTTP.dieu_huong(h, app, False, h.path, {}))
+                    except Exception as exc:
+                        errors.append(exc)
+                with patch('kho_tri_thuc.k2.crm_mau.CrmMauK2', return_value=self.mau) as factory:
+                    if failure == 'factory':
+                        factory.side_effect = ValueError('DEMO khởi tạo lỗi')
+                    self.mau.c.admin = failure != 'service'
+                    thread = threading.Thread(target=run, daemon=True)
+                    thread.start()
+                    thread.join(2)
+                    self.assertFalse(thread.is_alive(), 'dich_vu thật bị treo với Lock')
+                self.assertEqual(errors, [])
+                self.assertEqual(output[0][0], 200 if failure is None else 403 if failure == 'service' else 400)
+                owner.close.assert_called_once_with()
+                app.crm.assert_called_once_with()
+                factory.assert_called_once_with(app.crm.return_value.conn, ROOT / 'crm-g',
+                    conn_tin_cay=owner, hom_nay=app.crm.return_value.hom_nay)
+                self.assertTrue(app.mutation_lock.acquire(blocking=False))
+                app.mutation_lock.release()
+
+    def current_row(self, *, money=None, tick=True):
+        self.mau.c.state = [{'id': DONG, 'phong_id': ROOM, 'vai': 'CFO',
+                            'gioi_han_vnd': money, **CELL, 'cho_phep': tick}]
+
+    def test_luu_khong_doi_khong_goi_lenh_ghi_cau_hinh(self):
+        self.current_row(money=100)
+        p = payload(phien_ban_id=PB, expected_revision=1)
+        p['dong'][0]['gioi_han_vnd'] = '000100'
+        self.svc._sql = MagicMock()
+        result = self.svc.luu_nhap(DT['dang_nhap'], p)
+        self.assertEqual(result['ket_qua'], VERSION)
+        self.svc._sql.assert_not_called()
+        self.assertEqual(len(self.mau.c.journal), 1)  # Vẫn có biên nhận để replay.
+        self.assertEqual(sum('LEFT JOIN master.mtq_o' in sql for sql, _ in self.mau.c.calls), 1)
+        self.assertEqual(sum('mtq_phien_ban WHERE id=' in sql for sql, _ in self.mau.c.calls), 1)
+        receipt_sql = next(sql for sql, _ in self.mau.c.calls if 'actor_id,doi_tuong,loai_su_kien,sau' in sql)
+        self.assertIn("doi_tuong_bang='HTTP'", receipt_sql)
+        self.assertNotIn('LIKE', receipt_sql)
+
+    def test_luu_chi_ghi_phan_doi_va_revision_tung_thay_doi(self):
+        for money, tick, commands in ((None, False, ['O']), ('5', True, ['DONG']), ('5', False, ['DONG', 'O'])):
+            with self.subTest(commands=commands):
+                self.current_row(money=money, tick=tick)
+                self.svc._sql = MagicMock(side_effect=[
+                    {'phien_ban': {**VERSION, 'revision': 2 + i}, 'doi_tuong': {'id': DONG}}
+                    for i in range(len(commands))])
+                result = self.svc.luu_nhap(DT['dang_nhap'], payload(phien_ban_id=PB, expected_revision=1))
+                calls = self.svc._sql.call_args_list
+                self.assertEqual([c.args[2] for c in calls], commands)
+                self.assertEqual([c.args[4] for c in calls], list(range(1, 1 + len(commands))))
+                self.assertEqual(result['ket_qua']['revision'], 1 + len(commands))
+
+    def test_o_chua_co_va_khong_tick_khong_ghi(self):
+        self.mau.c.state = [{'id': DONG, 'phong_id': ROOM, 'vai': 'CFO', 'gioi_han_vnd': None,
+                            'module': None, 'man': None, 'hanh_dong': None, 'cho_phep': None}]
+        p = payload(phien_ban_id=PB, expected_revision=1)
+        p['dong'][0]['o'][0]['cho_phep'] = False
+        self.svc._sql = MagicMock()
+        self.svc.luu_nhap(DT['dang_nhap'], p)
+        self.svc._sql.assert_not_called()
+
+    def test_sao_chep_doc_hien_trang_mot_lan_bo_qua_o_giong(self):
+        self.current_row()
+        self.svc._sql = MagicMock(return_value=dict(VERSION))
+        self.svc.luu_nhap(DT['dang_nhap'], payload(nguon_id=PB))
+        self.assertEqual([c.args[2] for c in self.svc._sql.call_args_list], ['NHAP'])
+        self.assertEqual(sum('LEFT JOIN master.mtq_o' in sql for sql, _ in self.mau.c.calls), 1)
+
+    def test_gioi_han_than_5_vai_mot_phong_theo_danh_muc(self):
+        cells = [{'module': m, 'man': man, 'hanh_dong': a, 'cho_phep': False} for m, man, a in sorted(O_HOP_LE)]
+        rows = [{'phong_id': ROOM, 'vai': v, 'gioi_han_vnd': None, 'o': copy.deepcopy(cells)} for v in sorted(VAI)]
+        self.assertEqual(MAX_DONG_LUU, 5)
+        self.assertEqual(sum(len(r['o']) for r in _payload(payload(dong=rows), luu=True)['dong']), MAX_O_LUU)
+        for bad in (rows + [rows[0]], [{**rows[0], 'o': cells + [cells[0]]}],
+                    [rows[0], {**rows[1], 'phong_id': str(uuid.uuid4())}]):
+            with self.assertRaises(DataError):
+                _payload(payload(dong=bad), luu=True)
+
+    def test_doc_o_mot_truy_van_chi_cac_dong_da_loc(self):
+        for mine in (False, True):
+            with self.subTest(cua_toi=mine):
+                ids = [DONG, str(uuid.uuid4())]
+                def many(c, sql, params=()):
+                    if 'FROM master.mtq_dong' in sql:
+                        return [{'id': k} for k in ids]
+                    if 'FROM master.mtq_o' in sql:
+                        return [{'dong_id': ids[0], **CELL}]
+                    return []
+                self.svc._many = MagicMock(side_effect=many)
+                result = self.svc.ma_tran(DT['dang_nhap'], cua_toi=mine)
+                self.assertEqual([r['o'] for r in result['dong']], [[CELL], []])
+                calls = [c for c in self.svc._many.call_args_list if 'FROM master.mtq_o' in c.args[1]]
+                self.assertEqual(len(calls), 1)
+                self.assertEqual(calls[0].args[2], (ids,))
+                self.assertIn('ANY(%s::uuid[])', calls[0].args[1])
+
+    def test_nhat_ky_gioi_han_moi_nhat_khong_lo_vai_csdl(self):
+        self.mau.c.audit_rows = [{'id': str(uuid.uuid4()), 'loai_su_kien': 'HTTP_LUU_NHAP',
+                                 'boi_csdl': 'chu_bang_demo'} for _ in range(201)]
+        result = self.svc.nhat_ky(DT['dang_nhap'])
+        self.assertEqual(len(result['thay_doi']), 200)
+        self.assertNotIn('boi_csdl', json.dumps(result))
+        self.assertNotIn('chu_bang_demo', json.dumps(result))
+        queries = [(sql, args) for sql, args in self.mau.c.calls if 'FROM nhat_ky.' in sql]
+        self.assertEqual(len(queries), 2)
+        for sql, args in queries:
+            self.assertNotIn('SELECT *', sql)
+            self.assertNotIn('boi_csdl', sql)
+            self.assertIn('ORDER BY luc DESC,id DESC LIMIT %s', sql)
+            self.assertEqual(args, (200,))
+        self.mau.c.calls.clear()
+        self.svc.nhat_ky(DT['dang_nhap'], gioi_han=10)
+        self.assertEqual([args for sql, args in self.mau.c.calls if 'FROM nhat_ky.' in sql], [(10,), (10,)])
+        for limit in (0, -1, 201, True, '10'):
+            with self.assertRaises(DataError):
+                self.svc.nhat_ky(DT['dang_nhap'], gioi_han=limit)
+
+    def test_trigger_ghi_nhat_ky_loi_la_503_khong_ghi_tu_choi(self):
+        error = ValueError('DEMO không được lộ')
+        error.diag = type('Diag', (), {'context': 'PL/pgSQL function master.mtq_ghi_vet() line 20 at SQL statement'})()
+        c = MagicMock()
+        c.execute.side_effect = error
+        with patch.object(self.svc, '_save', side_effect=lambda *_: MaTranThamQuyenK2._sql(c, '', '', {}, 0, '')):
+            status, result = http(self.svc, HTTP.PREFIX + 'luu-nhap', payload(), post=True)
+        self.assertEqual((status, result), (503, {'error': MA_LOI_NHAT_KY, 'message': LOI_NHAT_KY}))
+        self.assertEqual(self.mau.c.denials, [])
+        self.assertEqual(self.mau.trace[-1], 'rollback')
+
+    def test_cau_nguoi_dung_khong_co_tu_ky_thuat(self):
+        import ast
+        for name in ('k2', 'giao_dien'):
+            tree = ast.parse((ROOT / 'src' / 'kho_tri_thuc' / name / 'ma_tran_tham_quyen.py').read_text(encoding='utf-8'))
+            for node in ast.walk(tree):
+                if isinstance(node, ast.Constant) and isinstance(node.value, str):
+                    # Chỉ câu hiển thị tiếng Việt; bỏ mã SQL, tên khóa và docstring.
+                    if any(ch in node.value for ch in 'ầềệượảớạịồôơư') and '\n' not in node.value:
+                        for word in ('UUID', 'Revision', 'revision', 'snapshot', 'boolean', 'CSDL từ chối'):
+                            self.assertNotIn(word, node.value)
 
     def test_token_csrf_phien_khong_duoc_bo_qua(self):
         self.assertEqual(http(self.svc, HTTP.PREFIX + 'ma-tran', token=False)[0], 403)
@@ -389,7 +596,7 @@ class MtqPG(unittest.TestCase):
         self.assertEqual(http(self.svc, HTTP.PREFIX + 'kich-hoat', self.request(published, 0), post=True, app=app)[0], 409)
         log = self.svc.nhat_ky(self.admin[1])['tu_choi']
         self.assertTrue({'MTQ_CHI_ADMIN', 'MTQ_REVISION', 'MTQ_CHUA_NOI_MTQ4'} <= {x['ma'] for x in log})
-        self.assertEqual(self.svc.ma_tran(self.user[1])['dong'], [])
+        self.assertEqual(self.svc.ma_tran(self.user[1], cua_toi=True)['dong'], [])
 
     def test_audit_failure_rollback_toan_bo_save(self):
         _, v = self.draft()
@@ -411,7 +618,7 @@ class MtqPG(unittest.TestCase):
             for actor, role in ((self.user, 'CFO'), (self.admin, 'NGUOI_XEM')):
                 self.svc._sql(c, str(uuid.uuid4()), 'GAN_VAI', {'nguoi_dung_id': actor[0], 'phap_nhan_id': self.pn,
                     'phong_id': self.room, 'vai': role}, 0, 'DEMO phạm vi')
-        mine = self.svc.ma_tran(self.user[1])
+        mine = self.svc.ma_tran(self.user[1], cua_toi=True)
         self.assertFalse(mine['admin'])
         self.assertTrue(mine['gan_vai'])
         self.assertTrue(all(x['nguoi_dung_id'] == self.user[0] for x in mine['gan_vai']))

@@ -19,6 +19,12 @@ from .sql_ma_tran_tham_quyen import _CATALOG
 
 VAI = frozenset(('THUC_HIEN_1', 'THUC_HIEN_2', 'TRUONG_PHONG', 'CFO', 'NGUOI_XEM'))
 O_HOP_LE = frozenset((m, man, a) for m, man, actions, _ in _CATALOG for a in actions.split())
+# Mỗi lần lưu đúng một phòng: tối đa 5 vai, mỗi vai tối đa toàn bộ danh mục ô.
+MAX_DONG_LUU = len(VAI)
+MAX_O_LUU = MAX_DONG_LUU * len(O_HOP_LE)
+GIOI_HAN_NHAT_KY = 200
+MA_LOI_NHAT_KY = 'MTQ_NHAT_KY_LOI'
+LOI_NHAT_KY = 'Chưa ghi được nhật ký thẩm quyền, thao tác không được thực hiện. Báo quản trị.'
 MA_403 = frozenset(('MTQ_CHI_ADMIN', 'MTQ_DANH_TINH', 'DANH_TINH', 'DANH_TINH_MO_PHONG',
                     'CRM_PHIEN', 'SESSION_TOKEN', 'CROSS_ORIGIN', 'LOCAL_HOST_ONLY'))
 MA_409 = frozenset(('MTQ_REVISION', 'MTQ_IDEMPOTENCY_KHAC', 'MTQ_BAT_BIEN',
@@ -41,7 +47,7 @@ def _uuid(value):
             return str(uuid.UUID(value))
     except ValueError:
         pass
-    _sai('Mã đối tượng/khóa yêu cầu phải là UUID.')
+    _sai('Mã không hợp lệ')
 
 
 def _payload(value, *, luu=False):
@@ -52,7 +58,7 @@ def _payload(value, *, luu=False):
     p = dict(value)
     rev = p['expected_revision']
     if type(rev) is not int or not 0 <= rev <= 9223372036854775807:
-        _sai('Revision phải là số nguyên không âm.')
+        _sai('Phiên bản phải là số nguyên không âm.')
     if not isinstance(p['ly_do'], str) or not p['ly_do'].strip() or len(p['ly_do']) > 2000:
         _sai('Cần lý do, tối đa 2.000 ký tự.')
     p['ly_do'] = p['ly_do'].strip()
@@ -66,13 +72,17 @@ def _payload(value, *, luu=False):
         if p.get('phien_ban_id') and p.get('nguon_id'):
             _sai('Chỉ chọn bản nháp hoặc bản nguồn.')
         rows = p.get('dong', [])
-        if not isinstance(rows, list) or len(rows) > 500:
-            _sai('Danh sách tối đa 500 dòng.')
+        if not isinstance(rows, list) or len(rows) > MAX_DONG_LUU:
+            _sai('Mỗi lần lưu tối đa 5 vai của một phòng.')
         seen = set()
+        rooms = set()
         clean = []
         for row in rows:
             _object(row, {'phong_id', 'vai', 'gioi_han_vnd', 'o'}, {'phong_id', 'vai', 'gioi_han_vnd', 'o'})
             phong = _uuid(row['phong_id'])
+            rooms.add(phong)
+            if len(rooms) > 1:
+                _sai('Mỗi lần lưu chỉ chọn một phòng.')
             if not isinstance(row['vai'], str) or row['vai'] not in VAI or (phong, row['vai']) in seen:
                 _sai('Vai không hợp lệ hoặc bị lặp trong phòng.')
             seen.add((phong, row['vai']))
@@ -93,14 +103,14 @@ def _payload(value, *, luu=False):
                 _object(cell, {'module', 'man', 'hanh_dong', 'cho_phep'}, {'module', 'man', 'hanh_dong', 'cho_phep'})
                 key = tuple(cell[k] for k in ('module', 'man', 'hanh_dong'))
                 if not all(isinstance(x, str) for x in key) or key not in O_HOP_LE or key in keys or type(cell['cho_phep']) is not bool:
-                    _sai('Ô không thuộc danh mục, bị lặp hoặc tick không phải boolean.')
+                    _sai('Ô không thuộc danh mục, bị lặp hoặc chưa chọn bật/tắt hợp lệ.')
                 keys.add(key)
             clean.append({'phong_id': phong, 'vai': row['vai'], 'gioi_han_vnd': money, 'o': [dict(c) for c in cells]})
         p['dong'] = clean
         if not clean and not p.get('nguon_id'):
-            _sai('Cần dòng thay đổi hoặc snapshot nguồn.')
+            _sai('Cần dòng thay đổi hoặc bản đang áp.')
         if not p.get('phien_ban_id') and rev != 0:
-            _sai('Tạo nháp cần revision 0.')
+            _sai('Tạo nháp cần phiên bản 0.')
     return p
 
 
@@ -125,6 +135,8 @@ class MaTranThamQuyenK2:
         dt = self.mau.danh_tinh(dang_nhap)
         with self.mau._tx(dt, rr=True) as c:
             admin = self._admin(c) and not cua_toi
+            if not cua_toi and not admin:
+                raise DataError('MTQ_CHI_ADMIN', 'Chỉ quản trị xem được toàn bộ ma trận; xem Quyền của tôi.')
             if not admin:
                 # Chỉ snapshot đang bật và đúng vai/phòng của mình; không lộ nháp.
                 rows = self._many(c, """SELECT d.*, p.ten AS ten_phong FROM master.mtq_dong d
@@ -151,25 +163,44 @@ class MaTranThamQuyenK2:
                 activation = self._many(c, 'SELECT * FROM master.mtq_kich_hoat ORDER BY phap_nhan_id')
                 rooms = self._many(c, 'SELECT * FROM master.mtq_phong ORDER BY phap_nhan_id,ma')
             # Lọc trong SQL trước khi đọc ô, không tải ma trận khác về Python.
+            cells = self._many(c, '''SELECT dong_id,module,man,hanh_dong,cho_phep FROM master.mtq_o
+                WHERE dong_id=ANY(%s::uuid[]) ORDER BY dong_id,module,man,hanh_dong''', ([r['id'] for r in rows],))
+            by_row = {r['id']: [] for r in rows}
+            for cell in cells:
+                by_row[cell.pop('dong_id')].append(cell)
             for row in rows:
-                row['o'] = self._many(c, 'SELECT module,man,hanh_dong,cho_phep FROM master.mtq_o WHERE dong_id=%s::uuid ORDER BY module,man,hanh_dong', (row['id'],))
+                row['o'] = by_row[row['id']]
             return {'admin': admin, 'dong': rows, 'phong': rooms, 'phien_ban': versions,
                     'gan_vai': assignments, 'pham_vi': scopes, 'kich_hoat': activation,
                     'danh_muc': self._many(c, 'SELECT * FROM master.mtq_danh_muc_hanh_dong ORDER BY module,man,hanh_dong'),
                     'chua_noi_mtq4': True}
 
-    def nhat_ky(self, dang_nhap):
+    def nhat_ky(self, dang_nhap, *, gioi_han=GIOI_HAN_NHAT_KY):
+        if type(gioi_han) is not int or not 1 <= gioi_han <= GIOI_HAN_NHAT_KY:
+            _sai('Số dòng nhật ký phải từ 1 đến 200.')
         dt = self.mau.danh_tinh(dang_nhap)
         with self.mau._tx(dt, rr=True) as c:
             if not self._admin(c):
-                raise DataError('MTQ_CHI_ADMIN', 'Chỉ Admin được xem toàn bộ nhật ký.')
-            return {'thay_doi': self._many(c, 'SELECT * FROM nhat_ky.mtq_thay_doi ORDER BY luc,id'),
-                    'tu_choi': self._many(c, 'SELECT * FROM nhat_ky.mtq_tu_choi ORDER BY luc,id')}
+                raise DataError('MTQ_CHI_ADMIN', 'Chỉ quản trị được xem toàn bộ nhật ký.')
+            return {'thay_doi': self._many(c, '''SELECT id,request_id,phap_nhan_id,doi_tuong_bang,doi_tuong,
+                        phien_ban_id,revision,loai_su_kien,truoc,sau,actor_id,actor_login,luc,ly_do
+                    FROM nhat_ky.mtq_thay_doi ORDER BY luc DESC,id DESC LIMIT %s''', (gioi_han,)),
+                    'tu_choi': self._many(c, '''SELECT id,request_id,actor_id,actor_login,phap_nhan_id,phong_id,vai,
+                        phien_ban_id,revision,gan_vai_id,gan_vai_revision,pham_vi_id,pham_vi_revision,
+                        module,man,hanh_dong,lenh_ky_thuat,doi_tuong,ma,ly_do,gioi_han_vnd,so_tien_vnd,luc
+                    FROM nhat_ky.mtq_tu_choi ORDER BY luc DESC,id DESC LIMIT %s''', (gioi_han,))}
 
     @staticmethod
     def _sql(c, request, command, data, revision, reason):
-        return c.execute('SELECT master.mtq_cau_hinh_ghi(%s::uuid,%s,%s::jsonb,%s,%s) AS r',
-                         (request, command, json.dumps(data, ensure_ascii=False), revision, reason)).fetchone()['r']
+        try:
+            return c.execute('SELECT master.mtq_cau_hinh_ghi(%s::uuid,%s,%s::jsonb,%s,%s) AS r',
+                             (request, command, json.dumps(data, ensure_ascii=False), revision, reason)).fetchone()['r']
+        except Exception as exc:
+            # Lỗi trigger ghi nhật ký cũng phải là lỗi hệ thống, không phải dữ liệu nhập.
+            diag = getattr(exc, 'diag', None)
+            if 'mtq_ghi_vet()' in (getattr(diag, 'context', '') or ''):
+                raise DataError(MA_LOI_NHAT_KY, LOI_NHAT_KY) from None
+            raise
 
     def _version(self, c, pb):
         v = self._one(c, 'SELECT * FROM master.mtq_phien_ban WHERE id=%s::uuid', (pb,))
@@ -180,21 +211,39 @@ class MaTranThamQuyenK2:
     def _save(self, c, p):
         source = p.get('phien_ban_id') or p.get('nguon_id')
         v = self._version(c, source) if source else None
+        # CAS của cả lần lưu chỉ kiểm một lần, sau khóa cấu hình trong _write.
+        if p.get('phien_ban_id') and (v['revision'] != p['expected_revision'] or v['trang_thai'] != 'NHAP'):
+            raise DataError('MTQ_REVISION', 'Bản nháp đã thay đổi; tải lại trước khi lưu.')
         pn = v['phap_nhan_id'] if v else None
-        for row in p['dong']:
-            room = self._one(c, 'SELECT phap_nhan_id FROM master.mtq_phong WHERE id=%s::uuid AND hoat_dong', (row['phong_id'],))
+        if p['dong']:
+            room = self._one(c, 'SELECT phap_nhan_id FROM master.mtq_phong WHERE id=%s::uuid AND hoat_dong', (p['dong'][0]['phong_id'],))
             if room is None or (pn is not None and pn != room['phap_nhan_id']):
                 _sai('Phòng không hoạt động hoặc khác pháp nhân của phiên bản.')
             pn = room['phap_nhan_id']
         args = (p['khoa'], p['ly_do'])
         if not p.get('phien_ban_id'):
             v = self._sql(c, args[0], 'NHAP', {'phap_nhan_id': pn, 'phien_ban_id': p.get('nguon_id')}, 0, args[1])
-        elif v['revision'] != p['expected_revision'] or v['trang_thai'] != 'NHAP':
-            raise DataError('MTQ_REVISION', 'Bản nháp đã thay đổi; tải lại trước khi lưu.')
+        # Đọc một lần, kể cả bản vừa sao chép; ô chưa có mang nghĩa chưa tick.
+        current = self._many(c, '''SELECT d.id,d.phong_id,d.vai,d.gioi_han_vnd,
+                o.module,o.man,o.hanh_dong,o.cho_phep
+            FROM master.mtq_dong d LEFT JOIN master.mtq_o o ON o.dong_id=d.id
+            WHERE d.phien_ban_id=%s::uuid AND d.phong_id=ANY(%s::uuid[])''',
+            (v['id'], [r['phong_id'] for r in p['dong']]))
+        rows, cells = {}, {}
+        for item in current:
+            rows[(item['phong_id'], item['vai'])] = item
+            if item['module'] is not None:
+                cells[(item['id'], item['module'], item['man'], item['hanh_dong'])] = item['cho_phep']
         for row in p['dong']:
-            r = self._sql(c, args[0], 'DONG', {'phien_ban_id': v['id'], **{k: row[k] for k in ('phong_id', 'vai', 'gioi_han_vnd')}}, v['revision'], args[1])
-            v, d = r['phien_ban'], r['doi_tuong']
+            d = rows.get((row['phong_id'], row['vai']))
+            money = None if d is None or d['gioi_han_vnd'] is None else str(int(d['gioi_han_vnd']))
+            if d is None or money != row['gioi_han_vnd']:
+                r = self._sql(c, args[0], 'DONG', {'phien_ban_id': v['id'], **{k: row[k] for k in ('phong_id', 'vai', 'gioi_han_vnd')}}, v['revision'], args[1])
+                v, d = r['phien_ban'], r['doi_tuong']
             for cell in row['o']:
+                key = (d['id'], cell['module'], cell['man'], cell['hanh_dong'])
+                if cells.get(key, False) == cell['cho_phep']:
+                    continue
                 r = self._sql(c, args[0], 'O', {'phien_ban_id': v['id'], 'dong_id': d['id'], **cell}, v['revision'], args[1])
                 v = r['phien_ban']
         return v
@@ -205,8 +254,8 @@ class MaTranThamQuyenK2:
             with self.mau._tx(dt) as c:
                 c.execute('SELECT pg_advisory_xact_lock(742601, 1)')
                 if not self._admin(c):
-                    raise DataError('MTQ_CHI_ADMIN', 'Chỉ Admin hoạt động được sửa ma trận.')
-                old = self._one(c, 'SELECT actor_id,doi_tuong,loai_su_kien,sau FROM nhat_ky.mtq_thay_doi WHERE request_id=%s::uuid AND loai_su_kien LIKE \'HTTP_%%\'', (p['khoa'],))
+                    raise DataError('MTQ_CHI_ADMIN', 'Chỉ quản trị đang hoạt động được sửa ma trận.')
+                old = self._one(c, "SELECT actor_id,doi_tuong,loai_su_kien,sau FROM nhat_ky.mtq_thay_doi WHERE request_id=%s::uuid AND doi_tuong_bang='HTTP'", (p['khoa'],))
                 if old:
                     if old['actor_id'] != dt['id'] or old['loai_su_kien'] != 'HTTP_' + command or old['doi_tuong'] != p:
                         raise DataError('MTQ_IDEMPOTENCY_KHAC', 'Khóa yêu cầu đã dùng với nội dung/danh tính khác.')
@@ -223,7 +272,7 @@ class MaTranThamQuyenK2:
                     r = self._sql(c, p['khoa'], command, data, p['expected_revision'], p['ly_do'])
                     v = r['phien_ban'] if command == 'CONG_BO' else r
                 result = {'ket_qua': _v(v), 'lap_lai': False}
-                c.execute("""INSERT INTO nhat_ky.mtq_thay_doi
+                self._ghi_nhat_ky(c, """INSERT INTO nhat_ky.mtq_thay_doi
                     (request_id,phap_nhan_id,doi_tuong_bang,doi_tuong,phien_ban_id,revision,loai_su_kien,truoc,sau,actor_id,actor_login,ly_do)
                     VALUES (%s::uuid,%s::uuid,'HTTP',%s::jsonb,%s::uuid,%s,%s,NULL,%s::jsonb,%s::uuid,%s,%s)""",
                     (p['khoa'], v['phap_nhan_id'], json.dumps(p, ensure_ascii=False),
@@ -237,14 +286,26 @@ class MaTranThamQuyenK2:
                 primary = getattr(getattr(exc, 'diag', None), 'message_primary', '') or ''
                 code = primary.split(':', 1)[0]
                 if re.fullmatch(r'MTQ_[A-Z0-9_]+', code):
-                    error = DataError(code, f'CSDL từ chối cấu hình ({code}).')
+                    error = DataError(code, 'Không thể áp dụng cấu hình thẩm quyền; kiểm tra lại phiên bản và điều kiện thực hiện.')
+            if isinstance(error, DataError) and error.code == MA_LOI_NHAT_KY:
+                raise error from None
             if isinstance(error, DataError) and error.code.startswith('MTQ_'):
-                with self.mau._tx(dt) as c:
-                    c.execute("""INSERT INTO nhat_ky.mtq_tu_choi
-                        (request_id,actor_id,actor_login,ma,ly_do) VALUES (%s::uuid,%s::uuid,%s,%s,%s)""",
-                        (p['khoa'], dt['id'], dt['dang_nhap'], error.code, str(error)))
+                try:
+                    with self.mau._tx(dt) as c:
+                        self._ghi_nhat_ky(c, """INSERT INTO nhat_ky.mtq_tu_choi
+                            (request_id,actor_id,actor_login,ma,ly_do) VALUES (%s::uuid,%s::uuid,%s,%s,%s)""",
+                            (p['khoa'], dt['id'], dt['dang_nhap'], error.code, str(error)))
+                except Exception:
+                    raise DataError(MA_LOI_NHAT_KY, LOI_NHAT_KY) from None
                 raise error from None
             raise
+
+    @staticmethod
+    def _ghi_nhat_ky(c, sql, params):
+        try:
+            c.execute(sql, params)
+        except Exception:
+            raise DataError(MA_LOI_NHAT_KY, LOI_NHAT_KY) from None
 
     def luu_nhap(self, dang_nhap, payload):
         return self._write(dang_nhap, 'LUU_NHAP', _payload(payload, luu=True))

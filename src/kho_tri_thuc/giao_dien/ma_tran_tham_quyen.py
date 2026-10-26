@@ -9,7 +9,7 @@ from contextlib import contextmanager
 from urllib.parse import parse_qs, urlsplit
 
 from ..ha_tang.primitives import DataError
-from ..k2.ma_tran_tham_quyen import MA_403, MA_409, MaTranThamQuyenK2
+from ..k2.ma_tran_tham_quyen import MA_403, MA_409, MA_LOI_NHAT_KY, MaTranThamQuyenK2, _payload
 
 PREFIX = '/api/tham-quyen/'
 GET = frozenset(PREFIX + x for x in ('ma-tran', 'cua-toi', 'nhat-ky'))
@@ -28,7 +28,7 @@ def dich_vu(app):
     crm = app.crm()
     chu = app._m5_ket_noi_chu(crm.conn)
     if chu is None:
-        raise DataError('CRM_G_CHUA_SAN_SANG', 'Chưa có kết nối chủ bảng tin cậy.')
+        raise DataError('CRM_G_CHUA_SAN_SANG', 'Chưa sẵn sàng quản lý thẩm quyền. Báo quản trị.')
     try:
         yield MaTranThamQuyenK2(CrmMauK2(crm.conn, app.root / 'crm-g', conn_tin_cay=chu, hom_nay=crm.hom_nay))
     finally:
@@ -42,11 +42,12 @@ def dieu_huong(h, app, post, path, query):
         h.authorize(private=True)
         if query or parse_qs(urlsplit(h.path).query, keep_blank_values=True):
             raise DataError('MTQ_DAU_VAO', 'Không nhận tham số truy vấn.')
+        if post:
+            body = _payload(h.json_body(), luu=POST[path] == 'luu_nhap')
         with app.mutation_lock:
             _, me, _ = app.crm_phien(h.crm_sid())
             with dich_vu(app) as svc:
                 if post:
-                    body = h.json_body()
                     result = app._crm_db(getattr(svc, POST[path]), me, body)
                 elif path.endswith('/nhat-ky'):
                     result = app._crm_db(svc.nhat_ky, me)
@@ -55,7 +56,7 @@ def dieu_huong(h, app, post, path, query):
         return h.send_content(200, result)
     except DataError as exc:
         status = (403 if exc.code in MA_403 else 409 if exc.code in MA_409 else
-                  503 if exc.code in {'CRM_G_CHUA_SAN_SANG', 'PG_KHONG_KET_NOI', 'CRM_CHUA_CAU_HINH', 'CRM_SCHEMA_KHONG_KHOP'} else 400)
+                  503 if exc.code in {MA_LOI_NHAT_KY, 'CRM_G_CHUA_SAN_SANG', 'PG_KHONG_KET_NOI', 'CRM_CHUA_CAU_HINH', 'CRM_SCHEMA_KHONG_KHOP'} else 400)
         return h.send_content(status, {'error': exc.code, 'message': str(exc)})
     except (ValueError, TypeError, KeyError, RecursionError):
         return h.send_content(400, {'error': 'MTQ_DAU_VAO', 'message': 'Thông tin gửi lên không hợp lệ.'})
