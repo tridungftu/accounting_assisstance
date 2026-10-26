@@ -353,3 +353,22 @@ Anh chốt 26/10 ~19:50: "Đồng ý toàn bộ đề xuất A1–A3, B1–B11 t
   - B10: 03B kiểm theo từng nguồn.
   - B11: pháp nhân còn dùng đường cũ thì chưa được bật.
 - **Lead tự quyết (C):** thứ tự migration; `m4_request.py` thuộc nhóm M4; guard kỹ thuật giữ nguyên.
+
+## QD-20261026-09 · Giữ cấu trúc bảng; luôn có cách dọn; ưu tiên ít tài nguyên
+Anh chốt 26/10 ~22:30 (sau câu hỏi vì sao CRM 46 bảng, M4 56 bảng): "Nếu mỗi bảng sẽ không tốn nhiều không gian với PostgreSQL thì giữ nguyên cách thức, nhưng nên có phương thức để dọn dẹp, ví dụ dữ liệu với BOQ và từng lần nghiệm thu thì bản chất là thêm cột trên bảng mà không phải là tạo bảng mới. Tương tự nếu có phụ lục thêm BOQ thì bản chất là append thêm dòng hoặc deactive những dòng bị thay đổi. Hãy luôn giữ phương thức để tốn ít tài nguyên."
+- **Giữ cấu trúc bảng hiện có.** Không đặt mục tiêu gom 4 hàng việc riêng về XS-2; chỉ chuyển khi chạm tới (H1 của phiếu tối 26/10 coi như Anh đã trả lời).
+- **Không tạo bảng hay cột mới cho từng lần phát sinh** (đợt nghiệm thu, phụ lục, kỳ). Mỗi lần là thêm dòng có khóa lần/đợt trong bảng cố định — trong Excel tương đương "thêm cột đợt".
+- **Phụ lục đổi BOQ = thêm dòng** (`THEM`, `THAY`, và `BO` cho dòng bỏ). Dòng cũ không sửa đè, không xóa; coi như hết hiệu lực từ phụ lục đó.
+- **Dữ liệu tạm phải có hạn giữ và cách dọn:** khóa giữ, việc chạy máy đã xong, hộp nhận sự kiện đã xác nhận, tệp trung gian, CSDL test, worktree đã gộp. Dữ liệu nghiệp vụ và bằng chứng duyệt không dọn.
+- **Áp vào cổng kiểm soát:** thêm vào mẫu review Codex; lát mới vi phạm → Chặn.
+
+## QD-20261026-10 · Ma trận thẩm quyền — đối tượng thuộc nhiều pháp nhân (lead, kỹ thuật)
+Lead quyết 26/10 ~22:40 khi MTQ-4i-b1 dừng "Cần lead" (resolver chỉ trả một PN, chưa đáp ứng A1).
+- Hàm giải trả **tập** PN (`mtq_giai_doi_tuong_tap`).
+- Cổng chỉ cho khi **mọi** PN đạt, hạn mức tính từng PN với cùng số tiền.
+- Không PN nào bật → đường cũ (CU). **Hỗn hợp bật/tắt → chặn** (`MTQ_PN_HON_HOP`).
+- `phong_id` chỉ dùng khi một PN.
+- Nhật ký từ chối ghi theo từng PN không đạt.
+- `mtq_duoc_doc`: mọi PN tắt → NULL; hỗn hợp → false; mọi PN bật → true khi tất cả true.
+- Đối tượng một PN giữ nguyên kết quả.
+- Lát NEN-2a (cổng), NEN-2b (đọc), rồi 4i-b1 làm tiếp. Chi tiết: `docs/46-chuyen-doi-dieu-phoi/giao-viec-20261026/giao-mtq-nen-2.md`.

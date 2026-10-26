@@ -65,6 +65,8 @@ Ba nhóm này được bảo vệ bằng quyền xem. Số tài khoản mã hóa
 
 ## III. Gom các hàng việc chạy máy riêng (CD-017/CD-019)
 
+> **Anh đã trả lời 26/10 ~22:30 (QD-20261026-09): giữ nguyên cách thức, không gom; chỉ chuyển khi chạm tới; bổ sung cách dọn dữ liệu tạm.** Mục H1 không cần chốt nữa.
+
 **H1.** Hiện có 4 bộ "việc chạy máy" làm riêng, khoảng 23 bảng:
 - CRM đối chiếu G5;
 - M4 review;

@@ -42,6 +42,7 @@ Kiểm 5 việc, mỗi việc một kết luận:
 3. **Tiền, số liệu, quyền:** phép tính, làm tròn, đơn vị tiền, tổng khớp chi tiết; quyền kiểm ở máy chủ, không chỉ ẩn nút.
 4. **Không phá phần cũ:** đường cũ giữ nguyên; không gọi thẳng `api.anthropic.com` / `api.openai.com` (chỉ qua cổng AI; M9 chỉ Local).
    - **Dùng chung (CD-019):** không thêm thư viện/mô hình/kết nối/engine trùng cái đã có (cổng AI, `cong_ocr`, kho file, tải hóa đơn, Google API, xuất Junsky, danh bạ engine XS-3).
+   - **Ít tài nguyên (QD-20261026-09):** không tạo bảng/cột mới cho từng lần phát sinh (đợt, phụ lục, kỳ) — thêm dòng có khóa lần; thay đổi = thêm dòng mới + hết hiệu lực dòng cũ, không sửa đè/xóa; bảng dữ liệu tạm mới phải có hạn giữ và cách dọn. Vi phạm → Chặn.
    - **Vùng dữ liệu (CD-018):** module không SQL thẳng tới bảng/schema của module khác; ghi chung chỉ qua hàm xương sống (sự kiện, liên kết chứng từ, việc chờ/duyệt, kho file). Chỗ mới đọc/ghi chéo → Chặn.
 5. **Giao diện/câu cho người dùng:** tiếng Việt nghiệp vụ, không mã kỹ thuật, không "Cần Anh/lead"; ngày dd/mm/yyyy; tiền có đơn vị.
 
