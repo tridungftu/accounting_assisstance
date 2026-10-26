@@ -22,6 +22,7 @@ Mở lại dùng lại cùng DB/hồ sơ/lô. Module này không khởi động/
 from __future__ import annotations
 
 import json
+import logging
 import os
 import re
 from pathlib import Path
@@ -185,7 +186,7 @@ def chuan_bi(ket_noi: dict, tien_to=TIEN_TO_DB) -> dict:
     from psycopg.conninfo import make_conninfo
     from ..ha_tang import postgres as pg
     from ..ha_tang.pg_migrations import PG_SCHEMA_VERSION
-    from . import crm_demo, crm_g_demo, l11_demo, m2_demo, m4_demo, m5_demo
+    from . import crm_demo, crm_g_demo, l11_demo, m2_demo, m4_demo, m5_demo, mtq_demo
     db, admin_ci, app_ci = cap["db"], cap["admin"]["conninfo"], cap["app"]["conninfo"]
     tao_moi = False
     try:
@@ -212,6 +213,16 @@ def chuan_bi(ket_noi: dict, tien_to=TIEN_TO_DB) -> dict:
         # CRM-41-02: actor MO_PHONG_CRM_G_* + danh mục G1 + phân công CRM_MAU_TAI MỘT LẦN theo literal DEMO; không seed mẫu/duyệt/bộ chuẩn/K5;
         # trạng thái DU/THIEU/DA_THU_HOI/XUNG_DOT/CHUA_SAN_SANG trả nguyên để chẩn đoán, không chặn CRM/M2/M4/M5/L11
         crm_g = crm_g_demo.khoi_tao(admin)
+        # MTQ-5a: cùng bootstrap DEMO đã kiểm cặp DSN, sau master CRM/M4.
+        # Seed lỗi rollback riêng và ghi log, không chặn các module đã sẵn sàng.
+        try:
+            mtq = mtq_demo.khoi_tao(admin, demo=True)
+        except Exception as exc:  # noqa: BLE001 — không đưa nội dung lỗi/DSN vào log
+            logging.getLogger(__name__).warning("Seed MTQ DEMO lỗi (%s); CRM tiếp tục khởi động.", type(exc).__name__)
+            mtq = {"trang_thai": "LOI", "can_anh": "Kiểm tra seed MTQ DEMO bằng kết nối chủ bảng."}
+        else:
+            if mtq["trang_thai"] not in ("DU", "DA_SEED"):
+                logging.getLogger(__name__).warning("Seed MTQ DEMO: %s", mtq["trang_thai"])
         sau = pg.schema_version(admin)
         profile = [f"{r[0]}@v{r[1]}" for r in admin.execute("""SELECT l.ma, l.phien_ban FROM master.loai_hinh_doanh_thu l JOIN master.phap_nhan p ON p.id = l.phap_nhan_id
                                                                WHERE p.ma LIKE 'PN_DEMO_%' AND l.valid_to IS NULL ORDER BY 1""")]
@@ -226,4 +237,4 @@ def chuan_bi(ket_noi: dict, tien_to=TIEN_TO_DB) -> dict:
         raise DataError("CRM_SCHEMA_KHONG_KHOP", "Phiên bản schema CRM DEMO không khớp phần mềm.")
     return {"trang_thai": "SAN_SANG", "db": db, "endpoint": f"{cap['endpoint'][0]}:{cap['endpoint'][1]}", "tao_db_moi": tao_moi,
             "schema_truoc": truoc, "schema_sau": sau, "phap_nhan": sorted(ids), "profile": profile, "m5_seed": m5, "m2_seed": m2, "l11_seed": l11, "m4_seed": m4, "crm_g_seed": crm_g,
-            "role_ung_dung": {k: role[k] for k in ("ten", "superuser", "bypassrls", "app_web", "chu_db")}}
+            "mtq_seed": mtq, "role_ung_dung": {k: role[k] for k in ("ten", "superuser", "bypassrls", "app_web", "chu_db")}}
