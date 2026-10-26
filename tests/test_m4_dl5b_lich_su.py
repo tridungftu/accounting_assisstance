@@ -1,6 +1,7 @@
 """M4-DL5b: fixture DEMO thuần; không DSN, không dịch vụ, không Review thật."""
 
 import copy
+import json
 import unittest
 from datetime import date
 from decimal import Decimal, localcontext
@@ -150,21 +151,33 @@ class LichSuReviewThuan(unittest.TestCase):
                     self.assertIsNone(out["luy_ke"]["DEMO-A"]["kl_luy_ke_gom_lich_su"])
                     self.assertEqual(out["luy_ke"]["DEMO-A"]["trang_thai"], "INCOMPLETE")
 
-    def test_m4_id_lech_so_uu_tien_can_xem_lai_ke_ca_co_seal(self):
+    def test_seal_thang_ke_ca_lien_ket_review_lech_so(self):
         chep = _chep()
         chep["dot"][0].update(m4_dot_id="DEMO-M4-2", m4_so_dot=2)
         out = _gom(chep, 3, [_seal()])
-        self.assertEqual(out["dot"][0]["nguon"], "CAN_XEM_LAI")
-        self.assertEqual(out["bo_qua_trung"], 0)
-        self.assertIsNone(out["luy_ke"]["DEMO-A"]["kl_luy_ke_gom_lich_su"])
-        self.assertEqual(out["trang_thai"], "INCOMPLETE")
+        self.assertEqual(out["dot"][0]["nguon"], "M4_SEAL")
+        self.assertEqual(out["bo_qua_trung"], 1)
+        self.assertEqual(out["luy_ke"]["DEMO-A"]["kl_luy_ke_gom_lich_su"], Decimal("12.75"))
+        self.assertEqual(out["trang_thai"], "CO")
 
-    def test_cung_dot_m4_chua_seal_khong_cong(self):
+    def test_cung_dot_m4_chua_seal_lien_ket_dung_duoc_cong(self):
         dot = _seal()
         dot["seal_id"] = None
-        out = _gom(_chep(), 3, [dot])
-        self.assertEqual(out["dot"][0]["nguon"], "CAN_XEM_LAI")
-        self.assertIsNone(out["luy_ke"]["DEMO-A"]["kl_luy_ke_gom_lich_su"])
+        chep = _chep()
+        chep["dot"][0].update(m4_dot_id=dot["id"], m4_so_dot=1)
+        out = _gom(chep, 3, [dot])
+        self.assertEqual(out["dot"][0], {"so_dot": 1, "nguon": "REVIEW_CHEP", "m4_dang_mo_lai": True})
+        self.assertEqual(out["luy_ke"]["DEMO-A"]["kl_luy_ke_gom_lich_su"], Decimal("4"))
+
+    def test_cung_dot_m4_chua_seal_lien_ket_null_hoac_sai_khong_cong(self):
+        dot = {**_seal(), "seal_id": None}
+        for linked_id in (None, "DEMO-M4-khac"):
+            with self.subTest(linked_id=linked_id):
+                chep = _chep()
+                chep["dot"][0].update(m4_dot_id=linked_id, m4_so_dot=1)
+                out = _gom(chep, 3, [dot])
+                self.assertEqual(out["dot"][0]["nguon"], "CAN_XEM_LAI")
+                self.assertIsNone(out["luy_ke"]["DEMO-A"]["kl_luy_ke_gom_lich_su"])
 
     def test_lech_luy_ke_review_giu_ca_hai_so_khong_chon(self):
         chep = _chep()
@@ -359,7 +372,7 @@ class Provider02CHoiQuy(unittest.TestCase):
 
     def test_basis_co_so_va_json_gui_ghi_ket_luan_khong_doi_byte(self):
         output = []
-        for chep in (None, _chep()):
+        for chep in (None, {"dot": [], "dong": []}):
             W = F.the_gioi()
             W["dot"]["so_dot"] = 3
             xd, _ = _xd(W, chep)
@@ -399,7 +412,7 @@ class Provider02CHoiQuy(unittest.TestCase):
                 dd.ket_luan(F.LOGIN, dot_id=F.S(F.DOT), version_id=F.S(F.V1), revision=0, expected_basis="a" * 64,
                             gia_tri_nt="1", so_xin_thanh_toan="1", tam_ung="0", thu_hoi="0", giu_lai="0", tien_te="VND",
                             dong_nt=[{"row_id": "R-01", "khoi_luong_chap_nhan": "1"}], xu_ly_phat_hien=[], ly_do=None, khoa="DEMO-khoa")
-                read.assert_not_called()
+                read.assert_called_once_with(xd.conn_tin_cay, F.S(F.HD))
             self.assertNotIn("lich_su_review_chep", capture[0].decode("utf-8"))
             output.append((canonical_json(co).encode("utf-8"), capture[0]))
         self.assertEqual(output[0], output[1])
@@ -412,6 +425,200 @@ class Provider02CHoiQuy(unittest.TestCase):
                 self.assertIsNone(doc_lich_su_chep(conn, F.S(F.HD)))
                 self.assertEqual(conn.execute.call_count, len(answers))
                 self.assertFalse(any("review_chep_hien_hanh(" in call.args[0] for call in conn.execute.call_args_list))
+
+
+class LuyKeChinhThucDL5c(unittest.TestCase):
+    """Fixture chỉ có DEMO; gọi provider/kết luận thật, chặn mọi kết nối ngoài c được truyền."""
+
+    def _history(self, chep, *, dots=(), sealed=(), rows=None, so_dot=2, ngay=date(2026, 10, 26), default_rows=False):
+        self.rows = rows if rows is not None else [{"row_id": "DEMO-row-moi", "ma_hm": "DEMO-A", "dvt": "m3"}]
+        self.c = object()
+        self.d = dict(id="DEMO-dot-hien-tai", hop_dong_id="DEMO-HD", so_dot=so_dot, ngay_nghiem_thu=ngay)
+        self.xd = Mock(spec=["_r1", "_rn"])
+
+        def r1(c, sql, params=()):
+            self.assertIs(c, self.c)
+            self.assertIn("to_regclass('m4.duyet_seal')", sql)
+            return {"co": True}
+
+        def rn(c, sql, params=()):
+            self.assertIs(c, self.c)
+            if "FROM m4.dot WHERE" in sql:
+                return copy.deepcopy(list(dots))
+            if "SELECT DISTINCT ON (s.dot_id)" in sql:
+                return copy.deepcopy(list(sealed))
+            if "SELECT d.id,d.so_dot,s.id AS seal_id" in sql:
+                by_id = {s["dot_id"]: s for s in sealed}
+                return [{**t, "seal_id": by_id.get(t["id"], {}).get("id"),
+                         "so_lieu": by_id.get(t["id"], {}).get("so_lieu")} for t in dots]
+            self.fail("SQL ngoài fixture DL5c: " + sql)
+
+        self.xd._r1.side_effect, self.xd._rn.side_effect = r1, rn
+        before = copy.deepcopy((chep, dots, sealed, self.rows))
+        with patch.object(DD, "doc_lich_su_chep", return_value=chep) as read, \
+                patch.object(DD, "_l3_cong_bo", return_value={"ket_qua": {"hang_muc": [
+                    {"khoa": r["row_id"], "ma_hm": r["ma_hm"], "dvt": r["dvt"]} for r in self.rows]}}) as l3:
+            result = DD.lich_su_da_duyet(self.xd, self.c, self.d, None if default_rows else self.rows)
+            read.assert_called_once_with(self.c, "DEMO-HD")
+            if default_rows:
+                l3.assert_called_once_with(self.xd, self.c, self.d["id"])
+        self.assertEqual((chep, dots, sealed, self.rows), before)
+        return result
+
+    def _dto(self, chep, prior):
+        with patch.object(DD, "doc_lich_su_chep", return_value=chep):
+            return DD.lich_su_review_chep(self.xd, self.c, self.d, self.rows, prior)
+
+    @staticmethod
+    def _m4(n=1):
+        return dict(id=f"DEMO-M4-{n}", so_dot=n, ngay_nghiem_thu=date(2026, 9, n), trang_thai="DA_NOP")
+
+    @staticmethod
+    def _sealed(n=1):
+        return dict(id=f"DEMO-SEAL-{n}", dot_id=f"DEMO-M4-{n}", phien_ban_id="DEMO-PB", phien_ban_so=1,
+                    so_lieu_sha256="DEMO-sha", so_lieu={"dong": [{"row_id": "DEMO-row-moi", "ma_hm": "DEMO-A", "dvt": "m3",
+                                                                   "khoi_luong_chap_nhan": "10"}]})
+
+    def test_review_dot_1_tinh_vao_dot_2_theo_row_id_hien_tai_va_co_nguon(self):
+        chep = _chep()
+        prior = self._history(chep, default_rows=True)
+        self.assertEqual(prior["trang_thai"], "CO")
+        self.assertEqual(prior["dot"][0]["trang_thai"], "DA_DUYET_REVIEW_CHEP")
+        self.assertEqual(prior["dot"][0]["nguon"], "REVIEW_CHEP")
+        self.assertEqual(prior["luy_ke"], {"DEMO-row-moi": {
+            "khoi_luong_chap_nhan": "1.25", "trang_thai": "CO", "nguon": "REVIEW_CHEP"}})
+        dto = self._dto(chep, prior)
+        self.assertTrue(dto["da_tinh_vao_luy_ke"])
+        self.assertTrue(dto["luy_ke"]["DEMO-A"]["da_tinh_vao_luy_ke"])
+
+    def test_seal_cung_so_thang_review_khong_cong_trung_va_giu_byte_cu(self):
+        native = self._history(None, dots=[self._m4()], sealed=[self._sealed()])
+        # Review của đợt đã seal bị lệch liên kết, ĐVT/ngày/số cũng không được sửa căn cứ seal.
+        chep = _chep()
+        chep["dot"][0].update(m4_dot_id="DEMO-M4-khac", ngay_nghiem_thu=None)
+        chep["dong"][0].update(dvt="m2", kl_ky=None)
+        with_review = self._history(chep, dots=[self._m4()], sealed=[self._sealed()])
+        self.assertEqual(json.dumps(native, ensure_ascii=False).encode("utf-8"),
+                         json.dumps(with_review, ensure_ascii=False).encode("utf-8"))
+        self.assertEqual(with_review["luy_ke"]["DEMO-row-moi"]["khoi_luong_chap_nhan"], "10")
+        self.assertNotIn("nguon", with_review["luy_ke"]["DEMO-row-moi"])
+        self.assertFalse(self._dto(chep, with_review)["da_tinh_vao_luy_ke"])
+
+    def test_seal_va_review_dot_khac_cong_kl_ky_khong_cong_luy_ke_review(self):
+        prior = self._history(_chep(), dots=[self._m4()], sealed=[self._sealed()], so_dot=3)
+        self.assertEqual(prior["luy_ke"]["DEMO-row-moi"]["khoi_luong_chap_nhan"], "12.75")
+        self.assertEqual([p["trang_thai"] for p in prior["dot"]], ["DA_DUYET", "DA_DUYET_REVIEW_CHEP"])
+
+    def test_m4_dang_mo_lai_lien_ket_dung_tinh_review_sau_do_seal_thang(self):
+        chep, dot = _chep(), self._m4()
+        chep["dot"][0].update(m4_dot_id=dot["id"], m4_so_dot=1)
+        prior = self._history(chep, dots=[dot])
+        self.assertEqual(prior["luy_ke"]["DEMO-row-moi"]["khoi_luong_chap_nhan"], "1.25")
+        self.assertEqual(prior["dot"][0]["trang_thai"], "DA_DUYET_REVIEW_CHEP")
+        self.assertTrue(prior["dot"][0]["m4_dang_mo_lai"])
+        self.assertTrue(self._dto(chep, prior)["da_tinh_vao_luy_ke"])
+        sealed = self._history(chep, dots=[dot], sealed=[self._sealed()])
+        self.assertEqual(sealed["luy_ke"]["DEMO-row-moi"]["khoi_luong_chap_nhan"], "10")
+        self.assertNotIn("m4_dang_mo_lai", sealed["dot"][0])
+        self.assertFalse(self._dto(chep, sealed)["da_tinh_vao_luy_ke"])
+
+    def test_seal_va_review_khac_dvt_hoac_ma_khong_cong_du_cung_row_id(self):
+        for col, value in (("dvt", "m2"), ("dvt", None), ("ma_hm", "DEMO-B")):
+            with self.subTest(col=col, value=value):
+                seal = self._sealed()
+                seal["so_lieu"]["dong"][0][col] = value
+                prior = self._history(_chep(), dots=[self._m4()], sealed=[seal], so_dot=3)
+                self.assertEqual(prior["trang_thai"], "INCOMPLETE")
+                self.assertIsNone(prior["luy_ke"]["DEMO-row-moi"]["khoi_luong_chap_nhan"])
+                self.assertFalse(self._dto(_chep(), prior)["da_tinh_vao_luy_ke"])
+
+    def test_m4_dang_mo_lien_ket_null_hoac_sai_can_xem_lai_khong_cong(self):
+        for linked_id in (None, "DEMO-M4-khac"):
+            with self.subTest(linked_id=linked_id):
+                chep = _chep()
+                chep["dot"][0].update(m4_dot_id=linked_id, m4_so_dot=1)
+                prior = self._history(chep, dots=[self._m4()])
+                self.assertEqual(prior["trang_thai"], "INCOMPLETE")
+                self.assertEqual(prior["dot"][0]["nguon"], "CAN_XEM_LAI")
+                self.assertIsNone(prior["luy_ke"]["DEMO-row-moi"]["khoi_luong_chap_nhan"])
+                self.assertFalse(self._dto(chep, prior)["da_tinh_vao_luy_ke"])
+
+    def test_dvt_ma_trung_ngay_sai_hoac_thieu_so_khong_cong(self):
+        for kind in ("dvt_khac", "dvt_thieu", "ma_review_trung", "ma_hien_tai_trung", "ma_thieu",
+                     "ngay_thieu", "ngay_sai", "ngay_sau", "ngay_hien_tai_thieu", "kl_thieu"):
+            with self.subTest(kind=kind):
+                chep = _chep()
+                rows = [{"row_id": "DEMO-row-moi", "ma_hm": "DEMO-A", "dvt": "m3"}]
+                if kind.startswith("dvt_"):
+                    chep["dong"][0]["dvt"] = "m2" if kind == "dvt_khac" else None
+                elif kind == "ma_review_trung":
+                    chep["dong"].append(copy.deepcopy(chep["dong"][0]))
+                elif kind == "ma_hien_tai_trung":
+                    rows.append({**rows[0], "row_id": "DEMO-row-trung"})
+                elif kind == "ma_thieu":
+                    chep["dong"][0]["ma_hm"] = None
+                elif kind in ("ngay_thieu", "ngay_sai", "ngay_sau"):
+                    chep["dot"][0]["ngay_nghiem_thu"] = {"ngay_thieu": None, "ngay_sai": "DEMO ngày sai", "ngay_sau": "2026-10-27"}[kind]
+                elif kind == "kl_thieu":
+                    chep["dong"][0]["kl_ky"] = None
+                prior = self._history(chep, rows=rows, ngay=None if kind == "ngay_hien_tai_thieu" else date(2026, 10, 26))
+                self.assertEqual(prior["trang_thai"], "INCOMPLETE")
+                self.assertEqual(prior["dot"][0]["trang_thai"], "INCOMPLETE")
+                self.assertIsNone(prior["luy_ke"]["DEMO-row-moi"]["khoi_luong_chap_nhan"])
+                self.assertFalse(self._dto(chep, prior)["da_tinh_vao_luy_ke"])
+
+    def test_thieu_mot_dong_khong_bia_0_hoac_lam_mat_can_cu_dong_khac(self):
+        rows = [{"row_id": "DEMO-row-moi", "ma_hm": "DEMO-A", "dvt": "m3"},
+                {"row_id": "DEMO-row-B", "ma_hm": "DEMO-B", "dvt": "m3"}]
+        prior = self._history(_chep(), rows=rows)
+        self.assertEqual(prior["trang_thai"], "INCOMPLETE")
+        self.assertEqual(prior["luy_ke"]["DEMO-row-moi"]["khoi_luong_chap_nhan"], "1.25")
+        self.assertIsNone(prior["luy_ke"]["DEMO-row-B"]["khoi_luong_chap_nhan"])
+        dto = self._dto(_chep(), prior)
+        self.assertTrue(dto["luy_ke"]["DEMO-A"]["da_tinh_vao_luy_ke"])
+        self.assertFalse(dto["luy_ke"]["DEMO-B"]["da_tinh_vao_luy_ke"])
+
+    def test_decimal_chinh_xac_khong_phu_thuoc_precision_ngoai(self):
+        chep = _chep()
+        chep["dong"][0]["kl_ky"] = Decimal("123456789012345678901234567890.123456")
+        chep["dong"][1]["kl_ky"] = Decimal("-0.000001")
+        with localcontext() as ctx:
+            ctx.prec = 8
+            prior = self._history(chep, so_dot=3)
+        self.assertEqual(prior["luy_ke"]["DEMO-row-moi"]["khoi_luong_chap_nhan"], "123456789012345678901234567890.123455")
+
+    def test_khong_ban_chup_khong_seal_giu_none(self):
+        self.assertIsNone(self._history(None))
+
+    def test_json_ket_luan_ghi_nguon_review_cung_can_cu_chinh_thuc(self):
+        prior = self._history(_chep())
+        dd, captured = DD.DuyetDot(self.xd), []
+        graph = {"l3": {"trang_thai": "CO"}, "l2": {"trang_thai": "CO"}, "vat_lieu": {"khop": True}}
+        dd._chung = lambda *a, **kw: ({}, "DEMO-dot", "DEMO-PB", 0, "a" * 64, "DEMO-khoa")
+
+        def write(c, sql, params=()):
+            self.assertIs(c, self.c)
+            self.assertIn("m4.duyet_ghi_ket_luan", sql)
+            captured.append(json.loads(params[8]))
+            return {"r": "DEMO-ack"}
+
+        # _r1 phải tiếp tục phục vụ lần provider kiểm schema trước khi ghi kết luận.
+        old_r1 = self.xd._r1.side_effect
+        def both(c, sql, params=()):
+            return old_r1(c, sql, params) if "to_regclass" in sql else write(c, sql, params)
+
+        def invoke(dt, action, key, yc, dot, pb, lam):
+            self.xd._r1.side_effect = both
+            return lam(self.c, canonical_json(yc), self.d, {}, graph, "a" * 64, {"ket_qua": {"hang_muc": [
+                {"khoa": "DEMO-row-moi", "ma_hm": "DEMO-A", "dvt": "m3"}]}})
+
+        dd._lenh = invoke
+        with patch.object(DD, "doc_lich_su_chep", return_value=_chep()):
+            dd.ket_luan("DEMO", dot_id="DEMO-dot", version_id="DEMO-PB", revision=0, expected_basis="a" * 64,
+                        gia_tri_nt="1", so_xin_thanh_toan="1", tam_ung="0", thu_hoi="0", giu_lai="0", tien_te="VND",
+                        dong_nt=[{"row_id": "DEMO-row-moi", "khoi_luong_chap_nhan": "1"}], xu_ly_phat_hien=[], ly_do=None, khoa="DEMO-khoa")
+        self.assertEqual(captured[0]["de_xuat_nguon"]["truoc_da_duyet"], prior)
+        self.assertNotIn("lich_su_review_chep", captured[0])
 
 
 if __name__ == "__main__":

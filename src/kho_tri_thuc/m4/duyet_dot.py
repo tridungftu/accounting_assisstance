@@ -161,22 +161,24 @@ def so_chuan(x):
 
 
 # ================================================================================================== provider lịch sử đợt trước đã duyệt
-def lich_su_da_duyet(xd, c, d: dict) -> dict | None:
+def lich_su_da_duyet(xd, c, d: dict, dong_nt=None) -> dict | None:
     """Thay CHUA_CO_NGUON bằng quyết định ĐÃ SEAL của các đợt TRƯỚC cùng HĐ (bản sửa đổi mới nhất đã seal của mỗi đợt; số liệu chốt trong seal nên
-    không đổi khi căn cứ hiện hành đổi về sau). DA_NOP/review đã công bố/số đề xuất nguồn KHÔNG phải đã duyệt. Đợt trước chưa seal, ngày NT thiếu/sau
-    đợt này, hoặc dòng vắng trong một seal → INCOMPLETE (không 0). Chưa có schema M24 hoặc chưa đợt trước nào seal → None (giữ lý do cũ, byte cũ)."""
+    không đổi khi căn cứ hiện hành đổi về sau). QD-20261026-05 cho phép lịch sử REVIEW_CHEP chưa có seal, kiểm trên chính c của người gọi.
+    Không có đợt riêng từ Review thì giữ nguyên projection M4 cũ, kể cả thứ tự/khóa/lý do. Thiếu căn cứ không thành 0."""
     if not d or not d.get("hop_dong_id") or d.get("so_dot") is None:
         return None
     if not xd._r1(c, "SELECT to_regclass('m4.duyet_seal') IS NOT NULL AS co")["co"]:
         return None
     truoc = xd._rn(c, """SELECT id, so_dot, ngay_nghiem_thu, trang_thai FROM m4.dot WHERE hop_dong_id = %s::uuid AND so_dot < %s ORDER BY so_dot""",
                    (d["hop_dong_id"], d["so_dot"]))
-    if not truoc:
-        return None
     seals = {s["dot_id"]: s for s in xd._rn(c, """SELECT DISTINCT ON (s.dot_id) s.id, s.dot_id, s.phien_ban_id, v.so AS phien_ban_so, s.so_lieu, s.so_lieu_sha256
                                                   FROM m4.duyet_seal s JOIN m4.duyet_phien_ban v ON v.id = s.phien_ban_id
                                                   WHERE s.hop_dong_id = %s::uuid AND s.dot_id = ANY(%s::uuid[])
-                                                  ORDER BY s.dot_id, v.so DESC""", (d["hop_dong_id"], [t["id"] for t in truoc]))}
+                                                  ORDER BY s.dot_id, v.so DESC""", (d["hop_dong_id"], [t["id"] for t in truoc]))} if truoc else {}
+    chep = doc_lich_su_chep(c, d["hop_dong_id"]) if d["so_dot"] > 1 else None
+    sealed_numbers = {t["so_dot"] for t in truoc if t["id"] in seals}
+    if chep and any(t["dot"] < d["so_dot"] and t["dot"] not in sealed_numbers for t in chep["dot"]):
+        return _lich_su_co_review_chep(xd, c, d, truoc, seals, chep, dong_nt)
     if not seals:
         return None
     ngay = str(d.get("ngay_nghiem_thu") or "")[:10] or None
@@ -211,8 +213,125 @@ def lich_su_da_duyet(xd, c, d: dict) -> dict | None:
                       "Có đợt trước chưa seal/thiếu ngày — lũy kế chưa đủ (INCOMPLETE, không coi vắng là 0)")}
 
 
+def _nguon_dot_review(l, m, n):
+    # Seal cùng số luôn thắng, kể cả liên kết Review cũ bị lệch.
+    if m is not None and m.get("seal_id"):
+        return "M4_SEAL"
+    if l is None:
+        return "CAN_XEM_LAI"
+    if l.get("m4_dot_id") is not None:
+        if m is None or str(l["m4_dot_id"]) != str(m["id"]) or l.get("m4_so_dot") != n:
+            return "CAN_XEM_LAI"
+    elif m is not None:
+        return "CAN_XEM_LAI"
+    return "REVIEW_CHEP"
+
+
+def _dong_hien_tai_lich_su(xd, c, d):
+    """Cùng c; dùng ánh xạ _dong đã công bố, chưa có thì BOQ hiệu lực của adapter hiện hữu. Không gọi lại _co_so (tránh đệ quy)."""
+    r = _l3_cong_bo(xd, c, d["id"])
+    if r is not None:
+        return _dong(r.get("ket_qua"))
+    from .chung_tu_adapter import hang_muc
+
+    boq = xd._rn(c, """SELECT b.id,b.phu_luc_id,b.trang_thai,b.sheet FROM m4.boq b WHERE b.hop_dong_id=%s::uuid
+        AND b.lan=(SELECT max(z.lan) FROM m4.boq z WHERE z.hop_dong_id=b.hop_dong_id
+                   AND z.phu_luc_id IS NOT DISTINCT FROM b.phu_luc_id) ORDER BY b.lan""", (d["hop_dong_id"],))
+    for b in boq:
+        b["dong"] = xd._rn(c, """SELECT dong,ma_hm,thao_tac,stt,nhom,ten,dvt,kl,don_gia,thanh_tien
+            FROM m4.boq_dong WHERE boq_id=%s::uuid ORDER BY dong""", (b["id"],))
+    pls = xd._rn(c, """SELECT id,so_pl,ngay_ky,ngay_hieu_luc,trang_thai,doi_boq FROM m4.phu_luc
+        WHERE hop_dong_id=%s::uuid ORDER BY ngay_hieu_luc,so_pl,tao_luc""", (d["hop_dong_id"],))
+    hd = xd._r1(c, "SELECT id,so_hop_dong FROM master.hop_dong WHERE id=%s::uuid", (d["hop_dong_id"],))
+    hm, _ = hang_muc({"hop_dong": hd, "dot": d, "phu_luc": pls, "boq": boq})
+    # Adapter chọn BOQ theo thuật toán nguồn; nhiều dòng hiệu lực cùng mã vẫn phải chặn.
+    return _dong({"hang_muc": [h for h in hm for _ in range(max(1, len(h.get("nguon_boq") or [])))]})
+
+
+def _lich_su_co_review_chep(xd, c, d, truoc, seals, chep, dong_nt):
+    rows = _dong_hien_tai_lich_su(xd, c, d) if dong_nt is None else dong_nt
+    current_codes = Counter(r.get("ma_hm") for r in rows)
+    legacy = {t["dot"]: t for t in chep["dot"] if t["dot"] < d["so_dot"]}
+    m4 = {t["so_dot"]: {**t, "seal_id": (seals.get(t["id"]) or {}).get("id")} for t in truoc}
+    dots, maps, du = [], [], True
+
+    def ngay(v):
+        try:
+            return date.fromisoformat(str(v or "")[:10])
+        except ValueError:
+            return None
+
+    def unit(v):
+        return (" ".join(v.split()).casefold() or None) if isinstance(v, str) else None
+
+    now = ngay(d.get("ngay_nghiem_thu"))
+    for n in sorted(set(m4) | set(legacy)):
+        l, m = legacy.get(n), m4.get(n)
+        source = _nguon_dot_review(l, m, n)
+        nt = ngay((m if source == "M4_SEAL" else l or m or {}).get("ngay_nghiem_thu"))
+        period = {"dot_id": (m or {}).get("id"), "so_dot": n, "ngay_nghiem_thu": nt.isoformat() if nt else None}
+        values, reason = {}, None
+        if source == "M4_SEAL":
+            s = seals[m["id"]]
+            sl = s["so_lieu"] or {}
+            seal_rows = sl.get("dong") or []
+            by_id = {r["row_id"]: r for r in seal_rows}
+            counts = Counter(r.get("ma_hm") for r in seal_rows)
+            for r in rows:
+                old = by_id.get(r["row_id"]) or {}
+                values[r["row_id"]] = (old.get("khoi_luong_chap_nhan")
+                    if old.get("ma_hm") == r.get("ma_hm") and counts[r.get("ma_hm")] == 1
+                    and unit(r.get("dvt")) and unit(old.get("dvt")) == unit(r.get("dvt")) else None)
+            period.update(trang_thai="DA_DUYET", seal_id=s["id"], phien_ban_id=s["phien_ban_id"],
+                          phien_ban_so=s["phien_ban_so"], so_lieu_sha256=s["so_lieu_sha256"],
+                          tien={k: sl.get(k) for k in ("tien_te", *TIEN)})
+        elif source == "CAN_XEM_LAI":
+            reason = "Liên kết đợt Review với M4 thiếu hoặc không khớp — cần xem lại"
+            period["nguon"] = "CAN_XEM_LAI"
+        else:
+            review_rows = [r for r in chep["dong"] if r["dot"] == n]
+            counts = Counter(r.get("ma_hm") for r in review_rows)
+            by_code = {r.get("ma_hm"): r for r in review_rows}
+            period.update(trang_thai="DA_DUYET_REVIEW_CHEP", nguon="REVIEW_CHEP")
+            if m is not None:
+                period["m4_dang_mo_lai"] = True
+            if not rows or not review_rows or any(not ma or not ma.strip() for ma in counts):
+                reason = "Thiếu dòng/mã hoặc mã hạng mục trùng — cần xem lại"
+            # Thiếu/mâu thuẫn của một mã không được coi là 0, cũng không xóa căn cứ của mã khác.
+            for r in rows:
+                old = by_code.get(r.get("ma_hm"))
+                value = so_chuan((old or {}).get("kl_ky"))
+                if (old is None or counts[r.get("ma_hm")] != 1 or current_codes[r.get("ma_hm")] != 1
+                        or not unit(r.get("dvt")) or unit(old.get("dvt")) != unit(r.get("dvt")) or value is None):
+                    value = None
+                values[r["row_id"]] = value
+        if now is None or nt is None or nt > now:
+            reason = "Thiếu ngày nghiệm thu hoặc đợt trước có ngày NT sau đợt này — không cộng dồn"
+        if reason:
+            du = False
+            period.update(trang_thai="INCOMPLETE", ly_do=reason)
+        elif source == "REVIEW_CHEP" and any(v is None for v in values.values()):
+            period.update(trang_thai="INCOMPLETE", ly_do="Thiếu khối lượng/ánh xạ, mã trùng hoặc đơn vị tính khác nhau — không cộng dòng thiếu")
+        maps.append(values)
+        dots.append(period)
+    luy_ke = {}
+    for rid in sorted({r["row_id"] for r in rows}):
+        vals = [so_chuan(mapping.get(rid)) for mapping in maps]
+        complete = du and bool(vals) and all(v is not None for v in vals)
+        with localcontext() as ctx:
+            ctx.prec = max(28, sum(len(v) for v in vals if v is not None) + 10)
+            value = so_chuan(sum((Decimal(v) for v in vals), Decimal(0))) if complete else None
+        luy_ke[rid] = {"khoi_luong_chap_nhan": value, "trang_thai": "CO" if complete else "INCOMPLETE"}
+        if complete:
+            luy_ke[rid]["nguon"] = "REVIEW_CHEP"
+    complete = du and bool(luy_ke) and all(r["trang_thai"] == "CO" for r in luy_ke.values())
+    return {"trang_thai": "CO" if complete else "INCOMPLETE", "nguon": "REVIEW_CHEP", "dot": dots, "luy_ke": luy_ke,
+            "ly_do": "Lũy kế từ seal M4 và lịch sử Review đã chép" if complete else
+                     "Có đợt trước thiếu căn cứ/ngày/ánh xạ — lũy kế chưa đủ (INCOMPLETE, không coi vắng là 0)"}
+
+
 def gom_lich_su_review_chep(chep, so_dot, dots_m4, dong_nt=(), ngay_nghiem_thu=None):
-    """Projection chỉ để xem, độc lập hoàn toàn với prior/basis/kết luận.
+    """Projection đối chiếu DL5b; không lấy tổng ở đây thay cho căn cứ chính thức.
 
     dots_m4 chứa seal mới nhất của từng đợt, số liệu kỳ trong seal (không
     cộng các số lũy kế). Mã HM lấy từ chính seal, không đoán theo row_id hiện
@@ -255,16 +374,13 @@ def gom_lich_su_review_chep(chep, so_dot, dots_m4, dong_nt=(), ngay_nghiem_thu=N
     codes.update(r["ma_hm"] for r in rows_review if r.get("ma_hm") and r["ma_hm"].strip())
     for n in sorted(set(legacy) | set(m4)):
         l, m = legacy.get(n), m4.get(n)
-        lech = l and l.get("m4_dot_id") is not None and (
-            l.get("m4_so_dot") != n or m is None or str(l["m4_dot_id"]) != str(m["id"]))
-        if lech or (m is not None and not m.get("seal_id")):
-            nguon, rows = "CAN_XEM_LAI", []
-        elif m is not None:
-            nguon = "M4_SEAL"
+        nguon = _nguon_dot_review(l, m, n)
+        if nguon == "CAN_XEM_LAI":
+            rows = []
+        elif nguon == "M4_SEAL":
             rows = (m.get("so_lieu") or {}).get("dong") or []
             bo_qua += int(l is not None)
         else:
-            nguon = "REVIEW_CHEP"
             rows = [r for r in rows_review if r["dot"] == n]
         nt = ngay((m if nguon == "M4_SEAL" else l or {}).get("ngay_nghiem_thu"))
         thieu_ngay |= ngay_nay is None or nt is None or nt > ngay_nay
@@ -282,6 +398,8 @@ def gom_lich_su_review_chep(chep, so_dot, dots_m4, dong_nt=(), ngay_nghiem_thu=N
         maps.append((nguon, mapping))
         units.append(dvt)
         periods.append({"so_dot": n, "nguon": nguon})
+        if nguon == "REVIEW_CHEP" and m is not None:
+            periods[-1]["m4_dang_mo_lai"] = True
     luy_ke = {}
     for ma in sorted(codes):
         review = sorted((r for r in rows_review if r.get("ma_hm") == ma), key=lambda r: r["dot"])
@@ -317,8 +435,8 @@ def gom_lich_su_review_chep(chep, so_dot, dots_m4, dong_nt=(), ngay_nghiem_thu=N
             "luy_ke": luy_ke}
 
 
-def lich_su_review_chep(xd, c, d, dong_nt=()):
-    """Chỉ gọi ở DTO 02C, cùng snapshot phiên; không đi vào basis/seal."""
+def lich_su_review_chep(xd, c, d, dong_nt=(), truoc=None):
+    """DTO đối chiếu cùng snapshot phiên; cờ tính lũy kế lấy đúng kết quả provider chính thức."""
     if d.get("so_dot") is None or d["so_dot"] <= 1:
         return None
     chep = doc_lich_su_chep(c, d["hop_dong_id"])
@@ -332,6 +450,12 @@ def lich_su_review_chep(xd, c, d, dong_nt=()):
         ) s ON true WHERE d.hop_dong_id=%s::uuid AND d.so_dot < %s ORDER BY d.so_dot""",
                   (d["hop_dong_id"], d["so_dot"]))
     lich_su = gom_lich_su_review_chep(chep, d["so_dot"], dots, dong_nt, d.get("ngay_nghiem_thu"))
+    official = (truoc or {}).get("luy_ke") or {}
+    for ma, row in lich_su["luy_ke"].items():
+        matched = [official.get(r["row_id"]) or {} for r in dong_nt if r.get("ma_hm") == ma]
+        row["da_tinh_vao_luy_ke"] = (len(matched) == 1 and matched[0].get("trang_thai") == "CO"
+                                      and matched[0].get("nguon") == "REVIEW_CHEP")
+    lich_su["da_tinh_vao_luy_ke"] = any(r["da_tinh_vao_luy_ke"] for r in lich_su["luy_ke"].values())
     # Tính bằng Decimal; ở biên DTO dùng chuỗi thập phân/null như các số 02C
     # hiện có, để JSON không lỗi kiểu hoặc đi qua float làm mất chính xác.
     for row in lich_su["luy_ke"].values():
@@ -350,7 +474,7 @@ def _gan_lich_su_review_chep(dong, lich_su):
         history = lk.get(ma) if ma else None
         if ma and dem_ma[ma] > 1:
             history = {**(history or {}), "kl_luy_ke_gom_lich_su": None, "trang_thai": "CAN_XEM_LAI",
-                       "ly_do": "Mã hạng mục xuất hiện nhiều dòng trong đợt này"}
+                       "ly_do": "Mã hạng mục xuất hiện nhiều dòng trong đợt này", "da_tinh_vao_luy_ke": False}
         out.append({**r, "lich_su_review_chep": history})
     return out
 
@@ -593,8 +717,8 @@ class DuyetDot:
             snap = (xd._r1(c, "SELECT snapshot FROM m4.duyet_phien_ban WHERE id = %s::uuid", (v["id"],)) or {}).get("snapshot")
             tep_cc = _tep_can_cu(xd, c, d, snap) if isinstance(snap, dict) else []
             kq = (l3r or {}).get("ket_qua") or {}
-            truoc = lich_su_da_duyet(xd, c, d)
-            base["lich_su_review_chep"] = lich_su_review_chep(xd, c, d, _dong(kq))
+            truoc = lich_su_da_duyet(xd, c, d, _dong(kq))
+            base["lich_su_review_chep"] = lich_su_review_chep(xd, c, d, _dong(kq), truoc)
             kls = xd._rn(c, """SELECT id, revision, graph_sha256, l3_run_id, l2_run_id, tien_te, gia_tri_nt, so_xin_thanh_toan, tam_ung, thu_hoi, giu_lai,
                                       xu_ly_phat_hien, thieu, canh_bao, ly_do, quyen, tao_boi AS actor, tao_luc AS luc
                                FROM m4.duyet_ket_luan WHERE phien_ban_id = %s::uuid ORDER BY revision DESC""", (v["id"],))
@@ -779,7 +903,7 @@ class DuyetDot:
             thieu += [{"ma": "KHONG_CO_DONG"}] if not dong else [{"ma": "KL_THIEU", "row_id": r["row_id"]} for r in dong if r["khoi_luong_chap_nhan"] is None]
             da_xl = {x["finding_id"] for x in xl}
             thieu += [{"ma": "PHAT_HIEN_CHUA_XU_LY", "finding_id": f} for f in sorted(ph) if f not in da_xl]
-            truoc = lich_su_da_duyet(self.xd, c, d)
+            truoc = lich_su_da_duyet(self.xd, c, d, _dong(kq))
             canh_bao = []
             if (truoc or {}).get("trang_thai") != "CO":
                 canh_bao.append({"ma": "TRUOC_DA_DUYET_CHUA_DU", "ly_do": (truoc or {}).get("ly_do") or "Chưa có đợt trước nào được duyệt + seal"})
