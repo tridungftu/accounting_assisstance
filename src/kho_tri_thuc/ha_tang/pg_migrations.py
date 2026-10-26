@@ -12121,3 +12121,10 @@ from ..m4.sql_review_chep import M4_REVIEW_CHEP_SQL  # noqa: E402 — chỉ hằ
 M0038_M4_REVIEW_CHEP = M4_REVIEW_CHEP_SQL
 PG_MIGRATIONS = (*PG_MIGRATIONS, M0038_M4_REVIEW_CHEP)
 PG_SCHEMA_VERSION = len(PG_MIGRATIONS)
+
+# MTQ-1 — M0039 (lead đánh số khi gộp 26/10). Chưa nối quyền cũ, mặc định tắt.
+from ..k2.sql_ma_tran_tham_quyen import MA_TRAN_THAM_QUYEN_SQL  # noqa: E402 — chỉ hằng SQL
+
+M0039_MA_TRAN_THAM_QUYEN = MA_TRAN_THAM_QUYEN_SQL
+PG_MIGRATIONS = (*PG_MIGRATIONS, M0039_MA_TRAN_THAM_QUYEN)
+PG_SCHEMA_VERSION = len(PG_MIGRATIONS)

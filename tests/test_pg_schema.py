@@ -88,11 +88,15 @@ class PostgresSchemaTest(unittest.TestCase):
     # ---- test (thứ tự theo tên t01…)
     def test_t01_migrate_idempotent(self):
         self.assertEqual(pg.schema_version(self.conn), PG_SCHEMA_VERSION)
+        truoc = pg.integrity(self.conn)
         self.assertEqual(pg.migrate(self.conn), PG_SCHEMA_VERSION)
         info = pg.integrity(self.conn)
+        self.assertEqual(info, truoc)
         self.assertTrue(info["ok"])
         self.assertGreaterEqual(info["tables"]["kho"], 15)
-        self.assertEqual(info["tables"]["nhat_ky"], 3)
+        # MTQ thêm hai bảng nhật ký ngay lần migrate đầu; kiểm chạy lại bằng
+        # trạng thái trước/sau, không ghim tổng số bảng khi registry còn mở rộng.
+        self.assertGreaterEqual(info["tables"]["nhat_ky"], 3)
         self.assertEqual(info["tables"]["bao_mat"], 1)
 
     def test_t02_nhat_ky_chi_ghi_them(self):
