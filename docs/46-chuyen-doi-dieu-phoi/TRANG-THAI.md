@@ -562,3 +562,29 @@ Chi tiết có tệp:dòng: `BANG-DIEU-KIEN-GO-LIVE.md`; quy trình: `CHECKLIST-
   - MTQ-4b2b (CRM ký + phạm vi hẹp B3; đề đã có ở `giao-mtq4-loat3.md`);
   - CRM 4d1b (Python G1/G7).
   - Lát MH/SL (mã hóa, sao lưu) chờ Anh duyệt M1–M3 và XS-5b.
+### 26/10 ~23:05 — Anh chốt S1–S6, M1–M3 (QD-20261026-11); QD-09 ít tài nguyên; QD-10 MTQ nhiều pháp nhân
+- **Quyết định mới:**
+  - QD-09: giữ cấu trúc bảng; thêm dòng, không tạo bảng/cột theo lần; phụ lục = thêm dòng/hết hiệu lực; dữ liệu tạm có cách dọn.
+  - QD-10: lead quyết kiểm quyền đối tượng nhiều pháp nhân (mọi PN phải đạt; hỗn hợp bật/tắt → chặn).
+  - QD-11: Anh chốt công tắc module S1–S6 và mã hóa/khóa/lịch sao lưu M1–M3. Người giữ ổ ngoài: Anh chỉ định khi tới bước tạo khóa.
+- **Đo tài nguyên:**
+  - cụm PG DEMO 4,72 GB / 327 CSDL, phần lớn ~303 CSDL test sót;
+  - 209 worktree ~4,5 GB;
+  - ổ D trống 174 GB.
+  
+  Kiểm kê dọn dẹp đang chạy (KK-DON-DEP); chưa dọn gì (xóa cần Anh cho phép).
+- **Lát xong chờ review/gộp:**
+  - XS-3b (E-OCR/E-AI, runner 87 ok);
+  - XS-3d (E-HOADON, 88 ok) — review gộp đang chạy;
+  - MTQ-4f1b (M4 lệnh M17) — gate PG đang chạy.
+- **Đang chạy (4 Codex):** NEN-2a (cổng tập PN), XS-4b (SQL công tắc), KK-DON-DEP, review XS-3b+3d.
+- **Hàng chờ giao:**
+  - MH-1 (cổng khóa mã hóa cột);
+  - SL-1 (sao lưu mã hóa);
+  - review 4f1b;
+  - NEN-2b → 4i-b1;
+  - 4b2b, 4d1b CRM;
+  - XS-4c → XS-2 → pilot XS-T1.
+- **Bài học lead:**
+  - ký tự `\` trong chuỗi Python viết qua heredoc bị biến thành ký tự điều khiển (2 lần sửa) → ghi tài liệu bằng công cụ Write;
+  - không `cd` trần ở lệnh nền.
