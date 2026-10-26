@@ -6,15 +6,14 @@ Mọi nơi trong phần mềm cần gọi model AI đi qua MỘT cổng này (en
    ngưỡng tin cậy. Cắm Jev Router sau (TL 34 §6.2).
 2. **Luôn thử Local AI trước** (``ai_cuc_bo.ask_local``: LAN/Tailscale, không DNS/HTTPS/proxy). Dùng Cloud chỉ khi
    (a) Local không chạy, hoặc (b) Local không chắc: không đúng định dạng, thiếu/sai trích dẫn, không qua kiểm của
-   Python, thiếu trường, độ tin cậy dưới ngưỡng. (c) Kiểm xác suất làm ở AI-4: ở đây chỉ có móc ``kiem_xac_suat``
-   (mặc định không bao giờ chọn = 0%).
+   Python, thiếu trường, độ tin cậy dưới ngưỡng. (c) Kiểm xác suất theo loại việc và cửa sổ nhật ký (AI-4a).
 3. **Cloud chỉ qua Mask file v2** (chế độ API 2.7.x, chỉ ``127.0.0.1``): ``GET /api/v1/trang-thai`` phải có
    ``danh_muc == "da_mo"`` → ``POST /api/v1/che``; chỉ gửi khi HTTP 200 **và** ``gui_duoc is True`` **và**
    ``con_sot`` rỗng **và** danh mục đang mở, rồi cổng tự kiểm lại không còn định danh đã khai trong bản đã che.
    Mọi trường hợp khác → **không gửi**, quay về kết quả Local (hoặc "chưa có kết quả"). Nhận kết quả → mở che
    (``POST /api/v1/mo-che``, ``ket_thuc_luot``) → Python kiểm trích dẫn nguyên văn trên **văn bản gốc**.
    Định danh dạng số luôn được khai ``nhom`` khi gọi ``/che`` (MASK-2). Không gửi XML hóa đơn thô ra Cloud.
-4. **Công tắc Cloud** ``cong_ai.cloud_bat`` mặc định TẮT (tới AI-4): tắt → không bao giờ gọi Mask hay Cloud.
+4. **Công tắc Cloud** ``cong_ai.cloud_bat`` mặc định TẮT: tắt → không bao giờ gọi Mask hay Cloud.
    Không có khóa API / tệp khóa Mask / Mask không chạy → coi như tắt, báo trạng thái tiếng Việt.
 5. **Nhật ký mỗi lượt** qua giao diện ``BoGhiNhatKy`` (bản ghi ``BanGhiCongAI``): loại việc, đường Local/Cloud,
    model, số ký tự gửi/nhận, token, thời gian, chi phí ước tính, mã lượt Mask, lý do chuyển Cloud / không gửi —
@@ -34,6 +33,7 @@ import http.client
 import json
 import logging
 import os
+import random
 import re
 import time
 import unicodedata
@@ -114,7 +114,7 @@ BANG_GIA_USD_MAC_DINH = {
     "claude-haiku-5-5": {"vao": 0.10, "ra": 0.50},
 }
 CAI_DAT_MAC_DINH = {
-    "cloud_bat": False,                      # Công tắc Cloud — TẮT tới AI-4
+    "cloud_bat": False,                      # Công tắc Cloud — vẫn TẮT mặc định
     "nha_cung_cap": "anthropic",
     "model": "",                             # "" = model mặc định của nhà cung cấp
     "bien_khoa_api": "",                     # "" = ANTHROPIC_API_KEY / OPENAI_API_KEY
@@ -125,8 +125,76 @@ CAI_DAT_MAC_DINH = {
     "max_tokens": 16000,
     "fallback_khi_tu_choi": True,            # Anthropic: chạy lại trên model dự phòng khi bị từ chối (refusal)
     "bang_gia": {},
+    "kiem_xac_suat": {},
 }
+# Cần Anh: toàn bộ con số dưới đây là mặc định tạm của AI-4a, chưa phải lịch đã duyệt.
+# Giữ 0% khi chưa cấu hình; đề xuất TL 48 §1.6 là 20% khi Anh cho phép lấy mẫu.
+# settings.cong_ai.kiem_xac_suat.ty_le_theo_loai = {"BOC_TACH_HOP_DONG": 0.20, ...}.
+# Tỷ lệ dùng thang 0..1. Cùng một cửa sổ N cho mọi bậc; thiếu mẫu thì không giảm.
+KIEM_XAC_SUAT_MAC_DINH = {
+    "ty_le_ban_dau": 0.0,
+    "ty_le_theo_loai": {},
+    "cua_so": 100,
+    "ty_le_san": 0.05,
+    "nguong_tang_lai": 0.90,
+    "bac_thang": ((50, 0.90, 0.10), (100, 0.95, 0.05)),  # (số kiểm, độ chính xác >, tỷ lệ)
+}
+LOCAL_DUNG = "KIEM_LOCAL_DUNG"
+LOCAL_SAI = "KIEM_LOCAL_SAI"
 _TEN_BIEN_KHOA = re.compile(r"[A-Z][A-Z0-9_]{0,60}_(?:API_)?KEY")
+
+
+def cai_dat_kiem_xac_suat(raw: object) -> dict:
+    """Tham số tập trung, không nhận NaN/Infinity/bool hay tỷ lệ ngoài 0..1."""
+    raw = raw if isinstance(raw, dict) else {}
+    cfg = {**KIEM_XAC_SUAT_MAC_DINH, **raw}
+
+    def ty_le(value):
+        if isinstance(value, bool) or not isinstance(value, (int, float)) or not 0 <= value <= 1:
+            raise ValueError("Tỷ lệ kiểm và ngưỡng chính xác phải là số từ 0 đến 1.")
+        return float(value)
+
+    cfg["ty_le_ban_dau"] = ty_le(cfg["ty_le_ban_dau"])
+    cfg["ty_le_san"] = ty_le(cfg["ty_le_san"])
+    cfg["nguong_tang_lai"] = ty_le(cfg["nguong_tang_lai"])
+    if not cfg["ty_le_san"] or cfg["nguong_tang_lai"] < 0.90:
+        raise ValueError("Sàn kiểm phải lớn hơn 0; ngưỡng tăng lại tối thiểu 90%.")
+    if type(cfg["cua_so"]) is not int or not 1 <= cfg["cua_so"] <= 10000:
+        raise ValueError("Cửa sổ kiểm phải là số nguyên từ 1 đến 10000.")
+    if not isinstance(cfg["ty_le_theo_loai"], dict):
+        raise ValueError("Tỷ lệ theo loại việc phải là bảng mã loại việc → tỷ lệ.")
+    cfg["ty_le_theo_loai"] = {loai_viec(ma).ma: ty_le(rate)
+                              for ma, rate in cfg["ty_le_theo_loai"].items()}
+    if not isinstance(cfg["bac_thang"], (tuple, list)):
+        raise ValueError("Bậc kiểm phải là danh sách (số kiểm, ngưỡng, tỷ lệ).")
+    bac = []
+    for item in cfg["bac_thang"]:
+        if not isinstance(item, (tuple, list)) or len(item) != 3:
+            raise ValueError("Bậc kiểm phải gồm số kiểm, ngưỡng và tỷ lệ.")
+        n, nguong, rate = item
+        if type(n) is not int or n < 1:
+            raise ValueError("Số lượt tối thiểu của bậc kiểm phải là số nguyên dương.")
+        nguong, rate = ty_le(nguong), ty_le(rate)
+        if nguong < cfg["nguong_tang_lai"]:
+            raise ValueError("Ngưỡng giảm kiểm không được dưới ngưỡng tăng lại.")
+        bac.append((n, nguong, rate))
+    cfg["bac_thang"] = tuple(sorted(bac))
+    return cfg
+
+
+def ty_le_kiem_hien_hanh(cfg: dict, ma: str, tk: dict | None) -> float:
+    """Tính lại từ cửa sổ hiện tại: giảm theo bậc, tụt dưới ngưỡng → về tỷ lệ ban đầu."""
+    rate = cfg["ty_le_theo_loai"].get(ma, cfg["ty_le_ban_dau"])
+    if rate == 0:
+        return 0.0  # chỉ tắt lấy mẫu khi được cấu hình rõ, không do tự giảm
+    rate = max(cfg["ty_le_san"], rate)
+    if tk and tk["so_kiem_cua_so"]:
+        chinh_xac = tk["so_dung_cua_so"] / tk["so_kiem_cua_so"]
+        if chinh_xac >= cfg["nguong_tang_lai"]:
+            for n, nguong, muc in cfg["bac_thang"]:
+                if tk["so_kiem_cua_so"] >= n and chinh_xac > nguong:
+                    rate = min(rate, max(cfg["ty_le_san"], muc))
+    return rate
 
 
 def cong_ai_settings(settings: dict | None) -> dict:
@@ -173,6 +241,11 @@ def cong_ai_settings(settings: dict | None) -> dict:
             if vao >= 0 and ra >= 0:
                 gia[str(model)] = {"vao": vao, "ra": ra}
     value["bang_gia"] = gia
+    try:
+        value["kiem_xac_suat"] = cai_dat_kiem_xac_suat(value["kiem_xac_suat"])
+    except (ValueError, TypeError):
+        loi.append("Cài đặt kiểm xác suất không hợp lệ; cần kiểm tỷ lệ, cửa sổ và bậc giảm.")
+        value["kiem_xac_suat"] = cai_dat_kiem_xac_suat({})
     value["loi"] = " ".join(loi)
     return value
 
@@ -269,6 +342,7 @@ class BanGhiCongAI:
     ly_do                   (mới) text[] — mã đánh giá câu trả lời
     trich_dan_hop_le        trich_dan_hop_le
     so_truong_bi_loai       (mới) integer
+    ly_do (AI-4a)           mã KIEM_LOCAL_DUNG/SAI + SO_TRUONG_DUNG_n/SAI_n, không tên/giá trị trường
     loi                     loi (mã, không văn bản)
     phap_nhan_id, viec_id,  phap_nhan_id, viec_id, de_xuat_id
     de_xuat_id
@@ -309,6 +383,12 @@ class BoGhiNhatKy(Protocol):
 
     def ghi(self, ban_ghi: BanGhiCongAI) -> None: ...
 
+    def thong_ke(self, cua_so: int) -> dict[str, dict]: ...
+
+
+def _thong_ke_rong() -> dict:
+    return dict(so_luot=0, so_kiem=0, so_kiem_cua_so=0, so_dung_cua_so=0)
+
 
 class BoGhiBoNho:
     """Bộ ghi trong bộ nhớ (test, chạy thử)."""
@@ -318,6 +398,23 @@ class BoGhiBoNho:
 
     def ghi(self, ban_ghi: BanGhiCongAI) -> None:
         self.ban_ghi.append(ban_ghi)
+
+    def thong_ke(self, cua_so: int) -> dict[str, dict]:
+        """Chỉ đọc; cùng cách tính với bộ PostgreSQL, chỉ chấm lượt Cloud kiểm đạt chuẩn."""
+        out, kiem = {}, {}
+        for i, b in enumerate(self.ban_ghi):
+            tk = out.setdefault(b.loai_viec, _thong_ke_rong())
+            if b.duong == DUONG_LOCAL:
+                tk["so_luot"] += 1
+            if (b.duong == DUONG_CLOUD and b.da_gui and b.ket_qua == "DAT"
+                    and "KIEM_XAC_SUAT" in b.ly_do_chuyen_cloud
+                    and ((LOCAL_DUNG in b.ly_do) != (LOCAL_SAI in b.ly_do))):
+                kiem.setdefault(b.loai_viec, []).append((b.luc, i, LOCAL_DUNG in b.ly_do))
+        for ma, rows in kiem.items():
+            gan_nhat = sorted(rows, reverse=True)[:cua_so]
+            out[ma].update(so_kiem=len(rows), so_kiem_cua_so=len(gan_nhat),
+                           so_dung_cua_so=sum(r[2] for r in gan_nhat))
+        return out
 
 
 class BoGhiPostgres:
@@ -331,6 +428,36 @@ class BoGhiPostgres:
 
     def __init__(self, ket_noi: Callable):
         self._ket_noi = ket_noi
+
+    def thong_ke(self, cua_so: int) -> dict[str, dict]:
+        """Một SELECT, cùng snapshot; chỉ metadata M0034, không cập nhật nhật ký.
+
+        Lỗi đọc được chuyển lên cổng: không có số đo thì không tự giảm tỷ lệ kiểm.
+        """
+        with self._ket_noi() as conn:
+            with conn.cursor() as cur:
+                cur.execute("""WITH luot AS (
+                    SELECT loai_viec, count(*) AS so_luot
+                    FROM nhat_ky.cong_ai_goi WHERE duong = 'LOCAL' GROUP BY loai_viec
+                ), kiem AS (
+                    SELECT loai_viec, %s = ANY(ly_do) AS dung,
+                           row_number() OVER (PARTITION BY loai_viec ORDER BY luc DESC, id DESC) AS stt
+                    FROM nhat_ky.cong_ai_goi
+                    WHERE duong = 'CLOUD' AND da_gui AND ket_qua = 'DAT'
+                      AND 'KIEM_XAC_SUAT' = ANY(ly_do_chuyen_cloud)
+                      AND ((%s = ANY(ly_do)) <> (%s = ANY(ly_do)))
+                ), tong AS (
+                    SELECT loai_viec, count(*) AS so_kiem,
+                           count(*) FILTER (WHERE stt <= %s) AS so_kiem_cua_so,
+                           count(*) FILTER (WHERE stt <= %s AND dung) AS so_dung_cua_so
+                    FROM kiem GROUP BY loai_viec
+                ) SELECT loai_viec, coalesce(so_luot, 0), coalesce(so_kiem, 0),
+                         coalesce(so_kiem_cua_so, 0), coalesce(so_dung_cua_so, 0)
+                  FROM luot FULL JOIN tong USING (loai_viec)""",
+                            (LOCAL_DUNG, LOCAL_DUNG, LOCAL_SAI, cua_so, cua_so))
+                rows = cur.fetchall()
+        return {ma: dict(so_luot=luot, so_kiem=kiem, so_kiem_cua_so=n, so_dung_cua_so=dung)
+                for ma, luot, kiem, n, dung in rows}
 
     def ghi(self, ban_ghi: BanGhiCongAI) -> None:
         try:
@@ -842,7 +969,7 @@ def noi_dung_nguoi_dung(yeu_cau: YeuCauAI) -> str:
 
 
 def _luc() -> str:
-    return datetime.now(timezone.utc).isoformat(timespec="seconds")
+    return datetime.now(timezone.utc).isoformat(timespec="microseconds")
 
 
 # ---------------------------------------------------------------------------------------------------------------
@@ -853,7 +980,7 @@ class CongAI:
 
     - ``settings``: nhóm cài đặt như ``source-settings.json`` → ``settings`` (``local_ai``, ``cong_ai``).
     - ``bo_ghi``: bắt buộc — mọi lượt đều được ghi (AI-2b: bộ ghi PostgreSQL).
-    - ``kiem_xac_suat``: móc (c) của TL 48 §1.5 cho AI-4; mặc định không bao giờ chọn (0%).
+    - ``kiem_xac_suat``: móc chọn mẫu thay thế cho test/bên gọi cũ; luôn chịu công tắc Cloud và bảng loại việc.
     - ``nha_cung_cap``, ``mask``, ``local_transport``, ``moi_truong``: thay được khi test (máy chủ giả, không mạng).
     """
 
@@ -869,7 +996,51 @@ class CongAI:
         self._mask = mask
         self._local_transport = local_transport
         self._moi_truong = moi_truong
-        self._kiem_xac_suat = kiem_xac_suat or (lambda _loai: False)
+        self._kiem_xac_suat = kiem_xac_suat
+
+    def _doc_thong_ke(self) -> dict | None:
+        try:
+            return self.bo_ghi.thong_ke(self.cai_dat["kiem_xac_suat"]["cua_so"])
+        except Exception as exc:  # noqa: BLE001 - không có số đo: giữ tỷ lệ ban đầu, không giảm
+            _LOG.error("Không đọc được thống kê cổng AI (%s).", type(exc).__name__)
+            return None
+
+    def thong_ke(self) -> list[dict]:
+        """Bảng chỉ đọc, không mạng: số lượt Local, số kiểm ĐÃ CHẤM, % khớp Cloud trên N kiểm gần nhất.
+
+        Đúng = khớp toàn bộ giá trị theo trường với Cloud đã qua Python; chưa phải đáp án chuẩn/người duyệt.
+        ``ty_le_kiem_hien_hanh`` là 0..1; ``phan_tram_chinh_xac`` là 0..100 hoặc None nếu chưa đo.
+        Cloud tắt/loại việc cấm Cloud → tỷ lệ hiện hành 0. Không đọc khóa hay gọi kiểm trạng thái Mask.
+        """
+        rows = self._doc_thong_ke()
+        cfg = self.cai_dat["kiem_xac_suat"]
+        out = []
+        for ma, loai in LOAI_VIEC.items():
+            tk = (rows.get(ma) or _thong_ke_rong()) if rows is not None else None
+            n = tk["so_kiem_cua_so"] if tk else 0
+            rate = ty_le_kiem_hien_hanh(cfg, ma, tk)
+            if not self.cai_dat["cloud_bat"] or self.cai_dat["loi"] or not loai.duoc_dung_cloud:
+                rate = 0.0
+            out.append({"loai_viec": ma, **(tk or {k: None for k in _thong_ke_rong()}),
+                        "cua_so": cfg["cua_so"], "thong_ke_san_sang": rows is not None,
+                        "phan_tram_chinh_xac": 100 * tk["so_dung_cua_so"] / n if n else None,
+                        "canh_bao": "LOCAL_DUOI_NGUONG_CHINH_XAC"
+                        if n and tk["so_dung_cua_so"] / n < cfg["nguong_tang_lai"] else None,
+                        "ty_le_kiem_hien_hanh": rate})
+        return out
+
+    def _chon_kiem(self, loai: LoaiViec) -> bool:
+        if not self.cai_dat["cloud_bat"] or self.cai_dat["loi"] or not loai.duoc_dung_cloud:
+            return False
+        if self._kiem_xac_suat is not None:
+            return bool(self._kiem_xac_suat(loai))
+        cfg = self.cai_dat["kiem_xac_suat"]
+        # Không đọc nhật ký nếu loại việc này chưa cho phép lấy mẫu.
+        if ty_le_kiem_hien_hanh(cfg, loai.ma, None) == 0:
+            return False
+        rows = self._doc_thong_ke()
+        rate = ty_le_kiem_hien_hanh(cfg, loai.ma, rows.get(loai.ma) if rows is not None else None)
+        return random.random() < rate
 
     # ---- trạng thái (không gọi mạng trừ khi kiem_mask) -----------------------------------------------------
     def _env(self) -> Mapping[str, str]:
@@ -915,7 +1086,7 @@ class CongAI:
             except MaskKhongGui as exc:
                 ma = exc.ma
         if ma == "CLOUD_TAT":
-            cloud_tb = "Đường Cloud đang tắt (mặc định tới AI-4); phần mềm chỉ dùng Local AI."
+            cloud_tb = "Đường Cloud đang tắt (mặc định); phần mềm chỉ dùng Local AI."
         elif ma == "CAI_DAT_CLOUD_LOI":
             cloud_tb = "Cài đặt Cloud chưa hợp lệ, coi như tắt Cloud: " + self.cai_dat["loi"]
         elif ma:
@@ -963,7 +1134,7 @@ class CongAI:
 
     # ---- đường Cloud (chỉ qua Mask v2) ----------------------------------------------------------------------
     def _cloud(self, yc: YeuCauAI, loai: LoaiViec, ma_yc: str, ly_do_chuyen: tuple[str, ...],
-               kiem_tra: KiemTraThem | None) -> tuple[DanhGia | None, str | None]:
+               kiem_tra: KiemTraThem | None, local_kiem: DanhGia | None = None) -> tuple[DanhGia | None, str | None]:
         """(đánh giá kết quả Cloud hoặc None, mã lý do không gửi/không dùng được)."""
         base = dict(ma_yeu_cau=ma_yc, luc=_luc(), loai_viec=loai.ma, duong=DUONG_CLOUD,
                     nha_cung_cap=self.cai_dat["nha_cung_cap"], model=self.cai_dat["model"],
@@ -1025,7 +1196,15 @@ class CongAI:
                                    thoi_gian_ms=int((time.monotonic() - t0) * 1000)))
             return None, "MASK_MO_CHE_LOI"
         dg = danh_gia(data, yc, loai, DUONG_CLOUD, kiem_tra)
-        self._ghi(BanGhiCongAI(**base, **sent, ket_qua=dg.ket_qua, ly_do=dg.ly_do,
+        diem = ()
+        if local_kiem is not None and dg.chac:
+            # So theo tên trường sau mở che, chuẩn khoảng trắng/hoa thường; không log tên/giá trị/trích dẫn.
+            ten = set(local_kiem.truong) | set(dg.truong)
+            dung = sum(1 for t in ten if t in local_kiem.truong and t in dg.truong
+                       and _chuan(local_kiem.truong[t].gia_tri).casefold() == _chuan(dg.truong[t].gia_tri).casefold())
+            sai = len(ten) - dung
+            diem = (LOCAL_SAI if sai else LOCAL_DUNG, f"SO_TRUONG_DUNG_{dung}", f"SO_TRUONG_SAI_{sai}")
+        self._ghi(BanGhiCongAI(**base, **sent, ket_qua=dg.ket_qua, ly_do=dg.ly_do + diem,
                                trich_dan_hop_le=dg.trich_dan_hop_le, so_truong_bi_loai=len(dg.bi_loai),
                                thoi_gian_ms=int((time.monotonic() - t0) * 1000)))
         return dg, None
@@ -1068,12 +1247,13 @@ class CongAI:
         prompt_local = HUONG_DAN_DINH_DANG + "\n\n" + noi_dung_nguoi_dung(yeu_cau)
         local, ly_do_local = self._local(yeu_cau, loai, ma_yc, prompt_local, kiem_tra)
         if local is not None and local.chac:
-            if not self._kiem_xac_suat(loai):
+            if not self._chon_kiem(loai):
                 return self._ket_qua(loai, ma_yc, local, None, (), None)
             ly_do_chuyen = ("KIEM_XAC_SUAT",)
         else:
             ly_do_chuyen = ly_do_local
-        cloud, khong_dung = self._cloud(yeu_cau, loai, ma_yc, ly_do_chuyen, kiem_tra)
+        cloud, khong_dung = self._cloud(yeu_cau, loai, ma_yc, ly_do_chuyen, kiem_tra,
+                                      local_kiem=local if ly_do_chuyen == ("KIEM_XAC_SUAT",) else None)
         return self._ket_qua(loai, ma_yc, local, cloud, ly_do_chuyen, khong_dung)
 
     @staticmethod
