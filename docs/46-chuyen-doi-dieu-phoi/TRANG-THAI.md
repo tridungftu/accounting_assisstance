@@ -551,7 +551,7 @@ Chi tiết có tệp:dòng: `BANG-DIEU-KIEN-GO-LIVE.md`; quy trình: `CHECKLIST-
   - 7e34bdb **MTQ-NEN-1**, **M0054** `master.mtq_duoc_doc(text,jsonb,numeric DEFAULT NULL)`: quyết định quyền chỉ đọc. Review Codex vòng 1 chặn đúng (tiền luôn NULL); lead quyết thêm tham số tiền; vòng 2 lead tự soát diff. PG 6 module 206 ok, 0 mã mới.
   - 36ee50f **KK-CD019** (`KK-MA-HOA-LUU-RIENG.md`): 18 nhóm cột (10 A / 5 B / 3 C), khóa DPAPI, sao lưu GPG, bộ đo BitLocker.
   - **Migration cuối = M0054.**
-- **Lead xác minh:** bộ PostgreSQL 16 DEMO (`var\postgresql16-16.15-runtimein`) có sẵn `pg_dump`, `pg_restore`, `pgbench`, `pg_dumpall` và `pgcrypto.dll`. Không cần cài thêm cho SL-1/DO-1.
+- **Lead xác minh:** bộ PostgreSQL 16 DEMO (`var\postgresql16-16.15-runtime\bin`) có sẵn `pg_dump`, `pg_restore`, `pgbench`, `pg_dumpall` và `pgcrypto.dll`. Không cần cài thêm cho SL-1/DO-1.
 - **XS-3b** dừng "Cần lead" (chỗ lưu loại ngoại lệ gốc) → lead trả lời `tra-loi-lead-xs-3.md`: mỗi ngoại lệ đã biết → một mã ổn định; ngoại lệ lạ không bắt. Đã giao lại.
 - **Phiếu gửi Anh:** `CAN-ANH-CHOT-TOI-26-10.md` gồm:
   - S1–S6 công tắc module;
