@@ -20,3 +20,6 @@
 
 **Hỏi Claude:** Lead có chủ ý chấp nhận `app_web` đọc UUID/quan hệ đối tượng ngoài PN được cấp không? — `k2/sql_mtq_cong.py:1695`, `:1855`; chưa rõ ngoại lệ này so với nguyên tắc chung “không làm rộng quyền ra ngoài module hoặc pháp nhân”.
 **Lead lọc (Claude):** Hỏi Claude (d) → KHÔNG chấp nhận lộ metadata đối tượng ngoài PN. Chuyển thành Chặn: thu hồi EXECUTE của app_web trên `master.mtq_giai_doi_tuong` (chỉ chủ sở hữu/hai cổng SECURITY DEFINER gọi). Hàm mở cho app_web ở NEN-1 chỉ trả boolean quyết định. Lỗi do giao việc của lead (mục 1 ghi EXECUTE cho app_web) — sửa ở vòng 2.
+
+## Vòng 2 (lead tự kiểm theo mẫu: chỉ xem điểm Chặn vòng 1)
+Đã sửa: không còn EXECUTE app_web trên master.mtq_giai_doi_tuong; test ACL + lỗi quyền chạy PG đạt (143 ok, 0 mã mới). Đạt.
