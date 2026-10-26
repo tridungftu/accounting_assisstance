@@ -246,3 +246,13 @@ Thiết kế: `..\..\THIET-KE-MODULE-DE-CHOT-2026-10-20\M3-HOA-DON-BAN-VA-DOANH-
 | M3-5 | Tham số phân bổ (thuê đất; phí hạ tầng theo tháng) + lưới icon M3 + tuổi hồ sơ chờ | 2–3 lát | sau M3-3 |
 | M10-1b…d | Nguồn sổ 3387 Junsky + mapping đối tượng + bảng lệch + cảnh báo phụ lục/chấm dứt | 3 lát | #8 (ánh xạ đối tượng) chờ |
 Không tự quyết: #7 cơ sở thuế, #8 ánh xạ Junsky, #10 file xuất (chỉ bản hiển thị), #11 biên bản nhà ở, #12 mẫu K0. Tài khoản chi tiết là dữ liệu policy (kế toán trưởng điền); không sinh bút toán có số tài khoản giai đoạn này (CD-014).
+
+## Bổ sung 26/10/2026 14:05 — M9 mở lại: kho hợp đồng vay + hỏi đáp (chỉ Local AI) + báo cáo lãi suất (CD-015)
+Thiết kế: `..\..\THIET-KE-MODULE-DE-CHOT-2026-10-20\M9-KHO-HOP-DONG-VAY-HOI-DAP-20261026.md` (mục 8 đã chốt). Ưu tiên: sau CD-011/012/013/014, dùng lấp chỗ trống.
+| Lát | Nội dung | Ràng buộc |
+|---|---|---|
+| M9-1 | Kho tài liệu + tải lên + OCR (dùng lại cách ABBYY Hot Folder của review, chép code, không sửa bản gốc) + phiên bản | Hợp đồng giả trong test |
+| M9-2 | Cắt đoạn + chỉ mục Local AI + hỏi đáp có trích dẫn (file · trang · điều/khoản · câu nguyên văn) | **Chỉ Local AI**, không Cloud kể cả qua Mask v2; không trích dẫn được thì không trả lời bằng số |
+| M9-3 | Kéo Sheet qua Google Sheets API (chỉ đọc) + snapshot có mốc | Khóa chỉ trong `.env` (code đọc lúc chạy; lead không đọc); Sheet giả; **chờ Anh** Sheet/tab/tài khoản dịch vụ |
+| M9-4 | Báo cáo lãi suất hằng tháng + xuất Excel | "Lãi cao" = cao hơn bình quân gia quyền theo dư nợ cùng mốc; cảnh báo trước kỳ điều chỉnh 30 ngày; không tự gửi ra ngoài |
+| M9-5 | Lưới icon M9 + quyền | theo ma trận thẩm quyền khi bật |

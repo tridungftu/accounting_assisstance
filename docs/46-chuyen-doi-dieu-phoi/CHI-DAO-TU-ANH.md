@@ -186,4 +186,4 @@
 5. Báo cáo lãi suất hằng tháng: "lãi cao" = cao hơn bình quân gia quyền theo dư nợ của danh mục cùng mốc; cảnh báo trước kỳ điều chỉnh lãi 30 ngày; không tự gửi ra ngoài.
 6. OCR bản scan: dùng lại cách ABBYY Hot Folder của phần mềm review (chép code, không sửa bản gốc đang đóng băng — CD-011).
 **Báo Anh khi:** cần thông tin Sheet; phiếu cổng A M9.
-**Trạng thái:** MỚI
+**Trạng thái:** ĐÃ NHẬN 14:05 26/10 — M9-1…M9-5 vào `4-KE-HOACH-LEAD.md` + TRANG-THAI, xếp sau CD-011/012/013/014, dùng lấp chỗ trống. Chưa giao lát: hạn mức Claude tuần 88% (lead đang chậm lại, xử lý nốt hàng chờ). Cổng kiểm soát M9: grep không có đường Cloud/Mask. M9-3 chờ Anh cung cấp Sheet/tab/tài khoản dịch vụ.
