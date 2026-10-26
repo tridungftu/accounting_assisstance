@@ -11,6 +11,7 @@ from unittest.mock import Mock, patch
 from kho_tri_thuc.ha_tang.primitives import canonical_json
 from kho_tri_thuc.k2.xay_dung import XayDungK2, _v
 from kho_tri_thuc.m4 import duyet_dot as DD
+from kho_tri_thuc.m4 import nguon_review as NR
 from kho_tri_thuc.m4.review_dot_pg import doc_lich_su_chep
 from tests import test_m4_02c_dto_ui as F
 
@@ -376,7 +377,9 @@ class Provider02CHoiQuy(unittest.TestCase):
                     return {"d": "DEMO-digest"}
                 return None
             xd._r1, xd._rn = r1, lambda *a: []
-            with patch.object(DD, "doc_lich_su_chep", return_value=chep) as read:
+            # DL5a có kiểm byte riêng; ở đây cô lập basis/kết luận DL5b.
+            with patch.object(NR, "chup_review_l2", side_effect=lambda co, c: co), \
+                    patch.object(DD, "doc_lich_su_chep", return_value=chep) as read:
                 co = xd._co_so(xd.conn_tin_cay, du_an=F.S(F.DA), tep=F.S(F.TEP_DOT1),
                                dot=F.S(F.DOT), che_do="L1_L2", o_dich=None)
                 self.assertEqual(co["truoc_da_duyet"]["trang_thai"], "CHUA_CO_NGUON")
