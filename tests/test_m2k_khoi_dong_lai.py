@@ -211,7 +211,7 @@ class KhoiDongLaiTest(unittest.TestCase):
                 self.conn.nguoi_dung["MO_PHONG_KE_TOAN"].update(vai_tro="KE_TOAN", id=gia.U_KT)
 
     def test_chi_qua_han_va_mat_ket_noi_duoc_coi_la_treo(self):
-        for ma in ("KHACH_QUA_HAN", "KHACH_KHONG_KET_NOI", "KHACH_TU_CHOI", "DTO_SAI", "KHACH_CONTENT_TYPE"):
+        for ma in ("KHACH_QUA_HAN", "KHACH_KHONG_KET_NOI", "KHACH_TU_CHOI", "KHACH_DTO_SAI", "KHACH_CONTENT_TYPE"):
             with self.subTest(ma=ma):
                 with patch.object(self.tt, "khach", side_effect=LoiKhach(ma)):
                     status, body = self.goi(ten="", post=False)
