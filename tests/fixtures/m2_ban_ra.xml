@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<HDon><DLHDon>
+  <TTChung>
+    <PBan>2.1.0</PBan><KHMSHDon>1</KHMSHDon><KHHDon>DEMO_BAN_RA</KHHDon><SHDon>000002</SHDon><NLap>2026-10-26</NLap><DVTTe>VND</DVTTe>
+    <TTHDLQuan><TCHDon>2</TCHDon><LHDCLQuan>1</LHDCLQuan><KHMSHDCLQuan>1</KHMSHDCLQuan><KHHDCLQuan>DEMO_GOC</KHHDCLQuan><SHDCLQuan>000001</SHDCLQuan><NLHDCLQuan>2026-10-01</NLHDCLQuan></TTHDLQuan>
+  </TTChung>
+  <NDHDon>
+    <NBan><MST>DEMO_M2_COMPANY_A</MST></NBan><NMua><MST>DEMO_M2_BUYER</MST></NMua>
+    <DSHHDVu>
+      <HHDVu><STT>1</STT><TChat>1</TChat><THHDVu>DEMO dịch vụ 5%</THHDVu><DVTinh>CAI</DVTinh><SLuong>1</SLuong><DGia>100.01</DGia><ThTien>100.01</ThTien><TSuat>5%</TSuat></HHDVu>
+      <HHDVu><STT>2</STT><TChat>1</TChat><THHDVu>DEMO dịch vụ 10%</THHDVu><DVTinh>CAI</DVTinh><SLuong>1</SLuong><DGia>200.02</DGia><ThTien>200.02</ThTien><TSuat>10%</TSuat></HHDVu>
+      <HHDVu><STT>3</STT><TChat>1</TChat><THHDVu>DEMO phần không chịu thuế</THHDVu><DVTinh>CAI</DVTinh><SLuong>1</SLuong><DGia>300.03</DGia><ThTien>300.03</ThTien><TSuat>KCT</TSuat></HHDVu>
+    </DSHHDVu>
+    <TToan>
+      <THTTLTSuat>
+        <LTSuat><TSuat>5%</TSuat><ThTien>100.01</ThTien><TThue>5.0005</TThue></LTSuat>
+        <LTSuat><TSuat>10%</TSuat><ThTien>200.02</ThTien><TThue>20.002</TThue></LTSuat>
+        <LTSuat><TSuat>KCT</TSuat><ThTien>300.03</ThTien><TThue>0</TThue></LTSuat>
+      </THTTLTSuat>
+      <TgTCThue>600.06</TgTCThue><TgTThue>25.0025</TgTThue><TGTKCThue>300.03</TGTKCThue><TgTTTBSo>625.0625</TgTTTBSo>
+    </TToan>
+  </NDHDon>
+</DLHDon></HDon>
