@@ -330,3 +330,6 @@ Làm ở lát OCR-1.
 
 ## QD-20261026-07 · Nhịp khi hàng đợi chỉ còn việc chờ Anh
 Anh chốt 26/10 ~17:20: làm tiếp việc phụ M9 (thuần, chưa CSDL/màn hình) trong lúc chờ.
+Bổ sung lead 26/10 ~17:25 (Codex hỏi khi làm M4-DL5c/OCR-1):
+- (a) Đợt M4 cùng số chưa seal, có dòng chép Review liên kết `m4_dot_id` đúng: tính khối lượng Review vào lũy kế (`REVIEW_CHEP`, cờ `m4_dang_mo_lai`); seal M4 về sau thắng. Cùng số mà không liên kết: cần xem lại.
+- (b) Sổ trang chung với Review: Review đóng băng ghi không khóa tệp. Chấp nhận rủi ro chen ghi, phía mình đọc lại + gộp + kiểm sau ghi. Hết rủi ro khi chuyển hẳn sang M4 (cổng B).
