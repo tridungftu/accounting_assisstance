@@ -1,7 +1,8 @@
 """MTQ-2: cấu hình qua SQL MTQ-1; chưa thay nguồn quyền nghiệp vụ.
 
 Tái dùng CrmMauK2.danh_tinh/_tx (owner connection + GUC). Pháp nhân suy
-từ bản/phòng trong CSDL, không nhận actor/pháp nhân từ HTTP. Bootstrap chỉ
+từ bản/phòng/gán vai trong CSDL; khai phòng mới nhận pháp nhân đích.
+Không nhận actor/diff từ HTTP. Bootstrap chỉ
 thuộc công cụ lead. Biên nhận HTTP nằm trong sổ bất biến, cùng giao dịch
 với cấu hình; kiểm Admin hiện hành trước replay. Chặn ghi ở giao dịch riêng
 sau rollback; lỗi audit không được nuốt.
@@ -28,7 +29,20 @@ LOI_NHAT_KY = 'Chưa ghi được nhật ký thẩm quyền, thao tác không đ
 MA_403 = frozenset(('MTQ_CHI_ADMIN', 'MTQ_DANH_TINH', 'DANH_TINH', 'DANH_TINH_MO_PHONG',
                     'CRM_PHIEN', 'SESSION_TOKEN', 'CROSS_ORIGIN', 'LOCAL_HOST_ONLY'))
 MA_409 = frozenset(('MTQ_REVISION', 'MTQ_IDEMPOTENCY_KHAC', 'MTQ_BAT_BIEN',
-                    'MTQ_THIEU_DONG', 'MTQ_CHUA_NOI_MTQ4', 'CRM_G_GIAO_DICH_NGOAI'))
+                    'MTQ_THIEU_DONG', 'MTQ_CHUA_NOI_MTQ4', 'MTQ_ADMIN_CUOI',
+                    'MTQ_CAN_RESOLVER_MTQ4', 'CRM_G_GIAO_DICH_NGOAI'))
+LOI_CAU_HINH = 'Không thể áp dụng cấu hình thẩm quyền; kiểm tra lại phiên bản và điều kiện thực hiện.'
+THONG_BAO = {
+    'MTQ_THIEU_DONG': 'Chưa đủ 5 vai cho mỗi phòng đang dùng; bổ sung trước khi công bố.',
+    'MTQ_CHUA_NOI_MTQ4': 'Chưa bật được: các phân hệ chưa nối xong với ma trận.',
+    'MTQ_REVISION': 'Bản nháp đã thay đổi; tải lại trước khi lưu.',
+    'MTQ_ADMIN_CUOI': 'Không thể thu hồi Admin hoạt động cuối cùng; cấp thêm Admin trước khi thu hồi.',
+    'MTQ_PHAM_VI': 'Phạm vi không hợp lệ, khác pháp nhân hoặc gán vai đã bị thu hồi; kiểm tra lại.',
+    'MTQ_CHI_ADMIN': 'Chỉ Admin đang hoạt động được quản trị ma trận thẩm quyền.',
+    'MTQ_BAT_BIEN': 'Bản đã công bố hoặc lịch sử cấp quyền không thể sửa; hãy tạo bản mới.',
+    'MTQ_IDEMPOTENCY_KHAC': 'Yêu cầu này đã được gửi với nội dung khác; tải lại rồi thử lại.',
+}
+QUAN_TRI = frozenset(('PHONG', 'GAN_VAI', 'PHAM_VI', 'ADMIN'))
 
 
 def _sai(message):
@@ -50,11 +64,7 @@ def _uuid(value):
     _sai('Mã không hợp lệ')
 
 
-def _payload(value, *, luu=False):
-    fields = {'phien_ban_id', 'expected_revision', 'ly_do', 'khoa'}
-    if luu:
-        fields |= {'nguon_id', 'dong'}
-    _object(value, fields, {'expected_revision', 'ly_do', 'khoa'})
+def _yeu_cau(value):
     p = dict(value)
     rev = p['expected_revision']
     if type(rev) is not int or not 0 <= rev <= 9223372036854775807:
@@ -63,6 +73,18 @@ def _payload(value, *, luu=False):
         _sai('Cần lý do, tối đa 2.000 ký tự.')
     p['ly_do'] = p['ly_do'].strip()
     p['khoa'] = _uuid(p['khoa'])
+    return p
+
+
+def _payload(value, *, luu=False, quan_tri=None):
+    if quan_tri is not None:
+        return _payload_quan_tri(value, quan_tri)
+    fields = {'phien_ban_id', 'expected_revision', 'ly_do', 'khoa'}
+    if luu:
+        fields |= {'nguon_id', 'dong'}
+    _object(value, fields, {'expected_revision', 'ly_do', 'khoa'})
+    p = _yeu_cau(value)
+    rev = p['expected_revision']
     for key in ('phien_ban_id', 'nguon_id'):
         if p.get(key) is not None:
             p[key] = _uuid(p[key])
@@ -111,6 +133,63 @@ def _payload(value, *, luu=False):
             _sai('Cần dòng thay đổi hoặc bản đang áp.')
         if not p.get('phien_ban_id') and rev != 0:
             _sai('Tạo nháp cần phiên bản 0.')
+    return p
+
+
+def _payload_quan_tri(value, command):
+    """PHONG: TAO/SUA; các cấp quyền: CAP/THU_HOI.
+
+    khoa là khóa yêu cầu; khoa_pham_vi là khóa đối tượng của phạm vi.
+    Không nhận actor, diff, quan_he hoặc pháp nhân cho đối tượng đã có.
+    """
+    if command not in QUAN_TRI:
+        _sai('Thao tác quản trị không được hỗ trợ.')
+    common = {'expected_revision', 'ly_do', 'khoa', 'thao_tac'}
+    if not isinstance(value, dict):
+        _sai('Thông tin quản trị không hợp lệ.')
+    operation = value.get('thao_tac')
+    if not isinstance(operation, str):
+        _sai('Cần chọn rõ thao tác cấp, thu hồi, tạo hoặc sửa.')
+    if command == 'PHONG' and operation == 'TAO':
+        required = fields = {'phap_nhan_id', 'ma', 'ten'}
+    elif command == 'PHONG' and operation == 'SUA':
+        fields, required = {'id', 'ten', 'hoat_dong'}, {'id'}
+        if not {'ten', 'hoat_dong'} & value.keys():
+            _sai('Cần tên phòng hoặc trạng thái cần sửa.')
+    elif command != 'PHONG' and operation == 'THU_HOI':
+        required = fields = {'id'}
+    elif operation == 'CAP':
+        required = fields = {
+            'ADMIN': {'nguoi_dung_id'},
+            'GAN_VAI': {'nguoi_dung_id', 'phong_id', 'vai'},
+            'PHAM_VI': {'gan_vai_id', 'loai', 'khoa_pham_vi'},
+        }.get(command, set())
+        if not fields:
+            _sai('Thao tác không phù hợp với chức năng đã chọn.')
+    else:
+        _sai('Thao tác không phù hợp với chức năng đã chọn.')
+    _object(value, common | fields, common | required)
+    p = _yeu_cau(value)
+    for key in ('id', 'phap_nhan_id', 'nguoi_dung_id', 'phong_id', 'gan_vai_id'):
+        if key in p:
+            p[key] = _uuid(p[key])
+    for key in ('ma', 'ten'):
+        if key in p:
+            if not isinstance(p[key], str) or not p[key].strip() or len(p[key]) > 2000:
+                _sai('Mã và tên phòng không được để trống, tối đa 2.000 ký tự.')
+            p[key] = p[key].strip()
+    if 'hoat_dong' in p and type(p['hoat_dong']) is not bool:
+        _sai('Trạng thái phòng phải chọn hoạt động hoặc ngừng hoạt động.')
+    if 'vai' in p and (not isinstance(p['vai'], str) or p['vai'] not in VAI):
+        _sai('Vai không thuộc năm vai nghiệp vụ.')
+    if 'loai' in p:
+        if not isinstance(p['loai'], str) or p['loai'] not in {'PHAP_NHAN', 'DU_AN', 'LOAI_HINH', 'HOP_DONG', 'KHACH', 'NGUON'}:
+            _sai('Loại phạm vi không được hỗ trợ.')
+        if p['loai'] == 'NGUON':
+            if not isinstance(p['khoa_pham_vi'], str) or not p['khoa_pham_vi'].strip() or len(p['khoa_pham_vi']) > 2000:
+                _sai('Cần mã phạm vi hợp lệ, tối đa 2.000 ký tự.')
+        else:
+            p['khoa_pham_vi'] = _uuid(p['khoa_pham_vi'])
     return p
 
 
@@ -258,12 +337,14 @@ class MaTranThamQuyenK2:
                 old = self._one(c, "SELECT actor_id,doi_tuong,loai_su_kien,sau FROM nhat_ky.mtq_thay_doi WHERE request_id=%s::uuid AND doi_tuong_bang='HTTP'", (p['khoa'],))
                 if old:
                     if old['actor_id'] != dt['id'] or old['loai_su_kien'] != 'HTTP_' + command or old['doi_tuong'] != p:
-                        raise DataError('MTQ_IDEMPOTENCY_KHAC', 'Khóa yêu cầu đã dùng với nội dung/danh tính khác.')
+                        raise DataError('MTQ_IDEMPOTENCY_KHAC', THONG_BAO['MTQ_IDEMPOTENCY_KHAC'])
                     return {**old['sau'], 'lap_lai': True}
                 if c.execute('SELECT 1 FROM nhat_ky.mtq_thay_doi WHERE request_id=%s::uuid LIMIT 1', (p['khoa'],)).fetchone():
-                    raise DataError('MTQ_IDEMPOTENCY_KHAC', 'Khóa yêu cầu đã dùng bởi công cụ quản trị.')
+                    raise DataError('MTQ_IDEMPOTENCY_KHAC', THONG_BAO['MTQ_IDEMPOTENCY_KHAC'])
                 if command == 'LUU_NHAP':
                     v = self._save(c, p)
+                elif command in QUAN_TRI:
+                    v = self._quan_tri(c, command, p)
                 else:
                     v = self._version(c, p['phien_ban_id'])
                     data = {'phap_nhan_id': v['phap_nhan_id'], 'phien_ban_id': v['id']}
@@ -275,8 +356,8 @@ class MaTranThamQuyenK2:
                 self._ghi_nhat_ky(c, """INSERT INTO nhat_ky.mtq_thay_doi
                     (request_id,phap_nhan_id,doi_tuong_bang,doi_tuong,phien_ban_id,revision,loai_su_kien,truoc,sau,actor_id,actor_login,ly_do)
                     VALUES (%s::uuid,%s::uuid,'HTTP',%s::jsonb,%s::uuid,%s,%s,NULL,%s::jsonb,%s::uuid,%s,%s)""",
-                    (p['khoa'], v['phap_nhan_id'], json.dumps(p, ensure_ascii=False),
-                     v['id'] if command != 'KICH_HOAT' else v['phien_ban_id'], v['revision'],
+                    (p['khoa'], v.get('phap_nhan_id'), json.dumps(p, ensure_ascii=False),
+                     (None if command in QUAN_TRI else v['phien_ban_id'] if command == 'KICH_HOAT' else v['id']), v['revision'],
                      'HTTP_' + command, json.dumps(result, ensure_ascii=False), dt['id'], dt['dang_nhap'], p['ly_do']))
                 return result
         except Exception as exc:
@@ -286,19 +367,40 @@ class MaTranThamQuyenK2:
                 primary = getattr(getattr(exc, 'diag', None), 'message_primary', '') or ''
                 code = primary.split(':', 1)[0]
                 if re.fullmatch(r'MTQ_[A-Z0-9_]+', code):
-                    error = DataError(code, 'Không thể áp dụng cấu hình thẩm quyền; kiểm tra lại phiên bản và điều kiện thực hiện.')
+                    error = DataError(code, THONG_BAO.get(code, LOI_CAU_HINH))
             if isinstance(error, DataError) and error.code == MA_LOI_NHAT_KY:
                 raise error from None
             if isinstance(error, DataError) and error.code.startswith('MTQ_'):
+                error = DataError(error.code, THONG_BAO.get(error.code, LOI_CAU_HINH))
                 try:
                     with self.mau._tx(dt) as c:
                         self._ghi_nhat_ky(c, """INSERT INTO nhat_ky.mtq_tu_choi
                             (request_id,actor_id,actor_login,ma,ly_do) VALUES (%s::uuid,%s::uuid,%s,%s,%s)""",
-                            (p['khoa'], dt['id'], dt['dang_nhap'], error.code, str(error)))
+                            (p['khoa'], dt['id'], dt['dang_nhap'], error.code, error.code))
                 except Exception:
                     raise DataError(MA_LOI_NHAT_KY, LOI_NHAT_KY) from None
                 raise error from None
             raise
+
+    def _quan_tri(self, c, command, p):
+        data = {k: v for k, v in p.items() if k not in {'khoa', 'ly_do', 'expected_revision', 'thao_tac'}}
+        sql_command = command
+        if p['thao_tac'] == 'THU_HOI':
+            sql_command = {'ADMIN': 'THU_HOI_ADMIN', 'GAN_VAI': 'THU_HOI_VAI',
+                           'PHAM_VI': 'THU_HOI_PHAM_VI'}[command]
+        elif command in {'GAN_VAI', 'PHAM_VI'}:
+            query = ('SELECT phap_nhan_id FROM master.mtq_phong WHERE id=%s::uuid AND hoat_dong'
+                     if command == 'GAN_VAI' else
+                     'SELECT phap_nhan_id FROM master.mtq_gan_vai WHERE id=%s::uuid AND thu_hoi_luc IS NULL')
+            parent = self._one(c, query, (p['phong_id'] if command == 'GAN_VAI' else p['gan_vai_id'],))
+            if parent is None:
+                raise DataError('MTQ_PHAM_VI', THONG_BAO['MTQ_PHAM_VI'])
+            data['phap_nhan_id'] = parent['phap_nhan_id']
+            if command == 'PHAM_VI':
+                data['khoa'] = data.pop('khoa_pham_vi')
+                data['quan_he'] = {}  # Các quan hệ được trigger M0039 xác minh.
+        # M0039 kiểm CAS, ghi diff/actor và bảo vệ Admin cuối trong cùng khóa.
+        return self._sql(c, p['khoa'], sql_command, data, p['expected_revision'], p['ly_do'])
 
     @staticmethod
     def _ghi_nhat_ky(c, sql, params):
@@ -316,3 +418,15 @@ class MaTranThamQuyenK2:
     def kich_hoat(self, dang_nhap, payload):
         """Readiness MTQ-1 luôn false: không cho bật ở MTQ-2."""
         return self._write(dang_nhap, 'KICH_HOAT', _payload(payload))
+
+    def phong(self, dang_nhap, payload):
+        return self._write(dang_nhap, 'PHONG', _payload(payload, quan_tri='PHONG'))
+
+    def gan_vai(self, dang_nhap, payload):
+        return self._write(dang_nhap, 'GAN_VAI', _payload(payload, quan_tri='GAN_VAI'))
+
+    def pham_vi(self, dang_nhap, payload):
+        return self._write(dang_nhap, 'PHAM_VI', _payload(payload, quan_tri='PHAM_VI'))
+
+    def admin(self, dang_nhap, payload):
+        return self._write(dang_nhap, 'ADMIN', _payload(payload, quan_tri='ADMIN'))
