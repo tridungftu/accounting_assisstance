@@ -6,6 +6,8 @@ Không nhận actor/diff từ HTTP. Bootstrap chỉ
 thuộc công cụ lead. Biên nhận HTTP nằm trong sổ bất biến, cùng giao dịch
 với cấu hình; kiểm Admin hiện hành trước replay. Chặn ghi ở giao dịch riêng
 sau rollback; lỗi audit không được nuốt.
+Khôi phục ghép được từ NHAP (sao chép bản đã công bố) + CONG_BO;
+route khoi-phuc để lát sau.
 """
 
 from __future__ import annotations
@@ -29,10 +31,17 @@ LOI_NHAT_KY = 'Chưa ghi được nhật ký thẩm quyền, thao tác không đ
 MA_403 = frozenset(('MTQ_CHI_ADMIN', 'MTQ_DANH_TINH', 'DANH_TINH', 'DANH_TINH_MO_PHONG',
                     'CRM_PHIEN', 'SESSION_TOKEN', 'CROSS_ORIGIN', 'LOCAL_HOST_ONLY'))
 MA_409 = frozenset(('MTQ_REVISION', 'MTQ_IDEMPOTENCY_KHAC', 'MTQ_BAT_BIEN',
+                    'MTQ_DA_CAP',
                     'MTQ_THIEU_DONG', 'MTQ_CHUA_NOI_MTQ4', 'MTQ_ADMIN_CUOI',
                     'MTQ_CAN_RESOLVER_MTQ4', 'CRM_G_GIAO_DICH_NGOAI'))
 LOI_CAU_HINH = 'Không thể áp dụng cấu hình thẩm quyền; kiểm tra lại phiên bản và điều kiện thực hiện.'
+LOI_THAY_DOI = 'Dữ liệu đã thay đổi; tải lại trước khi thao tác.'
+LOI_PHONG_NGUNG = 'Phòng đã ngừng hoạt động; chọn phòng đang hoạt động để cấp vai.'
 THONG_BAO = {
+    'MTQ_DA_CAP': 'Đã cấp trước đó; tải lại để xem bản hiện hành.',
+    'MTQ_KHONG_THAY': 'Pháp nhân, phòng hoặc người dùng không tồn tại.',
+    'MTQ_NGUOI_NHAN_NGUNG': 'Người được cấp không còn hoạt động.',
+    'MTQ_DANH_TINH': 'Danh tính người thao tác không còn hoạt động; đăng nhập lại.',
     'MTQ_THIEU_DONG': 'Chưa đủ 5 vai cho mỗi phòng đang dùng; bổ sung trước khi công bố.',
     'MTQ_CHUA_NOI_MTQ4': 'Chưa bật được: các phân hệ chưa nối xong với ma trận.',
     'MTQ_REVISION': 'Bản nháp đã thay đổi; tải lại trước khi lưu.',
@@ -213,7 +222,8 @@ class MaTranThamQuyenK2:
     def ma_tran(self, dang_nhap, *, cua_toi=False):
         dt = self.mau.danh_tinh(dang_nhap)
         with self.mau._tx(dt, rr=True) as c:
-            admin = self._admin(c) and not cua_toi
+            la_admin = self._admin(c)
+            admin = la_admin and not cua_toi
             if not cua_toi and not admin:
                 raise DataError('MTQ_CHI_ADMIN', 'Chỉ quản trị xem được toàn bộ ma trận; xem Quyền của tôi.')
             if not admin:
@@ -249,7 +259,7 @@ class MaTranThamQuyenK2:
                 by_row[cell.pop('dong_id')].append(cell)
             for row in rows:
                 row['o'] = by_row[row['id']]
-            return {'admin': admin, 'dong': rows, 'phong': rooms, 'phien_ban': versions,
+            return {'admin': admin, 'la_admin': la_admin, 'dong': rows, 'phong': rooms, 'phien_ban': versions,
                     'gan_vai': assignments, 'pham_vi': scopes, 'kich_hoat': activation,
                     'danh_muc': self._many(c, 'SELECT * FROM master.mtq_danh_muc_hanh_dong ORDER BY module,man,hanh_dong'),
                     'chua_noi_mtq4': True}
@@ -361,22 +371,34 @@ class MaTranThamQuyenK2:
                      'HTTP_' + command, json.dumps(result, ensure_ascii=False), dt['id'], dt['dang_nhap'], p['ly_do']))
                 return result
         except Exception as exc:
-            # Không nuốt lỗi driver; chỉ chuyển mã MTQ đã whitelist từ SQL.
+            # Chỉ lấy câu chính; DETAIL của lỗi khóa có thể chứa dữ liệu hồ sơ.
+            primary = getattr(getattr(exc, 'diag', None), 'message_primary', '') or ''
+            reason = primary or (str(exc) if isinstance(exc, DataError) else '')
             error = exc
             if not isinstance(error, DataError):
-                primary = getattr(getattr(exc, 'diag', None), 'message_primary', '') or ''
                 code = primary.split(':', 1)[0]
-                if re.fullmatch(r'MTQ_[A-Z0-9_]+', code):
+                state = getattr(exc, 'sqlstate', None)
+                if state in {'23505', '23503'}:
+                    code = 'MTQ_DA_CAP' if state == '23505' else 'MTQ_KHONG_THAY'
+                    error = DataError(code, THONG_BAO[code])
+                elif re.fullmatch(r'MTQ_[A-Z0-9_]+', code):
                     error = DataError(code, THONG_BAO.get(code, LOI_CAU_HINH))
             if isinstance(error, DataError) and error.code == MA_LOI_NHAT_KY:
                 raise error from None
             if isinstance(error, DataError) and error.code.startswith('MTQ_'):
-                error = DataError(error.code, THONG_BAO.get(error.code, LOI_CAU_HINH))
+                message = THONG_BAO.get(error.code, LOI_CAU_HINH)
+                if error.code == 'MTQ_REVISION' and command != 'LUU_NHAP':
+                    message = LOI_THAY_DOI
+                elif error.code == 'MTQ_PHAM_VI' and str(error) == LOI_PHONG_NGUNG:
+                    message = LOI_PHONG_NGUNG
+                error = DataError(error.code, message)
+                # Một số nhánh SQL cũ chỉ RAISE mã; dùng câu nghiệp vụ khi thiếu câu chính.
+                reason = reason if reason and reason != error.code else message
                 try:
                     with self.mau._tx(dt) as c:
                         self._ghi_nhat_ky(c, """INSERT INTO nhat_ky.mtq_tu_choi
                             (request_id,actor_id,actor_login,ma,ly_do) VALUES (%s::uuid,%s::uuid,%s,%s,%s)""",
-                            (p['khoa'], dt['id'], dt['dang_nhap'], error.code, error.code))
+                            (p['khoa'], dt['id'], dt['dang_nhap'], error.code, reason))
                 except Exception:
                     raise DataError(MA_LOI_NHAT_KY, LOI_NHAT_KY) from None
                 raise error from None
@@ -388,13 +410,24 @@ class MaTranThamQuyenK2:
         if p['thao_tac'] == 'THU_HOI':
             sql_command = {'ADMIN': 'THU_HOI_ADMIN', 'GAN_VAI': 'THU_HOI_VAI',
                            'PHAM_VI': 'THU_HOI_PHAM_VI'}[command]
-        elif command in {'GAN_VAI', 'PHAM_VI'}:
-            query = ('SELECT phap_nhan_id FROM master.mtq_phong WHERE id=%s::uuid AND hoat_dong'
+        if p['thao_tac'] == 'CAP' and command in {'ADMIN', 'GAN_VAI'}:
+            # Giữ trạng thái người nhận tới hết lần cấp, dưới khóa cấu hình.
+            recipient = self._one(c, 'SELECT trang_thai FROM master.nguoi_dung WHERE id=%s::uuid FOR SHARE',
+                                  (p['nguoi_dung_id'],))
+            if recipient is None:
+                raise DataError('MTQ_KHONG_THAY', THONG_BAO['MTQ_KHONG_THAY'])
+            if recipient['trang_thai'] != 'HOAT_DONG':
+                raise DataError('MTQ_NGUOI_NHAN_NGUNG', THONG_BAO['MTQ_NGUOI_NHAN_NGUNG'])
+        if p['thao_tac'] == 'CAP' and command in {'GAN_VAI', 'PHAM_VI'}:
+            query = ('SELECT phap_nhan_id,hoat_dong FROM master.mtq_phong WHERE id=%s::uuid'
                      if command == 'GAN_VAI' else
                      'SELECT phap_nhan_id FROM master.mtq_gan_vai WHERE id=%s::uuid AND thu_hoi_luc IS NULL')
             parent = self._one(c, query, (p['phong_id'] if command == 'GAN_VAI' else p['gan_vai_id'],))
             if parent is None:
-                raise DataError('MTQ_PHAM_VI', THONG_BAO['MTQ_PHAM_VI'])
+                code = 'MTQ_KHONG_THAY' if command == 'GAN_VAI' else 'MTQ_PHAM_VI'
+                raise DataError(code, THONG_BAO[code])
+            if command == 'GAN_VAI' and not parent['hoat_dong']:
+                raise DataError('MTQ_PHAM_VI', LOI_PHONG_NGUNG)
             data['phap_nhan_id'] = parent['phap_nhan_id']
             if command == 'PHAM_VI':
                 data['khoa'] = data.pop('khoa_pham_vi')
