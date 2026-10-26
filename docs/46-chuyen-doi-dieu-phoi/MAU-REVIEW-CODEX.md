@@ -78,6 +78,8 @@ Lead đọc review Codex và **lọc**:
 - Ghi vào tệp `review-<mã>.md`: bản đã lọc, kèm dòng "lead lọc: bỏ N điểm ngoài phạm vi, hạ M điểm".
 
 ## C. Điểm nóng phải soi (bài học review 26/10)
+- Route/dịch vụ chỉ có test mock: soi mọi câu SQL chạy bằng kết nối ứng dụng — bảng đã `REVOKE ALL`/RLS không policy thì `app_web` không đọc được (XS-4c2: `SELECT FROM master.module_danh_muc` vỡ khi chạy thật). Mỗi lát có SQL phải có ít nhất một test PG dưới vai ứng dụng.
+- Quyết định lead cần tính phạm vi MTQ gắn theo **vai**, không theo khóa: ràng buộc chỉ cho một nhóm khóa không được chặn việc cấp phạm vi chung (4b2b vòng 2 làm vỡ 12 mã).
 - Thân hàm PL/pgSQL: dấu `$` đơn thay cho `$$` (worker ghi tệp qua PowerShell) — migration không áp được; lead thấy qua PG nhưng review tĩnh nên soi trước.
 
 - **Quyền làm rộng hoặc fallback:**
