@@ -2,12 +2,14 @@
 
 import hashlib
 import io
+import json
 from pathlib import Path
 import unittest
 import zipfile
 from xml.sax.saxutils import escape
 
 from kho_tri_thuc.ha_tang.primitives import DataError
+from kho_tri_thuc.m9.chi_muc_vay import ChiMucVay
 from kho_tri_thuc.m9.tai_lieu_vay import cat_doan, doc_docx, nhan_thong_tin
 
 
@@ -185,10 +187,123 @@ class TaiLieuVayTests(unittest.TestCase):
                     with self.subTest(nhan=tien_to, tieu_de=tieu_de):
                         doan = cat_doan(doc_docx(_docx(_p(f"{tien_to} 5 {tieu_de}"))))
                         self.assertEqual(doan[0][cap], f"5 {tieu_de}")
-            for duoi in (" của hợp đồng này quy định", " lãi suất", "Lãi Suất", " 5 ngày", ""):
+            for duoi in (" của hợp đồng này quy định", " lãi suất", "Lãi Suất", " 5 ngày"):
                 with self.subTest(nhan=nhan, duoi=duoi):
                     doan = cat_doan(doc_docx(_docx(_p(f"{nhan} 5{duoi}"))))
                     self.assertEqual(doan[0][cap], "MO_DAU" if cap == "dieu" else None)
+
+    def test_dieu_dung_rieng_gop_tieu_de_va_giu_khoan(self):
+        raw = _docx(_p("Điều 4. DEMO") + _p("4.1 Nội dung trước.")
+                    + _p("ĐIỀU 5") + _p("LÃI SUẤT CHO VAY")
+                    + _p("5.1 Lãi suất là 8,5%/năm."))
+        doan = cat_doan(doc_docx(raw))
+        self.assertEqual(doan[-1]["dieu"], "5 LÃI SUẤT CHO VAY")
+        self.assertEqual(doan[-1]["khoan"], "5.1")
+        self.assertEqual(doan[-1]["cau"], ["5.1 Lãi suất là 8,5%/năm."])
+        self.assertEqual(doan[-2]["cau"], [])
+        self.assertNotIn("LÃI SUẤT CHO VAY", [c for d in doan for c in d["cau"]])
+
+    def test_dieu_co_cham_gop_tieu_de_giu_nguyen_cau(self):
+        raw = _docx(_p("Điều 6.") + _p("Trả nợ trước hạn")
+                    + _p("Bên vay được trả nợ trước hạn."))
+        doan = cat_doan(doc_docx(raw))
+        self.assertEqual(len(doan), 1)
+        self.assertEqual(doan[0]["dieu"], "6 Trả nợ trước hạn")
+        self.assertEqual(doan[0]["cau"], ["Bên vay được trả nợ trước hạn."])
+
+    def test_nhan_dung_rieng_khong_tieu_de_chi_giu_so(self):
+        for nhan, cap, so in (("Điều 5", "dieu", "5"), ("ĐIỀU 5", "dieu", "5"),
+                              ("Chương 5", "chuong", "5"), ("CHƯƠNG IV", "chuong", "IV")):
+            for dau in ("", ".", ":"):
+                with self.subTest(nhan=nhan, dau=dau):
+                    doan = cat_doan(doc_docx(_docx(_p(nhan + dau))))
+                    self.assertEqual(doan[0][cap], so)
+
+    def test_khong_gop_nhan_khoan_diem_dieu_chuong_lam_tieu_de(self):
+        for sau in ("1. Nội dung DEMO", "5.1 Nội dung DEMO", "Khoản 1. Nội dung DEMO",
+                    "a) Nội dung DEMO", "b. Nội dung DEMO", "Điểm a) Nội dung DEMO",
+                    "Điều 8", "Điều 8. DEMO", "Điều 5 của hợp đồng này quy định",
+                    "Chương IV", "Chương IV. DEMO"):
+            with self.subTest(sau=sau):
+                raw = _docx(_p("Điều 4. DEMO") + _p("a) Nội dung trước.")
+                            + _p("Điều 7") + _p(sau))
+                doan = cat_doan(doc_docx(raw))
+                dieu_moi = doan[2]
+                self.assertEqual(dieu_moi["dieu"], "7")
+                self.assertIsNone(dieu_moi["khoan"])
+                self.assertIsNone(dieu_moi["diem"])
+                if sau not in ("Điều 8", "Chương IV"):
+                    self.assertIn(sau, [c for d in doan for c in d["cau"]])
+                if sau.startswith("1."):
+                    self.assertEqual((doan[-1]["dieu"], doan[-1]["khoan"]), ("7", "1"))
+
+    def test_tieu_de_tach_gioi_han_do_dai_va_dau_cau(self):
+        for sau in ("A" * 120, "A" * 121,
+                    *("Bên vay được trả nợ trước hạn" + dau for dau in ".,;:!?…")):
+            with self.subTest(sau=sau):
+                raw = _docx(_p("Điều 6") + _p(sau) + _p("Nội dung tiếp theo"))
+                doan = cat_doan(doc_docx(raw))
+                if sau == "A" * 120:
+                    self.assertEqual(doan[0]["dieu"], "6 " + sau)
+                    self.assertNotIn(sau, doan[0]["cau"])
+                else:
+                    self.assertEqual(doan[0]["dieu"], "6")
+                    self.assertIn(sau, doan[0]["cau"])
+                self.assertIn("Nội dung tiếp theo", doan[0]["cau"])
+
+    def test_chuong_tach_reset_cap_va_khong_gop_tieu_de_bang(self):
+        bang = '<w:tbl><w:tr><w:tc>' + _p("Nội dung bảng DEMO") + '</w:tc></w:tr></w:tbl>'
+        raw = _docx(_p("Điều 4. DEMO") + _p("1. Nội dung trước.")
+                    + _p("a) Nội dung điểm.") + _p("CHƯƠNG IV:") + bang
+                    + _p("ĐẦU TƯ TÀI CHÍNH") + _p("Điều 5")
+                    + _p("1. Nội dung sau."))
+        doan = cat_doan(doc_docx(raw))
+        chuong = doan[-3]
+        self.assertEqual(chuong["chuong"], "IV ĐẦU TƯ TÀI CHÍNH")
+        self.assertEqual((chuong["dieu"], chuong["khoan"], chuong["diem"]), ("MO_DAU", None, None))
+        self.assertEqual(chuong["cau"], ["Nội dung bảng DEMO"])
+        self.assertEqual(doan[-1]["chuong"], "IV ĐẦU TƯ TÀI CHÍNH")
+        self.assertEqual((doan[-1]["dieu"], doan[-1]["khoan"]), ("5", "1"))
+        chi_bang = cat_doan(doc_docx(_docx(_p("Điều 5") + bang)))
+        self.assertEqual(chi_bang[0]["dieu"], "5")
+        self.assertIn("Nội dung bảng DEMO", chi_bang[0]["cau"])
+        nhan_trong_bang = _docx('<w:tbl><w:tr><w:tc>' + _p("Điều 5")
+                               + '</w:tc></w:tr></w:tbl>' + _p("LÃI SUẤT"))
+        self.assertEqual(cat_doan(doc_docx(nhan_trong_bang))[0]["dieu"], "MO_DAU")
+
+    def test_gop_tieu_de_giu_nguon_ma_va_trang(self):
+        raw = _docx(_p("Điều 5") + '<w:p><w:r><w:br w:type="page"/></w:r></w:p>'
+                    + _p("LÃI SUẤT") + _p("1. Nội dung DEMO."))
+        nguon = doc_docx(raw)
+        doan = cat_doan(nguon)
+        self.assertEqual(doan, cat_doan(doc_docx(raw)))
+        self.assertEqual(len({d["ma_doan"] for d in doan}), len(doan))
+        self.assertEqual((doan[0]["trang_dau"], doan[0]["trang_cuoi"]), (1, 2))
+        # Cách băm vị trí/chữ gốc giữ nguyên, kể cả đoạn tiêu đề đã gộp.
+        vi_tri_noi_dung = [[i, muc["thu_tu"], muc["trang"], muc["van_ban"]]
+                          for i, muc in enumerate(nguon[:2])]
+        self.assertEqual(doan[0]["ma_doan"], hashlib.sha256(json.dumps(
+            vi_tri_noi_dung, ensure_ascii=False, separators=(",", ":"),
+        ).encode("utf-8")).hexdigest())
+        sua = [dict(muc) for muc in nguon]
+        sua[1]["van_ban"] = "Lãi suất"
+        self.assertNotEqual(cat_doan(sua)[0]["ma_doan"], doan[0]["ma_doan"])
+        self.assertEqual(cat_doan(sua)[1]["ma_doan"], doan[1]["ma_doan"])
+        self.assertEqual(set(doan[0]), {"chuong", "dieu", "khoan", "diem", "trang_dau",
+                                        "trang_cuoi", "cau", "ma_doan"})
+
+    def test_tieu_de_tach_chi_lam_ngu_canh_chi_muc(self):
+        raw = _docx(_p("Chương I") + _p("TÍN DỤNG") + _p("Điều 5")
+                    + _p("LÃI SUẤT CHO VAY") + _p("1. Kỳ điều chỉnh là sáu tháng."))
+        chi_muc = ChiMucVay()
+        chi_muc.them("DEMO", "DEMO.docx", cat_doan(doc_docx(raw)))
+        for hoi in ("lãi suất cho vay", "tín dụng"):
+            with self.subTest(hoi=hoi):
+                ket_qua = chi_muc.tim(hoi, so_ket_qua=100)
+                self.assertTrue(ket_qua)
+                self.assertTrue(all(m["khoan"] == "1" for m in ket_qua))
+                self.assertTrue(all(m["cau"] == "1. Kỳ điều chỉnh là sáu tháng." for m in ket_qua))
+                self.assertEqual(ket_qua[0]["trich_dan"]["dieu"], "5 LÃI SUẤT CHO VAY")
 
     def test_chuong_so_la_ma_khong_dau_cau_va_dau_cau_cu(self):
         for tieu_de in ("Chương IV Đầu tư", "CHƯƠNG IV ĐẦU TƯ", "Chương 5. lãi suất",
