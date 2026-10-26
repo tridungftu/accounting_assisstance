@@ -15,7 +15,6 @@ actor lịch sử, run, đợt vận hành hay seal; DA_NOP không là chứng c
 from __future__ import annotations
 
 from collections.abc import Mapping
-from uuid import UUID
 
 from ..ha_tang.primitives import DataError
 from .review_data_pg import ReviewDataPG, dong_sha256, real_sang_decimal
@@ -189,26 +188,26 @@ class ReviewDotPG:
         return added
 
     def doc_hien_hanh(self, hop_dong_id, *, conn_phien=None):
-        """Kiểm XEM/REVIEW và ba trạng thái NULL dùng chung DL2 như DL3.
+        """Chỉ cho XEM; lịch sử đợt chưa nộp không được mở cho REVIEW.
 
+        Năm bảng DL1 chỉ cho XEM; REVIEW chỉ thấy đợt DA_NOP ở M4 hiện hành.
+        Dùng kiểm chung và ba trạng thái NULL của DL2 như DL3.
         Thiếu phiên/không quyền/UUID sai: M4_REVIEW_KHONG_THAY (HTTP 404).
         Chấp nhận khe hở hai connection như DL2: quyền xét tại lần kiểm;
         thu hồi đồng thời có hiệu lực ở lần kiểm tiếp theo. Ghim đúng
         nguon_id toàn bộ mới nhất, không lùi về đợt còn ở bản cũ.
         """
-        # DL2 hiện chỉ công khai lớp đọc đầy đủ. Đi qua API đó để dùng
-        # đúng kiểm quyền chung, không sao chép SQL quyền/gọi method private.
-        # Không dùng DTO DL2 để suy nguồn: chụp mới có thể vừa được nạp.
-        ReviewDataPG(self.conn).doc_hien_hanh(hop_dong_id, conn_phien=conn_phien)
-        hop_dong_id = str(UUID(str(hop_dong_id)))
+        reader = ReviewDataPG(self.conn)
+        hop_dong_id = reader._kiem_quyen_doc(hop_dong_id, conn_phien=conn_phien)
+        allowed = conn_phien.execute("""SELECT EXISTS (
+            SELECT 1 FROM master.hop_dong h
+            WHERE h.id=%s::uuid AND h.module_chu='M4'
+              AND master.m4_duoc(h.du_an_id, 'XEM')
+            ) AS duoc""", (hop_dong_id,)).fetchone()
+        if not (allowed["duoc"] if isinstance(allowed, Mapping) else allowed[0]):
+            raise DataError("M4_REVIEW_KHONG_THAY", "Không tìm thấy hợp đồng.")
         with self.conn.transaction():
-            current = _rows(self.conn, """SELECT m4.review_chep_hien_hanh(%s::uuid) AS nguon_id,
-                EXISTS (SELECT 1 FROM m4.review_chep_nguon) AS co_nguon,
-                EXISTS (SELECT 1 FROM m4.review_chep_hop_dong
-                    WHERE hop_dong_id=%s::uuid) AS co_hd""", (hop_dong_id, hop_dong_id))[0]
-            source = current["nguon_id"]
-            state = ("CHUA_CO_LAN_CHUP" if not current["co_nguon"] else
-                     "DA_XOA_O_NGUON" if current["co_hd"] else "CHUA_CO_TRONG_NGUON")
+            source, state = reader._nguon_hien_hanh(hop_dong_id)
             if source is None:
                 return dict(dto_dot([], [], [], [], []), trang_thai=state)
             params = (source, hop_dong_id)

@@ -212,13 +212,31 @@ class ReviewDotDocTinh(unittest.TestCase):
         owner.transaction.assert_not_called()
         query = session.execute.call_args.args[0]
         self.assertIn("master.m4_duoc(h.du_an_id, 'XEM')", query)
-        self.assertIn("master.m4_duoc(h.du_an_id, 'REVIEW')", query)
+
+    def test_chi_review_khong_xem_tra_404_truoc_doc_owner(self):
+        for general, view in (((True,), (False,)), ({"duoc": True}, {"duoc": False})):
+            owner, session = Mock(), Mock()
+            session.execute.return_value.fetchone.side_effect = [general, view]
+            with self.subTest(general=general), self.assertRaises(DataError) as caught:
+                ReviewDotPG(owner).doc_hien_hanh(uuid.UUID(int=1), conn_phien=session)
+            self.assertEqual(caught.exception.code, "M4_REVIEW_KHONG_THAY")
+            self.assertEqual(MA_HTTP[caught.exception.code], 404)
+            self.assertEqual(session.execute.call_count, 2)
+            query, params = session.execute.call_args.args
+            self.assertIn("master.m4_duoc(h.du_an_id, 'XEM')", query)
+            self.assertNotIn("'REVIEW'", query)
+            self.assertEqual(params, (str(uuid.UUID(int=1)),))
+            owner.execute.assert_not_called()
+            owner.transaction.assert_not_called()
 
     def _owner(self, session, batches, tuple_rows=False):
         owner = MagicMock()
 
         def execute(query, params=()):
-            session.execute.assert_called_once()
+            self.assertEqual(session.execute.call_count, 2)
+            session_query = session.execute.call_args.args[0]
+            self.assertIn("master.m4_duoc(h.du_an_id, 'XEM')", session_query)
+            self.assertNotIn("'REVIEW'", session_query)
             rows = batches.pop(0)
             cursor = Mock()
             columns = list(rows[0]) if rows else []
@@ -238,7 +256,7 @@ class ReviewDotDocTinh(unittest.TestCase):
             session = Mock()
             session.execute.return_value.fetchone.return_value = (True,)
             current = [dict(nguon_id=None, co_nguon=co_nguon, co_hd=co_hd)]
-            batches = [current, current]
+            batches = [current]
             owner = self._owner(session, batches)
             with self.subTest(state=state):
                 actual = ReviewDotPG(owner).doc_hien_hanh(uuid.UUID(int=1), conn_phien=session)
@@ -253,8 +271,8 @@ class ReviewDotDocTinh(unittest.TestCase):
             session.execute.return_value.fetchone.return_value = {"duoc": True}
             current = [dict(nguon_id="DEMO-MOI", co_nguon=True, co_hd=True)]
             data = {t: [r for r in rows if r.get("ma_hd") == "DEMO-HD"] for t, rows in _demo().items()}
-            # Public DL2: nguồn, HĐ, tham số, nguồn từng ô; DL4: nguồn rồi 5 bảng.
-            batches = [current, _base()["hop_dong"], [], [], current, *data.values()]
+            # Dùng helper DL2 để ghim nguồn rồi chỉ đọc năm bảng DL4.
+            batches = [current, *data.values()]
             owner = self._owner(session, batches, tuple_rows)
             with self.subTest(tuple_rows=tuple_rows):
                 actual = ReviewDotPG(owner).doc_hien_hanh(uuid.UUID(int=1), conn_phien=session)
@@ -368,13 +386,13 @@ class ReviewDotPGTests(unittest.TestCase):
         cls.pn = cls.con.execute("INSERT INTO master.phap_nhan (ma,ten) VALUES ('DEMO_DL4','Pháp nhân DEMO DL4') RETURNING id").fetchone()[0]
         cls.da = cls.con.execute("INSERT INTO master.du_an (phap_nhan_id,ma_junsky,ten) VALUES (%s,'DEMO_DL4','Dự án DEMO DL4') RETURNING id", (cls.pn,)).fetchone()[0]
         cls.actors = {}
-        for name, grant in (("XEM", True), ("KHONG_QUYEN", False)):
+        for name, grant in (("XEM", "XEM"), ("REVIEW", "REVIEW"), ("KHONG_QUYEN", None)):
             login = "MO_PHONG_DL4_" + name
             actor = cls.con.execute("INSERT INTO master.nguoi_dung (ten,dang_nhap,vai_tro) VALUES (%s,%s,'XEM') RETURNING id", (login, login)).fetchone()[0]
             cls.actors[name] = (str(actor), login)
             cls.con.execute("INSERT INTO master.phan_quyen (nguoi_dung_id,phap_nhan_id,module) VALUES (%s,%s,ARRAY['M4'])", (actor, cls.pn))
             if grant:
-                cls.con.execute("INSERT INTO m4.quyen_du_an (nguoi_dung_id,phap_nhan_id,du_an_id,vai) VALUES (%s,%s,%s,'XEM')", (actor, cls.pn, cls.da))
+                cls.con.execute("INSERT INTO m4.quyen_du_an (nguoi_dung_id,phap_nhan_id,du_an_id,vai) VALUES (%s,%s,%s,%s)", (actor, cls.pn, cls.da, grant))
         role, password = "ktt_test_dl4_" + uuid.uuid4().hex[:12], secrets.token_hex(16)
         cls.con.execute(sql.SQL("CREATE ROLE {} LOGIN PASSWORD {} NOSUPERUSER NOBYPASSRLS NOCREATEDB NOCREATEROLE IN ROLE app_web").format(sql.Identifier(role), sql.Literal(password)))
         cls.web = psycopg.connect(conninfo.make_conninfo(cls.dsn, user=role, password=password), autocommit=True)
@@ -427,6 +445,24 @@ class ReviewDotPGTests(unittest.TestCase):
         self.assertEqual(self._ghi({t: list(reversed(r)) for t, r in _demo().items()}), 0)
         self.assertEqual(self._counts(), before)
         self.assertEqual(self.con.execute("SELECT * FROM m4.review_chep_nhat_ky WHERE nguon_id=%s ORDER BY id", (self.source,)).fetchall(), audit)
+
+    def test_chi_review_404_khong_doc_owner_va_xem_van_doc_duoc(self):
+        self._ghi()
+        self._phien("REVIEW")
+        self.assertEqual(self.web.execute(
+            "SELECT master.m4_duoc(%s,'REVIEW'), master.m4_duoc(%s,'XEM')",
+            (self.da, self.da)).fetchone(), (True, False))
+        owner = Mock()
+        session = Mock(wraps=self.web)
+        with self.assertRaises(DataError) as caught:
+            ReviewDotPG(owner).doc_hien_hanh(self.hd, conn_phien=session)
+        self.assertEqual(caught.exception.code, "M4_REVIEW_KHONG_THAY")
+        self.assertEqual(MA_HTTP[caught.exception.code], 404)
+        self.assertEqual(session.execute.call_count, 2)
+        owner.execute.assert_not_called()
+        owner.transaction.assert_not_called()
+        self._phien("XEM")
+        self.assertEqual(self._doc(), dict(_dto(), trang_thai="HIEN_HANH"))
 
     def test_replay_tu_choi_khac_hash_ca_nam_bang(self):
         self._ghi()
