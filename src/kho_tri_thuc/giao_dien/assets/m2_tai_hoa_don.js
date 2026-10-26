@@ -146,7 +146,7 @@
     if (loiBoTai) kids.push(boxLoi(loiBoTai, "Không mở được bộ tải"));
     const loiKetNoi = run && (run.loi || run.chuaRo);
     const treo = b.treo || (loiKetNoi && /KHACH_(QUA_HAN|KHONG_KET_NOI)|NODE_CHUA_SAN_SANG/.test(loiKetNoi.code || loiKetNoi.ma || ""));
-    if (tt.duoc_khoi_dong_lai === true && (!b.san_sang || treo || dangKhoiDongLai)) {
+    if (tt.duoc_khoi_dong_lai === true && (b.loi_khoi_dong || treo || dangKhoiDongLai || b.trang_thai === "DANG_KHOI_DONG")) {
       const ban = dangMo || dangKhoiDongLai || b.trang_thai === "DANG_KHOI_DONG";
       kids.push(nut(dangKhoiDongLai ? "Đang khởi động lại bộ tải…" : "Khởi động lại bộ tải", () => {
         xacNhanKhoiDongLai = true; veBoTai();

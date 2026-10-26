@@ -39,11 +39,11 @@ async function main() {
   let so = 0;
   const loi = trang({bo_tai: {san_sang: false, trang_thai: "KHOI_DONG_LOI:BAT_TAY_QUA_HAN", loi_khoi_dong: "BAT_TAY_QUA_HAN"}});
   const treo = trang({bo_tai: {san_sang: true, trang_thai: "SAN_SANG", treo: true}});
-  for (const tt of [loi, treo, {...treo, hang_doi: {dang_co_hang_doi: true, dang_chay: false, muc: []}},
-                    trang({bo_tai: {san_sang: false, trang_thai: "CHUA_KHOI_DONG"}})]) {
+  for (const tt of [loi, treo, {...treo, hang_doi: {dang_co_hang_doi: true, dang_chay: false, muc: []}}]) {
     const e = await moi(tt); assert.ok(e.restart()); assert.strictEqual(e.restart().disabled, false); so++;
   }
-  for (const tt of [trang(), {...loi, duoc_khoi_dong_lai: false}, {...treo, duoc_khoi_dong_lai: undefined},
+  for (const tt of [trang(), trang({bo_tai: {san_sang: false, trang_thai: "CHUA_KHOI_DONG"}}),
+                    {...loi, duoc_khoi_dong_lai: false}, {...treo, duoc_khoi_dong_lai: undefined},
                     {cau_hinh: false, duoc_khoi_dong_lai: true, muc: []}]) {
     const e = await moi(tt); assert.strictEqual(e.restart(), null); so++;
   }

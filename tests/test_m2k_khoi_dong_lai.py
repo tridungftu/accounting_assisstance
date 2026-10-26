@@ -9,7 +9,7 @@ import threading
 import time
 import unittest
 from pathlib import Path
-from types import ModuleType
+from types import ModuleType, SimpleNamespace
 from unittest.mock import patch
 
 for _p in (Path(__file__).resolve().parent.parent, Path(__file__).resolve().parent):
@@ -17,7 +17,7 @@ for _p in (Path(__file__).resolve().parent.parent, Path(__file__).resolve().pare
         sys.path.insert(0, str(_p))
 
 from tests import test_m2_00b_tinh as gia
-from tests.test_m2_00e_http import AppHttp
+from tests.test_m2_00e_http import AppHttp, thong_so_tu
 from tests.test_m2_tai_tat_ca import HandlerGia, KetNoiTen, BoTai, TienTrinh, CHON
 from tests.test_m2_00b_tien_trinh import ProcGia, JobGia, KhachGia
 from kho_tri_thuc.giao_dien import m2_tai_hoa_don as mod
@@ -76,7 +76,7 @@ class KhoiDongLaiTest(unittest.TestCase):
         self.assertRegex(logs[0]["luc"], r"\d{4}-\d{2}-\d{2}T.*\+07:00")
         self.assertTrue(all(r["nguoi"] == "MO_PHONG_KE_TOAN" for r in self.conn.nhat_ky))
         self.assertIs(self.dv.cau_hinh, self.cfg)
-        self.assertEqual(self.node.goi, [])  # Khởi động lại không tải hóa đơn/profile.
+        self.assertEqual(self.node.goi, [("GET", "/api/config")] * 2)  # Chỉ kiểm phản hồi, không tải/profile.
 
     def test_vai_khac_khong_duoc_du_co_m2(self):
         for vai in ("XEM", "CFO", "BAN_HANG"):
@@ -92,6 +92,62 @@ class KhoiDongLaiTest(unittest.TestCase):
                 q["module"] = [m for m in q["module"] if m != "M2"]
         self.assertEqual(self.goi()[0], 403)
         self.assertEqual(self.tt.so_dung, 0)
+
+    def test_co_m2_nhung_khong_co_ho_so_duoc_tai_bi_chan(self):
+        for truong in ("nguon_duoc", "anh_xa"):
+            with self.subTest(truong=truong):
+                with patch.object(self.conn, truong, set() if truong == "nguon_duoc" else []):
+                    self.assertEqual(self.goi()[0], 403)
+                    self.assertFalse(self.goi(ten="", post=False)[1]["duoc_khoi_dong_lai"])
+        self.assertEqual((self.tt.so_dung, self.tt.so_start), (0, 0))
+
+    def test_phien_khac_dang_tai_phan_hoi_409_treo_cho_phep_va_ghi_run(self):
+        sid_khac = "sid-demo-ke-toan-khac"
+        self.app.dat_phien(sid_khac, "MO_PHONG_KE_TOAN")
+        r = self.dv.start(sid_khac, gia.CoSoM2B.chon(cty=gia.CTY_B))
+        self.conn.nhat_ky.clear()
+        status, body = self.goi()
+        self.assertEqual((status, body["error"]), (409, "M2K_DANG_TAI"))
+        self.assertIn("Đợi tải xong", body["message"])
+        self.assertEqual((self.tt.so_dung, self.tt.so_start), (0, 0))
+        self.assertEqual(self.conn.nhat_ky, [])
+        self.assertEqual(self.dv._dang_chay, r["run_handle"])
+        self.node.ngat = True
+        self.assertEqual(self.goi()[0], 200)
+        self.assertIsNone(self.dv._dang_chay)
+        self.assertTrue(all(log["lan_tai_bi_ngat"] == [r["run_handle"]] for log in self.ket_qua_nhat_ky()))
+
+    def test_hang_doi_phien_khac_giua_hai_job_van_bi_chan(self):
+        self.dv._hang_doi = q = {"ma": "hang-doi-demo-khac", "chu": ("phien-khac", "MO_PHONG_KE_TOAN"),
+                                "dang_chay": True, "dung": threading.Event(), "khoa_job": threading.RLock(),
+                                "muc": [{"trang_thai": "Chờ", "run_handle": None}]}
+        status, body = self.goi()
+        self.assertEqual((status, body["error"]), (409, "M2K_DANG_TAI"))
+        self.assertFalse(q["dung"].is_set())
+        self.assertEqual(q["muc"][0]["trang_thai"], "Chờ")
+        self.assertEqual(self.conn.nhat_ky, [])
+        self.assertEqual(self.tt.so_dung, 0)
+        self.node.ngat = True
+        self.assertEqual(self.goi()[0], 200)
+        self.assertTrue(q["dung"].is_set())
+        self.assertTrue(all(log["hang_doi_bi_ngat"] == q["ma"] for log in self.ket_qua_nhat_ky()))
+
+    def test_phan_hoi_qua_han_cho_phep_nhung_tu_choi_rpc_khong_duoc_dung(self):
+        self.dv.start(gia.SID_KT, gia.CoSoM2B.chon())
+        khach = type(self.dv._khach())
+        with patch.object(khach, "config", side_effect=mod.LoiKhach("CAPABILITY_INVALID", 401)):
+            self.assertEqual(self.goi()[0], 502)
+        self.assertEqual(self.tt.so_dung, 0)
+        with patch.object(khach, "config", side_effect=mod.LoiKhach("KHACH_QUA_HAN")):
+            self.assertEqual(self.goi()[0], 200)
+        self.assertEqual(self.tt.so_dung, 1)
+
+    def test_config_tien_trinh_that_chua_mo_khong_them_treo_false(self):
+        with patch.dict(self.app.__dict__, {"_tai_hoa_don_dv": None, "_tai_hoa_don": None,
+                        "demo_config": SimpleNamespace(tai_hoa_don=thong_so_tu(self.cfg))}):
+            status, body = self.goi(ten="", post=False)
+        self.assertEqual(status, 200, body)
+        self.assertEqual(body["bo_tai"], {"san_sang": False, "trang_thai": "CHUA_KHOI_DONG"})
 
     def test_phien_sai_va_danh_tinh_db_lech_bi_chan(self):
         self.assertEqual(self.goi(sid="sid-demo-het-han")[0], 400)
@@ -197,6 +253,7 @@ class KhoiDongLaiTest(unittest.TestCase):
         q = {"dang_chay": True, "dung": threading.Event(), "khoa_job": threading.RLock(),
              "muc": [{"trang_thai": s} for s in ("Xong", "Đang tải", "Chờ")]}
         self.dv._hang_doi = q
+        self.node.ngat = True
         self.assertEqual(self.goi()[0], 200)
         self.assertTrue(q["dung"].is_set())
         self.assertEqual([m["trang_thai"] for m in q["muc"]], ["Xong", "Đã hủy", "Đã hủy"])
@@ -234,6 +291,7 @@ class KhoiDongLaiTest(unittest.TestCase):
         status, body = self.goi(ten="", post=False)
         self.assertEqual(status, 200)
         self.assertTrue(body["duoc_khoi_dong_lai"])
+        self.assertNotIn("treo", body["bo_tai"])
         self.assertFalse(self.goi(sid=gia.SID_XA, ten="", post=False)[1]["duoc_khoi_dong_lai"])
         self.node.ngat = True
         self.assertTrue(self.goi(ten="", post=False)[1]["bo_tai"]["treo"])
