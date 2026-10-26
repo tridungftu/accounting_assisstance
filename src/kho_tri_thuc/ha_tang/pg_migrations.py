@@ -12226,3 +12226,70 @@ from ..k2.sql_mtq_cong import MTQ_CONG_F_SQL  # noqa: E402 — chỉ hằng SQL
 M0051_MTQ_CONG_F = MTQ_CONG_F_SQL
 PG_MIGRATIONS = (*PG_MIGRATIONS, M0051_MTQ_CONG_F)
 PG_SCHEMA_VERSION = len(PG_MIGRATIONS)
+
+# MTQ-4b2a — CD-012: guard G2/G3; tên tạm, lead đánh số khi gộp.
+from ..k2.sql_mtq_crm import MTQ_CRM_B_SQL  # noqa: E402 — chỉ hằng SQL
+
+M00xx_MTQ_CRM_B = (
+    *MTQ_CRM_B_SQL,
+    # Giữ thân lệnh hiện hành (gồm các sửa G4/BG1c/M0036), chỉ đổi nguồn
+    # ghim quyền. Guard đích ở trên kiểm MTQ trước mọi replay/CAS/công bố.
+    *(_m36_thay(
+        _m37_ham(ten),
+        ("PERFORM master.crm_g_ghim_quyen(", "PERFORM master.crm_gk_ghim_quyen("))
+      for ten in (
+          "master.crm_gk_tra", "master.crm_gk_dat_lan", "master.crm_gk_bao_gia_luu",
+          "master.crm_gk_bao_gia_huy", "master.crm_gk_chuyen", "master.crm_gk_soan_luu",
+          "master.crm_gk_xuat_ghi")),
+    _m36_thay(
+        _m37_ham("master.crm_gk_ghim_mau"),
+        ("LANGUAGE plpgsql STABLE SET search_path", "LANGUAGE plpgsql SET search_path"),
+        ("            SELECT * INTO v FROM master.crm_mau_phien_ban WHERE id = p_mau_pb;",
+         "            PERFORM pg_advisory_xact_lock_shared(742601, 1);\n"
+         "            SELECT * INTO v FROM master.crm_mau_phien_ban WHERE id = p_mau_pb;"),
+        ("v.phap_nhan_id <> p_pn",
+         "(CASE WHEN EXISTS (SELECT 1 FROM master.mtq_kich_hoat WHERE phap_nhan_id = v.phap_nhan_id AND bat) "
+         "THEN v.phap_nhan_id IS DISTINCT FROM p_pn ELSE v.phap_nhan_id <> p_pn END)"),
+        ("v.loai_hinh_id <> p_loai",
+         "(CASE WHEN EXISTS (SELECT 1 FROM master.mtq_kich_hoat WHERE phap_nhan_id = v.phap_nhan_id AND bat) "
+         "THEN v.loai_hinh_id IS DISTINCT FROM p_loai ELSE v.loai_hinh_id <> p_loai END)"),
+        ("master.crm_g_mau_doc(v.phap_nhan_id, v.loai_hinh_id) IS NULL",
+         "NOT (CASE WHEN EXISTS (SELECT 1 FROM master.mtq_kich_hoat WHERE phap_nhan_id = v.phap_nhan_id AND bat) "
+         "THEN master.crm_gk_xem('master.crm_mau_phien_ban', v.id, v.phap_nhan_id) "
+         "ELSE master.crm_g_mau_doc(v.phap_nhan_id, v.loai_hinh_id) IS NOT NULL END)")),
+    _m36_thay(
+        _m37_ham("master.crm_gk_mau_ghim"),
+        ("LANGUAGE plpgsql STABLE SET search_path", "LANGUAGE plpgsql SET search_path"),
+        ("            SELECT * INTO s FROM master.crm_hd_soan WHERE id = p_soan;",
+         "            PERFORM pg_advisory_xact_lock_shared(742601, 1);\n"
+         "            SELECT * INTO s FROM master.crm_hd_soan WHERE id = p_soan;"),
+        ("NOT master.ktt_duoc(s.phap_nhan_id, 'CRM') OR NOT master.crm_gk_duoc('CRM_SOAN', s.phap_nhan_id)",
+         "NOT (CASE WHEN EXISTS (SELECT 1 FROM master.mtq_kich_hoat WHERE phap_nhan_id = s.phap_nhan_id AND bat) "
+         "THEN master.crm_gk_xem('master.crm_hd_soan', s.id, s.phap_nhan_id) "
+         "ELSE master.ktt_duoc(s.phap_nhan_id, 'CRM') AND master.crm_gk_duoc('CRM_SOAN', s.phap_nhan_id) END)")),
+    _m36_thay(
+        _m37_ham("master.crm_gk_mau_hieu_luc"),
+        ("LANGUAGE plpgsql STABLE SET search_path", "LANGUAGE plpgsql SET search_path"),
+        ("            SELECT l.phap_nhan_id INTO pn FROM master.loai_hinh_doanh_thu l WHERE l.id = p_loai;",
+         "            PERFORM pg_advisory_xact_lock_shared(742601, 1);\n"
+         "            SELECT l.phap_nhan_id INTO pn FROM master.loai_hinh_doanh_thu l WHERE l.id = p_loai;"),
+        ("pn IS NULL OR NOT master.crm_gk_duoc('CRM_SOAN', pn)",
+         "pn IS NULL OR (NOT EXISTS (SELECT 1 FROM master.mtq_kich_hoat WHERE phap_nhan_id = pn AND bat) "
+         "AND NOT master.crm_gk_duoc('CRM_SOAN', pn))"),
+        ("WHERE v.loai_hinh_id = p_loai AND v.phap_nhan_id = pn AND v.trang_thai = 'HIEU_LUC'",
+         "WHERE v.loai_hinh_id = p_loai AND v.phap_nhan_id = pn AND v.trang_thai = 'HIEU_LUC' "
+         "AND CASE WHEN EXISTS (SELECT 1 FROM master.mtq_kich_hoat WHERE phap_nhan_id = pn AND bat) "
+         "THEN master.crm_gk_xem('master.crm_mau_phien_ban', v.id, pn) ELSE true END")),
+    _m36_thay(
+        _m37_ham("master.crm_gk_tep"),
+        ("LANGUAGE plpgsql STABLE SET search_path", "LANGUAGE plpgsql SET search_path"),
+        ("            SELECT * INTO x FROM master.crm_gk_xuat WHERE id = p_xuat;",
+         "            PERFORM pg_advisory_xact_lock_shared(742601, 1);\n"
+         "            SELECT * INTO x FROM master.crm_gk_xuat WHERE id = p_xuat;"),
+        ("NOT master.crm_gk_duoc(CASE WHEN x.loai = 'BAO_GIA' THEN 'CRM_BAO_GIA' ELSE 'CRM_SOAN' END, x.phap_nhan_id)",
+         "NOT (CASE WHEN EXISTS (SELECT 1 FROM master.mtq_kich_hoat WHERE phap_nhan_id = x.phap_nhan_id AND bat) "
+         "THEN master.crm_gk_xem('master.crm_gk_xuat', x.id, x.phap_nhan_id) "
+         "ELSE master.crm_gk_duoc(CASE WHEN x.loai = 'BAO_GIA' THEN 'CRM_BAO_GIA' ELSE 'CRM_SOAN' END, x.phap_nhan_id) END)")),
+)
+PG_MIGRATIONS = (*PG_MIGRATIONS, M00xx_MTQ_CRM_B)
+PG_SCHEMA_VERSION = len(PG_MIGRATIONS)
