@@ -23,6 +23,7 @@ Bài gốc:
    - ghi "kiểm xác suất: có/không" vào commit gộp.
 5. Lead vẫn giữ gate máy cho **mọi** lát, vì chạy bằng script, không tốn hạn mức review.
 7. **Gate máy chạy cả module test có gọi tới hàm/lớp bị sửa**, không chỉ test của lát: `grep -l "<tên hàm>" tests/*.py`. Mỗi đợt gộp nhiều lát chạy PG cả bộ trên hợp nhất. Bài học 26/10: PG cả bộ bắt 3 test cũ hỏng (`test_trich_chung_6` lớp giả thiếu `_tx`; `test_m4_dl5b_lich_su` vênh với DL5a; OCR test phụ thuộc tốc độ máy).
+8. **Gate test thuần chạy bằng runner** `tools/chay_test_theo_module.py --runtime …`. Runner nạp guard giữ tệp, đặt `CODEX_NO_DELETE_FILES=1`. Không gate bằng `python -m unittest` thường. Bài học 26/10: test OCR M9 đạt khi chạy bằng Python thường nhưng hỏng 25 ca dưới runner.
 6. Worktree dựng trước khi lead commit tệp review/giao việc vòng sửa thì **không thấy** các tệp đó. Lead chép nguyên văn nội dung vào prompt, hoặc cho reviewer chạy ở repo chính và đọc mã bằng `git show`. Bài học 26/10: worker MTQ-4a3b/M9-3a vòng 2 dừng "Cần lead" vì thiếu tệp.
 
 ## B. Phần cố định của prompt review
