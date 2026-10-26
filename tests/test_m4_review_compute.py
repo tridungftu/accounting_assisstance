@@ -772,5 +772,301 @@ class ReviewJsTinh(unittest.TestCase):
                 self.assertTrue(".m4 .m4-rv" in dong or dong.startswith(" "), dong)
 
 
+# ================================================================================================== M4-DL5a · DEMO
+def _dl5_data():
+    from test_m4_review_phu_luc_pg import _pl, _dong
+    data = {"trang_thai": "HIEN_HANH", "nguon_id": "DEMO-DL5",
+            "phu_luc": [_pl(11, "2026-02-01", gt_sau_vat=108, gt_hd_sau_pl=324),
+                        _pl(22, "2026-03-01", gt_sau_vat=-108, gt_hd_sau_pl=216)],
+            "thay_doi_tham_so": [dict(pl_id=11, ma_ts="TT-20", gia_tri_cu="90%", gia_tri_moi="95%", trich_dan="DEMO Điều 1"),
+                                 dict(pl_id=22, ma_ts="TT-20", gia_tri_cu="95%", gia_tri_moi="", trich_dan=None)],
+            "boq_dong": [_dong(1, "DEMO-A", kl=1, don_gia=100), _dong(2, "DEMO-B", kl=1, don_gia=100),
+                         _dong(3, "DEMO-A", "THAY", 11, kl=2, don_gia=None, ten=""),
+                         _dong(4, "DEMO-C", "THEM", 11, kl=0, don_gia=100),
+                         _dong(5, "DEMO-B", "BO", 22)]}
+    for row in data["boq_dong"]:
+        row["ma_rieng"] = row["ma_hm"]
+    return data
+
+
+def _dl5_basis(identity="00000000-0000-0000-0000-000000000001"):
+    return {"hop_dong": {"id": str(identity), "so_hop_dong": "DEMO/HĐ/DL5", "trang_thai_pl": "CO_DU"},
+            "dot": {"ngay_nghiem_thu": "2026-03-01", "so_dot": 1},
+            "tham_so": [{"ma": ma, "gia_tri": value, "trang_thai": "CO_GIA_TRI"} for ma, value in
+                        (("TT-02", "200"), ("TT-03", "Chưa gồm VAT"), ("TT-04", "8%"), ("TT-20", "90%"))],
+            "phu_luc": [], "boq": [], "manual_map": []}
+
+
+def _dl5_mock_owner(session, data=None, state=None):
+    from unittest.mock import MagicMock, Mock
+    from kho_tri_thuc.m4.review_phu_luc_pg import _COT
+    data = _dl5_data() if data is None else data
+    owner = MagicMock()
+    session.execute.return_value.fetchone.return_value = {"duoc": True}
+    responses = [[state or dict(nguon_id=data["nguon_id"], co_nguon=True, co_hd=True)]]
+    responses += [[{c: r.get(c) for c in _COT[table]} for r in data[table]] for table in _COT]
+
+    def execute(query, params=()):
+        session.execute.assert_called_once()  # quyền phải được kiểm trước mọi đọc owner
+        cursor = Mock(description=[])
+        cursor.fetchall.return_value = responses.pop(0)
+        return cursor
+    owner.execute.side_effect = execute
+    return owner
+
+
+class DL5SnapshotTinh(unittest.TestCase):
+    def test_khong_phien_khong_doc_khong_nap(self):
+        from unittest.mock import Mock
+        co, owner = _dl5_basis(), Mock()
+        self.assertIs(NR.chup_review_l2(co, owner, conn_phien=None), co)
+        owner.execute.assert_not_called()
+        owner.transaction.assert_not_called()
+
+    def test_khong_quyen_khong_doc_owner(self):
+        from unittest.mock import Mock
+        from kho_tri_thuc.ha_tang.primitives import DataError
+        owner, session = Mock(), Mock()
+        session.execute.return_value.fetchone.return_value = {"duoc": False}
+        with self.assertRaises(DataError) as caught:
+            NR.chup_review_l2(_dl5_basis(), owner, conn_phien=session)
+        self.assertEqual(caught.exception.code, "M4_REVIEW_KHONG_THAY")
+        owner.execute.assert_not_called()
+
+    def test_ba_null_giu_nguyen_basis_va_hash(self):
+        from unittest.mock import Mock
+        from kho_tri_thuc.k2.xay_dung import XayDungK2
+        for co_nguon, co_hd in ((False, False), (True, False), (True, True)):
+            with self.subTest(co_nguon=co_nguon, co_hd=co_hd):
+                co, session = _dl5_basis(), Mock()
+                before = XayDungK2._sha_co_so(co)
+                owner = _dl5_mock_owner(session, state=dict(nguon_id=None, co_nguon=co_nguon, co_hd=co_hd))
+                actual = NR.chup_review_l2(co, owner, conn_phien=session)
+                self.assertIs(actual, co)
+                self.assertEqual(XayDungK2._sha_co_so(actual), before)
+                owner.execute.assert_called_once()
+
+    def test_chup_du_ba_bang_khong_limit_dung_mot_nguon(self):
+        from unittest.mock import Mock
+        from kho_tri_thuc.k2.xay_dung import XayDungK2
+        session = Mock()
+        owner = _dl5_mock_owner(session)
+        co = _dl5_basis()
+        before = XayDungK2._sha_co_so(co)
+        result = NR.chup_review_l2(co, owner, conn_phien=session)
+        self.assertEqual([len(result["review_chep"][t]) for t in ("phu_luc", "thay_doi_tham_so", "boq_dong")], [2, 2, 5])
+        self.assertEqual(len(co["phu_luc"]), 0)  # không sửa basis caller
+        self.assertNotEqual(before, XayDungK2._sha_co_so(result))
+        import copy
+        changed = copy.deepcopy(result)
+        changed["review_chep"]["thay_doi_tham_so"][0]["gia_tri_moi"] = "96%"
+        self.assertNotEqual(XayDungK2._sha_co_so(changed), XayDungK2._sha_co_so(result))
+        for call in owner.execute.call_args_list[1:]:
+            self.assertEqual(call.args[1], ("DEMO-DL5", co["hop_dong"]["id"]))
+            self.assertNotIn("LIMIT", call.args[0])
+
+    def test_trung_pl_va_boq_khong_chon_nguon(self):
+        from kho_tri_thuc.ha_tang.primitives import DataError
+        for conflict in ("pl", "boq"):
+            co = _dl5_basis()
+            if conflict == "pl":
+                co["phu_luc"] = [dict(id="DEMO-op", so_pl="demo-pl-11", ngay_ky="2026-01-01",
+                                      ngay_hieu_luc="2026-02-01", trang_thai="DA_KY", doi_boq=True)]
+            else:
+                co["boq"] = [dict(id="DEMO-op", phu_luc_id=None, trang_thai="DA_MAP", dong=[])]
+            result = NR._basis_review_l2(co, _dl5_data())
+            self.assertTrue(result["review_chep"]["can_xem_lai"])
+            with patch.object(NR, "_m") as vendor, self.assertRaises(DataError) as caught:
+                NR.projection_l2(result)
+            vendor.assert_not_called()
+            self.assertEqual(caught.exception.code, "M4_REVIEW_CAN_XEM_LAI")
+            self.assertIn("Cần xem lại", str(caught.exception))
+
+    def test_xung_dot_cong_bo_failed_co_co_can_xem_lai_khong_chay_worker(self):
+        from unittest.mock import Mock
+        from kho_tri_thuc.k2.xay_dung import XayDungK2
+        svc = object.__new__(XayDungK2)
+        svc.root = Path(tempfile.mkdtemp(prefix="DEMO-DL5-"))
+        svc._raw = Mock(side_effect=AssertionError("Không đọc tệp khi xung đột"))
+        svc._chay_worker = Mock(side_effect=AssertionError("Không tính khi xung đột"))
+        svc._luu_artifact = Mock(return_value={"loai": "DEMO"})
+        co = _dl5_basis()
+        co["boq"] = [dict(phu_luc_id=None)]
+        co = NR._basis_review_l2(co, _dl5_data())
+        co["tep"] = {"raw_sha256": "a" * 64, "byte_length": 1}
+        result, artifacts, reason = svc._review_tinh("DEMO-run", co, "b" * 64, "L1_L2", None)
+        self.assertEqual(result["trang_thai"], "FAILED")
+        self.assertIn("Cần xem lại", result["loi"])
+        self.assertIn("Cần Anh/lead", reason)
+        self.assertTrue(artifacts)
+        svc._raw.assert_not_called()
+        svc._chay_worker.assert_not_called()
+
+    def test_k2_truyen_phien_vao_chup_trong_basis(self):
+        from unittest.mock import Mock
+        from kho_tri_thuc.k2.xay_dung import XayDungK2
+        svc = object.__new__(XayDungK2)
+        owner, session = Mock(), Mock()
+        hd = _dl5_basis()["hop_dong"]
+        svc._r1 = Mock(side_effect=[{}, dict(id="DEMO-dot", hop_dong_id=hd["id"]), hd, None, None, {"d": "DEMO"}])
+        svc._rn = Mock(return_value=[])
+        with patch("kho_tri_thuc.k2.xay_dung.DD.lich_su_da_duyet", return_value=None), patch.object(NR, "chup_review_l2", return_value={"DEMO": True}) as capture:
+            result = svc._co_so(owner, conn_phien=session, du_an="DEMO", tep="DEMO", dot="DEMO", che_do="L1_L2", o_dich=None)
+        self.assertEqual(result, {"DEMO": True})
+        self.assertIs(capture.call_args.args[1], owner)
+        self.assertIs(capture.call_args.kwargs["conn_phien"], session)
+        self.assertEqual(capture.call_args.args[0]["hop_dong"], hd)
+
+    def test_projection_du_cot_lich_su_null_zero_chi_doc(self):
+        # Thuần SQLite: dùng đúng DDL ghim, không cần openpyxl để kiểm biên nạp.
+        import ast
+        import sqlite3
+        tree = ast.parse((NR.GOC / "csdl_hop_dong.py").read_text(encoding="utf-8"))
+        schema = next(ast.literal_eval(n.value) for n in tree.body if isinstance(n, ast.Assign)
+                      and any(isinstance(t, ast.Name) and t.id == "SCHEMA" for t in n.targets))
+        # Chạy nguyên AST các hàm SQL thuần nguồn (không import phần Excel).
+        # Kiểm SHA trước compile, không viết lại thuật toán hay bỏ điều kiện ngày.
+        source = (NR.GOC / "csdl_hop_dong.py").read_bytes()
+        self.assertEqual(hashlib.sha256(source).hexdigest(), NR.PIN["csdl_hop_dong.py"])
+        namespace = {}
+        pure = ast.Module(body=[n for n in tree.body if isinstance(n, ast.FunctionDef) and n.name in
+                               ("phu_luc_ap_dung", "boq_hieu_luc", "_f", "tham_so_hieu_luc")], type_ignores=[])
+        exec(compile(pure, str(NR.GOC / "csdl_hop_dong.py"), "exec"), namespace)
+        cs = SimpleNamespace(SCHEMA=schema, tien=lambda v: float(v), ty_le=lambda v: float(v.rstrip("%")) / 100)
+        data = _dl5_data()
+        from test_m4_review_phu_luc_pg import _pl, _dong
+        data["phu_luc"].append(_pl(33, "2026-02-01", so_pl="DEMO-PL-11", trang_thai="Đã hủy", ly_do_huy="DEMO hủy"))
+        data["boq_dong"].append(_dong(6, "DEMO-A", "BO", 33))
+        base = _dl5_basis()
+        base["phu_luc"] = [dict(id="11", so_pl="DEMO-OP", ngay_ky="2026-01-01", ngay_hieu_luc="2026-02-01", doi_boq=False, trang_thai="DU_THAO")]
+        co = NR._basis_review_l2(base, data)
+        with patch.object(NR, "_m", side_effect=lambda name: cs if name == "csdl_hop_dong" else SimpleNamespace(khoa=lambda r: "DEMO")):
+            con, mapping = NR.projection_l2(co)
+        try:
+            self.assertEqual(con.execute("SELECT count(*) FROM phu_luc").fetchone()[0], 4)
+            self.assertEqual(con.execute("SELECT count(*) FROM boq_dong").fetchone()[0], 6)
+            self.assertEqual(tuple(con.execute("SELECT kl,don_gia,ten FROM boq_dong WHERE thao_tac='THAY'").fetchone()), (2, None, ""))
+            self.assertEqual(con.execute("SELECT kl FROM boq_dong WHERE thao_tac='THEM'").fetchone()[0], 0)
+            self.assertEqual([r[0] for r in con.execute("SELECT gia_tri_moi FROM thay_doi_tham_so ORDER BY pl_id")], ["95%", ""])
+            self.assertEqual(tuple(con.execute("SELECT gt_sau_vat,gt_hd_sau_pl FROM phu_luc WHERE trang_thai='Đã ký' ORDER BY id").fetchone()), (108, 324))
+            self.assertEqual(len(mapping["phu_luc"]), 4)
+            direct, ma = _dl5_direct(cs)
+            try:
+                for day, expected in (("2026-02-15", {"DEMO-A", "DEMO-B", "DEMO-C"}), ("2026-03-15", {"DEMO-A", "DEMO-C"})):
+                    actual = namespace["boq_hieu_luc"](con, mapping["ma_hd"], day)
+                    self.assertEqual(actual, namespace["boq_hieu_luc"](direct, ma, day))
+                    self.assertEqual(set(actual[0]), expected)
+                    self.assertEqual(namespace["tham_so_hieu_luc"](con, mapping["ma_hd"], "TT-20", day),
+                                     namespace["tham_so_hieu_luc"](direct, ma, "TT-20", day))
+            finally:
+                direct.close()
+            with self.assertRaises(sqlite3.OperationalError):
+                con.execute("INSERT INTO che_do VALUES (2,0)")
+        finally:
+            con.close()
+
+
+def _dl5_direct(cs=None):
+    """CSDL SQLite DEMO độc lập; không dùng projection làm expected."""
+    import sqlite3
+    from kho_tri_thuc.m4.review_phu_luc_pg import _COT
+    cs = cs or NR._m("csdl_hop_dong")
+    con = sqlite3.connect(":memory:")
+    con.row_factory = sqlite3.Row
+    con.executescript(cs.SCHEMA)
+    ma = NR.ma_hd_projection(_dl5_basis()["hop_dong"]["id"])
+    con.execute("INSERT INTO hop_dong (ma_hd,so_hd,gia_tri_hd,gom_vat,vat) VALUES (?,?,?,?,?)", (ma, "DEMO/HĐ/DL5", 200, "Chưa gồm VAT", .08))
+    for t in _dl5_basis()["tham_so"]:
+        con.execute("INSERT INTO tham_so (ma_hd,ma_ts,gia_tri,trang_thai) VALUES (?,?,?,'CO_GIA_TRI')", (ma, t["ma"], t["gia_tri"]))
+    data = _dl5_data()
+    for table, columns in _COT.items():
+        for r in data[table]:
+            values = [ma if c == "ma_hd" else r.get(c) for c in columns]
+            con.execute(f"INSERT INTO {table} ({','.join(columns)}) VALUES ({','.join('?' for _ in columns)})", values)
+    con.commit()
+    return con, ma
+
+
+def _dl5_parity(test, basis):
+    import copy
+    cs, nv = NR._m("csdl_hop_dong"), NR._m("may_chu.nghiep_vu")
+    direct, ma = _dl5_direct()
+    projected, mapping = NR.projection_l2(basis)
+    test.addCleanup(direct.close)
+    test.addCleanup(projected.close)
+    for day, codes in (("2026-02-15", {"DEMO-A", "DEMO-B", "DEMO-C"}), ("2026-03-15", {"DEMO-A", "DEMO-C"})):
+        with test.subTest(ngay=day):
+            test.assertEqual(cs.boq_hieu_luc(direct, ma, day), cs.boq_hieu_luc(projected, mapping["ma_hd"], day))
+            test.assertEqual(set(cs.boq_hieu_luc(projected, mapping["ma_hd"], day)[0]), codes)
+            test.assertEqual(cs.tham_so_hieu_luc(direct, ma, "TT-20", day), cs.tham_so_hieu_luc(projected, mapping["ma_hd"], "TT-20", day))
+            info = dict(so_pl="DEMO-PL-33", ngay_ky=day, ngay_hieu_luc=day, trang_thai="Đã ký", doi_boq="Không", nguoi_nhap="DEMO")
+            a_rows = [dict(dong=1, ma_ts="TT-20", cu="95%", moi="97%", trich="DEMO Điều 2")]
+            p_results, b_results = [], []
+            for con, code in ((direct, ma), (projected, mapping["ma_hd"])):
+                hd = dict(con.execute("SELECT * FROM hop_dong WHERE ma_hd=?", (code,)).fetchone())
+                p_results.append(cs.kiem_tra_phu_luc(con, hd, info, copy.deepcopy(a_rows), [], [])[0])
+                wb = openpyxl.Workbook()
+                ws = wb.active
+                ws.title = "DEMO"
+                ws.append(["STT", "Mã hạng mục", "Tên công việc", "Đơn vị", "KL hợp đồng", "KL kỳ này", "KL lũy kế hết kỳ này", "Đơn giá", "GT kỳ này"])
+                for i, item in enumerate(("DEMO-A", "DEMO-B", "DEMO-C"), 1):
+                    ws.append([i, item, "DEMO hạng mục", "DEMO m2", 1, 1, 1, 100, 100])
+                ws.append([None, None, "Cộng", None, None, None, None, None, 300])
+                k = cs.tinh_doi_chieu_dot(con, code, "DEMO.xlsx", day, 1, wv=wb)
+                test.assertTrue(k["rows"], "Fixture phải có dòng thực sự đi qua thuật toán B")
+                ph = nv._lop2(k)
+                checklist = nv.bang_kiem_lop2(k, ph[0], cs, con)
+                b_results.append((ph, checklist, nv._lop2b(SimpleNamespace(kq={"cay": [], "nhung": []}), k, cs, con, bang=checklist[1])))
+                wb.close()
+            test.assertEqual(p_results[0], p_results[1])
+            test.assertTrue(p_results[0])
+            test.assertEqual(b_results[0], b_results[1])
+
+
+@unittest.skipUnless(openpyxl is not None and _nguon_da_nap(), "Thiếu openpyxl/lõi ghim — parity cần lead chạy")
+class DL5ParityTinh(unittest.TestCase):
+    def test_parity_p_b_boq_hai_ngay(self):
+        _dl5_parity(self, NR._basis_review_l2(_dl5_basis(), _dl5_data()))
+
+    def test_ba_null_ket_qua_cu_khong_doi(self):
+        from unittest.mock import Mock
+        cs = NR._m("csdl_hop_dong")
+        co = CanNguon()._co_so()
+        before, bd = NR.projection_l2(co)
+        self.addCleanup(before.close)
+        expected = cs.boq_hieu_luc(before, bd["ma_hd"], "2026-03-01")
+        for has_source, has_hd in ((False, False), (True, False), (True, True)):
+            session = Mock()
+            owner = _dl5_mock_owner(session, state=dict(nguon_id=None, co_nguon=has_source, co_hd=has_hd))
+            result = NR.chup_review_l2(co, owner, conn_phien=session)
+            con, mapping = NR.projection_l2(result)
+            try:
+                self.assertEqual(cs.boq_hieu_luc(con, mapping["ma_hd"], "2026-03-01"), expected)
+            finally:
+                con.close()
+
+
+@unittest.skipUnless(os.environ.get("KHO_PG_DSN_TEST") and openpyxl is not None and _nguon_da_nap(), "Thiếu KHO_PG_DSN_TEST/openpyxl/lõi ghim")
+class DL5ParityPG(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        # Dùng hạ tầng DEMO DL3: CREATE kho_test_* riêng, migrate và phiên app_web
+        # có quyền XEM. Không kế thừa lớp test để tránh chạy lặp các test DL3.
+        from test_m4_review_phu_luc_pg import ReviewPhuLucPGTests
+        ReviewPhuLucPGTests.setUpClass.__func__(cls)
+
+    def test_parity_p_b_boq_tu_ban_chup_pg(self):
+        from test_m4_review_phu_luc_pg import ReviewPhuLucPGTests, CHUP
+        ReviewPhuLucPGTests.setUp(self)
+        data = _dl5_data()
+        raw = {t: data[t] for t in ("phu_luc", "thay_doi_tham_so", "boq_dong")}
+        self.repo.ghi_lan_chup(raw, du_lieu_dl2=dict(che_do=[], hop_dong=[dict(ma_hd="DEMO-HD", so_hd="DEMO/HĐ/DL5")], tham_so=[], tham_so_nguon=[]),
+                              nguon_id=self.source, chup_luc=CHUP, nhap_boi="MO_PHONG_DEMO", anh_xa={"DEMO-HD": (self.hd, self.da)})
+        basis = NR.chup_review_l2(_dl5_basis(self.hd), self.con, conn_phien=self.web)
+        # Chuẩn hóa duy nhất khóa cục bộ HĐ của expected, không đổi dữ liệu tính.
+        basis["hop_dong"]["id"] = _dl5_basis()["hop_dong"]["id"]
+        _dl5_parity(self, basis)
+
+
 if __name__ == "__main__":
     unittest.main()
