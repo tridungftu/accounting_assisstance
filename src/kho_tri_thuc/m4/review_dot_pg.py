@@ -83,7 +83,7 @@ def doc_lich_su_chep(conn_phien, hop_dong_id):
     if not allowed or not allowed[0]["duoc"]:
         return None
     tables = ("review_chep_nguon", "review_chep_hop_dong",
-              "review_chep_dot_thanh_toan", "review_chep_kl_thanh_toan")
+              "review_chep_dot_thanh_toan", "review_chep_kl_thanh_toan", "review_chep_boq_dong")
     for table in tables:
         access = _rows(conn_phien, """SELECT CASE WHEN to_regclass(%s) IS NULL THEN false
             ELSE has_table_privilege(to_regclass(%s), 'SELECT') END AS duoc""",
@@ -94,14 +94,24 @@ def doc_lich_su_chep(conn_phien, hop_dong_id):
     if not source or source[0]["nguon_id"] is None:
         return None
     params = (source[0]["nguon_id"], hop_dong_id)
-    dots = _rows(conn_phien, """SELECT d.dot, d.m4_dot_id, m.so_dot AS m4_so_dot
+    dots = _rows(conn_phien, """SELECT d.dot, d.m4_dot_id, m.so_dot AS m4_so_dot, d.ngay_nghiem_thu
         FROM m4.review_chep_dot_thanh_toan d LEFT JOIN m4.dot m
           ON m.id=d.m4_dot_id AND m.hop_dong_id=d.hop_dong_id
         WHERE d.nguon_id=%s AND d.hop_dong_id=%s::uuid ORDER BY d.dot""", params)
-    rows = _rows(conn_phien, """SELECT k.dot,k.ma_hm,k.kl_ky,k.kl_luy_ke
+    rows = _rows(conn_phien, """SELECT k.dot,k.ma_hm,k.kl_ky,k.kl_luy_ke,b.ds_dvt
         FROM m4.review_chep_kl_thanh_toan k JOIN m4.review_chep_dot_thanh_toan d
           ON (d.nguon_id,d.ma_hd,d.dot)=(k.nguon_id,k.ma_hd,k.dot)
+        LEFT JOIN LATERAL (
+            SELECT array_agg(b.dvt) AS ds_dvt FROM m4.review_chep_boq_dong b
+            WHERE b.nguon_id=k.nguon_id AND b.ma_hd=k.ma_hd
+              AND b.hop_dong_id=d.hop_dong_id AND b.ma_hm=k.ma_hm
+        ) b ON true
         WHERE d.nguon_id=%s AND d.hop_dong_id=%s::uuid ORDER BY k.dot,k.ma_hm""", params)
+    for row in rows:
+        # Không chọn tùy tiện một BOQ/phụ lục khi cùng mã có nhiều ĐVT.
+        units = {" ".join(v.split()).casefold() if isinstance(v, str) else ""
+                 for v in row.pop("ds_dvt") or []}
+        row["dvt"] = next(iter(units)) if len(units) == 1 and "" not in units else None
     return {"dot": dots, "dong": rows}
 
 

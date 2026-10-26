@@ -15,6 +15,8 @@ from __future__ import annotations
 import json
 import re
 import uuid
+from collections import Counter
+from datetime import date
 from decimal import Decimal, InvalidOperation, localcontext
 
 from ..ha_tang.primitives import DataError, canonical_json, sha256
@@ -209,12 +211,13 @@ def lich_su_da_duyet(xd, c, d: dict) -> dict | None:
                       "Có đợt trước chưa seal/thiếu ngày — lũy kế chưa đủ (INCOMPLETE, không coi vắng là 0)")}
 
 
-def gom_lich_su_review_chep(chep, so_dot, dots_m4, ma_hm=()):
+def gom_lich_su_review_chep(chep, so_dot, dots_m4, dong_nt=(), ngay_nghiem_thu=None):
     """Projection chỉ để xem, độc lập hoàn toàn với prior/basis/kết luận.
 
     dots_m4 chứa seal mới nhất của từng đợt, số liệu kỳ trong seal (không
     cộng các số lũy kế). Mã HM lấy từ chính seal, không đoán theo row_id hiện
-    hành. Thiếu mã/dòng/số hoặc ánh xạ mâu thuẫn làm kết quả chưa đủ.
+    hành. Chỉ cộng khi ĐVT rõ, khớp dòng hiện tại và ngày NT không sau
+    đợt hiện tại. Thiếu mã/dòng/số hoặc ánh xạ mâu thuẫn là chưa đủ.
     """
     if chep is None:
         return None
@@ -230,12 +233,25 @@ def gom_lich_su_review_chep(chep, so_dot, dots_m4, ma_hm=()):
             ctx.prec = max(28, sum(len(v.as_tuple().digits) + abs(v.as_tuple().exponent) for v in vals) + 10)
             return sum(vals, Decimal(0))
 
+    def don_vi(v):
+        return (" ".join(v.split()).casefold() or None) if isinstance(v, str) else None
+
+    def ngay(v):
+        try:
+            return date.fromisoformat(str(v or "")[:10])
+        except ValueError:
+            return None
+
+    hien_tai = {r["ma_hm"]: don_vi(r.get("dvt")) for r in dong_nt if r.get("ma_hm")}
+    dem_ma = Counter(r.get("ma_hm") for r in dong_nt if r.get("ma_hm"))
+    ngay_nay = ngay(ngay_nghiem_thu)
     legacy = {d["dot"]: d for d in chep["dot"] if d["dot"] < so_dot}
     m4 = {d["so_dot"]: d for d in dots_m4 if d["so_dot"] < so_dot}
     rows_review = [r for r in chep["dong"] if r["dot"] in legacy]
-    periods, maps, bo_qua = [], [], 0
+    periods, maps, units, bo_qua = [], [], [], 0
+    thieu_ngay = False
     thieu_ma = any(not r.get("ma_hm") or not r["ma_hm"].strip() for r in rows_review)
-    codes = {ma for ma in ma_hm if ma and ma.strip()}
+    codes = {ma for ma in hien_tai if ma.strip()}
     codes.update(r["ma_hm"] for r in rows_review if r.get("ma_hm") and r["ma_hm"].strip())
     for n in sorted(set(legacy) | set(m4)):
         l, m = legacy.get(n), m4.get(n)
@@ -250,7 +266,9 @@ def gom_lich_su_review_chep(chep, so_dot, dots_m4, ma_hm=()):
         else:
             nguon = "REVIEW_CHEP"
             rows = [r for r in rows_review if r["dot"] == n]
-        mapping = {}
+        nt = ngay((m if nguon == "M4_SEAL" else l or {}).get("ngay_nghiem_thu"))
+        thieu_ngay |= ngay_nay is None or nt is None or nt > ngay_nay
+        mapping, dvt = {}, {}
         for r in rows:
             ma = r.get("ma_hm")
             if not ma or not ma.strip():
@@ -260,26 +278,40 @@ def gom_lich_su_review_chep(chep, so_dot, dots_m4, ma_hm=()):
             val = decimal(r.get("khoi_luong_chap_nhan" if nguon == "M4_SEAL" else "kl_ky"))
             # Nhiều row_id seal cùng mã: chưa biết quan hệ, không tự gộp.
             mapping[ma] = None if ma in mapping else val
+            dvt.setdefault(ma, set()).add(don_vi(r.get("dvt")))
         maps.append((nguon, mapping))
+        units.append(dvt)
         periods.append({"so_dot": n, "nguon": nguon})
     luy_ke = {}
     for ma in sorted(codes):
         review = sorted((r for r in rows_review if r.get("ma_hm") == ma), key=lambda r: r["dot"])
+        unit = hien_tai.get(ma)
+        khac_dvt_review = not unit or any(don_vi(r.get("dvt")) != unit for r in review)
+        khac_dvt = khac_dvt_review or any(u.get(ma) != {unit} for u in units)
         vals = [decimal(r.get("kl_ky")) for r in review]
-        tong_review = tong(vals)
+        # Đối chiếu cũng không được cộng các số khác/thiếu ĐVT, kể cả legacy
+        # đã được seal thay. Giữ số lũy kế gốc cuối để người xem đối chiếu.
+        tong_review = None if khac_dvt_review else tong(vals)
         cuoi = decimal(review[-1].get("kl_luy_ke")) if review else None
         lech = tong_review is not None and cuoi is not None and tong_review != cuoi
         # Mọi NULL của Review vẫn được giữ cờ thiếu, kể cả đợt đã bị seal thay.
-        incomplete = (thieu_ma or not periods or any(src == "CAN_XEM_LAI" or mapping.get(ma) is None for src, mapping in maps)
+        incomplete = (thieu_ma or thieu_ngay or khac_dvt or not periods or any(src == "CAN_XEM_LAI" or mapping.get(ma) is None for src, mapping in maps)
                       or any(decimal(r.get(k)) is None for r in review for k in ("kl_ky", "kl_luy_ke")))
-        value = None if incomplete or lech else tong([mapping[ma] for _, mapping in maps])
+        trung_ma = dem_ma[ma] > 1
+        value = None if incomplete or lech or trung_ma else tong([mapping[ma] for _, mapping in maps])
         luy_ke[ma] = {"kl_luy_ke_gom_lich_su": value,
-                      "trang_thai": "INCOMPLETE" if incomplete else "LECH_LUY_KE_REVIEW" if lech else "CO",
+                      "trang_thai": "CAN_XEM_LAI" if trung_ma else "INCOMPLETE" if incomplete else "LECH_LUY_KE_REVIEW" if lech else "CO",
                       "doi_chieu": {"trang_thai": "LECH_LUY_KE_REVIEW" if lech else "INCOMPLETE" if review and (tong_review is None or cuoi is None) else "CO" if review else "KHONG_CO",
                                     "tong_kl_ky_review": tong_review, "kl_luy_ke_review": cuoi}}
+        if trung_ma:
+            luy_ke[ma]["ly_do"] = "Mã hạng mục xuất hiện nhiều dòng trong đợt này"
+        elif khac_dvt:
+            luy_ke[ma]["ly_do"] = "Đơn vị tính khác nhau hoặc chưa rõ, không cộng"
+        elif thieu_ngay:
+            luy_ke[ma]["ly_do"] = "Thiếu ngày nghiệm thu hoặc đợt trước có ngày NT sau đợt này — không cộng dồn"
     incomplete = (thieu_ma or not periods or not luy_ke
                   or any(p["nguon"] == "CAN_XEM_LAI" for p in periods)
-                  or any(x["trang_thai"] == "INCOMPLETE" for x in luy_ke.values()))
+                  or any(x["trang_thai"] in ("INCOMPLETE", "CAN_XEM_LAI") for x in luy_ke.values()))
     return {"nhan": "Gồm lịch sử Review đã chép — chưa qua duyệt M4", "dot": periods, "bo_qua_trung": bo_qua,
             "trang_thai": "INCOMPLETE" if incomplete else "LECH_LUY_KE_REVIEW" if any(x["trang_thai"] == "LECH_LUY_KE_REVIEW" for x in luy_ke.values()) else "CO",
             "luy_ke": luy_ke}
@@ -292,14 +324,14 @@ def lich_su_review_chep(xd, c, d, dong_nt=()):
     chep = doc_lich_su_chep(c, d["hop_dong_id"])
     if chep is None:
         return None
-    dots = xd._rn(c, """SELECT d.id,d.so_dot,s.id AS seal_id,s.so_lieu
+    dots = xd._rn(c, """SELECT d.id,d.so_dot,s.id AS seal_id,s.so_lieu,d.ngay_nghiem_thu
         FROM m4.dot d LEFT JOIN LATERAL (
             SELECT s.id,s.so_lieu FROM m4.duyet_seal s
             JOIN m4.duyet_phien_ban v ON v.id=s.phien_ban_id
             WHERE s.dot_id=d.id ORDER BY v.so DESC LIMIT 1
         ) s ON true WHERE d.hop_dong_id=%s::uuid AND d.so_dot < %s ORDER BY d.so_dot""",
                   (d["hop_dong_id"], d["so_dot"]))
-    lich_su = gom_lich_su_review_chep(chep, d["so_dot"], dots, [r.get("ma_hm") for r in dong_nt])
+    lich_su = gom_lich_su_review_chep(chep, d["so_dot"], dots, dong_nt, d.get("ngay_nghiem_thu"))
     # Tính bằng Decimal; ở biên DTO dùng chuỗi thập phân/null như các số 02C
     # hiện có, để JSON không lỗi kiểu hoặc đi qua float làm mất chính xác.
     for row in lich_su["luy_ke"].values():
@@ -311,7 +343,16 @@ def lich_su_review_chep(xd, c, d, dong_nt=()):
 
 def _gan_lich_su_review_chep(dong, lich_su):
     lk = (lich_su or {}).get("luy_ke") or {}
-    return [{**r, "lich_su_review_chep": lk.get(r.get("ma_hm")) if r.get("ma_hm") else None} for r in dong]
+    dem_ma = Counter(r.get("ma_hm") for r in dong if r.get("ma_hm"))
+    out = []
+    for r in dong:
+        ma = r.get("ma_hm")
+        history = lk.get(ma) if ma else None
+        if ma and dem_ma[ma] > 1:
+            history = {**(history or {}), "kl_luy_ke_gom_lich_su": None, "trang_thai": "CAN_XEM_LAI",
+                       "ly_do": "Mã hạng mục xuất hiện nhiều dòng trong đợt này"}
+        out.append({**r, "lich_su_review_chep": history})
+    return out
 
 
 # ================================================================================================== đồ thị nguồn/review của phiên bản
