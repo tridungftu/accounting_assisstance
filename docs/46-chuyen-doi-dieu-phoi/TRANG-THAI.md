@@ -313,3 +313,47 @@ H3 phân loại 36 đầu việc: 19 gói đã nhập `hop-nhat`, 13 xung đột
 | M2f, E1-5 | việc của Anh (cổng thuế thật / áp vào #6 thật) |
 | Chuyển DEMO 8798 sang `lat/ui-ky` | chờ Anh thử xong cổng A trên bản hiện tại |
 - 10:50 rà hàng đợi (CD-009 mục 5): Codex chạy M4-DL1 v2, KY-G5TAY-UI, M3-CL (CD-009.3d checklist M3); hàng chờ nối tiếp KY-G5TAY v4 → MTQ-1 v2 → M2k v2 → MASK-3; review Opus AI-4a/E1-4u/M4-03B-YC. Đã xong chờ review/gộp: AI-4a c639b79, E1-4u 456dca1, M4-03B-YC 553ac93, BG-e8 (ui-ky), UI-3e (ui-ky). KY-G5TAY: PG p01/p07 đạt sau vòng 3 (lỗi cú pháp `IF NOT CASE` có sẵn ở guard G6), còn p03 lỗi test (login không có trong seed) → v4. Không việc nào không bị chặn bị bỏ trống.
+
+### 26/10 11:15 — gộp KY-G5TAY, M4-DL1, MTQ-1 (M0037–M0039) · rà hàng đợi (CD-009 mục 5)
+- PG từng lát (10:58–11:01) so nền v3: KY-G5TAY 98 ok, MTQ-1 50 ok, M4-DL1 67 ok — **0 mã lỗi mới**, skip bằng nền; FAIL `test_pg_schema`/`test_m4_review_http` là FAIL có sẵn trong nền.
+- Gộp `hop-nhat-20261023`: 0079426 KY-G5TAY (**M0037**), 07bb02d M4-DL1 (**M0038**, đổi `M00xx` → `M0038_M4_REVIEW_CHEP`), 506f41c MTQ-1 (**M0039**, `M0039_MA_TRAN_THAM_QUYEN`). `pg_migrations.py` giữ LF (0 byte CR). Chưa CSDL bền nào chạy M4-DL1 v1. Review vòng 2 M4-DL1: Đạt (`review-m4-dl1-v2.md`); 3 điểm nên sửa → lát **M4-DL1b** (đang giao).
+- Đang chạy: lead — PG trên hợp nhất sau đánh số (14 nhóm module); test E1-4u v2, M2k v2 (không PG). Codex — MTQ-2, MASK-3, M4-03B-YC v2, M4-DL1b (4/4). Claude — review-lat KY-G5TAY-UI, review-lat E1-4u vòng 2 (2/2).
+| Việc chưa giao | Lý do chặn |
+|---|---|
+| M4-DL2 (lớp đọc/ghi dữ liệu chép Review) | nối tiếp M4-DL1b (cần cột `chup_luc`, hàm bản hiện hành) |
+| MTQ-3 (màn ma trận) | nối tiếp MTQ-2 (HTTP) đang chạy |
+| MTQ-4 (áp ma trận làm nguồn quyền) | nối tiếp MTQ-2/3; review Opus |
+| Nạp dữ liệu Review thật (CD-011 bước 4) | **Cần Anh**: bảng ánh xạ `ma_hd → hợp đồng / pháp nhân / dự án` |
+| M3 (hóa đơn bán ra) | **Cần Anh**: 15 câu trong `CHECKLIST-M3-HOA-DON-BAN-RA.md` |
+| Chuyển DEMO 8798 sang `lat/ui-ky` | chờ Anh thử xong cổng A |
+
+### 26/10 11:50 — gộp M4-03B-YC, M2k, MTQ-2; KY-G5TAY-UI lên dòng giao diện · rà hàng đợi (CD-009 mục 5)
+- Gộp `hop-nhat-20261023`: bf592ba M4-03B-YC (CD-010.7), 789607f M2k (QD-20261026-01, review vòng 2 Đạt), 5424efb MTQ-2 (review Đạt; chưa nối dispatcher).
+- `lat/ui-ky` d5448cb = nhận hợp nhất (M0037–M0039, MTQ-2, M2k, 03B-YC) + KY-G5TAY-UI (review Đạt + vòng 2 nên sửa; node 3 bộ đạt). DEMO 8798 vẫn chạy `lat/ui-dem` cho Anh thử cổng A.
+- Review: `review-e14u-v2-ky-g5tay-ui.md`, `review-m2k-v2-mtq-2-dl1b-mask-3.md`. M4-DL1b Không đạt (2 dòng kiểm ghim vị trí trong test) → vòng 2; MASK-3 Không đạt (tự tải lại 15 giây làm phiên không hết hạn) → vòng 2.
+- PG: MTQ-2b 64 ok, MTQ-5a 118 ok, M4-DL2 19 ok (ca đỏ là dòng kiểm hash DL1b đang bỏ) — 0 mã lỗi mới.
+- Đang chạy: Codex — M4-DL1b v2, M2k-b, MTQ-4a (rủi ro cao), MASK-3 v2 (4/4). Claude — review-lat MTQ-5a, MTQ-2b vòng 2 (2/2). Lead — node E1-4u v3 + dòng giao diện, node MTQ-3a.
+| Việc chưa giao | Lý do chặn |
+|---|---|
+| MTQ-3b (nối màn/route ma trận) | `app.js` đang do E1-4u giữ (tệp dùng chung); giao sau khi E1-4u gộp |
+| MTQ-2c (route khai phòng/gán vai/phạm vi/Admin/khôi phục) | chờ MTQ-2b qua review (cùng 2 tệp dịch vụ/HTTP) |
+| M4-DL3 (PL/BOQ) | cùng tệp `review_data_pg.py` với DL2 — chờ DL2 gộp |
+| MTQ-4b…4m | nối tiếp MTQ-4a (adapter chung); mỗi lát cần review Opus |
+| Nạp dữ liệu Review thật (CD-011 bước 4) | **Cần Anh**: bảng ánh xạ `ma_hd → HĐ/pháp nhân/dự án` |
+| M3 | **Cần Anh**: 15 câu checklist M3 |
+### 26/10 12:10 — CD-013/014 (M3 v2) nhận · MTQ-2b gộp · MTQ-4a bị chặn thiết kế · sự cố lệnh tìm kiếm
+- Gộp hợp nhất a12c0eb MTQ-2b (review vòng 2 Đạt; PG 64 ok).
+- **CD-013/014:** M3 + M10-1 vào `4-KE-HOACH-LEAD.md`; bản M3 20/10 → `LUU-TRU\thiet-ke-m3-ban-20261020\` (SHA256 khớp sau khi chuyển); 2 liên kết thiết kế trỏ v2; M3-CL đánh dấu đã thay. Giao **M10-1a** (engine lịch A/B). M3-0 chờ mục 17 của v2.
+- **MTQ-4a dừng (đúng quy tắc, chưa sửa tệp):** `CrmK2` chạy bằng kết nối `app_web`, M0039 thu hồi quyền gọi lõi MTQ của vai này. **Lead chốt hướng:** lát **MTQ-4a0** (SQL, migration mới) thêm hàm SECURITY DEFINER bọc lõi quyết định, lấy danh tính từ GUC phiên (`ktt_danh_tinh()`), cấp EXECUTE cho app_web; và hàm ghi nhật ký từ chối gọi được từ app_web trong giao dịch riêng — vì thiết kế §5.1 cũng cần SQL/RLS chạy dưới app_web gọi cùng lõi. Sau đó giao lại MTQ-4a (adapter Python). MTQ-4a0 chờ `pg_migrations.py` (DL1b đang giữ, sẽ là M0040).
+- **Sự cố 12:03 (lead tự báo):** lệnh `grep -r` tìm liên kết tài liệu M3 chạy trên **cả thư mục cha**, gồm `Phần mềm kho tri thức\var\` (có kho thật), lọc `*.md`, khoảng 2 phút rồi lead dừng (TaskStop). Không in nội dung, kết quả không hiển thị; vẫn là vi phạm "không đọc kho thật qua công cụ" ở mức duyệt tên/đọc tệp `.md`. Từ nay chỉ tìm trong thư mục cụ thể (`THIET-KE-MODULE-DE-CHOT-2026-10-20`, `docs`), không tìm đệ quy từ thư mục cha.
+- Đang chạy: Codex — DL1b v4, MTQ-5a v2, M10-1a, MTQ-2c (4/4). Claude — review-lat MTQ-3a (1/2). Lead — test M2k-b, MASK-3 v2 (pytest + benchmark).
+| Việc chưa giao | Lý do chặn |
+|---|---|
+| MTQ-4a0 / MTQ-4a | chờ `pg_migrations.py` (DL1b → M0040) |
+| M3-0, M3-1a… | M3-0 chờ mục 17 thiết kế v2; M3-1a cần `pg_migrations.py` sau MTQ-4a0 |
+| MTQ-3b | `app.js` đang do E1-4u giữ — chờ E1-4u gộp |
+| M4-DL3 | cùng tệp DL2 — chờ DL2 gộp (sau DL1b) |
+| Nạp dữ liệu Review thật (CD-011) | **Cần Anh**: bảng ánh xạ `ma_hd → HĐ/pháp nhân/dự án` |
+- 12:05 **MASK-3 (Mask v2 2.7.2) xong vòng 2:** lead chạy pytest `-m "not ocr"` 476 đạt (chỉ còn `test_local_ai::test_cancel_and_reset…` có sẵn từ 2.7.0); benchmark bộ chính lộ 1/101, held_out lộ 6/51 — giữ nguyên so 2.7.1; smoke giao diện đạt (không còn tự tải lại `/api/pending`). Điểm Chặn review vòng 1 (phiên không hết hạn) lead kiểm đã hết. Sửa tại chỗ trong Mask v2 (không git).
+- **Thiếu sót quy trình (lead tự báo):** trước MASK-3 lead **không** sao lưu Mask v2 vào `LUU-TRU` như MASK-1/2 (thư mục `tam-20261026` trống). Đã sao lưu trạng thái sau sửa: `LUU-TRU\mask3-v2-sau-sua-20261026-120235\` (133 tệp mã/tài liệu + `SHA256SUMS.txt`; không chép `config\`, `tmp\`, `data\`, khóa). Bản gần nhất trước MASK-3 là `mask2-v3-sao-luu-20261025-211809` (trước MASK-2 vòng 3). Từ nay mỗi lát Mask sao lưu trước khi giao.
+- M2k-b: Python M2 291 ok (0 mã mới), node 3 bộ đạt — chờ review-lat (đổi thứ tự khóa).

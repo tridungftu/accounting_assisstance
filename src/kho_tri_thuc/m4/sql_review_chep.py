@@ -14,16 +14,25 @@ SQLite cố định; lần chạy sau dùng nguon_id mới. Khóa mọi bảng c
 (nguon_id, PK SQLite); dòng sửa/xóa/id dùng lại ở lần sau không đè lần trước.
 Replay cùng lần chụp chỉ ON CONFLICT DO NOTHING sau khi đối chiếu dong_sha256;
 không dùng SHA file DB làm khóa, không ON CONFLICT DO UPDATE.
+Nạp lại cùng nguon_id phải đối chiếu chup_luc, vì bảng review_chep_nguon
+không có dong_sha256.
 Công cụ nạp toàn bộ lần chụp trong một transaction; nguon.chup_luc là thời
 điểm chụp tệp nguồn do công cụ nạp truyền vào, bắt buộc và không có DEFAULT.
+Không nạp một phần theo dự án hay HĐ; gặp HĐ chưa ánh xạ thì dừng cả lần chụp.
 nguon.nhap_luc chỉ là thời điểm nạp, có thể khác thứ tự khi nạp bù bản cũ.
 Mỗi lần chụp là bản sao đủ của CÙNG MỘT CSDL Review. Bản hiện hành của HĐ:
 m4.review_chep_hien_hanh(:hop_dong_id) chọn lần chụp mới nhất TOÀN BỘ trước
 (ORDER BY n.chup_luc DESC, n.id DESC LIMIT 1), rồi kiểm HĐ trong lần chụp đó.
-HĐ vắng mặt trả NULL (đã xóa ở nguồn), không lùi về lần chụp cũ hơn có HĐ.
+HĐ vắng mặt trả NULL, không lùi về lần chụp cũ hơn có HĐ.
+NULL có ba nghĩa: chưa có lần chụp; HĐ đã xóa ở nguồn; hoặc không có quyền
+dự án (nếu sau này mở cho app_web). Màn hình không được hiện "đã xóa" chỉ vì
+nhận NULL; lớp đọc phải phân biệt các trường hợp này.
 Sau đó lấy bảng con với nguon_id đó và khóa HĐ tương ứng (qua PL/đợt nếu cần);
 không chọn dòng mới nhất riêng từng khóa. Hàm đọc theo quyền/RLS của bên gọi;
-bảng nguồn vẫn chỉ chủ bảng đọc, không mở thêm quyền cho app_web.
+app_web gọi m4.review_chep_hien_hanh sẽ bị từ chối quyền, vì review_chep_nguon
+chỉ chủ bảng đọc. Lớp đọc (DL2) chạy bằng kết nối chủ bảng và phải tự lọc theo
+quyền M4 của người gọi trước khi trả dữ liệu. Muốn mở cho app_web thì cần
+migration cấp SELECT (id, chup_luc) trên review_chep_nguon kèm policy, ở lát sau.
 Cần Anh: nếu có nhiều CSDL Review (ví dụ mỗi pháp nhân một tệp), cần chốt
 cột phân biệt nguồn trước khi dùng quy tắc mới nhất toàn bộ; chưa tự thêm.
 DL2: DTO chỉ xuất định danh tệp được quản lý, không lộ file_nguon/đường dẫn.

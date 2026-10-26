@@ -782,6 +782,9 @@
     s.tep.filter(id => !tepUngVien.some(t => t.id === id)).forEach((id, i) => card.append(el("div", {class: "m4-hang"}, nho("Tệp căn cứ đã lưu của đợt trong nhóm " + (i + 1)),
       nut("Bỏ tệp đã lưu " + (i + 1), redraw(() => { s.tep = s.tep.filter(x => x !== id); }), "", !editable))));
     card.append(nho("Chọn tệp căn cứ đã có trong hồ sơ nghiệm thu. Tải tệp mới do phòng dự án thực hiện."));
+    // M4-03B-YC: 03A chỉ có lưu/xác nhận; CHO_BO_SUNG là trạng thái nháp thiếu,
+    // chưa có luồng gửi yêu cầu cho phòng dự án. Không tạo nút/route thay thế.
+    if (!tepUngVien.length && !s.tep.length) card.append(nho("Chưa có tệp căn cứ cho đối chiếu hóa đơn. Đề nghị phòng dự án bổ sung tệp vào hồ sơ nghiệm thu, sau đó bấm Làm mới."));
     const reason = el("textarea", {"aria-label": "Lý do đối chiếu", value: s.lyDo}); reason.disabled = !editable;
     reason.addEventListener("input", () => { if (dcSua(s)) { s.lyDo = reason.value; dcNut(s, card); } }); card.append(el("label", {}, "Lý do đối chiếu / phiên bản mới", reason));
     card.append(nut("Lưu nháp đối chiếu", () => dcGui(s, false), "m4-chinh", !editable), nut("Xác nhận đối chiếu", () => dcGui(s, true), "m4-chinh", true), el("p", {class: "m4-03b-ly-do m4-nho"}));

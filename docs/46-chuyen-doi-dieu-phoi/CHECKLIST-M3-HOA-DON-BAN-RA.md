@@ -1,5 +1,7 @@
 # M3 · Hóa đơn bán ra & doanh thu BĐS — checklist chốt thiết kế
 
+> **ĐÃ THAY BẰNG THIẾT KẾ v2 (26/10/2026, CD-013):** `THIET-KE-MODULE-DE-CHOT-2026-10-20\M3-HOA-DON-BAN-VA-DOANH-THU-v2-20261026.md`. 15 câu dưới đây không còn dùng để hỏi Anh; giữ làm lịch sử.
+
 **M3-CL · CD-009 §3d · 26/10/2026 · CHỜ ANH CHỐT · Chỉ soạn, chưa giao code.**
 
 ## 1. Phạm vi, nền có sẵn và khoảng thiếu

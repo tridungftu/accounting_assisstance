@@ -21,6 +21,7 @@
   // ------------------------------------------------------------------ trạng thái
   let ep = 0, gen = 0;            // epoch (đổi vai) + thế hệ GET danh sách
   let tt = null, loiTai = null, loiBoTai = null, dangMo = false, daThuMo = false;
+  let xacNhanKhoiDongLai = false, dangKhoiDongLai = false;
   let run = null, abort = null, dongHo = null, logMo = false;
   let hangDoi = null, dangGuiTatCa = false, dangHuy = false, doiGen = 0;
   const khoaMap = new Map();      // lựa chọn (JSON) → khóa thao tác: giữ tới khi lần tải kết thúc (bấm lại sau mất kết nối = cùng run, không chạy mù)
@@ -127,20 +128,37 @@
 
   function veBoTai() {
     const o = $("m2-tct-bo-tai"); if (!o) return;
-    if (loiTai) { o.replaceChildren(boxLoi(loiTai, "Không đọc được trạng thái bộ tải"), nut("Thử lại", () => napTrangThai())); return; }
+    if (loiTai && !tt) { o.replaceChildren(boxLoi(loiTai, "Không đọc được trạng thái bộ tải"), nut("Thử lại", () => napTrangThai())); return; }
     if (!tt) { o.replaceChildren(node("p", "Đang tải…", "upload-status")); return; }
     if (!tt.cau_hinh) {
       o.replaceChildren(K.empty("Bộ tải chưa cấu hình", (tt.ly_do || "") + (tt.goi_y ? " Gợi ý: " + tt.goi_y : ""))); return;
     }
     const kids = [];
     const b = tt.bo_tai || {};
-    if (b.san_sang) kids.push(pill("Bộ tải đã mở", "green"));
+    if (loiTai) kids.push(boxLoi(loiTai, "Không đọc được trạng thái bộ tải"), nut("Thử lại", () => napTrangThai()));
+    if (b.treo) kids.push(pill("Bộ tải không phản hồi", "amber"));
+    else if (b.san_sang) kids.push(pill("Bộ tải đã mở", "green"));
     else {
       kids.push(pill(dangMo ? "Đang mở bộ tải…" : "Bộ tải chưa mở", "amber"));
-      kids.push(nut(b.loi_khoi_dong ? "Thử mở lại bộ tải" : "Mở bộ tải", () => moBoTai(), "button secondary small", dangMo || !(tt.muc || []).length));
+      kids.push(nut(b.loi_khoi_dong ? "Thử mở lại bộ tải" : "Mở bộ tải", () => moBoTai(), "button secondary small", dangMo || dangKhoiDongLai || !(tt.muc || []).length));
     }
     if (b.loi_khoi_dong) kids.push(boxLoi(new LoiTct(0, b.loi_khoi_dong, "Bộ tải không khởi động được.", b.goi_y), "Lỗi khởi động bộ tải"));
     if (loiBoTai) kids.push(boxLoi(loiBoTai, "Không mở được bộ tải"));
+    const loiKetNoi = run && (run.loi || run.chuaRo);
+    const treo = b.treo || (loiKetNoi && /KHACH_(QUA_HAN|KHONG_KET_NOI)|NODE_CHUA_SAN_SANG/.test(loiKetNoi.code || loiKetNoi.ma || ""));
+    if (tt.duoc_khoi_dong_lai === true && (b.loi_khoi_dong || treo || dangKhoiDongLai || b.trang_thai === "DANG_KHOI_DONG")) {
+      const ban = dangMo || dangKhoiDongLai || b.trang_thai === "DANG_KHOI_DONG";
+      kids.push(nut(dangKhoiDongLai ? "Đang khởi động lại bộ tải…" : "Khởi động lại bộ tải", () => {
+        xacNhanKhoiDongLai = true; veBoTai();
+      }, undefined, ban));
+      if (xacNhanKhoiDongLai && !dangKhoiDongLai) {
+        const box = node("div", undefined, "notice demo-notice");
+        box.append(node("p", "Khởi động lại sẽ dừng bộ tải đang treo rồi chạy lại, hủy các mục đang dở và chờ trong hàng đợi. Cần đối soát lần tải đang dở. Giữ nguyên gói và cấu hình."),
+          nut("Xác nhận khởi động lại", khoiDongLaiBoTai, undefined, ban),
+          nut("Hủy", () => { xacNhanKhoiDongLai = false; veBoTai(); }));
+        kids.push(box);
+      }
+    } else xacNhanKhoiDongLai = false;
     o.replaceChildren(...kids);
   }
 
@@ -160,8 +178,8 @@
     $("m2-tct-phap-nhan").value = giu ? cu : (dau ? JSON.stringify([dau.source_instance, dau.scope_ref, dau.company_key]) : "");
     $("m2-tct-nam").classList.toggle("hidden", $("m2-tct-che-do").value !== "year");
     $("m2-tct-thang").classList.toggle("hidden", $("m2-tct-che-do").value === "year");
-    $("m2-tct-bat-dau").disabled = dangChay() || dangGuiTatCa || chuaSan(mucChon());
-    $("m2-tct-tat-ca").disabled = dangChay() || dangGuiTatCa || !!(hangDoi && hangDoi.dang_co_hang_doi) || !ds.some(m => m.san_sang);
+    $("m2-tct-bat-dau").disabled = dangKhoiDongLai || dangChay() || dangGuiTatCa || chuaSan(mucChon());
+    $("m2-tct-tat-ca").disabled = dangKhoiDongLai || dangChay() || dangGuiTatCa || !!(hangDoi && hangDoi.dang_co_hang_doi) || !ds.some(m => m.san_sang);
     if (hangDoi && hangDoi.dang_co_hang_doi) $("m2-tct-bat-dau").disabled = true;
   }
 
@@ -306,7 +324,7 @@
     }
   }
   async function taiTatCa() {
-    if (dangChay() || dangGuiTatCa || (hangDoi && hangDoi.dang_co_hang_doi)) return;
+    if (dangKhoiDongLai || dangChay() || dangGuiTatCa || (hangDoi && hangDoi.dang_co_hang_doi)) return;
     const sel = layLuaChon(); if (!sel) return;
     const {mode, year, month, types, formats} = sel, e = ep;
     const n = new Set((tt.muc || []).filter(m => m.san_sang).map(m => m.phap_nhan_ma)).size;
@@ -354,13 +372,31 @@
   }
   async function moBoTai() {
     const e = ep;
-    if (dangMo) return;
+    if (dangMo || dangKhoiDongLai) return;
     dangMo = true; loiBoTai = null; ve();
     try { await postJson(API + "/khoi-dong", {}); } catch (err) { if (e === ep) loiBoTai = err; }
     if (e !== ep) return;
     dangMo = false;
     await napTrangThai();
     if (e === ep) ve();
+  }
+
+  async function khoiDongLaiBoTai() {
+    if (dangMo || dangKhoiDongLai || !xacNhanKhoiDongLai || !tt || tt.duoc_khoi_dong_lai !== true) return;
+    const e = ep;
+    dangKhoiDongLai = true; xacNhanKhoiDongLai = false; daThuMo = true;
+    loiBoTai = null; trangThai("Đang khởi động lại bộ tải…"); ve();
+    try {
+      await postJson(API + "/khoi-dong-lai", {});
+      if (e !== ep) return;
+      trangThai("Đã khởi động lại bộ tải. Lần tải đang dở cần được đối soát trước khi tải tiếp.");
+    } catch (err) {
+      if (e !== ep) return;
+      loiBoTai = err;
+      trangThai(err.status === 0 ? "Mất kết nối — chưa rõ kết quả khởi động lại. Bấm Làm mới để kiểm tra trạng thái bộ tải." : err.message, true);
+    } finally {
+      if (e === ep) { dangKhoiDongLai = false; await napTrangThai(); if (e === ep) ve(); }
+    }
   }
 
   // ------------------------------------------------------------------ bắt đầu → theo dõi → nhận
@@ -378,7 +414,7 @@
     return {source_instance: l[0], scope_ref: l[1], company_key: l[2], mode, year, month, types, formats};
   }
   async function batDau() {
-    if (dangChay() || dangGuiTatCa || (hangDoi && hangDoi.dang_co_hang_doi)) return;
+    if (dangKhoiDongLai || dangChay() || dangGuiTatCa || (hangDoi && hangDoi.dang_co_hang_doi)) return;
     trangThai("");
     const sel = layLuaChon();
     if (!sel) return;
@@ -504,6 +540,7 @@
     doiGen += 1; hangDoi = null; dangGuiTatCa = false; dangHuy = false;
     if (abort) { try { abort.abort(); } catch (_) {} abort = null; }
     run = null; tt = null; loiTai = null; loiBoTai = null; dangMo = false; daThuMo = false; dungDongHo();
+    xacNhanKhoiDongLai = false; dangKhoiDongLai = false;
     for (const id of ["m2-tct-bo-tai", "m2-tct-tien-trinh", "m2-tct-ket-qua", "m2-tct-hang-doi"]) { const o = $(id); if (o) o.replaceChildren(); }
     const f = $("m2-tct-form"); if (f) f.classList.add("hidden");
     trangThai("");

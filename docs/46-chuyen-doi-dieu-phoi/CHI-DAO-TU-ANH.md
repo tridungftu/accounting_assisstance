@@ -155,3 +155,23 @@
 **Mặc định lead tự chọn, ghi vào phiếu cổng A để Anh xem:** giới hạn tiền áp cho hành động **duyệt** (và lập nếu module cần); cách nối ma trận với quyền đã có (TL 42 §1) — ma trận là nguồn quyền duy nhất sau khi bật.
 **Báo Anh khi:** phiếu cổng A màn Ma trận thẩm quyền.
 **Trạng thái:** ĐÃ NHẬN 26/10 09:10 — soạn thiết kế lát + giao MTQ-1 (máy chủ).
+
+## CD-013 · 26/10/2026 11:45 · Bắt đầu M3 · Hóa đơn bán ra & doanh thu BĐS theo thiết kế v2 (+ phần tách sang M10)
+**Căn cứ:** Anh ra lệnh 26/10 11:34 "đọc file M3 v2 để tiến hành làm M3"; thiết kế `D:\Claude\Phan mem ho tro ke toan\THIET-KE-MODULE-DE-CHOT-2026-10-20\M3-HOA-DON-BAN-VA-DOANH-THU-v2-20261026.md` (Anh chốt hướng; **mục 16 = trả lời của Anh 11:40, thắng các mục trước khi mâu thuẫn**). Bản này **thay** `CHECKLIST-M3-HOA-DON-BAN-RA.md` (M3-CL) và bản M3 20/10.
+**Việc:**
+1. Đọc v2 (mục 0, 5–10, 13, 16). Thêm M3 và M10-1 vào `4-KE-HOACH-LEAD.md` + `TRANG-THAI.md`; chuyển bản M3 20/10 vào lưu trữ, sửa liên kết trong `00-DANH-MUC-VA-THU-TU-CHOT.md`; đánh dấu M3-CL "đã thay bằng v2".
+2. **Lát (v2 mục 16):** M3-1 tách cơ sở doanh thu/thuế + 3 đẳng thức + màn hóa đơn–hợp đồng · M3-2 hình thức doanh thu (ghi nhận luôn / phân bổ) dạng policy · M3-3 đợt thu KCN theo lớp tài khoản cọc / người mua trả trước / 131 + máy trạng thái + K5 + màn 4 trường · M3-4 sự kiện bàn giao (biên bản tải lên CRM theo hợp đồng/lô → đề xuất bút toán bàn giao; nhà ở ghi nhận doanh thu tại bàn giao, khung chung) · M3-5 lưu tham số phân bổ (thuê đất; phí hạ tầng theo tháng) + lưới icon M3 + tuổi hồ sơ chờ · **M10-1** engine lịch tính A/B **chỉ để kiểm chéo** + nguồn sổ 3387 Junsky + mapping + bảng lệch + cảnh báo. Lát nhỏ ≤ 3 file, theo CD-004; xếp sau CD-011/CD-012 đang chạy nhưng **không để worker trống** (CD-009).
+3. **Không tự quyết trong code** các điểm còn [CHỜ CHỐT] #7 (cơ sở thuế), #8 (ánh xạ đối tượng Junsky), #10 (file xuất — chỉ làm bản hiển thị), #11 (nguồn biên bản/policy nhà ở), #12 (mẫu K0); chọn mặc định A/B chờ K0. Gặp → dừng phần đó, ghi `CẦN ANH XÁC NHẬN`.
+4. Tài khoản chi tiết trong mẫu bút toán là **dữ liệu policy** (kế toán trưởng điền); code không gắn cứng số tài khoản. Phần mềm **không phân bổ** thay Junsky, chỉ lưu tham số và kiểm chéo (Anh, #9).
+5. Test dùng dữ liệu giả; ví dụ 7.4 (600 / 60 tháng; cách A năm 1 = 120, cách B ≈ 93,3) làm test đơn vị cho M10-1.
+**Báo Anh khi:** phiếu cổng A M3 (lưới icon + màn hóa đơn–hợp đồng + đợt thu KCN); cần trả lời các [CHỜ CHỐT].
+**Trạng thái:** ĐÃ NHẬN 12:05 26/10 — mục 1 xong (M3 + M10-1 vào `4-KE-HOACH-LEAD.md` và TRANG-THAI; bản M3 20/10 chuyển `LUU-TRU\thiet-ke-m3-ban-20261020\` kèm SHA256; liên kết trong `00-DANH-MUC-VA-THU-TU-CHOT.md` và `CRM-CHUC-NANG-VA-THIET-KE.md` trỏ v2; M3-CL đánh dấu đã thay). Mục 2: giao **M10-1a** (engine lịch A/B, test ví dụ 7.4) 12:10; M3-0 (mô hình dữ liệu + bảng lớp/mốc + phiếu cổng A M3) chờ mục 17 trong v2 (chưa thấy trong tệp lúc 12:05). Không tự quyết #7, #8, #10, #11, #12.
+
+## CD-014 · 26/10/2026 11:55 · M3: làm theo MỐC thay đổi cách ghi nhận; tài khoản để bước sau (bổ sung CD-013)
+**Căn cứ:** Anh 26/10 11:49: "Hãy quan tâm đến các mốc làm thay đổi cách ghi nhận, còn ghi nhận vào tài khoản nào sẽ nằm ở bước sau." Thiết kế M3 v2 **mục 17** (thêm 11:55).
+**Việc:**
+1. M3-3, M3-4 làm **máy chuyển lớp theo mốc**: lớp ghi nhận (Đặt cọc · Người mua trả trước · Phải thu chưa đến hạn/đến hạn · Doanh thu chờ phân bổ · Doanh thu đã ghi nhận · Đã đảo/điều chỉnh); bảng mốc → nguồn quyết định → chuyển lớp (v2 §17) là **dữ liệu cấu hình** theo hình thức/loại nghiệp vụ, không cứng code.
+2. Mốc dùng lại cơ chế **ngày dự kiến / ngày thực tế** của mốc dự án (CD-006/007); thiếu nguồn quyết định → không chuyển lớp, hồ sơ chờ.
+3. **Không** sinh bút toán có số tài khoản ở giai đoạn này; các tài khoản trong v2 §7.2/§16 chỉ để bước sau (bảng ánh xạ lớp → tài khoản do kế toán trưởng điền). Đề xuất hiển thị: mốc · ngày · căn cứ · lớp trước → lớp sau · giá trị.
+4. Bảng mốc §17 là đề xuất: đưa vào phiếu cổng A M3 để Anh sửa.
+**Trạng thái:** ĐÃ NHẬN 12:05 26/10 — áp vào M3-0/M3-3/M3-4: máy chuyển lớp theo mốc, bảng mốc là cấu hình, dùng ngày dự kiến/thực tế của mốc dự án; không sinh số tài khoản. Lead chờ mục 17 của thiết kế v2 để soạn bảng mốc cho phiếu cổng A M3.

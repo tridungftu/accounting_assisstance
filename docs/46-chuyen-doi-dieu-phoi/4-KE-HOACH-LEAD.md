@@ -231,3 +231,18 @@ Căn cứ: `D:\Claude\Phan mem ho tro ke toan\48-cong-ai-local-luon-co-cloud-qua
 - 25/10: thư mục chính có 6 tệp `eol=lf` nằm CRLF trên đĩa (blob LF) → test ghim byte M26/M27 lệch; lead chuẩn hóa LF tại chỗ, `git diff` trống, 0 mã lỗi mới.
 - 25/10: lỡ để 5 worker lập trình chạy cùng lúc (2 Claude AI-0a/MASK-1 + 3 Codex AI-1/C3c/M2s-b) — vượt mức 3; không giao thêm tới khi về ≤ 3.
 - 25/10: T-MIG2 vòng 2 còn 1 mã lỗi mới (`test_crm_k2.test_t21…`) và họ bản sao G6A vẫn không dựng (`ho=-`) — chưa gộp; lead cần xem nhật ký dựng bản sao trước khi giao vòng 3.
+
+## Bổ sung 26/10/2026 12:05 — M3 · Hóa đơn bán ra & doanh thu BĐS (v2) và M10-1 (CD-013, CD-014)
+Thiết kế: `..\..\THIET-KE-MODULE-DE-CHOT-2026-10-20\M3-HOA-DON-BAN-VA-DOANH-THU-v2-20261026.md` (mục 16, 17 thắng). Bản 20/10 đã chuyển `LUU-TRU\thiet-ke-m3-ban-20261020\` (có SHA256). M3-CL thay bằng v2.
+| Lát | Nội dung | Tệp dự kiến (≤ 3) | Phụ thuộc / chặn |
+|---|---|---|---|
+| M10-1a | Engine lịch tính A/B thuần Python, chỉ để kiểm chéo; phương pháp + làm tròn là tham số policy; test ví dụ 7.4 (600/60 tháng: A năm 1 = 120, B ≈ 93,3) | `m10/lich_phan_bo.py` (mới), `tests/test_m10_lich_phan_bo.py` (mới) | không chặn; mặc định A/B chờ K0 (#12) |
+| M3-0 | Mô hình dữ liệu + bảng lớp/mốc (CD-014) + phiếu cổng A M3 (lưới icon, màn hóa đơn–hợp đồng, đợt thu KCN 4 trường, bảng mốc §17) — chỉ tài liệu | `docs&-chuyen-doi-dieu-phoi\THIET-KE-M3-DU-LIEU.md`, `PHIEU-CONG-A-M3.md` | chờ §17 trong v2 |
+| M3-1a | SQL: trường hợp đồng tách cơ sở doanh thu/thuế (giá trị trước VAT, giá đất được trừ, phần chịu thuế, VAT, tổng) có phiên bản + liên kết hóa đơn–hợp đồng | `k2/sql_m3.py` (mới), `ha_tang/pg_migrations.py`, `tests/test_m3_sql.py` (mới) | sau M3-0; giữ `pg_migrations.py` một lát |
+| M3-1b | Dịch vụ ba đẳng thức (báo lệch, không tự sửa) + DTO danh sách/chi tiết hóa đơn–hợp đồng | `k2/m3.py` (mới), `tests/test_m3_dang_thuc.py` (mới) | sau M3-1a |
+| M3-2 | Thuộc tính "hình thức doanh thu" (ghi nhận luôn / phân bổ) theo loại hình — dữ liệu policy | trong M3-1a/M3-0 | — |
+| M3-3 | Đợt thu KCN: máy chuyển lớp theo mốc (Đặt cọc · Người mua trả trước · Phải thu · Doanh thu chờ phân bổ · Đã ghi nhận · Đã đảo), bảng mốc là cấu hình; dùng ngày dự kiến/thực tế của mốc dự án; không sinh số tài khoản | 2–3 lát SQL/dịch vụ/màn | sau M3-1; bảng mốc qua cổng A |
+| M3-4 | Sự kiện bàn giao: biên bản tải lên CRM theo hợp đồng/lô → chuyển lớp; nhà ở ghi nhận tại bàn giao (khung chung) | 2–3 lát | #11 (nhà ở) còn chờ |
+| M3-5 | Tham số phân bổ (thuê đất; phí hạ tầng theo tháng) + lưới icon M3 + tuổi hồ sơ chờ | 2–3 lát | sau M3-3 |
+| M10-1b…d | Nguồn sổ 3387 Junsky + mapping đối tượng + bảng lệch + cảnh báo phụ lục/chấm dứt | 3 lát | #8 (ánh xạ đối tượng) chờ |
+Không tự quyết: #7 cơ sở thuế, #8 ánh xạ Junsky, #10 file xuất (chỉ bản hiển thị), #11 biên bản nhà ở, #12 mẫu K0. Tài khoản chi tiết là dữ liệu policy (kế toán trưởng điền); không sinh bút toán có số tài khoản giai đoạn này (CD-014).
