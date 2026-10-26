@@ -12135,3 +12135,10 @@ from ..m4.sql_review_chep import M4_REVIEW_CHEP_B_SQL  # noqa: E402 — chỉ h�
 M0040_M4_REVIEW_CHEP_B = M4_REVIEW_CHEP_B_SQL
 PG_MIGRATIONS = (*PG_MIGRATIONS, M0040_M4_REVIEW_CHEP_B)
 PG_SCHEMA_VERSION = len(PG_MIGRATIONS)
+
+# MTQ-4a0 — CD-012: cổng SQL danh tính phiên; lead đánh số khi gộp.
+from ..k2.sql_mtq_cong import MTQ_CONG_SQL  # noqa: E402 — chỉ hằng SQL
+
+M00xx_MTQ_CONG = MTQ_CONG_SQL
+PG_MIGRATIONS = (*PG_MIGRATIONS, M00xx_MTQ_CONG)
+PG_SCHEMA_VERSION = len(PG_MIGRATIONS)
