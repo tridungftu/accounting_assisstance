@@ -62,3 +62,8 @@ Lệnh: `tools\chay_test_theo_module.py --runtime … --pg-demo … --gioi-han 9
 | **PG v3 (26/10 01:28, 7e9b915)** | **2433** | **20** | **66** | **66** | **132** | **0** |
 
 So v2: **0 mã lỗi mới**; +106 ok (module mới: mốc dự án, 03B HTTP, AI-3…). Node: 13 bộ đạt (v2: 11; T-DA2 sửa `crm_ky_ket_async`). Lỗi còn lại như triage v2 (thiếu `KTT_G6A_CLONE_*`, `test_source6_lazy_excel` thiếu bản candidate — T-NEN-c2 bị chặn, `test_web` chập chờn…). Từ 26/10: so lát mới với **PG v3**.
+
+## Nền PG v4 — 26/10/2026 14:15 (hop-nhat fd9b991 + M2-BR4b 2b634ed)
+- Cả bộ `--pg-demo` trên thư mục chính (sau M0037–M0043, M3-1a/1b, MTQ-1…4a0b, M4-DL1…DL3, CD1, M2-BR4): 149 module, ok 2877 / ERROR 21 / FAIL 67 / skip 65, 0 module treo, 1553 giây.
+- Mục `test_hoa_don_xml` lấy từ lần chạy sau khi gộp M2-BR4b (4 FAIL do test BR4 đọc fixture CRLF trên thư mục chính đã hết). `test_trich6_host.HandlerSoHuuTests.test_cong_chan_truoc_handler_goc` lỗi mạng chập chờn (đã biết, CLAUDE.md §4) — giữ trong nền.
+- Tệp: `nen-test-hop-nhat-pg-v4.json`. So các lát sau với **v4**.
