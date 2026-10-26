@@ -206,3 +206,24 @@ M3_CO_SO_B_SQL = (
     """CREATE TRIGGER hoa_don_hop_dong_mot_xac_nhan BEFORE INSERT ON m3.hoa_don_hop_dong
         FOR EACH ROW EXECUTE FUNCTION m3.lien_ket_mot_xac_nhan()""",
 )
+
+# M3-1d — CD-013: tách không gian khóa xác nhận hóa đơn khỏi các miền khác.
+M3_CO_SO_C_SQL = (
+    """CREATE OR REPLACE FUNCTION m3.lien_ket_mot_xac_nhan() RETURNS trigger
+        LANGUAGE plpgsql SET search_path = pg_catalog, m3, pg_temp AS $$
+        BEGIN
+            IF NEW.trang_thai = 'DA_XAC_NHAN' THEN
+                PERFORM pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended('M3_HD_XAC_NHAN|' || NEW.hoa_don_id::text, 0));
+                IF EXISTS (
+                    SELECT 1 FROM m3.hoa_don_hop_dong l
+                    WHERE l.phap_nhan_id = NEW.phap_nhan_id AND l.hoa_don_id = NEW.hoa_don_id
+                      AND l.trang_thai = 'DA_XAC_NHAN' AND l.khoa_lien_ket <> NEW.khoa_lien_ket
+                      AND NOT EXISTS (
+                          SELECT 1 FROM m3.hoa_don_hop_dong s WHERE s.thay_cho_id = l.id)) THEN
+                    RAISE EXCEPTION 'Hóa đơn đã có liên kết hiện hành được xác nhận ở chuỗi khác'
+                        USING ERRCODE = '23505';
+                END IF;
+            END IF;
+            RETURN NEW;
+        END $$""",
+)
