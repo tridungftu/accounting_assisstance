@@ -80,7 +80,7 @@ class CrmK2:
                     self._dat_phien(dt)
                     quyen.ghi_tu_choi_tham_quyen(self.conn, request_id, exc)
             except Exception:
-                logging.getLogger(__name__).error("MTQ_NHAT_KY_LOI request_id=%s", request_id)
+                logging.getLogger(__name__).error("MTQ_NHAT_KY_LOI request_id=%s", request_id, exc_info=True)
                 raise DataError("MTQ_NHAT_KY_LOI", "Chưa ghi được nhật ký thẩm quyền, thao tác không được thực hiện. Báo quản trị.") from None
             raise
 
@@ -527,7 +527,10 @@ class CrmK2:
                 raise DataError("PHIEN_BAN", "Không thấy phiên bản hợp đồng (hoặc ngoài quyền).")
             hd = self._khoa_hop_dong(pb0["hop_dong_id"])
             pb = self._phan_tich_pb(pb_id)[0]
-            quyen.kiem(dt, "MAPPING", pb["phap_nhan_id"])
+            quyen.kiem_tham_quyen(
+                self.conn, "CRM:TIEP_NHAN:SUA", {"bang": "master.hop_dong", "id": str(pb["hop_dong_id"])},
+                {"kiem_cu": lambda: quyen.kiem(dt, "MAPPING", pb["phap_nhan_id"]),
+                 "khong_thay": ("PHIEN_BAN", "Không thấy phiên bản hợp đồng (hoặc ngoài quyền).")})
             if pb["trang_thai"] != "CHO_DUYET" or pb["loai"] != "GOC" or hd["phien_ban_hien_hanh"] is not None:
                 raise DataError("MAPPING_TRANG_THAI", "Chỉ mapping hợp đồng mới đang chờ duyệt.")
             doi_tac = self._map("master.doi_tac_ma_junsky", "object_id_junsky", "doi_tac_id", pb["phap_nhan_id"], mapping.get("doi_tac_object_id"))
@@ -555,7 +558,10 @@ class CrmK2:
                 raise DataError("PHIEN_BAN", "Không thấy phiên bản hợp đồng (hoặc ngoài quyền).")
             self._khoa_hop_dong(pb0["hop_dong_id"])
             pb = self._phan_tich_pb(pb_id)[0]
-            quyen.kiem(dt, "KIEM_TRUOC", pb["phap_nhan_id"])
+            quyen.kiem_tham_quyen(
+                self.conn, "CRM:TIEP_NHAN:KIEM", {"bang": "master.hop_dong", "id": str(pb["hop_dong_id"])},
+                {"kiem_cu": lambda: quyen.kiem(dt, "KIEM_TRUOC", pb["phap_nhan_id"]),
+                 "khong_thay": ("PHIEN_BAN", "Không thấy phiên bản hợp đồng (hoặc ngoài quyền).")})
             n = self.conn.execute("""UPDATE master.hop_dong_tham_so SET xac_nhan_thu_cong = %s, gia_tri = gia_tri_tho WHERE phien_ban_id = %s AND ma_nguon = %s
                                      AND trang_thai_can_cu IN ('SUY_RA','GIA_TRI_KHONG_KHOP_TRICH_DAN')""",
                                   (_j({"boi": dt["dang_nhap"], "luc": now_utc(), "ly_do": str(ly_do)[:500]}), pb_id, ma)).rowcount
@@ -573,7 +579,10 @@ class CrmK2:
                 raise DataError("PHIEN_BAN", "Không thấy phiên bản hợp đồng (hoặc ngoài quyền).")
             self._khoa_hop_dong(pb0["hop_dong_id"])
             pb = self._phan_tich_pb(pb_id)[0]
-            quyen.kiem(dt, "KIEM_TRUOC", pb["phap_nhan_id"])
+            quyen.kiem_tham_quyen(
+                self.conn, "CRM:TIEP_NHAN:KIEM", {"bang": "master.hop_dong", "id": str(pb["hop_dong_id"])},
+                {"kiem_cu": lambda: quyen.kiem(dt, "KIEM_TRUOC", pb["phap_nhan_id"]),
+                 "khong_thay": ("PHIEN_BAN", "Không thấy phiên bản hợp đồng (hoặc ngoài quyền).")})
             if pb["trang_thai"] != "CHO_DUYET":
                 raise DataError("PHIEN_BAN_DA_CHOT", "Phiên bản không còn chờ duyệt.")
             if xac_nhan_can_cu_thu_cong:

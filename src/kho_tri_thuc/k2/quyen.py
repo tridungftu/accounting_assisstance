@@ -13,6 +13,14 @@ from decimal import Decimal, InvalidOperation
 from uuid import UUID
 
 from ..ha_tang.primitives import DataError
+from .sql_ma_tran_tham_quyen import _CATALOG
+
+# Cùng cách khai loai_tien khi sinh catalog SQL; KHONG_AP_DUNG ở nghiệp vụ
+# tương ứng PHI_TIEN trong catalog v1 (chỉ DUYET mới có thể mang tiền).
+_LOAI_TIEN_MTQ = {
+    f"{module}:{man}:{action}": money if action == "DUYET" else "PHI_TIEN"
+    for module, man, actions, money in _CATALOG for action in actions.split()
+}
 
 KE_TOAN = {"KE_TOAN", "KE_TOAN_TRUONG"}
 HANH_DONG = {  # hành động → (vai trò được phép, module cần)
@@ -143,7 +151,8 @@ def kiem_tham_quyen(conn, hanh_dong_ky_thuat, doi_tuong, ngu_canh_tin_cay):
     """
     obj = dict(doi_tuong) if isinstance(doi_tuong, dict) else None
     tien = None
-    can_tien = hanh_dong_ky_thuat in {"CRM:TIEP_NHAN:DUYET", "CRM:G5_G6_KIEM_KY:DUYET"}
+    loai_tien = _LOAI_TIEN_MTQ.get(hanh_dong_ky_thuat)
+    can_tien = loai_tien in {"TONG_HOP_DONG", "XIN_THANH_TOAN"}
 
     def chan(ma, ly_do):
         # Mã gốc SQL vẫn được giữ khi ghi qua mtq_ghi_tu_choi_phien.
@@ -196,15 +205,21 @@ def kiem_tham_quyen(conn, hanh_dong_ky_thuat, doi_tuong, ngu_canh_tin_cay):
                 "gioi_han_vnd": None, "so_tien_vnd": None, "ma": q["ma"], "ly_do": q["ly_do"]}
     if not q["cho_phep"] and q["ma"] != "MTQ_THIEU_TIEN":
         chan(q["ma"], q["ly_do"])
+    if loai_tien is None:
+        chan("MTQ_HANH_DONG", "Hành động chưa có trong catalog thẩm quyền; thao tác bị chặn.")
 
     resolver = ngu_canh_tin_cay.get("so_tien_vnd")
     try:
-        value = resolver() if callable(resolver) else resolver
+        value = (resolver() if callable(resolver) else resolver) if can_tien else None
         # Không đi qua float; VND phải nguyên, hữu hạn, không âm như lõi SQL.
         if value is not None and not isinstance(value, (bool, float)):
             tien = Decimal(value)
             if not tien.is_finite() or tien < 0 or tien != tien.to_integral_value():
                 tien = None
+    except DataError:
+        # DataError kế thừa ValueError: giữ mã/locator không thấy HĐ/bản
+        # đã đọc qua RLS, không biến thành lỗi thiếu tiền.
+        raise
     except (ValueError, TypeError, InvalidOperation):
         tien = None
     except Exception:

@@ -1,4 +1,4 @@
-"""MTQ-4a: adapter chung + ba điểm duyệt luồng B; PG do lead cấp DSN.
+"""MTQ-4a/4a2: adapter + duyệt, mapping, xác nhận tham số, kiểm luồng B.
 
 Không khởi động dịch vụ, không xóa CSDL/file. Resolver M1/file/tiếp nhận
 chưa có ở M0041 thuộc lát tiếp theo; không coi mock là bằng chứng PG bật.
@@ -288,6 +288,169 @@ class AdapterBat(unittest.TestCase):
             self.assertEqual(cm.exception.code, "MTQ_LOI_QUYET_DINH")
             old.assert_not_called()
 
+    def test_phi_tien_theo_catalog_khong_goi_resolver_khong_so_han_muc(self):
+        from kho_tri_thuc.k2.sql_ma_tran_tham_quyen import _CATALOG
+        for module, man, actions, money in _CATALOG:
+            for action in actions.split():
+                if action == "DUYET" and money != "PHI_TIEN":
+                    continue
+                technical = f"{module}:{man}:{action}"
+                with self.subTest(technical=technical):
+                    q = matrix(limit="0")
+                    q.update(module=module, man=man, hanh_dong=action)
+                    old = MagicMock(side_effect=AssertionError("Không fallback"))
+                    resolver = MagicMock(side_effect=AssertionError("KHONG_AP_DUNG tiền"))
+                    c = Connection(q)
+                    out = quyen.kiem_tham_quyen(c, technical, OBJ,
+                                               {"kiem_cu": old, "so_tien_vnd": resolver})
+                    self.assertIsNone(out["so_tien_vnd"])
+                    self.assertTrue(out["cho_phep"])
+                    self.assertTrue(all(p[2] is None for s, p in c.calls))
+                    old.assert_not_called()
+                    resolver.assert_not_called()
+
+    def test_catalog_xin_thanh_toan_cung_bat_buoc_tien(self):
+        q = matrix(limit=None)
+        q.update(module="M4", man="02C_DUYET")
+        old = MagicMock()
+        with self.assertRaises(DataError) as cm:
+            quyen.kiem_tham_quyen(Connection(q), "M4:02C_DUYET:DUYET", OBJ, {"kiem_cu": old})
+        self.assertEqual(cm.exception.code, "MTQ_THIEU_CO_SO_TIEN")
+        old.assert_not_called()
+
+    def test_data_error_cua_resolver_giu_nguyen_ca_ma_message_locator(self):
+        for code, message in (("HOP_DONG", "Không thấy hợp đồng (hoặc ngoài quyền)."),
+                              ("PHIEN_BAN", "Không thấy phiên bản hợp đồng (hoặc ngoài quyền).")):
+            with self.subTest(code=code):
+                error = DataError(code, message, "$.phien_ban")
+                old = MagicMock()
+                resolver = MagicMock(side_effect=error)
+                c = Connection(matrix(False, "MTQ_THIEU_TIEN"))
+                with self.assertRaises(DataError) as cm:
+                    quyen.kiem_tham_quyen(c, ACTION, OBJ, {"kiem_cu": old, "so_tien_vnd": resolver})
+                self.assertIs(cm.exception, error)
+                self.assertEqual((cm.exception.code, str(cm.exception), cm.exception.locator),
+                                 (code, message, "$.phien_ban"))
+                resolver.assert_called_once_with()
+                old.assert_not_called()
+                self.assertEqual(len(c.calls), 1)
+
+
+class CrmDiemMoi(unittest.TestCase):
+    POINTS = (
+        ("cap_nhat_mapping", ({},), "MAPPING", "CRM:TIEP_NHAN:SUA"),
+        ("xac_nhan_tham_so", ("DEMO_MA", "Căn cứ DEMO"), "KIEM_TRUOC", "CRM:TIEP_NHAN:KIEM"),
+        ("kiem_truoc", (), "KIEM_TRUOC", "CRM:TIEP_NHAN:KIEM"),
+    )
+
+    def service(self, c, dt):
+        svc = crm(c, dt, money=None)
+        c.hd["phien_ban_hien_hanh"] = None
+        svc._map = MagicMock(return_value=None)
+        svc._vo_hieu_kiem = MagicMock()
+        svc._viec = MagicMock()
+        svc.chan_phien_ban = MagicMock(return_value=[])
+        svc._tien_mtq = MagicMock(side_effect=AssertionError("Hành động KHONG_AP_DUNG tiền"))
+        return svc
+
+    def check_cu(self, name):
+        _, args, command, technical = next(p for p in self.POINTS if p[0] == name)
+        oracle = quyen.kiem
+        for vai in ("BAN_HANG", "KE_TOAN", "KE_TOAN_TRUONG", "CFO", "XEM"):
+            for modules in ((), ("CRM",), ("M1",), ("CRM", "M1")):
+                for tasks in ((), ("V3",), ("V4",), ("V3", "V4")):
+                    for has_pn in (False, True):
+                        dt = actor(vai, tasks, modules)
+                        if not has_pn:
+                            dt["quyen"] = {}
+                        with self.subTest(name=name, vai=vai, modules=modules, tasks=tasks, pn=has_pn):
+                            c = Connection()
+                            svc = self.service(c, dt)
+                            try:
+                                oracle(dt, command, PN)
+                                expected_error = None
+                            except DataError as exc:
+                                expected_error = (exc.code, str(exc), exc.locator)
+                            with patch.object(quyen, "kiem", wraps=oracle) as old:
+                                try:
+                                    out = getattr(svc, name)("PHIEN_MAY_CHU", PB, *args)
+                                    actual_error = None
+                                except DataError as exc:
+                                    actual_error = (exc.code, str(exc), exc.locator)
+                                old.assert_called_once_with(dt, command, PN)
+                            self.assertEqual(actual_error, expected_error)
+                            if expected_error is None:
+                                self.assertEqual(out, {"kiem_boi": dt["dang_nhap"]} if name == "kiem_truoc" else {"chan": []})
+                            else:
+                                self.assertFalse(c.writes)
+                                svc._su_kien.assert_not_called()
+                            gates = [p for s, p in c.calls if "mtq_quyet_dinh_phien(" in s]
+                            self.assertEqual(gates, [(technical, json.dumps(OBJ, ensure_ascii=False), None)])
+                            self.assertFalse(c.journal)
+                            svc._tien_mtq.assert_not_called()
+
+    def test_cu_cap_nhat_mapping_oracle_nhieu_vai(self):
+        self.check_cu("cap_nhat_mapping")
+
+    def test_cu_xac_nhan_tham_so_oracle_nhieu_vai(self):
+        self.check_cu("xac_nhan_tham_so")
+
+    def test_cu_kiem_truoc_oracle_nhieu_vai(self):
+        self.check_cu("kiem_truoc")
+
+    def test_bat_moi_diem_khong_fallback_khong_doi_tien(self):
+        for name, args, _, technical in self.POINTS:
+            for allow in (False, True):
+                with self.subTest(name=name, allow=allow):
+                    q = matrix(allow, limit="0")
+                    q["hanh_dong"] = technical.split(":")[2]
+                    c = Connection(q)
+                    svc = self.service(c, actor("XEM" if allow else "KE_TOAN"))
+                    with patch.object(quyen, "kiem", side_effect=AssertionError("Không fallback")):
+                        if allow:
+                            out = getattr(svc, name)("PHIEN_MAY_CHU", PB, *args)
+                            self.assertEqual(out, {"kiem_boi": actor()["dang_nhap"]} if name == "kiem_truoc" else {"chan": []})
+                            self.assertTrue(svc._su_kien.called)
+                        else:
+                            with self.assertRaises(DataError) as cm:
+                                getattr(svc, name)("PHIEN_MAY_CHU", PB, *args)
+                            self.assertEqual(cm.exception.code, "MTQ_CHUA_TICK")
+                            self.assertFalse(c.writes)
+                            svc._su_kien.assert_not_called()
+                            self.assertEqual(c.trace, ["begin", "identity", "decision", "rollback", "begin", "identity", "audit", "commit"])
+                            self.assertEqual(c.journal[0][1][1:3], (technical, json.dumps(OBJ, ensure_ascii=False)))
+                    svc._tien_mtq.assert_not_called()
+                    gates = [p for s, p in c.calls if "mtq_quyet_dinh_phien(" in s]
+                    self.assertEqual(gates, [(technical, json.dumps(OBJ, ensure_ascii=False), None)] * (2 if allow else 1))
+
+    def test_doi_tuong_tu_pb_da_doc_khong_dung_id_cua_request(self):
+        request_pb = str(uuid.uuid4())
+        for name, args, _, technical in self.POINTS:
+            with self.subTest(name=name):
+                c = Connection(matrix(False))
+                svc = self.service(c, actor())
+                with self.assertRaises(DataError):
+                    getattr(svc, name)("PHIEN_MAY_CHU", request_pb, *args)
+                gates = [p for s, p in c.calls if "mtq_quyet_dinh_phien(" in s]
+                self.assertEqual(json.loads(gates[0][1]), OBJ)
+                self.assertEqual(c.trace[:3], ["begin", "identity", "decision"])
+
+    def test_mat_ban_hoac_hop_dong_chan_truoc_adapter(self):
+        for name, args, _, _ in self.POINTS:
+            for code in ("PHIEN_BAN", "HOP_DONG"):
+                with self.subTest(name=name, code=code):
+                    c = Connection(matrix())
+                    svc = self.service(c, actor())
+                    if code == "PHIEN_BAN":
+                        svc._phan_tich_pb.side_effect = DataError(code, "Không thấy phiên bản hợp đồng (hoặc ngoài quyền).")
+                    else:
+                        svc._khoa_hop_dong = MagicMock(side_effect=DataError(code, "Không thấy hợp đồng (hoặc ngoài quyền)."))
+                    with self.assertRaises(DataError) as cm:
+                        getattr(svc, name)("PHIEN_MAY_CHU", PB, *args)
+                    self.assertEqual(cm.exception.code, code)
+                    self.assertNotIn("decision", c.trace)
+                    self.assertFalse(c.writes)
+
 
 class CrmBat(unittest.TestCase):
     def test_ba_diem_vai_cu_cam_ma_tran_cho_phep(self):
@@ -339,9 +502,12 @@ class CrmBat(unittest.TestCase):
         c = Connection(matrix(False))
         c.fail_audit = True
         svc = crm(c)
-        with self.assertLogs("kho_tri_thuc.k2.crm", level="ERROR"), self.assertRaises(DataError) as cm:
+        with self.assertLogs("kho_tri_thuc.k2.crm", level="ERROR") as logs, self.assertRaises(DataError) as cm:
             svc.duyet("MO_PHONG_PHIEN", PB)
         self.assertEqual(cm.exception.code, "MTQ_NHAT_KY_LOI")
+        self.assertIsNotNone(logs.records[0].exc_info)
+        self.assertIn("Traceback", logs.output[0])
+        self.assertNotIn("DEMO audit indisponible", str(cm.exception))
         self.assertFalse(c.writes)
         self.assertFalse(c.journal)
         self.assertEqual(c.trace[-1], "rollback")
