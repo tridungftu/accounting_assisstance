@@ -35,7 +35,7 @@ async function cases(T) {
   const countDc = P => P.calls.filter(c => c.method === "POST" && c.url.includes("/doi-chieu/")).length;
   const confirmed = () => DTO({kt: KTO({trang_thai: "KT_DA_XAC_NHAN_CHO_GHI_CONG_NO"}), quyen: {luu: false, xac_nhan: false}});
   async function open(d = data(), h = null, opt = {}) {
-    const P = await moPhien(opt); await P.moHoSo(confirmed());
+    const P = await moPhien(opt); await P.moHoSo(opt.hoSo || confirmed());
     await P.bam("Mở đối chiếu"); await P.tra(P.cho(P.get("/api/m4/doi-chieu/dot/" + PEND), "đọc theo đợt"), 200, d);
     for (const row of (opt.ds && opt.ds.items || []).filter(r => r.trang_thai === "KT_DA_XAC_NHAN_CHO_GHI_CONG_NO" && r.kt_pending_id !== PEND)) {
       const detail = opt.details && opt.details[row.kt_pending_id] || confirmed(); detail.context.kt_pending_id = row.kt_pending_id;
@@ -69,6 +69,31 @@ async function cases(T) {
     assert.strictEqual(timTatCa(card(P), e => e.tagName === "SELECT" && (e.attrs["aria-label"] || "").startsWith("Phạm vi nguồn")).length, 1);
     assert.ok(!/công nợ|[0-9a-f]{8}-[0-9a-f-]{27,}|NHAP_DOI_CHIEU|THIEU_HOA_DON|graph_sha256|M4_03B/i.test(text));
     assert.strictEqual(countDc(P), 0);
+  });
+  await ca("03B-YC thiếu tệp: hướng dẫn phòng dự án bổ sung, chưa có luồng thì không nút/POST; giữ quyền tải PDF", async () => {
+    for (const taiPdf of [true, false]) {
+      const hoSo = confirmed(); hoSo.nguon.tep_can_cu = []; hoSo.quyen.tai_pdf = taiPdf;
+      const P = await open(data(), null, {hoSo});
+      const text = card(P).textContent;
+      assert.ok(text.includes("Chưa có tệp căn cứ cho đối chiếu hóa đơn. Đề nghị phòng dự án bổ sung tệp vào hồ sơ nghiệm thu, sau đó bấm Làm mới."));
+      assert.ok(!text.includes("Màn kế toán hiện chưa có luồng"));
+      assert.ok(!text.includes("làm mới hồ sơ và tải lại căn cứ đối chiếu"));
+      assert.ok(!text.includes("chưa có luồng “Yêu cầu bổ sung” gửi phòng dự án"));
+      assert.strictEqual(P.nutKt("Yêu cầu bổ sung"), null, "03A chưa có luồng gửi yêu cầu, không tạo nút giả");
+      assert.strictEqual(timTatCa(P.vungKt(), e => e.tagName === "INPUT" && (e.type === "file" || e.attrs.type === "file")).length, 0);
+      assert.strictEqual(timTatCa(P.vungKt(), e => e.tagName === "BUTTON" && /tải tệp|tải lên|upload/i.test(e.textContent)).length, 0);
+      assert.strictEqual(P.nutKt("Tải PDF hồ sơ đợt ↓").disabled, !taiPdf);
+      assert.strictEqual(P.calls.filter(c => c.method === "POST").length, 0);
+    }
+  });
+  await ca("03B-YC phòng dự án đã bổ sung: làm mới hiện tệp và bỏ hướng dẫn thiếu", async () => {
+    const hoSo = confirmed(); hoSo.nguon.tep_can_cu = [];
+    const P = await open(data(), null, {hoSo});
+    await P.bam("↻ Làm mới");
+    await P.tra(P.cho(P.get("/api/m4/ke-toan/" + PEND), "hồ sơ đã bổ sung tệp"), 200, confirmed());
+    assert.ok(P.oKt("Tệp căn cứ hoa_don_gtgt_dot_1.pdf"));
+    assert.ok(!card(P).textContent.includes("Chưa có tệp căn cứ cho đối chiếu hóa đơn"));
+    assert.strictEqual(P.calls.filter(c => c.method === "POST").length, 0);
   });
   await ca("DS-4 nhãn 03A đúng nghĩa, phiên bản theo giờ Việt Nam kể cả đổi ngày/năm", async () => {
     for (const [tao_luc, expected] of [
