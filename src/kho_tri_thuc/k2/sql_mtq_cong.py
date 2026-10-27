@@ -2104,6 +2104,7 @@ MTQ_CONG_H_SQL = (
             cu jsonb; tap jsonb := '[]'::jsonb; kq jsonb; r record;
             obj uuid; phong uuid; pn uuid; n bigint; loai text; man_hinh text; module_hd text;
             kind text; nguon_khoa text; khoa_profile text; khoa_instance text; hop_le boolean;
+            nguon_mo_ho boolean;
         BEGIN
             -- Nhánh cũ đi nguyên qua resolver đơn M0051, kể cả JSON lỗi.
             cu := master.mtq_giai_doi_tuong(p_hanh_dong, p_doi_tuong);
@@ -2198,6 +2199,27 @@ MTQ_CONG_H_SQL = (
                         SELECT min(c.nguon_khoa) AS nguon_khoa
                         FROM master.mtq_nguon_ung_vien(r.scope_kind, token.nguon, r.subject_key) c
                         HAVING count(*) = 1 AND (array_agg(c.profile_id))[1] = r.profile_id) u;
+                -- Mơ hồ ở bất kỳ định danh nào thì cả đối tượng chỉ dùng PN.
+                -- Kiểm tên registry sau chuẩn hóa, kể cả instance chưa có profile;
+                -- không đổi tập ứng viên/validator M0049 và không lọc theo mapping.
+                WITH token AS (
+                    SELECT DISTINCT upper(btrim(regexp_replace(t.nguon, '[[:space:]]+', ' ', 'g'))) AS nguon
+                    FROM (VALUES (r.profile_id::text), (r.source_instance_id)) t(nguon))
+                SELECT EXISTS (
+                    SELECT 1 FROM token
+                    JOIN master.nguon_instance i ON i.trang_thai = 'HOAT_DONG'
+                    LEFT JOIN master.nguon_profile pr ON pr.source_instance_id = i.source_instance_id
+                    WHERE upper(pr.id::text) = token.nguon
+                        OR upper(btrim(regexp_replace(i.source_instance_id, '[[:space:]]+', ' ', 'g'))) = token.nguon
+                    GROUP BY token.nguon
+                    HAVING count(pr.id) > 1 OR count(DISTINCT i.source_instance_id) > 1
+                        OR (bool_or(upper(pr.id::text) = token.nguon)
+                            AND bool_or(upper(btrim(regexp_replace(i.source_instance_id,
+                                '[[:space:]]+', ' ', 'g'))) = token.nguon))) INTO nguon_mo_ho;
+                IF nguon_mo_ho THEN
+                    khoa_profile := NULL;
+                    khoa_instance := NULL;
+                END IF;
                 nguon_khoa := NULL;
                 -- Cùng identity có hai cách cấp của M0049. Chỉ chọn alias đã cấp
                 -- cho phiên/PN; cổng vẫn tự kiểm lại phòng, vai và scope đó.

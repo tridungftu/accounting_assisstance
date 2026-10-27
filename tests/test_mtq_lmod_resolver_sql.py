@@ -225,13 +225,14 @@ class MtqLmodResolverPostgres(unittest.TestCase):
         self.assertEqual(self.resolve()[0]["nguon_khoa"], self.key(instance=True))
         self.assertIs(self.decision()["cho_phep"], True)
         self.them_profile("PROFILE_THU_HAI")
-        self.assertEqual(self.resolve()[0]["nguon_khoa"], self.key())
+        self.assertIsNone(self.resolve()[0]["nguon_khoa"])
         self.assertEqual(self.decision()["ma"], "MTQ_PHAM_VI")
 
     def test_review_uuid_profile_trung_ten_instance_khong_dung_quyen_nguon_cu(self):
         self.configure()
         old_obj = self.obj
         old_profile = self.profile
+        old_alias = self.key(instance=True)
         self.assertEqual(self.ung_vien_m0049("INVOICE_SET", str(old_profile[0]), "CTY A"), [old_profile[0]])
         self.assertEqual(self.resolve()[0]["nguon_khoa"], self.key())
         self.assertIs(self.decision()["cho_phep"], True)
@@ -243,9 +244,42 @@ class MtqLmodResolverPostgres(unittest.TestCase):
         new_obj = self.ref("master.nguon_pham_vi", self.scope(["CTY A"]))
         self.assertEqual(set(self.ung_vien_m0049("INVOICE_SET", self.inst, "CTY A")),
                          {old_profile[0], self.profile[0]})
-        self.assertIsNone(self.resolve(old_obj)[0]["nguon_khoa"])
         for obj in (old_obj, new_obj):
             with self.subTest(obj=obj):
+                self.assertIsNone(self.resolve(obj)[0]["nguon_khoa"])
+                self.assertEqual(self.decision(obj)["ma"], "MTQ_PHAM_VI")
+                self.assertIs(self.decision(obj)["cho_phep"], False)
+        self.actor(self.admin)
+        # UUID mới/alias cũ riêng lẻ vẫn hợp lệ với M0049, nhưng không được
+        # dùng chúng làm đường vòng cho đối tượng có một định danh mơ hồ.
+        for key in (old_alias, self.key()):
+            self.ghi("PHAM_VI", {"gan_vai_id": self.gans[self.pn]["id"], "phap_nhan_id": str(self.pn),
+                                  "loai": "NGUON", "khoa": key})
+        self.actor(self.user)
+        for obj in (old_obj, new_obj):
+            self.assertIsNone(self.resolve(obj)[0]["nguon_khoa"])
+            self.assertIs(self.decision(obj)["cho_phep"], False)
+        self.actor(self.admin)
+        self.ghi("PHAM_VI", {"gan_vai_id": self.gans[self.pn]["id"], "phap_nhan_id": str(self.pn),
+                              "loai": "PHAP_NHAN", "khoa": str(self.pn)})
+        self.actor(self.user)
+        for obj in (old_obj, new_obj):
+            self.assertIsNone(self.resolve(obj)[0]["nguon_khoa"])
+            self.assertIs(self.decision(obj)["cho_phep"], True)
+
+    def test_uuid_trung_instance_sau_chuan_hoa_ca_hai_chi_dung_phap_nhan(self):
+        self.configure()
+        old_obj = self.obj
+        # Registry cấm whitespace; UUID chữ hoa vẫn va chạm với UUID chữ thường.
+        self.inst = str(self.profile[0]).upper()
+        self.c.execute("INSERT INTO master.nguon_instance(source_instance_id) VALUES (%s)", (self.inst,))
+        self.profile = self.them_profile("PROFILE_UUID_CHUAN_HOA")
+        self.mapping()
+        new_obj = self.ref("master.nguon_pham_vi", self.scope(["CTY A"]))
+        for obj in (old_obj, new_obj):
+            with self.subTest(obj=obj):
+                self.assertIs(self.resolve(obj)[0]["hop_le"], True)
+                self.assertIsNone(self.resolve(obj)[0]["nguon_khoa"])
                 self.assertEqual(self.decision(obj)["ma"], "MTQ_PHAM_VI")
                 self.assertIs(self.decision(obj)["cho_phep"], False)
         self.actor(self.admin)
@@ -253,6 +287,7 @@ class MtqLmodResolverPostgres(unittest.TestCase):
                               "loai": "PHAP_NHAN", "khoa": str(self.pn)})
         self.actor(self.user)
         for obj in (old_obj, new_obj):
+            self.assertIsNone(self.resolve(obj)[0]["nguon_khoa"])
             self.assertIs(self.decision(obj)["cho_phep"], True)
 
     def test_mot_ung_vien_uuid_va_alias_doi_chieu_m0049_cho(self):
