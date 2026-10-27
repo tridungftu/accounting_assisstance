@@ -683,3 +683,27 @@ Chi tiết có tệp:dòng: `BANG-DIEU-KIEN-GO-LIVE.md`; quy trình: `CHECKLIST-
   - **Tạm dừng Claude tự đọc khi rút thăm** (ghi "bỏ qua do hạn mức").
   - Codex vẫn đủ 4 suất.
 - **Migration cuối = M0064.**
+### 27/10 ~16:30 — gộp 4b2b (M0065), 4i-b1 (M0066, M0067), 4d1b; giao XS-5a2
+- **Gộp** (migration cuối **M0067**):
+  - **MTQ-4b2b → M0065.** Kiểm xác suất: không rút.
+  - **MTQ-4i-b1 → M0066, M0067.** Kiểm xác suất rút trúng, bỏ qua do hạn mức.
+  - **MTQ-4d1b**, không có migration. Kiểm xác suất rút trúng, bỏ qua do hạn mức.
+  - Cả ba: gate PG 0 mã lỗi mới; review Codex Đạt.
+- **Kiểm bản hợp nhất:** cả bộ PG trên `kiem-hop-nhat` @7cee117 đang chạy nền.
+- **Loạt 7:**
+  - BG-B1 xong, chờ gate PG.
+  - DA-B1 và TEN-B1 dừng hỏi số migration, dù đề đã dặn dùng tên tạm `M00xx_`. Đã giao lại vòng 2 có câu trả lời.
+- **NEN-2c:**
+  - Cập nhật lên hợp nhất (fast-forward từ 4i-b1 v5).
+  - Lead nối xong `sql_mtq_nen.py` (B rồi C).
+  - Test xung đột với NEN-2b → Codex nối, chỉ một tệp.
+- **MTQ-4f2 v2** (sửa test R01 + fixture quyền setup): chờ gate PG.
+- **Giao mới:** XS-5a2 (khung module lấy khai báo bốn vùng từ 5a1).
+- **Đang chạy (4 Codex):** DA-B1 v2, TEN-B1 v2, NEN-2c nối test, XS-5a2.
+- **Hàng gate PG** (chạy sau bộ hợp nhất): BG-B1 → 4f2 v2 → NEN-2c.
+- **Chặn chờ:**
+  - DA-B2/B3 chờ DA-B1;
+  - TEN-B2 chờ TEN-B1;
+  - BG-B2 chờ DA-B1 + BG-B1;
+  - UI (DA-U, TEN-U, BG-U) chờ backend và việc ui-dem nhận hợp nhất.
+- **Chờ Anh:** phiếu dọn dẹp D1–D2.
