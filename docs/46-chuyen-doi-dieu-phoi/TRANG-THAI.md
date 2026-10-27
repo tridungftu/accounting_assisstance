@@ -664,3 +664,22 @@ Chi tiết có tệp:dòng: `BANG-DIEU-KIEN-GO-LIVE.md`; quy trình: `CHECKLIST-
   - 4d1b (vòng 2 đang chạy; còn lỗi fixture trùng tệp mẫu);
   - XS-5a1 (review đang chạy).
 - **Chờ Anh:** phiếu dọn dẹp D1–D2.
+### 27/10 ~16:00 — /loop chạy lại (CD-020); nhận CD-020…025; Claude tuần 100%
+- **Đêm 26→27 không chạy:** lead kết thúc lượt lúc 00:50, không có `/loop` (CD-020 đã ghi nguyên nhân). Từ 15:40 `/loop` chạy liên tục.
+- **Hộp thư:** CD-020, CD-021, CD-022, CD-023, CD-024, CD-025 → ĐÃ NHẬN.
+  - CD-022/023/024 (Dự án đang bán khai báo một lượt; Báo giá VAT đợt cọc) làm trên **`lat/ui-dem`** (DEMO 8798). Đang kiểm kê bằng KK-UI-DA-BG.
+  - CD-021: XUAT-PN xếp sau XS-5b.
+- **Gộp:** XS-5a1. Rút thăm trúng; Claude tự đọc: Đạt.
+  - Ghi cho XS-5c: **đọc** chéo ngoài V1/V3/V4/danh sách tồn tại cũng phải đỏ.
+- **Vòng sửa:**
+  - 4b2b v4: review chặn — ghim `quan_he` phụ thuộc tick → bỏ điều kiện tick.
+  - 4i-b1 v6: ca va chạm UUID/instance từ NEN-2c → mơ hồ cả hai phía.
+  - 4d1b v3 (đã soạn đề): fixture trùng tệp mẫu.
+  - NEN-2c chờ 4i-b1.
+- **Đang chạy (4 Codex):** 4b2b v4, 4i-b1 v6, KK-UI-DA-BG, MTQ-4f2 (M4 review 02A/02B).
+- **Hạn mức:** Claude tuần mọi model **100%** (đặt lại 29/10), khung 5 giờ 8%.
+  - Lead chỉ giữ gate/gộp.
+  - Review giao Codex.
+  - **Tạm dừng Claude tự đọc khi rút thăm** (ghi "bỏ qua do hạn mức").
+  - Codex vẫn đủ 4 suất.
+- **Migration cuối = M0064.**
