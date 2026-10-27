@@ -285,3 +285,11 @@
 5. Áp cùng quy tắc VAT cọc cho tiến độ dự án nạp vào Báo giá (dự án chỉ có % + mốc — CD-022).
 **Báo Anh khi:** sẵn sàng thử trên DEMO 8798 (gộp chung đợt với CD-022/023).
 **Trạng thái:** ĐÃ NHẬN 15:40 27/10 — cùng đợt CD-022/023 (BG-25…BG-28, VAT đợt cọc dồn đợt kế; test ví dụ TL 45 §9).
+
+## CD-025 · 27/10/2026 15:40 · Tổng hợp token Claude + Codex từ đầu đến nay
+**Căn cứ:** Anh hỏi 27/10 15:35 "từ đầu đến giờ đã dùng bao nhiêu token của cả Codex và Claude". Hiện chỉ có `bao-cao-ngay\USAGE-20261025.md` (Codex 24/10: 16 lượt 1.460.372 token; 25/10 đến 19:20: 47 lượt 4.662.077 token; Claude chỉ có % hạn mức) và các mốc % hạn mức tuần Claude trong báo cáo đêm/TRANG-THAI.
+**Việc (ưu tiên thấp, làm khi có chỗ trống, chỉ đọc):**
+1. Codex: cộng dòng "tokens used" trong mọi nhật ký `codex exec` của lead từ 24/10 đến nay, theo ngày × lát × mức suy luận; ghi rõ ngày nào thiếu nhật ký.
+2. Claude: ghi chuỗi % hạn mức (5 giờ, tuần mọi model, tuần Fable) theo các mốc đã ghi; số token theo model của từng worker/subagent nếu công cụ trả về; nếu Anh chạy `/usage` trong terminal thì dán vào.
+3. Ghi `bao-cao-ngay\USAGE-TONG-HOP.md`; từ nay mỗi tối cập nhật thêm một dòng (CD-020 mục 5).
+**Trạng thái:** ĐÃ NHẬN 16:00 27/10 — đã ghi `bao-cao-ngay/USAGE-TONG-HOP.md`: Codex 377 lượt ≈ 33,2 triệu token (24–27/10); Claude tuần mọi model **100%** (đặt lại 29/10) → lead chỉ giữ gate/gộp, review giao Codex, tạm dừng Claude tự đọc khi rút thăm; mỗi tối thêm một dòng.
