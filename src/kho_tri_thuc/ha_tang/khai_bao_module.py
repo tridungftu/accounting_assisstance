@@ -12,6 +12,7 @@ from __future__ import annotations
 from copy import deepcopy
 from dataclasses import dataclass, field
 from enum import Enum
+import re
 import warnings
 from typing import Any
 
@@ -44,6 +45,238 @@ def _duy_nhat(cac_ma, ten: str) -> None:
 def _thu_tu(value: int) -> None:
     if type(value) is not int:
         raise ValueError("Thứ tự phải là số nguyên.")
+
+
+# XS-5a1 — chỉ metadata; không GRANT, kiểm SQL hay thực thi điều kiện owner dòng.
+def _doi_tuong(value: str, *, ho: bool = False) -> None:
+    _chuoi(value, "Đối tượng dữ liệu")
+    mau = r"[a-z_][a-z0-9_]*\.[a-z_][a-z0-9_]*"
+    if ho:
+        mau = r"[a-z_][a-z0-9_]*\.(?:[a-z_][a-z0-9_]*\*?|\*)"
+    if re.fullmatch(mau, value) is None:
+        raise ValueError("Đối tượng phải có schema.tên; chỉ khai báo họ mới được có * ở cuối.")
+
+
+@dataclass(frozen=True)
+class DiemTruyCapDuLieu:
+    """Một điểm (tệp,dòng,bảng), dòng theo bản kiểm kê KK, không tự dịch dòng.
+
+    muc là DOC/GHI; nhóm và lý do chỉ mô tả, không mở rộng ngoại lệ.
+    """
+
+    module: str
+    tep: str
+    dong: int
+    dich: str
+    muc: str
+    nhom: str = ""
+    ly_do: str = "cần chuyển dần"
+
+    def __post_init__(self) -> None:
+        _chuoi(self.module, "Module truy cập")
+        _chuoi(self.tep, "Tệp truy cập")
+        if self.tep.startswith(("/", "\\")) or "\\" in self.tep or ":" in self.tep or ".." in self.tep.split("/"):
+            raise ValueError("Tệp phải là đường dẫn tương đối, dùng /.")
+        if type(self.dong) is not int or self.dong <= 0:
+            raise ValueError("Dòng truy cập phải là số nguyên dương.")
+        _doi_tuong(self.dich)
+        if self.muc not in {"DOC", "GHI"}:
+            raise ValueError("Mức truy cập phải là DOC hoặc GHI.")
+        _chuoi(self.ly_do, "Lý do truy cập tồn tại")
+
+    @property
+    def khoa(self) -> tuple[str, str, int, str, str]:
+        return self.module, self.tep, self.dong, self.dich, self.muc
+
+
+@dataclass(frozen=True)
+class ChuTheoDong:
+    bang: str
+    cot_phan_biet: tuple[str, ...]
+    module: str
+    dieu_kien: str
+
+    def __post_init__(self) -> None:
+        _doi_tuong(self.bang)
+        object.__setattr__(self, "cot_phan_biet", tuple(self.cot_phan_biet))
+        if not self.cot_phan_biet:
+            raise ValueError("Chủ theo dòng phải có cột phân biệt sẵn có.")
+        _duy_nhat(self.cot_phan_biet, "Cột phân biệt")
+        _chuoi(self.module, "Chủ theo dòng")
+        _chuoi(self.dieu_kien, "Điều kiện chủ theo dòng")
+
+
+@dataclass(frozen=True)
+class DuLieuCongBo:
+    """V4: chưa có reader/sự kiện thì doi_tuong=None, không giả tên API."""
+
+    module_nguon: str
+    noi_dung: str
+    loai: str = "CHUA_CO"
+    doi_tuong: str | None = None
+
+    def __post_init__(self) -> None:
+        _chuoi(self.module_nguon, "Module công bố")
+        _chuoi(self.noi_dung, "Nội dung công bố")
+        if self.loai not in {"CHUA_CO", "VIEW", "HAM", "SU_KIEN"}:
+            raise ValueError("Loại công bố không hợp lệ.")
+        if self.loai == "CHUA_CO":
+            if self.doi_tuong is not None:
+                raise ValueError("Nguồn chưa công bố không được giả tên đối tượng.")
+        else:
+            _chuoi(self.doi_tuong, "Đối tượng công bố")
+
+
+@dataclass(frozen=True)
+class BangChuaRo:
+    """Bảng lõi cũ có thể chưa biết schema vì dùng search_path."""
+    bang: str
+    ly_do: str
+
+    def __post_init__(self) -> None:
+        _chuoi(self.bang, "Bảng CHUA_RO")
+        if re.fullmatch(r"(?:[a-z_][a-z0-9_]*\.)?[a-z_][a-z0-9_]*", self.bang) is None:
+            raise ValueError("Bảng CHUA_RO phải là tên bảng, có thể chưa biết schema.")
+        _chuoi(self.ly_do, "Lý do CHUA_RO")
+
+
+@dataclass(frozen=True)
+class KhaiBaoVungDuLieu:
+    ma: str
+    ten_nghiep_vu: str
+    v1: tuple[str, ...] = ()
+    v2: tuple[str, ...] = ()
+    v3: tuple[str, ...] = ()
+    v4: tuple[DuLieuCongBo, ...] = ()
+    dang_ton_tai: tuple[DiemTruyCapDuLieu, ...] = ()
+    chu_theo_dong: tuple[ChuTheoDong, ...] = ()
+    cong_ho_tro: tuple[str, ...] = ()
+    v2_can_bo_sung: tuple[str, ...] = ()
+    ham_rieng: tuple[str, ...] = ()
+    ghi_chu: tuple[str, ...] = ()
+
+    def __post_init__(self) -> None:
+        _chuoi(self.ma, "Module vùng dữ liệu")
+        _chuoi(self.ten_nghiep_vu, "Tên nghiệp vụ")
+        for ten in ("v1", "v2", "v3", "v4", "dang_ton_tai", "chu_theo_dong", "cong_ho_tro",
+                    "v2_can_bo_sung", "ham_rieng", "ghi_chu"):
+            object.__setattr__(self, ten, tuple(getattr(self, ten)))
+        for ten in ("v1", "v2", "v3", "ham_rieng"):
+            _duy_nhat(getattr(self, ten), ten)
+            for doi_tuong in getattr(self, ten):
+                _doi_tuong(doi_tuong, ho=ten != "v3")
+        for ten, kieu in (("v4", DuLieuCongBo), ("dang_ton_tai", DiemTruyCapDuLieu),
+                          ("chu_theo_dong", ChuTheoDong)):
+            if any(not isinstance(x, kieu) for x in getattr(self, ten)):
+                raise ValueError(f"{ten} phải chứa {kieu.__name__}.")
+        if any(d.module != self.ma for d in self.dang_ton_tai):
+            raise ValueError("Điểm tồn tại phải thuộc module khai báo.")
+        for ten in ("cong_ho_tro", "v2_can_bo_sung", "ghi_chu"):
+            _duy_nhat(getattr(self, ten), ten)
+
+
+@dataclass(frozen=True)
+class VanDeVungDuLieu:
+    muc: str
+    ma: str
+    noi_dung: str
+    diem: DiemTruyCapDuLieu | None = None
+
+
+@dataclass(frozen=True)
+class KetQuaVungDuLieu:
+    van_de: tuple[VanDeVungDuLieu, ...]
+
+    @property
+    def loi(self) -> tuple[VanDeVungDuLieu, ...]:
+        return tuple(v for v in self.van_de if v.muc == "DO")
+
+    @property
+    def canh_bao(self) -> tuple[VanDeVungDuLieu, ...]:
+        return tuple(v for v in self.van_de if v.muc == "CANH_BAO")
+
+    @property
+    def hop_le(self) -> bool:
+        return not self.loi
+
+
+def _khop_bang(mau: str, bang: str) -> bool:
+    return bang.startswith(mau[:-1]) if mau.endswith("*") else bang == mau
+
+
+def _giao_bang(a: str, b: str) -> bool:
+    if a.endswith("*") and b.endswith("*"):
+        return a[:-1].startswith(b[:-1]) or b[:-1].startswith(a[:-1])
+    return _khop_bang(a, b) or _khop_bang(b, a)
+
+
+def chu_bang(bang: str, cac_vung: tuple[KhaiBaoVungDuLieu, ...],
+             chua_ro: tuple[BangChuaRo, ...] = ()) -> str:
+    """Chỉ tra metadata, không đánh giá owner dòng hay cấp quyền."""
+    if not any(b.bang == bang for b in chua_ro):
+        _doi_tuong(bang)
+    chu = [v.ma for v in cac_vung for mau in v.v1 if _khop_bang(mau, bang)]
+    chu.extend("CHUA_RO" for b in chua_ro if b.bang == bang)
+    if len(chu) != 1:
+        raise ValueError(f"Bảng {bang} phải có đúng một chủ, hiện có {len(chu)}.")
+    return chu[0]
+
+
+def kiem_tra_vung_du_lieu(cac_vung: tuple[KhaiBaoVungDuLieu, ...], *,
+                          chua_ro: tuple[BangChuaRo, ...] = (),
+                          truy_cap: tuple[DiemTruyCapDuLieu, ...] = ()) -> KetQuaVungDuLieu:
+    """Kiểm bản khai và các điểm được truyền vào; XS-5c mới trace SQL thật.
+
+    Ngoại lệ khớp đủ module/tệp/dòng/bảng/mức. V2/V3/V4 không cho phép ghi
+    trực tiếp bảng khác. CHUA_RO có lý do chỉ cảnh báo theo quyết định lead.
+    """
+    cac_vung, chua_ro = tuple(cac_vung), tuple(chua_ro)
+    van_de = []
+
+    def bao(muc, ma, noi_dung, diem=None):
+        van_de.append(VanDeVungDuLieu(muc, ma, noi_dung, diem))
+
+    ma_vung = [v.ma for v in cac_vung]
+    if len(set(ma_vung)) != len(ma_vung):
+        bao("DO", "TRUNG_MODULE", "Mã module vùng dữ liệu bị trùng.")
+    chu = [(mau, v.ma) for v in cac_vung for mau in v.v1]
+    chu.extend((b.bang, "CHUA_RO") for b in chua_ro)
+    for i, (bang, module) in enumerate(chu):
+        for bang_khac, module_khac in chu[i + 1:]:
+            if _giao_bang(bang, bang_khac):
+                bao("DO", "TRUNG_CHU", f"V1 {bang} ({module}) trùng {bang_khac} ({module_khac}).")
+    for b in chua_ro:
+        bao("CANH_BAO", "CHUA_RO", f"{b.bang}: {b.ly_do}")
+    ton_tai = tuple(d for v in cac_vung for d in v.dang_ton_tai)
+    khoa_ton_tai = {d.khoa for d in ton_tai}
+    if len(khoa_ton_tai) != len(ton_tai):
+        bao("DO", "TRUNG_DIEM", "Điểm truy cập tồn tại bị khai báo lặp.")
+    for v in cac_vung:
+        for b in v.v3 + tuple(q.bang for q in v.chu_theo_dong):
+            try:
+                owner = chu_bang(b, cac_vung, chua_ro)
+            except ValueError as exc:
+                bao("DO", "CHU_KHONG_HOP_LE", str(exc))
+                continue
+            if b in tuple(q.bang for q in v.chu_theo_dong) and owner != v.ma:
+                bao("DO", "CHU_DONG_SAI", f"{v.ma} không phải chủ bảng {b}.")
+    da_kiem = set()
+    for d in ton_tai + tuple(truy_cap):
+        if d.khoa in da_kiem:
+            continue
+        da_kiem.add(d.khoa)
+        try:
+            owner = chu_bang(d.dich, cac_vung, chua_ro)
+        except ValueError as exc:
+            bao("DO", "CHU_KHONG_HOP_LE", str(exc), d)
+            continue
+        if d.khoa in khoa_ton_tai:
+            bao("CANH_BAO", "DANG_TON_TAI", f"{d.tep}:{d.dong} → {d.dich}: {d.ly_do}.", d)
+        elif owner == "CHUA_RO":
+            bao("CANH_BAO", "CHUA_RO", f"{d.dich}: chưa chốt chủ; không suy quyền ghi.", d)
+        elif d.muc == "GHI" and owner != d.module:
+            bao("DO", "GHI_CHEO_MOI", f"{d.module} ghi bảng {d.dich} của {owner} ngoài danh sách tồn tại.", d)
+    return KetQuaVungDuLieu(tuple(van_de))
 
 
 @dataclass
@@ -132,6 +365,7 @@ class KhaiBaoModule:
     engine_dung: tuple[str, ...] = ()
     mac_dinh_cong_tac: CheDoModule = CheDoModule.TAT
     bo_sung: dict[str, Any] = field(default_factory=dict)
+    vung_du_lieu: KhaiBaoVungDuLieu | None = None
 
     def __post_init__(self) -> None:
         self.phan = tuple(self.phan)
@@ -162,6 +396,11 @@ class KhaiBaoModule:
                     raise ValueError("Thẻ đếm tham chiếu phần chưa khai báo.")
             _duy_nhat((t.ma for t in cac_the), "Mã thẻ trong nhóm")
         _duy_nhat(self.engine_dung, "Mã engine")
+        if self.vung_du_lieu is not None:
+            if not isinstance(self.vung_du_lieu, KhaiBaoVungDuLieu):
+                raise ValueError("Vùng dữ liệu phải là KhaiBaoVungDuLieu.")
+            if self.vung_du_lieu.ma != self.ma.upper():
+                raise ValueError("Vùng dữ liệu phải thuộc cùng module.")
 
     def danh_muc_hanh_dong(self) -> dict[str, tuple[str, ...]]:
         """Giữ thứ tự màn và hành động; chưa nối resolver/cấp quyền MTQ."""
@@ -236,7 +475,7 @@ def ve_khai_bao_crm(module: KhaiBaoModule) -> dict[str, Any]:
     âm thầm làm mất metadata mới. Không ghi lại vào khung_khai_bao.MODULE.
     """
     module.kiem_tra()
-    if (module.mac_dinh_cong_tac == CheDoModule.THU or module.engine_dung
+    if (module.mac_dinh_cong_tac == CheDoModule.THU or module.engine_dung or module.vung_du_lieu is not None
             or any(p.hanh_dong for p in module.phan)):
         raise ValueError("Khai báo CRM cũ không biểu diễn được metadata mới.")
     return deepcopy({
