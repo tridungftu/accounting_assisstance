@@ -233,3 +233,55 @@
 6. SSL: ghi vào checklist chuyển lên máy chủ.
 **Báo Anh khi:** danh sách cột nhạy cảm cần duyệt; số đo trước BitLocker; biên bản thử khôi phục bản sao lưu mã hóa.
 **Trạng thái:** ĐÃ NHẬN 21:10 26/10 · 22:50 Anh duyệt danh sách cột nhóm A, cách giữ khóa, lịch sao lưu (M1–M3, QD-20261026-11); giao MH-1, SL-1; người giữ ổ ngoài Anh chỉ định khi tới bước tạo khóa · — (1) thêm kiểm "không trùng engine/thư viện/mô hình/kết nối" vào `MAU-REVIEW-CODEX.md` và cổng lead; (2) lead tạo `D:\DU-LIEU-KE-TOAN\{postgresql,kho-file,sao-luu}` (thư mục rỗng); cụm PG thật dựng sau XS-5b và khi Anh duyệt kế hoạch chuyển kho — đăng ký dịch vụ Windows cần quyền quản trị: sẽ hỏi Anh đúng bước đó; (3) giao Codex lập danh sách cột nhạy cảm + thiết kế pgcrypto/xoay khóa/sao lưu mã hóa/thử khôi phục + bộ đo trước BitLocker (tài liệu `KK-MA-HOA-LUU-RIENG.md`) → gửi Anh duyệt danh sách cột trước khi bật.
+
+## CD-020 · 27/10/2026 06:25 · Lead chạy LIÊN TỤC ngày đêm (mặc định), chạy đêm mỗi đêm không cần lệnh riêng
+**Căn cứ:** Anh hỏi 27/10 06:12 vì sao đêm 26→27 không chạy; nguyên nhân (git, `TRANG-THAI.md` 00:50, `bao-cao-ngay\BAO-CAO-DEM-20261027-tu-lap.md`): không có lệnh chạy đêm (CD-008 chỉ cho đêm 25→26), `/loop` cũ đã dừng 26/10 05:45, lead kết thúc lượt lúc 00:50 và không tự thức dậy; 5 lát review dở chưa gộp. Anh chốt 06:20: **chạy liên tục ngày đêm, mặc định**.
+**Việc:**
+1. **Ngay sáng nay:** thu và gộp/xử lý 5 lát dở đêm qua (MTQ-4b2b, MTQ-4i-b1 v5, MTQ-NEN-2c, MTQ-4d1b, XS-5a1) theo quy trình review; báo vào TRANG-THAI.
+2. **Chạy liên tục:** khi Anh dán lệnh `/loop` (không hẹn giờ dừng), mỗi lượt: đọc hộp thư → rà toàn bộ hàng đợi (CD-009) → thu lát xong → kiểm/gộp → giao lát mới tới mức worker CD-004 → cập nhật TRANG-THAI. Còn việc đang chạy: lượt kế sau ~5–10 phút; rảnh hoàn toàn: 20 phút rà lại một lần. **Không tự dừng vòng lặp**; chỉ dừng khi Anh bảo.
+3. **Chạy đêm mỗi đêm, không cần CD riêng:** áp quy tắc CD-008 (việc cần Anh → ghi "Cần Anh", không chờ; đỏ 2 lần → dừng lát; không gộp `chinh`, không push, không xóa, không đụng kho thật; không khởi động lại máy) cho khung 22:00 → 05:30; **05:45 mỗi ngày viết `bao-cao-ngay\BAO-CAO-DEM-<yyyymmdd>.md`** gồm cả mục "Việc không làm + lý do chặn" và "thời gian worker trống".
+4. **Trước 22:00 mỗi tối:** ghi vào TRANG-THAI danh sách việc không bị chặn cho đêm đó; < 6 việc → ghi rõ ở đầu báo cáo đêm và trong mục "Cần Anh" (Anh đọc sáng hôm sau), dùng danh sách lấp chỗ trống CD-009 mục 3.
+5. **Hạn mức:** Claude gần đầy (tuần ≥ 90% hoặc khung 5 giờ chạm) → review chuyển Codex theo QD-20261026-04, Claude chỉ kiểm xác suất; ghi giờ và số `/usage` vào `bao-cao-ngay\USAGE-<yyyymmdd>.md` mỗi tối. Codex vẫn chạy đủ suất.
+**Trạng thái:** ĐÃ NHẬN 15:40 27/10 — /loop đã chạy (tự nhịp: ~5–10 phút khi còn việc, 20 phút khi rảnh; không tự dừng). Đang thu 5 lát dở: 4b2b (review chặn: ghim quan_he phụ thuộc tick → vòng 4), 4i-b1 (review Đạt nhưng ca NEN-2c lộ thêm trường hợp va chạm UUID/instance → vòng 6), NEN-2c (chờ 4i-b1), 4d1b (vòng 2 xong, chờ gate PG), XS-5a1 (review Đạt → gộp). Đêm: áp CD-008, 05:45 BAO-CAO-DEM; trước 22:00 ghi danh sách việc không bị chặn; USAGE mỗi tối.
+
+## CD-021 · 27/10/2026 09:50 · Triển khai một bản trung tâm qua trình duyệt; CSDL chung tách theo pháp nhân + công cụ xuất riêng một công ty
+**Căn cứ:** Anh 27/10 09:39 (engine lớn gồm mọi module/công cụ, CSDL theo từng công ty, bộ phận lấy dữ liệu được phân quyền) và chốt 09:45: **một bản trung tâm, bộ phận dùng trình duyệt**; **CSDL phương án A**. TL 53 §9; `CLAUDE.md` thêm dòng "Triển khai".
+**Việc:**
+1. Giữ mô hình web hiện có làm cách triển khai duy nhất; không làm bản cài trên máy bộ phận. "Cài cho bộ phận" = công tắc module theo pháp nhân (XS-4) + ma trận thẩm quyền (CD-012).
+2. **Máy xử lý phụ:** dựa trên worker chung XS-2b — gói chạy engine trên máy khác, nhận việc qua hàng việc chung bằng tài khoản giới hạn (không quyền đọc bảng nghiệp vụ, không giữ khóa mã hóa); ghi vào kế hoạch, làm sau XS-1…XS-5.
+3. **Phân quyền pháp nhân hai lớp** (máy chủ + tầng CSDL) là bắt buộc cho mọi bảng nghiệp vụ mới; test dưới vai ứng dụng (như bài học XS-4c2).
+4. **Công cụ xuất riêng một công ty (lát mới XUAT-PN):** xuất toàn bộ dữ liệu của một pháp nhân (kể cả kho file, nhật ký) ra CSDL/tệp riêng, có biên bản đối chiếu số dòng/tổng tiền; chỉ Admin chạy; thử trên DEMO.
+5. Checklist chuyển lên máy chủ: thêm SSL, mở truy cập trong mạng nội bộ, sao lưu, giám sát.
+**Trạng thái:** ĐÃ NHẬN 15:40 27/10 — (1) giữ mô hình web trung tâm; (2) máy xử lý phụ: ghi vào kế hoạch sau XS-1…5 (dựa worker XS-2b, tài khoản giới hạn); (3) phân quyền PN hai lớp + test dưới vai ứng dụng: đã là kiểm bắt buộc trong mẫu review; (4) lát XUAT-PN xếp sau XS-5b (cần bản đồ vùng dữ liệu để biết bảng của PN); (5) bổ sung checklist chuyển máy chủ (SSL, mạng nội bộ, sao lưu, giám sát) — lát tài liệu.
+
+## CD-022 · 27/10/2026 14:45 · Dự án đang bán: tiến độ thanh toán % + mốc; bỏ ô "Giai đoạn tiến độ"; "Lý do" chỉ khi sửa
+**Căn cứ:** Anh thử màn Dự án đang bán 27/10 14:33 (ảnh: ô "Giai đoạn tiến độ mặc định" báo lỗi "chỉ gồm chữ/số/_ . - (1–80)" khi gõ "Cấp giấy CN Đầu tư"; ô "Lý do (bắt buộc)") và chốt 14:40 qua bảng chọn. Mã nguồn liên quan: `giao_dien\assets\crm_g.js` ~390, ~542, ~570; `k2\crm_du_an_ban.py` ~120, ~541; `k2\crm_giao_ket.py` ~289.
+**Quyết định của Anh:**
+1. **Tiến độ thanh toán tiêu chuẩn của dự án = chỉ % và mốc** — bảng `Lần · % · Mốc thanh toán · Ghi chú`, bố cục giống bảng lịch của Báo giá (BG-20/21): ô nhập nhanh `10%, 30%, 40%, 20%` hoặc số lần; dòng tổng Σ% phải = 100%; **Mốc chọn từ danh sách mốc cơ bản + mốc riêng của dự án** (CD-006/007, có ngày dự kiến/thực tế). Không có cột số tiền ở cấp dự án (số tiền tính ở Báo giá khi đã có giá lô/căn). Báo giá chọn dự án → nạp bảng này (DA-3a).
+2. **Mỗi dự án chỉ một tiến độ chuẩn** → **bỏ ô "Giai đoạn tiến độ mặc định"** khỏi màn; máy tự giữ mã nội bộ; bỏ điều kiện "phải đặt giai đoạn trước khi sửa tiến độ".
+3. **Ô "Lý do": khai báo ban đầu không có; chỉ khi SỬA** (thông tin, đơn giá, thuế, phí, lô/căn, tiến độ, mốc) mới hiện ô **"Ghi chú thay đổi"** (bắt buộc khi sửa) — lưu cùng nhật ký tự động (ai, lúc nào, cũ → mới).
+4. **Mọi ô tên do người dùng gõ** (tên mốc, tên phí, mô tả…) nhận **tiếng Việt có dấu và khoảng trắng**; quy tắc "chỉ gồm chữ/số/_ . -" chỉ áp cho mã nội bộ máy tự sinh, không bao giờ hiện cho người dùng. Rà cả `crm_giao_ket.py` (sự kiện dòng lịch) và các màn khác có câu lỗi tương tự.
+**Báo Anh khi:** sửa xong trên DEMO 8798 (Anh thử lại: khai mốc "Cấp giấy CN Đầu tư", lập tiến độ 10/30/40/20% gắn mốc, sửa một dòng thấy ô Ghi chú thay đổi).
+**Trạng thái:** ĐÃ NHẬN 15:40 27/10 — làm cùng CD-023/024 trên dòng giao diện; giao Codex kiểm kê mã hiện có (crm_g.js, crm_du_an_ban.py, crm_giao_ket.py) + chia lát ≤3 tệp, rồi code; báo Anh khi sẵn sàng thử trên DEMO 8798.
+
+## CD-023 · 27/10/2026 14:55 · Dự án đang bán: khai báo MỘT LƯỢT + sao chép từ dự án khác / mẫu theo loại
+**Căn cứ:** Anh 27/10 14:49: "khi khai báo lại phải khai dòng phí riêng rất mất thời gian: khi khai báo dự án thì khai báo hết tất cả thông tin 1 lượt; ngoài ra có template cho nhà ở hoặc KCN hoặc cho thuê riêng (hoặc có thể không cần nhưng có nút copy từ dự án khác để sửa)". Làm cùng CD-022.
+**Việc:**
+1. **Một màn khai báo một lượt** (thay các hộp thoại riêng từng phần): các khối trên cùng một trang, gấp/mở được — Thông tin chung · Giá & thuế (đơn giá niêm yết, tiền tệ, loại hình, thuế mặc định) · **Phí** (bảng nhiều dòng sửa trực tiếp: tên phí · mức · đơn vị tính · tiền tệ · cơ sở tính; thêm dòng bằng Enter) · **Mốc thanh toán của dự án** (bảng: tên mốc · ngày dự kiến · ngày thực tế) · **Tiến độ thanh toán** (Lần · % · Mốc · Ghi chú — CD-022) · **Lô/căn** (bảng; cho **dán nhiều dòng từ Excel**). Một nút **Lưu** cho cả trang; kiểm lỗi hiện tại chỗ từng ô; lưu một phiên bản cho cả lượt.
+2. **Nút "Sao chép từ dự án khác":** chọn dự án nguồn → điền sẵn mọi khối (trừ lô/căn, tên/mã dự án, ngày thực tế của mốc) để sửa rồi Lưu; ghi nhật ký "sao chép từ dự án X phiên bản n".
+3. **Mẫu theo loại** (Nhà ở · KCN · Cho thuê): làm bằng cơ chế **"Lưu làm mẫu"** — một dự án đã khai có thể lưu thành mẫu có tên; tạo dự án mới chọn "Từ mẫu" hoặc "Từ dự án khác". Không gắn cứng nội dung mẫu trong code; Anh/kế toán tự lưu 3 mẫu từ dự án thật.
+4. Ô "Ghi chú thay đổi" (CD-022 mục 3) chỉ hiện khi sửa dự án đã lưu, **một ô chung cho cả lượt sửa**, không hỏi từng dòng.
+5. Đo trước/sau ghi CHANGELOG: số lần bấm và số hộp thoại để khai một dự án KCN có 3 phí, 4 mốc, tiến độ 4 đợt.
+**Báo Anh khi:** sẵn sàng thử trên DEMO 8798 cùng CD-022.
+**Trạng thái:** ĐÃ NHẬN 15:40 27/10 — cùng đợt CD-022 (màn khai báo một lượt, sao chép từ dự án khác, Lưu làm mẫu).
+
+## CD-024 · 27/10/2026 15:05 · Báo giá: nút cạnh tiêu đề; Tổng có VAT; VAT đợt cọc dồn vào đợt kế tiếp
+**Căn cứ:** Anh thử màn Báo giá 27/10 14:56 (ảnh: nút "+ Báo giá mới" nằm ở khối Danh sách báo giá) và chốt 15:00 qua bảng chọn; TL 45 §9 (BG-25…BG-28, đã thêm 15:05).
+**Việc:**
+1. **BG-25:** nút "+ Báo giá mới" ngay sau tiêu đề "Báo giá" ở đầu trang.
+2. **BG-26:** Tổng giá trị (chữ to) = **giá đã có VAT**; dưới: trước VAT · VAT · bằng chữ tổng có VAT.
+3. **BG-27 (phương án A):** % tính trên giá trước VAT; **đợt đặt cọc không VAT**; VAT của cọc **cộng vào đợt kế tiếp**; các đợt sau phần + VAT; đợt cọc = dòng đánh dấu "Đặt cọc" (mặc định dòng 1); VAT theo cách tính hiện có (thuế suất, phần không chịu thuế nếu có); chênh làm tròn dồn đợt cuối. Test đơn vị bằng ví dụ giả định TL 45 §9 (1.000.000.000 VND trước VAT, 10%, 10/30/60% → 100.000.000 · 340.000.000 · 660.000.000; Σ 1.100.000.000 VND).
+4. **BG-28:** bảng lịch Lần · **% (chữ to, cùng cỡ với Giá trị — Anh 14:57)** · **Giá trị thanh toán (gồm VAT, chữ to)** · **trong đó VAT** · Mốc · Ghi chú; dòng tổng khớp khối Tổng; gõ tiền ở cột thanh toán → máy suy % (đợt cọc không VAT). Bản in cho khách và chuyển sang Soạn hợp đồng giữ đúng các cột này.
+5. Áp cùng quy tắc VAT cọc cho tiến độ dự án nạp vào Báo giá (dự án chỉ có % + mốc — CD-022).
+**Báo Anh khi:** sẵn sàng thử trên DEMO 8798 (gộp chung đợt với CD-022/023).
+**Trạng thái:** ĐÃ NHẬN 15:40 27/10 — cùng đợt CD-022/023 (BG-25…BG-28, VAT đợt cọc dồn đợt kế; test ví dụ TL 45 §9).
