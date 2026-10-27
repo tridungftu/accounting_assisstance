@@ -12328,16 +12328,12 @@ _M4B2B_GHIM_CU = (
 M00xx_MTQ_CRM_C = (
     *MTQ_CRM_C_SQL,
     # Thân validator mới nhất là M0049 (có NGUON), không lấy lại M0039.
-    # Phạm vi dùng chung nhiều màn; chỉ ghim B3 khi dòng vai có ô CRM ký/bản ký.
-    # Cấp scope trước khi tick vẫn fail closed ở G4 và phải cấp lại sau đó.
+    # Ghim/kiểm quan hệ khi cấp phạm vi cho mọi vai, kể cả trước khi có tick.
+    # HĐ ngoài CRM/chưa có bản soạn giữ {}; DU_AN do Admin chọn quan hệ.
     _m36_thay(
         _m37_ham("master.mtq_kiem_ghi"),
         ("            ELSIF TG_TABLE_NAME = 'mtq_admin' AND TG_OP = 'UPDATE' THEN",
-         "                IF TG_OP = 'INSERT' AND NEW.loai IN ('HOP_DONG','DU_AN') AND EXISTS (\n"
-         "                    SELECT 1 FROM master.mtq_dong d JOIN master.mtq_o o ON o.dong_id = d.id\n"
-         "                    WHERE d.phap_nhan_id = g.phap_nhan_id AND d.phong_id = g.phong_id AND d.vai = g.vai\n"
-         "                        AND o.module = 'CRM' AND o.cho_phep\n"
-         "                        AND (o.man = 'G3_G4_SOAN_KY' OR (o.man = 'BAN_KY' AND o.hanh_dong = 'XEM'))) THEN\n"
+         "                IF TG_OP = 'INSERT' AND NEW.loai IN ('HOP_DONG','DU_AN') THEN\n"
          "                    DECLARE ghim jsonb;\n"
          "                    BEGIN\n"
          "                        ghim := master.crm_ky_cap_quan_he(NEW.loai, NEW.khoa, NEW.phap_nhan_id);\n"

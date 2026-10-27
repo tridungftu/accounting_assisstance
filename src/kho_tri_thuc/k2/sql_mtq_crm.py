@@ -294,6 +294,8 @@ MTQ_CRM_C_SQL = (
         LANGUAGE plpgsql SET search_path = master, pg_temp AS $$
         DECLARE sid uuid;
         BEGIN
+            -- Validator luôn gọi khi cấp phạm vi, không phụ thuộc tick của vai.
+            -- Chỉ HĐ thuộc CRM có bản soạn hiện hành mới được tự ghim quan hệ.
             -- DU_AN không suy khách từ các hợp đồng của dự án. Admin chọn
             -- quan hệ tường minh tại validator; không gửi thì giữ {}.
             IF p_loai IS DISTINCT FROM 'HOP_DONG' THEN RETURN '{}'::jsonb; END IF;

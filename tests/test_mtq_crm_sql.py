@@ -905,9 +905,13 @@ class MtqCrmKySqlTinh(unittest.TestCase):
 
     def test_validator_dua_tren_than_moi_nhat_giu_nguyen_nguon(self):
         old, new = C_BEFORE["master.mtq_kiem_ghi"], C_AFTER["master.mtq_kiem_ghi"]
-        start = "                IF TG_OP = 'INSERT' AND NEW.loai IN ('HOP_DONG','DU_AN') AND EXISTS ("
+        start = "                IF TG_OP = 'INSERT' AND NEW.loai IN ('HOP_DONG','DU_AN') THEN"
         end = "            ELSIF TG_TABLE_NAME = 'mtq_admin' AND TG_OP = 'UPDATE' THEN"
         self.assertEqual(new.split(start)[0] + end + new.split(end)[1], old)
+        block = new.split(start, 1)[1].split(end, 1)[0]
+        self.assertNotIn("master.mtq_dong", block)
+        self.assertNotIn("master.mtq_o", block)
+        self.assertIn("master.crm_ky_cap_quan_he(NEW.loai, NEW.khoa, NEW.phap_nhan_id)", block)
         self.assertIn("ELSIF NEW.loai = 'NGUON' THEN", new)
         self.assertIn("NEW.quan_he := ghim", new)
         self.assertIn("NEW.quan_he <> '{}'::jsonb AND NEW.quan_he IS DISTINCT FROM ghim", new)
@@ -1208,6 +1212,54 @@ class MtqCrmKySqlPostgres(unittest.TestCase):
         self.assertEqual(pv, {"doi_tac_id": str(self.f["kh"]), "soan_id": str(self.f["s"]),
                               "du_an_id": str(self.f["da"]), "khach_du_thao_sha256": None})
         self.assertTrue(self.decision()["cho_phep"])
+
+    def test_cap_hd_truoc_tick_sau_cong_bo_va_bat_pn_ky_duoc(self):
+        self.actor(self.admin)
+        v = self.nhap()
+        for phong in (self.phong, self.phong2):
+            for vai in nen.VAI:
+                d = self.sua_nhap(v, "DONG", {"phong_id": phong, "vai": vai, "gioi_han_vnd": 0})
+                if phong == self.phong and vai == "TRUONG_PHONG":
+                    dong = d["id"]
+        self.assertEqual(self.c.execute("SELECT count(*) FROM master.mtq_o").fetchone()[0], 0)
+        self.assertFalse(self.c.execute(
+            "SELECT EXISTS (SELECT 1 FROM master.mtq_kich_hoat WHERE phap_nhan_id=%s AND bat)",
+            (self.pn,)).fetchone()[0])
+        grant = self.ghi("GAN_VAI", {"nguoi_dung_id": str(self.user[0]), "phap_nhan_id": str(self.pn),
+                                     "phong_id": self.phong, "vai": "TRUONG_PHONG"})
+        # Không gửi quan_he: server phải ghim ngay khi vai chưa có bất kỳ tick nào.
+        pv = self.ghi("PHAM_VI", {"gan_vai_id": grant["id"], "phap_nhan_id": str(self.pn),
+                                  "loai": "HOP_DONG", "khoa": str(self.f["hd"])})
+        self.assertEqual(pv["quan_he"], {"doi_tac_id": str(self.f["kh"]), "soan_id": str(self.f["s"]),
+                                        "du_an_id": str(self.f["da"]), "khach_du_thao_sha256": None})
+        for action in sorted(C_ACTIONS):
+            module, man, hanh = action.split(":")
+            self.sua_nhap(v, "O", {"dong_id": dong, "module": module, "man": man,
+                                    "hanh_dong": hanh, "cho_phep": True})
+        self.sua_nhap(v, "CONG_BO", {})
+        self.san_sang()
+        self.ghi("KICH_HOAT", {"phap_nhan_id": str(self.pn), "phien_ban_id": v["id"], "bat": True})
+        self.actor(self.user)
+        for action in C_ACTIONS:
+            self.assertTrue(self.decision(action)["cho_phep"])
+        self.assertEqual(self.ky()["ket_qua"]["trang_thai"], "DA_KY")
+        self.assertEqual(self.c.execute("SELECT quan_he FROM master.mtq_pham_vi WHERE id=%s",
+                                        (pv["id"],)).fetchone()[0], pv["quan_he"])
+
+    def test_quan_he_sai_khac_rong_bi_tu_choi_voi_moi_vai_chua_tick(self):
+        self.actor(self.admin)
+        self.assertEqual(self.c.execute("SELECT count(*) FROM master.mtq_o").fetchone()[0], 0)
+        for vai in nen.VAI:
+            with self.subTest(vai=vai):
+                who = self.nguoi("XEM")
+                grant = self.ghi("GAN_VAI", {"nguoi_dung_id": str(who[0]), "phap_nhan_id": str(self.pn),
+                                             "phong_id": self.phong, "vai": vai})
+                self.loi("MTQ_PHAM_VI_LECH", lambda: self.scope(
+                    grant, relation={"doi_tac_id": str(uuid.uuid4())}))
+                self.loi("MTQ_PHAM_VI_LECH", lambda: self.scope(
+                    grant, "DU_AN", self.f["da"], {"doi_tac_id": str(uuid.uuid4())}))
+                self.assertEqual(self.scope(grant)["quan_he"]["soan_id"], str(self.f["s"]))
+        self.assertEqual(self.c.execute("SELECT count(*) FROM master.mtq_pham_vi").fetchone()[0], len(nen.VAI))
 
     def test_cap_hd_m4_vay_mua_va_crm_chua_soan_giu_quan_he_rong(self):
         grants = self.cau_hinh(scope=None)
