@@ -163,6 +163,15 @@ class CrmMauK2:
         r = _v(dict(c.execute("SELECT master.crm_g_tra(%s, %s, %s::uuid, %s) AS r", (hanh_dong, khoa, dich, h)).fetchone()))["r"]
         return None if r is None else {**r["ket_qua"], "lap_lai": True}
 
+    def _co_quyen(self, c, lenh, bang, dich, hanh_dong, pn, loai, *, day_du=True) -> bool:
+        """MTQ-4d1b: chỉ NULL mới dùng quyền cũ; locator lấy từ dòng DB trong giao dịch."""
+        q = self._mot(c, "SELECT master.mtq_duoc_doc(%s, jsonb_build_object('bang', %s::text, 'id', %s::uuid)) AS ok",
+                      (lenh, bang, dich))["ok"]
+        if q is not None:
+            return bool(q)
+        return bool(day_du and self._mot(c, "SELECT master.crm_g_duoc(%s, %s::uuid, %s::uuid) AS ok",
+                                        (hanh_dong, pn, loai))["ok"])
+
     # ------------------------------------------------------------------ đọc G1
     def danh_sach(self, dang_nhap: str, as_of: str | None = None) -> dict:
         """Danh sách theo quyền hiện hành: KT/KTT/CFO/người được phân công tải → mọi phiên bản; quyền CRM khác (vd BH) → chỉ phiên bản hiệu lực tại as_of."""
@@ -171,13 +180,20 @@ class CrmMauK2:
         with self._tx(dt, rr=True) as c:
             mau = self._nhieu(c, """SELECT m.id AS mau_id, m.ma_mau, m.phap_nhan_id, p.ma AS phap_nhan, l.ma AS loai_hinh, l.phien_ban AS loai_hinh_phien_ban,
                                            v.id AS phien_ban_id, v.phien_ban, v.trang_thai, v.valid_from, v.valid_to, v.ten_tep, v.tai_boi, v.tai_luc,
-                                           master.crm_g_mau_doc(v.phap_nhan_id, v.loai_hinh_id) AS quyen_doc
+                                           CASE master.mtq_duoc_doc('CRM:G1_MAU:XEM', jsonb_build_object('bang', 'master.crm_mau_phien_ban', 'id', v.id))
+                                               WHEN true THEN 'HIEU_LUC' WHEN false THEN NULL
+                                               ELSE master.crm_g_mau_doc(v.phap_nhan_id, v.loai_hinh_id) END AS quyen_doc
                                     FROM master.crm_mau m JOIN master.crm_mau_phien_ban v ON v.mau_id = m.id
                                     JOIN master.phap_nhan p ON p.id = m.phap_nhan_id JOIN master.loai_hinh_doanh_thu l ON l.id = m.loai_hinh_id
                                     ORDER BY p.ma, m.ma_mau, v.phien_ban""")
-            loai = self._nhieu(c, """SELECT l.id, l.ma, l.phien_ban, p.ma AS phap_nhan, master.crm_g_duoc('CRM_MAU_TAI', l.phap_nhan_id, l.id) AS duoc_tai
+            loai = self._nhieu(c, """SELECT l.id, l.ma, l.phien_ban, p.ma AS phap_nhan,
+                                            COALESCE(master.mtq_duoc_doc('CRM:G1_MAU:LAP', jsonb_build_object('bang', 'master.loai_hinh_doanh_thu', 'id', l.id)),
+                                                     master.crm_g_duoc('CRM_MAU_TAI', l.phap_nhan_id, l.id)) AS duoc_tai
                                      FROM master.loai_hinh_doanh_thu l JOIN master.phap_nhan p ON p.id = l.phap_nhan_id
-                                     WHERE l.valid_to IS NULL AND master.ktt_duoc(l.phap_nhan_id, 'CRM')
+                                     WHERE l.valid_to IS NULL AND
+                                       COALESCE(master.mtq_duoc_doc('CRM:G1_MAU:XEM', jsonb_build_object('bang', 'master.loai_hinh_doanh_thu', 'id', l.id))
+                                                OR master.mtq_duoc_doc('CRM:G1_MAU:LAP', jsonb_build_object('bang', 'master.loai_hinh_doanh_thu', 'id', l.id)),
+                                                master.ktt_duoc(l.phap_nhan_id, 'CRM'))
                                        AND EXISTS (SELECT 1 FROM master.crm_danh_muc_truong t WHERE t.loai_hinh_id = l.id) ORDER BY p.ma, l.ma""")
         ds = []
         for r in mau:
@@ -194,7 +210,16 @@ class CrmMauK2:
         dt = self.danh_tinh(dang_nhap)
         pb = _uuid(phien_ban_id, "phien_ban_id")
         with self._tx(dt, rr=True) as c:
-            v = self._mot(c, """SELECT v.*, m.ma_mau, master.crm_g_mau_doc(v.phap_nhan_id, v.loai_hinh_id) AS quyen_doc, master.crm_g_mau_token(v.id) AS token
+            # Chỉ truyền locator; thiếu XEM phải dừng trước metadata/token.
+            q = self._mot(c, "SELECT master.mtq_duoc_doc('CRM:G1_MAU:XEM', "
+                          "jsonb_build_object('bang', 'master.crm_mau_phien_ban', 'id', %s::uuid)) AS ok", (pb,))["ok"]
+            if q is False:
+                raise DataError("CRM_G_KHONG_THAY", "Không thấy phiên bản mẫu (hoặc ngoài phạm vi).")
+            v = self._mot(c, """SELECT v.*, m.ma_mau,
+                                       CASE master.mtq_duoc_doc('CRM:G1_MAU:XEM', jsonb_build_object('bang', 'master.crm_mau_phien_ban', 'id', v.id))
+                                           WHEN true THEN 'HIEU_LUC' WHEN false THEN NULL
+                                           ELSE master.crm_g_mau_doc(v.phap_nhan_id, v.loai_hinh_id) END AS quyen_doc,
+                                       master.crm_g_mau_token(v.id) AS token
                                 FROM master.crm_mau_phien_ban v JOIN master.crm_mau m ON m.id = v.mau_id WHERE v.id = %s::uuid""", (pb,))
             hom_nay = self.hom_nay().isoformat()
             if v is None or v["quyen_doc"] is None or (v["quyen_doc"] == "HIEU_LUC" and not (
@@ -221,8 +246,11 @@ class CrmMauK2:
                     "phien_ban_cung_mau": self._nhieu(c, """SELECT id, phien_ban, trang_thai, valid_from, valid_to FROM master.crm_mau_phien_ban
                                                            WHERE mau_id = %s ORDER BY phien_ban""", (v["mau_id"],)),
                 }
-            kha_nang = {a: bool(self._mot(c, "SELECT master.crm_g_duoc(%s, %s::uuid, %s::uuid) AS ok", (a, v["phap_nhan_id"], v["loai_hinh_id"]))["ok"])
-                        for a in ("CRM_MAU_MAP", "CRM_MAU_GUI_KIEM", "CRM_MAU_KIEM", "CRM_MAU_TRA_LAI", "CRM_MAU_DUYET_V4", "CRM_MAU_TU_CHOI")}
+            kha_nang = {a: self._co_quyen(c, "CRM:G1_MAU:" + lenh, "master.crm_mau_phien_ban", pb,
+                                        a, v["phap_nhan_id"], v["loai_hinh_id"], day_du=day_du)
+                        for a, lenh in (("CRM_MAU_MAP", "SUA"), ("CRM_MAU_GUI_KIEM", "SUA"),
+                                        ("CRM_MAU_KIEM", "KIEM"), ("CRM_MAU_TRA_LAI", "KIEM"),
+                                        ("CRM_MAU_DUYET_V4", "DUYET"), ("CRM_MAU_TU_CHOI", "DUYET"))}
         facts = tep["facts"] if day_du else None
         return {"phien_ban": {k: v[k] for k in ("id", "mau_id", "ma_mau", "phap_nhan_id", "loai_hinh_id", "phien_ban", "ten_tep", "trang_thai",
                                                 "valid_from", "valid_to", "tai_boi", "tai_luc", "duyet_boi", "duyet_luc", "tu_choi_ly_do",
@@ -233,7 +261,7 @@ class CrmMauK2:
                                                          "phan_quet": facts.get("phan_quet", []), "ly_do_chua_du": facts.get("ly_do_chua_du", []),
                                                          "doan": facts.get("doan", []), "don_vi_khoang": facts.get("don_vi_khoang")},
                 "danh_muc": danh_muc, "anh_xa": anh_xa, "lich_su": lich_su,
-                "kha_nang": {k: bool(ok and day_du) for k, ok in kha_nang.items()}}
+                "kha_nang": kha_nang}
 
     def so_sanh(self, dang_nhap: str, a, b) -> dict:
         """So hai phiên bản cùng mẫu: placeholder/số lần và trường ánh xạ (chỉ đọc)."""
@@ -331,6 +359,10 @@ class CrmMauK2:
         # biên nhận: cùng H → FINAL cũ; khác H → 409 — cả hai TRƯỚC parse/staging/blob. Thu hồi quyền đã commit trước preflight → từ chối
         # trước filesystem; thu hồi đồng thời phải chờ dòng quyền đã ghim đến khi giao dịch này kết thúc (không còn khe preflight→lệnh).
         with self._tx(dt) as c:
+            q = self._mot(c, "SELECT master.mtq_duoc_doc('CRM:G1_MAU:LAP', "
+                          "jsonb_build_object('bang', 'master.loai_hinh_doanh_thu', 'id', %s::uuid)) AS ok", (loai,))["ok"]
+            if q is False:
+                raise DataError("CRM_G_KHONG_CO_QUYEN", "Phiên làm việc chưa được cấp quyền tải mẫu cho loại hình này.")
             cu = self._tra_trong(c, "CRM_MAU_TAI", khoa, loai, h)
             if cu is not None:
                 return cu
@@ -434,22 +466,34 @@ class CrmMauK2:
     def danh_sach_bo_chuan(self, dang_nhap: str) -> dict:
         """Tổng quan G7: dự án trong phạm vi CRM của phiên; KT/KTT/CFO thấy thêm mọi phiên bản (nháp/chờ/hiệu lực) kèm token và năng lực."""
         dt = self.danh_tinh(dang_nhap)
+        ngay = self.hom_nay().isoformat()
         with self._tx(dt, rr=True) as c:
             du_an = self._nhieu(c, """SELECT a.id, a.ma_junsky, a.ten, p.ma AS phap_nhan FROM master.du_an a JOIN master.phap_nhan p ON p.id = a.phap_nhan_id
-                                      WHERE master.ktt_duoc(a.phap_nhan_id, 'CRM') ORDER BY p.ma, a.ma_junsky""")
+                                      WHERE COALESCE(master.mtq_duoc_doc('CRM:G7_CHUAN:XEM', jsonb_build_object('bang', 'master.du_an', 'id', a.id))
+                                                     OR master.mtq_duoc_doc('CRM:G7_CHUAN:LAP', jsonb_build_object('bang', 'master.du_an', 'id', a.id)),
+                                                     master.ktt_duoc(a.phap_nhan_id, 'CRM')) ORDER BY p.ma, a.ma_junsky""")
+            # M0050 chỉ mở mức hiệu lực cho MTQ; tick XEM không tự cấp nháp/lịch sử.
             pb = self._nhieu(c, """SELECT v.id, v.phien_ban, v.trang_thai, v.so_dong, v.valid_from, v.valid_to, v.lap_boi, v.gui_boi, v.duyet_boi,
                                           b.du_an_id, b.giai_doan, master.crm_g_chuan_token(v.id) AS token,
-                                          master.crm_g_duoc('CRM_CHUAN_GUI_DUYET', v.phap_nhan_id, NULL) AS duoc_gui,
-                                          master.crm_g_duoc('CRM_CHUAN_DUYET_V4', v.phap_nhan_id, NULL) AS duoc_duyet,
+                                          COALESCE(master.mtq_duoc_doc('CRM:G7_CHUAN:SUA', jsonb_build_object('bang', 'master.crm_bo_chuan_phien_ban', 'id', v.id)),
+                                                   master.crm_g_duoc('CRM_CHUAN_GUI_DUYET', v.phap_nhan_id, NULL)) AS duoc_gui,
+                                          COALESCE(master.mtq_duoc_doc('CRM:G7_CHUAN:DUYET', jsonb_build_object('bang', 'master.crm_bo_chuan_phien_ban', 'id', v.id)),
+                                                   master.crm_g_duoc('CRM_CHUAN_DUYET_V4', v.phap_nhan_id, NULL)) AS duoc_duyet,
                                           CASE WHEN v.trang_thai <> 'HIEU_LUC' THEN NULL
                                                WHEN EXISTS (SELECT 1 FROM master.crm_bo_chuan_ap_dung x WHERE x.phien_ban_id = v.id) THEN 'AP_DUNG_NGAY'
                                                ELSE 'CFO_DUYET' END AS nguon_hieu_luc
                                    FROM master.crm_bo_chuan_phien_ban v JOIN master.crm_bo_chuan b ON b.id = v.bo_chuan_id
-                                   WHERE master.crm_g_chuan_doc_duoc(v.phap_nhan_id) ORDER BY b.giai_doan, v.phien_ban""")
+                                   WHERE CASE master.mtq_duoc_doc('CRM:G7_CHUAN:XEM', jsonb_build_object('bang', 'master.crm_bo_chuan_phien_ban', 'id', v.id))
+                                       WHEN true THEN v.trang_thai = 'HIEU_LUC' AND v.valid_from <= %s::date
+                                           AND (v.valid_to IS NULL OR %s::date < v.valid_to)
+                                       WHEN false THEN false ELSE master.crm_g_chuan_doc_duoc(v.phap_nhan_id) END
+                                   ORDER BY b.giai_doan, v.phien_ban""", (ngay, ngay))
             for v in pb:
                 v["dong"] = self._nhieu(c, """SELECT thu_tu, lan, gia_tri_loai, gia_tri_thap_phan, so_tien_minor, tien_te, moc_loai, moc_ngay, moc_su_kien, ghi_chu
                                               FROM master.crm_bo_chuan_dong WHERE phien_ban_id = %s ORDER BY thu_tu""", (v["id"],))
-            duoc_lap = {a["id"]: bool(self._mot(c, "SELECT master.crm_g_duoc('CRM_CHUAN_LAP', a.phap_nhan_id, NULL) AS ok FROM master.du_an a WHERE a.id = %s",
+            duoc_lap = {a["id"]: bool(self._mot(c, "SELECT COALESCE(master.mtq_duoc_doc('CRM:G7_CHUAN:LAP', "
+                                                "jsonb_build_object('bang', 'master.du_an', 'id', a.id)), "
+                                                "master.crm_g_duoc('CRM_CHUAN_LAP', a.phap_nhan_id, NULL)) AS ok FROM master.du_an a WHERE a.id = %s",
                                                 (a["id"],))["ok"]) for a in du_an}
         for a in du_an:
             a["duoc_lap"] = duoc_lap[a["id"]]
