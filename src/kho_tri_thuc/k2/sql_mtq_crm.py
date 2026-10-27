@@ -270,3 +270,110 @@ MTQ_CRM_B_SQL = (
         END $$""",
     "REVOKE ALL ON FUNCTION master.crm_gk_xem(text, uuid, uuid) FROM PUBLIC",
 )
+
+
+MTQ_CRM_C_SQL = (
+    # B3: cùng snapshot HĐ/dự án/khách của predicate cũ; không đọc assignment.
+    """CREATE FUNCTION master.crm_ky_quan_he(p_soan uuid) RETURNS jsonb
+        LANGUAGE sql STABLE SET search_path = master, pg_temp AS $$
+        SELECT jsonb_build_object('soan_id', s.id, 'du_an_id', h.du_an_id,
+            'doi_tac_id', h.doi_tac_id, 'khach_du_thao_sha256', CASE WHEN h.doi_tac_id IS NULL
+                THEN encode(sha256(convert_to((r.du_lieu->'bao_gia'->'khach'->'du_thao')::text, 'UTF8')), 'hex') END)
+        FROM master.crm_hd_soan s
+        JOIN master.hop_dong h ON h.id = s.hop_dong_id AND h.phap_nhan_id = s.phap_nhan_id
+            AND h.module_chu IS NULL AND h.loai NOT IN ('VAY','MUA')
+        JOIN master.crm_hd_soan_rev r ON r.soan_id = s.id AND r.phap_nhan_id = s.phap_nhan_id
+            AND r.revision = s.revision_hien_hanh
+        WHERE s.id = p_soan
+            AND h.du_an_id::text IS NOT DISTINCT FROM nullif(r.du_lieu->'bao_gia'->>'du_an_id', '')
+            AND ((h.doi_tac_id IS NOT NULL AND h.doi_tac_id::text = r.du_lieu->'bao_gia'->'khach'->>'doi_tac_id')
+                OR (h.doi_tac_id IS NULL AND (r.du_lieu->'bao_gia'->'khach'->>'doi_tac_id') IS NULL
+                    AND jsonb_typeof(r.du_lieu->'bao_gia'->'khach'->'du_thao') = 'object'))
+        $$""",
+    """CREATE FUNCTION master.crm_ky_cap_quan_he(p_loai text, p_khoa text, p_pn uuid) RETURNS jsonb
+        LANGUAGE plpgsql SET search_path = master, pg_temp AS $$
+        DECLARE sid uuid;
+        BEGIN
+            -- Validator luôn gọi khi cấp phạm vi, không phụ thuộc tick của vai.
+            -- Chỉ HĐ thuộc CRM có bản soạn hiện hành mới được tự ghim quan hệ.
+            -- DU_AN không suy khách từ các hợp đồng của dự án. Admin chọn
+            -- quan hệ tường minh tại validator; không gửi thì giữ {}.
+            IF p_loai IS DISTINCT FROM 'HOP_DONG' THEN RETURN '{}'::jsonb; END IF;
+            -- Validator đã giữ khóa độc quyền cấu hình. Khóa dòng nghiệp vụ
+            -- trước đọc revision, không cho mapping đổi giữa đọc và cấp.
+            SELECT v.id INTO sid FROM master.hop_dong h
+                JOIN master.crm_hd_soan v ON v.hop_dong_id = h.id AND v.phap_nhan_id = h.phap_nhan_id
+                JOIN master.crm_hd_soan_rev r ON r.soan_id = v.id AND r.phap_nhan_id = v.phap_nhan_id
+                    AND r.revision = v.revision_hien_hanh
+                WHERE h.phap_nhan_id = p_pn AND h.module_chu IS NULL
+                    AND h.loai NOT IN ('VAY','MUA')
+                    AND h.id::text = p_khoa
+                FOR SHARE OF h, v;
+            IF NOT FOUND THEN RETURN '{}'::jsonb; END IF;
+            RETURN coalesce(master.crm_ky_quan_he(sid), '{}'::jsonb);
+        END $$""",
+    """CREATE FUNCTION master.crm_ky_mtq(p_lenh text, p_bang text, p_id uuid) RETURNS jsonb
+        LANGUAGE plpgsql SET search_path = master, pg_temp AS $$
+        DECLARE q jsonb; pv master.mtq_pham_vi; sid uuid; pn uuid; ghim jsonb;
+        BEGIN
+            PERFORM pg_advisory_xact_lock_shared(742601, 1);
+            IF p_bang = 'master.crm_hd_soan' THEN
+                sid := p_id;
+            ELSIF p_bang = 'master.crm_hd_ky' THEN
+                SELECT k.soan_id INTO sid FROM master.crm_hd_ky k WHERE k.id = p_id;
+            ELSIF p_bang = 'master.crm_gk_xuat' THEN
+                SELECT x.soan_id INTO sid FROM master.crm_gk_xuat x WHERE x.id = p_id AND x.loai = 'HOP_DONG';
+            ELSIF p_bang = 'master.crm_bao_gia' THEN
+                SELECT b.phap_nhan_id, v.id INTO pn, sid FROM master.crm_bao_gia b
+                    LEFT JOIN master.crm_hd_soan v ON v.hop_dong_id = b.hop_dong_id AND v.phap_nhan_id = b.phap_nhan_id
+                    WHERE b.id = p_id FOR UPDATE OF b;
+            END IF;
+            IF sid IS NOT NULL THEN
+                -- Cùng thứ tự bản soạn rồi HĐ như lệnh ký. Giữ khóa ghi ngay
+                -- từ preflight để hai lần ký không deadlock khi nâng SHARE.
+                SELECT s.phap_nhan_id INTO pn FROM master.crm_hd_soan s
+                    WHERE s.id = sid FOR UPDATE;
+                PERFORM 1 FROM master.crm_hd_soan s
+                    JOIN master.hop_dong h ON h.id = s.hop_dong_id AND h.phap_nhan_id = s.phap_nhan_id
+                    WHERE s.id = sid FOR UPDATE OF h;
+            END IF;
+            PERFORM 1 FROM master.nguoi_dung n WHERE n.id = master.crm_g_ai_id() FOR SHARE;
+            q := master.mtq_quyet_dinh_phien(p_lenh, jsonb_build_object('bang', p_bang, 'id', p_id), NULL);
+            IF q->>'nguon' IS DISTINCT FROM 'MA_TRAN' OR q->'cho_phep' IS DISTINCT FROM 'true'::jsonb THEN
+                RETURN q;
+            END IF;
+            IF split_part(p_lenh, ':', 2) IS DISTINCT FROM 'G3_G4_SOAN_KY'
+                AND p_lenh IS DISTINCT FROM 'CRM:BAN_KY:XEM' THEN RETURN q; END IF;
+            -- Không tự chọn phạm vi khác nếu phạm vi được cổng chọn đã lệch.
+            SELECT * INTO pv FROM master.mtq_pham_vi WHERE id = (q->>'pham_vi_id')::uuid
+                AND phap_nhan_id = pn AND thu_hoi_luc IS NULL;
+            IF pv.id IS NULL OR pv.loai NOT IN ('HOP_DONG','DU_AN') THEN
+                RETURN q || jsonb_build_object('cho_phep', false, 'ma', 'MTQ_PHAM_VI',
+                    'ly_do', 'Cần phạm vi hợp đồng hoặc dự án và khách được cấp tường minh');
+            END IF;
+            ghim := master.crm_ky_quan_he(sid);
+            IF p_bang = 'master.crm_bao_gia' AND pv.loai = 'DU_AN' THEN
+                -- Chuyển báo giá chưa tạo bản soạn: dự án/khách của revision
+                -- báo giá hiện hành là đích thật, không suy từ hợp đồng khác.
+                SELECT CASE WHEN r.doi_tac_id IS NOT NULL
+                    THEN jsonb_build_object('doi_tac_id', r.doi_tac_id)
+                    WHEN jsonb_typeof(r.du_lieu->'khach'->'du_thao') = 'object'
+                    THEN jsonb_build_object('khach_du_thao_sha256',
+                        encode(sha256(convert_to((r.du_lieu->'khach'->'du_thao')::text, 'UTF8')), 'hex')) END
+                    INTO ghim FROM master.crm_bao_gia b
+                    JOIN master.crm_bao_gia_rev r ON r.bao_gia_id = b.id AND r.phap_nhan_id = b.phap_nhan_id
+                        AND r.revision = b.revision_hien_hanh
+                    WHERE b.id = p_id;
+            END IF;
+            IF pv.loai = 'DU_AN' THEN
+                ghim := jsonb_strip_nulls(ghim - ARRAY['soan_id','du_an_id']);
+            END IF;
+            IF ghim IS NULL OR pv.quan_he = '{}'::jsonb OR pv.quan_he IS DISTINCT FROM ghim THEN
+                RETURN q || jsonb_build_object('cho_phep', false, 'ma', 'MTQ_PHAM_VI_LECH',
+                    'ly_do', 'Phạm vi đã thay đổi, cần Admin cấp lại');
+            END IF;
+            RETURN q;
+        END $$""",
+    """REVOKE ALL ON FUNCTION master.crm_ky_quan_he(uuid),
+        master.crm_ky_cap_quan_he(text,text,uuid), master.crm_ky_mtq(text,text,uuid) FROM PUBLIC""",
+)

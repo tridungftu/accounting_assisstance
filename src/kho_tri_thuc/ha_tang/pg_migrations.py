@@ -12497,3 +12497,178 @@ from ..k2.sql_cong_bo_hoa_don import CONG_BO_HOA_DON_SQL  # noqa: E402 — chỉ
 M0064_CONG_BO_HOA_DON = CONG_BO_HOA_DON_SQL
 PG_MIGRATIONS = (*PG_MIGRATIONS, M0064_CONG_BO_HOA_DON)
 PG_SCHEMA_VERSION = len(PG_MIGRATIONS)
+
+
+# MTQ-4b2b — CD-012: G4 và quan hệ phạm vi B3; lead đánh số khi gộp.
+from ..k2.sql_mtq_crm import MTQ_CRM_C_SQL  # noqa: E402 — chỉ hằng SQL
+
+_M4B2B_BAT = "EXISTS (SELECT 1 FROM master.mtq_kich_hoat WHERE phap_nhan_id = s.phap_nhan_id AND bat)"
+_M4B2B_TU_CHOI = (
+    "IF q->>'nguon' IS DISTINCT FROM 'MA_TRAN' OR q->'cho_phep' IS DISTINCT FROM 'true'::jsonb THEN\n"
+    "                    RAISE EXCEPTION '%: không có quyền thực hiện thao tác hợp đồng này', "
+    "coalesce(q->>'ma', 'MTQ_TU_CHOI') USING ERRCODE = 'P0001';\n"
+    "                END IF;")
+_M4B2B_GHIM_CU = (
+    "            IF NOT EXISTS (SELECT 1 FROM master.crm_hd_soan s0 JOIN master.mtq_kich_hoat m "
+    "ON m.phap_nhan_id = s0.phap_nhan_id AND m.bat WHERE s0.id = p_soan) THEN\n"
+    "                PERFORM 1 FROM master.crm_ky_pham_vi b WHERE b.soan_id = p_soan AND b.thu_hoi_luc IS NULL FOR SHARE;\n"
+    "            END IF;")
+
+M0065_MTQ_CRM_C = (
+    *MTQ_CRM_C_SQL,
+    # Thân validator mới nhất là M0049 (có NGUON), không lấy lại M0039.
+    # Ghim/kiểm quan hệ khi cấp phạm vi cho mọi vai, kể cả trước khi có tick.
+    # HĐ ngoài CRM/chưa có bản soạn giữ {}; DU_AN do Admin chọn quan hệ.
+    _m36_thay(
+        _m37_ham("master.mtq_kiem_ghi"),
+        ("            ELSIF TG_TABLE_NAME = 'mtq_admin' AND TG_OP = 'UPDATE' THEN",
+         "                IF TG_OP = 'INSERT' AND NEW.loai IN ('HOP_DONG','DU_AN') THEN\n"
+         "                    DECLARE ghim jsonb;\n"
+         "                    BEGIN\n"
+         "                        ghim := master.crm_ky_cap_quan_he(NEW.loai, NEW.khoa, NEW.phap_nhan_id);\n"
+         "                        IF NEW.loai = 'DU_AN' AND NEW.quan_he <> '{}'::jsonb THEN\n"
+         "                            IF NOT coalesce((NEW.quan_he = jsonb_build_object('doi_tac_id', NEW.quan_he->>'doi_tac_id')\n"
+         "                                AND EXISTS (SELECT 1 FROM master.doi_tac dt WHERE dt.id::text = NEW.quan_he->>'doi_tac_id'\n"
+         "                                    AND dt.phap_nhan_id = NEW.phap_nhan_id))\n"
+         "                                OR (NEW.quan_he = jsonb_build_object('khach_du_thao_sha256', NEW.quan_he->>'khach_du_thao_sha256')\n"
+         "                                    AND NEW.quan_he->>'khach_du_thao_sha256' ~ '^[0-9a-f]{64}$'), false) THEN\n"
+         "                                RAISE EXCEPTION 'MTQ_PHAM_VI_LECH: quan hệ dự án không hợp lệ hoặc khách khác pháp nhân';\n"
+         "                            END IF;\n"
+         "                            ghim := NEW.quan_he;\n"
+         "                        END IF;\n"
+         "                        IF NEW.quan_he <> '{}'::jsonb AND NEW.quan_he IS DISTINCT FROM ghim THEN\n"
+         "                            RAISE EXCEPTION 'MTQ_PHAM_VI_LECH: quan hệ cấp không khớp bản soạn hiện hành';\n"
+         "                        END IF;\n"
+         "                        NEW.quan_he := ghim;\n"
+         "                    END;\n"
+         "                END IF;\n"
+         "            ELSIF TG_TABLE_NAME = 'mtq_admin' AND TG_OP = 'UPDATE' THEN")),
+    # Chỉ đổi câu trên đường MTQ; mọi thông báo CU nguyên văn.
+    *(_m36_thay(
+        _m37_ham(ten),
+        ("RAISE EXCEPTION '%: không có quyền hiện hành cho %', coalesce(q->>'ma', 'MTQ_TU_CHOI'), lenh",
+         "RAISE EXCEPTION '%: không có quyền thực hiện thao tác này', coalesce(q->>'ma', 'MTQ_TU_CHOI')"),
+        *((("q := master.mtq_quyet_dinh_phien(lenh, jsonb_build_object('bang', bang, 'id', p_dich), NULL);",
+            "q := CASE WHEN split_part(lenh, ':', 2) = 'G3_G4_SOAN_KY'\n"
+            "                    THEN master.crm_ky_mtq(lenh, bang, p_dich)\n"
+            "                    ELSE master.mtq_quyet_dinh_phien(lenh, jsonb_build_object('bang', bang, 'id', p_dich), NULL) END;"),)
+          if ten == "master.crm_gk_dich" else ()))
+      for ten in ("master.crm_g_dich", "master.crm_gk_dich")),
+    _m36_thay(
+        next(s for s in MTQ_CRM_B_SQL if s.startswith("CREATE FUNCTION master.crm_gk_xem(")).replace(
+            "CREATE FUNCTION", "CREATE OR REPLACE FUNCTION", 1),
+        ("q := master.mtq_quyet_dinh_phien(lenh, jsonb_build_object('bang', p_bang, 'id', p_id), NULL);",
+         "q := CASE WHEN split_part(lenh, ':', 2) = 'G3_G4_SOAN_KY'\n"
+         "                    THEN master.crm_ky_mtq(lenh, p_bang, p_id)\n"
+         "                    ELSE master.mtq_quyet_dinh_phien(lenh, jsonb_build_object('bang', p_bang, 'id', p_id), NULL) END;")),
+    _m36_thay(
+        _m37_ham("master.crm_ky_dich"),
+        ("LANGUAGE plpgsql STABLE SET search_path", "LANGUAGE plpgsql SET search_path"),
+        ("DECLARE s record;", "DECLARE s record; q jsonb;"),
+        ("            SELECT * INTO s FROM master.crm_hd_soan WHERE id = p_soan;",
+         "            PERFORM pg_advisory_xact_lock_shared(742601, 1);\n"
+         "            SELECT * INTO s FROM master.crm_hd_soan WHERE id = p_soan;\n"
+         "            IF s.id IS NOT NULL AND " + _M4B2B_BAT + " THEN\n"
+         "                q := master.crm_ky_mtq('CRM:G3_G4_SOAN_KY:LAP', 'master.crm_hd_soan', s.id);\n"
+         "                " + _M4B2B_TU_CHOI + "\n"
+         "                pn := s.phap_nhan_id; RETURN;\n"
+         "            END IF;")),
+    *(_m36_thay(
+        _m37_ham(ten),
+        ("PERFORM master.crm_g_ghim_quyen(", "PERFORM master.crm_gk_ghim_quyen("),
+        ("            PERFORM 1 FROM master.crm_ky_pham_vi b WHERE b.soan_id = p_soan AND b.thu_hoi_luc IS NULL FOR SHARE;",
+         _M4B2B_GHIM_CU))
+      for ten in ("master.crm_ky_tra", "master.crm_ky_ket")),
+    # ordinary INSERT chủ bảng vẫn phải qua quyền G4; giữ nguyên toàn bộ
+    # lineage M0036 và trigger bất biến/khóa sau ký.
+    _m36_thay(
+        _m37_ham("master.crm_hd_ky_kiem"),
+        ("            SELECT * INTO s FROM master.crm_hd_soan WHERE id = NEW.soan_id;",
+         "            PERFORM pg_advisory_xact_lock_shared(742601, 1);\n"
+         "            SELECT * INTO s FROM master.crm_hd_soan WHERE id = NEW.soan_id;\n"
+         "            IF " + _M4B2B_BAT + " THEN\n"
+         "                PERFORM master.crm_ky_dich(NEW.soan_id);\n"
+         "            END IF;")),
+    # Các predicate cũ còn được caller dùng: PN bật không được suy BAN_KY
+    # từ quyền ký, hoặc dùng assignment như nguồn quyền thứ hai.
+    _m36_thay(
+        _m37_ham("master.crm_ky_pham_vi_hd"),
+        ("LANGUAGE sql STABLE SECURITY DEFINER", "LANGUAGE plpgsql SECURITY DEFINER"),
+        ("        SELECT p_hanh IN ('CRM_KY_KET', 'CRM_KY_DOC') AND EXISTS (",
+         "        DECLARE pn uuid; q jsonb;\n"
+         "        BEGIN\n"
+         "            PERFORM pg_advisory_xact_lock_shared(742601, 1);\n"
+         "            SELECT s.phap_nhan_id INTO pn FROM master.crm_hd_soan s WHERE s.id = p_soan;\n"
+         "            IF pn IS NOT NULL AND EXISTS (SELECT 1 FROM master.mtq_kich_hoat WHERE phap_nhan_id = pn AND bat) THEN\n"
+         "                IF p_hanh NOT IN ('CRM_KY_KET','CRM_KY_DOC') OR p_hanh IS NULL THEN RETURN false; END IF;\n"
+         "                q := master.crm_ky_mtq(CASE p_hanh WHEN 'CRM_KY_KET' THEN 'CRM:G3_G4_SOAN_KY:LAP'\n"
+         "                    ELSE 'CRM:BAN_KY:XEM' END, 'master.crm_hd_soan', p_soan);\n"
+         "                RETURN coalesce(q->>'nguon' = 'MA_TRAN' AND q->'cho_phep' = 'true'::jsonb, false);\n"
+         "            END IF;\n"
+         "        RETURN p_hanh IN ('CRM_KY_KET', 'CRM_KY_DOC') AND EXISTS ("),
+        ("        $$", "        ; END $$")),
+    _m36_thay(
+        _m37_ham("master.crm_ky_pham_vi_duoc"),
+        ("LANGUAGE sql STABLE SECURITY DEFINER", "LANGUAGE sql SECURITY DEFINER")),
+    _m36_thay(
+        _m37_ham("master.crm_ky_doc_duoc"),
+        ("LANGUAGE sql STABLE SECURITY DEFINER", "LANGUAGE plpgsql SECURITY DEFINER"),
+        ("        SELECT EXISTS (SELECT 1 FROM master.crm_hd_soan s WHERE s.id = p_soan AND master.ktt_duoc(s.phap_nhan_id, 'CRM')",
+         "        DECLARE pn uuid;\n"
+         "        BEGIN\n"
+         "            PERFORM pg_advisory_xact_lock_shared(742601, 1);\n"
+         "            SELECT s.phap_nhan_id INTO pn FROM master.crm_hd_soan s WHERE s.id = p_soan;\n"
+         "            IF pn IS NOT NULL AND EXISTS (SELECT 1 FROM master.mtq_kich_hoat WHERE phap_nhan_id = pn AND bat) THEN\n"
+         "                RETURN master.crm_ky_pham_vi_hd(p_soan, 'CRM_KY_DOC', NULL);\n"
+         "            END IF;\n"
+         "        RETURN EXISTS (SELECT 1 FROM master.crm_hd_soan s WHERE s.id = p_soan AND master.ktt_duoc(s.phap_nhan_id, 'CRM')"),
+        ("        $$", "        ; END $$")),
+    _m36_thay(
+        _m37_ham("master.crm_ky_doc"),
+        ("LANGUAGE plpgsql STABLE SET search_path", "LANGUAGE plpgsql SET search_path"),
+        ("vai boolean; ky boolean; doc boolean; kq jsonb;", "vai boolean; ky boolean; doc boolean; kq jsonb; q jsonb; mtq boolean; ai text := master.ktt_danh_tinh();"),
+        ("            SELECT * INTO s FROM master.crm_hd_soan WHERE id = p_soan;",
+         "            PERFORM pg_advisory_xact_lock_shared(742601, 1);\n"
+         "            SELECT * INTO s FROM master.crm_hd_soan WHERE id = p_soan;\n"
+         "            mtq := s.id IS NOT NULL AND " + _M4B2B_BAT + ";\n"
+         "            IF mtq THEN\n"
+         "                q := master.crm_ky_mtq('CRM:G3_G4_SOAN_KY:XEM', 'master.crm_hd_soan', s.id);\n"
+         "                " + _M4B2B_TU_CHOI + "\n"
+         "            END IF;"),
+        ("            IF s.id IS NULL OR NOT master.ktt_duoc(s.phap_nhan_id, 'CRM')\n"
+         "               OR NOT (master.crm_gk_duoc('CRM_SOAN', s.phap_nhan_id) OR master.crm_ky_doc_duoc(s.id)) THEN",
+         "            IF NOT mtq AND (s.id IS NULL OR NOT master.ktt_duoc(s.phap_nhan_id, 'CRM')\n"
+         "               OR NOT (master.crm_gk_duoc('CRM_SOAN', s.phap_nhan_id) OR master.crm_ky_doc_duoc(s.id))) THEN"),
+        ("            vai := master.ktt_co_vai(s.phap_nhan_id, ARRAY['BAN_HANG'], NULL)\n"
+         "                   AND master.ktt_hanh_dong_duoc(s.phap_nhan_id, 'CRM', 'CRM_KY_KET', s.loai_hinh_id);\n"
+         "            ky := vai AND master.crm_ky_pham_vi_duoc(s.id);",
+         "            IF mtq THEN\n"
+         "                ky := master.crm_ky_pham_vi_duoc(s.id); vai := ky;\n"
+         "            ELSE\n"
+         "                vai := master.ktt_co_vai(s.phap_nhan_id, ARRAY['BAN_HANG'], NULL)\n"
+         "                       AND master.ktt_hanh_dong_duoc(s.phap_nhan_id, 'CRM', 'CRM_KY_KET', s.loai_hinh_id);\n"
+         "                ky := vai AND master.crm_ky_pham_vi_duoc(s.id);\n"
+         "            END IF;"),
+        ("            SELECT * INTO k FROM master.crm_hd_ky WHERE soan_id = s.id;",
+         "            IF mtq THEN\n"
+         "                " + _G_NK.format(pn="s.phap_nhan_id", loai="'HE_THONG'", bang="'master.crm_hd_soan'", id="s.id",
+         hd="'CRM_KY_DOC'", sau="jsonb_build_object('muc_dich', 'DOC_CAN_CU_BAN_KY')", ly="NULL") + "\n"
+         "            END IF;\n"
+         "            SELECT * INTO k FROM master.crm_hd_ky WHERE soan_id = s.id;")),
+    _m36_thay(
+        _m37_ham("master.crm_ky_tep"),
+        ("DECLARE ai text := master.ktt_danh_tinh(); k record;", "DECLARE ai text := master.ktt_danh_tinh(); k record; q jsonb; mtq boolean;"),
+        ("            SELECT * INTO k FROM master.crm_hd_ky WHERE id = p_ky;",
+         "            PERFORM pg_advisory_xact_lock_shared(742601, 1);\n"
+         "            SELECT * INTO k FROM master.crm_hd_ky WHERE id = p_ky;\n"
+         "            mtq := k.id IS NOT NULL AND EXISTS (SELECT 1 FROM master.mtq_kich_hoat WHERE phap_nhan_id = k.phap_nhan_id AND bat);\n"
+         "            IF mtq THEN\n"
+         "                q := master.crm_ky_mtq('CRM:BAN_KY:XEM', 'master.crm_hd_ky', k.id);\n"
+         "                " + _M4B2B_TU_CHOI + "\n"
+         "            END IF;"),
+        ("IF k.id IS NOT NULL THEN  -- ghim quyền", "IF k.id IS NOT NULL AND NOT mtq THEN  -- ghim quyền"),
+        ("IF k.id IS NULL OR ai IS NULL OR NOT master.crm_ky_doc_duoc(k.soan_id) THEN",
+         "IF NOT mtq AND (k.id IS NULL OR ai IS NULL OR NOT master.crm_ky_doc_duoc(k.soan_id)) THEN")),
+)
+PG_MIGRATIONS = (*PG_MIGRATIONS, M0065_MTQ_CRM_C)
+PG_SCHEMA_VERSION = len(PG_MIGRATIONS)
