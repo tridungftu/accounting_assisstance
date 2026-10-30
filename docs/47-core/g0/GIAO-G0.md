@@ -116,3 +116,41 @@ Với mỗi công cụ, ghi:
 - **Phần mềm theo dõi khoản vay:** vị trí lấy từ tài liệu; không thấy thì ghi "chờ Anh".
 
 **Cuối tài liệu:** trả lời các dòng **TL 54 §12** đã biết từ tài liệu (hạ tầng, PostgreSQL, quy mô, danh tính, kho file, dữ liệu nhạy cảm, khả năng engine, dữ liệu cũ, vận hành, module mẫu). Dòng chưa biết ghi "chờ Anh".
+
+## KS-E · Mã nguồn OCR `D:\GPT\OCR` — cần hiệu chỉnh thành engine `e_ocr` (Anh 30/10 10:22)
+
+Anh cho biết: Engine Studio (`D:\GPT\Local AI\engine-console`) và OCR đối chiếu (`D:\GPT\Local AI\ocr-dual-release`) là phần engine. **Mã OCR gốc `D:\GPT\OCR` cũng phải hiệu chỉnh lại** để thành engine dưới Core.
+
+1. **Bản đồ `D:\GPT\OCR`:**
+   - các thư mục con (`abbyy-hotfolder`, `ocr-abbyy-ai`, `hieu-dinh-ocr`, `mask_ocr`, `runtimes`, `models-dual`, `config`, `examples`);
+   - điểm vào (`run_ocr.py`, `setup-*.bat`, `setup_dual.py`);
+   - phụ thuộc (các tệp `requirements-*lock*.txt`);
+   - mô hình (`model_hashes.json`).
+   - Tài liệu: `README.md`, `API.md`, `DUAL_OCR.md`, `PROJECT_CONTEXT.md`, `AGENTS.md`, `*_QA.md`.
+   - **Không mở `data\`.**
+2. **Quan hệ với hai thư mục engine:**
+   - `D:\GPT\OCR` ↔ `ocr-dual-release` (bản phát hành? khác gì? bản nào là nguồn);
+   - `D:\GPT\OCR` ↔ `engine-console` (đăng ký API ở đâu);
+   - `D:\GPT\OCR` ↔ OCR-1 (ABBYY Hot Folder) trong repo phần mềm kế toán.
+3. **API thực tế:**
+   - endpoint;
+   - xác thực Bearer;
+   - đầu vào raw binary;
+   - vòng đời job;
+   - kết quả tạm/RAM-only;
+   - đối chiếu và duyệt (revision);
+   - giới hạn;
+   - readiness;
+   - cách khởi động và cổng.
+4. **Danh sách hiệu chỉnh** để thành `e_ocr` theo TL 54 §8, TL 55 §5 và CD-028. Mỗi dòng gồm: hiện trạng (tệp:dòng) → cần đổi → mức (nhỏ / vừa / lớn).
+
+   Các nội dung cần xét:
+   - capability `ocr.trich_van_ban@1`, `ocr.trich_bang@1`;
+   - contract JSON đầu ra;
+   - trạng thái `stopped/starting/ready/busy/failed`;
+   - nhận ổ nghe chuyển giao từ Core (`socket.fromshare`), hoặc khởi động với tham số cổng;
+   - không giữ mật khẩu CSDL;
+   - Core lấy kết quả trước khi engine giải phóng RAM;
+   - không coi job "succeeded" là đã duyệt;
+   - chống chạy trùng khi nhiều người dùng.
+5. Phần nào giữ nguyên, phần nào bọc bằng adapter, phần nào phải viết lại. Ghi rõ **không đổi thuật toán OCR**.
