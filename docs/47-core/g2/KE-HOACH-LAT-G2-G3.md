@@ -221,3 +221,9 @@ Tối đa **bốn Codex đang làm**, tính cả reviewer; hàng dưới là cá
   - **G2-25** phải cấp EXECUTE `loi.ghi_ket_qua_v2` / `ghi_kiem_toan_v2` (và các cửa V2 module khác) cho `vai_chay_mod_<ma>` khi cài module mới, kèm test;
   - **G2-21 / G2-22:** bộ xác minh `BanGiaoKetQua` + IPC Core thật (engine_id từ lease), heartbeat qua IPC không so danh tính đối tượng;
   - audit `doi_tuong` theo danh mục cho phép; `ket_qua.ghi` có `khoa` chống trùng (§3.3).
+- **Nợ từ G2-21 (review Opus) cho G2-22:**
+  - đường đối chiếu `doi_chieu_id` sau `loi_khoi_dong` / Admin `mo_khoa` / Core restart (dòng sổ `CON_GIU` mồ côi);
+  - `thu_hoi` không giữ khóa suốt drain (trả `503` + `Retry-After: 2` ngay);
+  - lỗi khởi động giãn 2 giây / 4 giây, lần 3 mới khóa (§3.10b);
+  - `bang_chung_id` gắn hash thông điệp sẵn sàng;
+  - chặn accept phía con bằng mã, không bằng quy ước.
