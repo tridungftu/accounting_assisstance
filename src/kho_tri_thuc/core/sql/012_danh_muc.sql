@@ -105,8 +105,7 @@ BEGIN
     CREATE TABLE IF NOT EXISTS danh_muc.chung_tu (
         id uuid PRIMARY KEY, phap_nhan_id uuid NOT NULL REFERENCES loi.phap_nhan(id),
         module_nghiep_vu text NOT NULL REFERENCES loi.module_danh_muc(ma),
-        loai text NOT NULL CHECK(loai IN ('SAO_KE','HD_MUA','HD_BAN','BANG_KE_THUE','RQ','NGHIEM_THU',
-            'HOP_DONG_TEP','BANG_LUONG','BANG_KHAU_HAO','PHIEU_KHO','LENH_CHI','SO_JUNSKY','CONG_NO_MO','BUT_TOAN_DIEU_CHINH','KHAC','HO_SO_VAY')),
+        loai text NOT NULL CHECK(btrim(loai)<>''),
         khoa_nguon text NOT NULL CHECK(btrim(khoa_nguon)<>''), ngay_nghiep_vu date NOT NULL CHECK(isfinite(ngay_nghiep_vu)),
         ky text NOT NULL CHECK(ky ~ '^[0-9]{4}-(0[1-9]|1[0-2])$'),
         so_tien_minor numeric(38,0) CHECK(so_tien_minor>=0), tien_te text CHECK(tien_te ~ '^[A-Z]{3}$'),
@@ -122,6 +121,40 @@ BEGIN
         FOREIGN KEY(doi_tac_id,phap_nhan_id) REFERENCES danh_muc.doi_tac(id,phap_nhan_id),
         FOREIGN KEY(du_an_id,phap_nhan_id) REFERENCES danh_muc.du_an(id,phap_nhan_id)
     );
+    -- Phan chu theo dinh nghia cuoi chung_tu_chu_so_huu_common.
+    -- HD_MUA/M1 cu van hop le; projector M2 duoc ghi HD_MUA/M2.
+    -- Khong FK module tuy chon chua cai; chung_tu van FK module_danh_muc.
+    -- Them loai/module bang dong cau hinh, chi owner goi duoc sua.
+    CREATE TABLE IF NOT EXISTS danh_muc.chung_tu_phan_chu (
+        loai text NOT NULL CHECK(btrim(loai)<>''),
+        module_chu text NOT NULL CHECK(module_chu ~ '^[a-z][a-z0-9_]{0,30}$'),
+        loi_tien text, PRIMARY KEY(loai,module_chu)
+    );
+    IF (SELECT pg_get_userbyid(relowner)<>chu FROM pg_class WHERE oid='danh_muc.chung_tu_phan_chu'::regclass) THEN
+        RAISE EXCEPTION 'G2-12: Can lead, sai owner phan chu';
+    END IF;
+    INSERT INTO danh_muc.chung_tu_phan_chu(loai,module_chu,loi_tien) VALUES
+        ('PHIEU_KHO','m5','M5_CHI_SO_LUONG'), ('HOP_DONG_TEP','crm',NULL),
+        ('HD_MUA','m1',NULL), ('HD_MUA','m2','M2_TIEN_CHUA_CAN_CU'),
+        ('SAO_KE','m1',NULL), ('HD_BAN','m1',NULL), ('BANG_KE_THUE','m1',NULL),
+        ('RQ','m1',NULL), ('NGHIEM_THU','m1',NULL), ('BANG_LUONG','m1',NULL),
+        ('BANG_KHAU_HAO','m1',NULL), ('LENH_CHI','m1',NULL), ('SO_JUNSKY','m1',NULL),
+        ('CONG_NO_MO','m1',NULL), ('BUT_TOAN_DIEU_CHINH','m1',NULL), ('KHAC','m1',NULL),
+        ('HO_SO_VAY','m1',NULL)
+        ON CONFLICT (loai,module_chu) DO NOTHING;
+    IF NOT EXISTS(SELECT FROM pg_constraint WHERE conrelid='danh_muc.chung_tu'::regclass
+                  AND conname='chung_tu_phan_chu_fk') THEN
+        ALTER TABLE danh_muc.chung_tu ADD CONSTRAINT chung_tu_phan_chu_fk
+            FOREIGN KEY(loai,module_nghiep_vu) REFERENCES danh_muc.chung_tu_phan_chu(loai,module_chu);
+    END IF;
+    ALTER TABLE danh_muc.chung_tu_phan_chu ENABLE ROW LEVEL SECURITY;
+    ALTER TABLE danh_muc.chung_tu_phan_chu FORCE ROW LEVEL SECURITY;
+    EXECUTE format('REVOKE ALL ON danh_muc.chung_tu_phan_chu FROM PUBLIC,%I,%I',chay,login);
+    IF NOT EXISTS(SELECT FROM pg_policy WHERE polrelid='danh_muc.chung_tu_phan_chu'::regclass
+                  AND polname='phan_chu_goi') THEN
+        EXECUTE format('CREATE POLICY phan_chu_goi ON danh_muc.chung_tu_phan_chu TO %I
+            USING (true) WITH CHECK (true)',chu);
+    END IF;
     CREATE TABLE IF NOT EXISTS danh_muc.hoa_don_danh_tinh (
         id uuid PRIMARY KEY, phap_nhan_id uuid NOT NULL REFERENCES loi.phap_nhan(id),
         chieu text NOT NULL CHECK(chieu='MUA_VAO'), mst_ban text NOT NULL CHECK(mst_ban ~ '^[ -~]+$'),
@@ -174,6 +207,43 @@ BEGIN
         UNIQUE(id,phap_nhan_id), FOREIGN KEY(lien_ket_id,phap_nhan_id) REFERENCES danh_muc.lien_ket_chung_tu(id,phap_nhan_id)
     );
     CREATE UNIQUE INDEX IF NOT EXISTS lien_ket_phan_bo_dich_uq ON danh_muc.lien_ket_phan_bo(lien_ket_id,dich_logic_id) WHERE trang_thai='HIEU_LUC';
+
+    CREATE OR REPLACE FUNCTION danh_muc.kiem_chu_chung_tu(p_loai text,p_module text) RETURNS text
+    LANGUAGE plpgsql STABLE SET search_path=pg_catalog,pg_temp AS $ham$
+    DECLARE ma_loi text;
+    BEGIN
+        SELECT loi_tien INTO ma_loi FROM danh_muc.chung_tu_phan_chu
+            WHERE loai=p_loai AND module_chu=p_module;
+        IF NOT FOUND THEN RAISE EXCEPTION 'CHU_SO_HUU_SAI' USING ERRCODE='P0001'; END IF;
+        RETURN ma_loi;
+    END;
+    $ham$;
+    CREATE OR REPLACE FUNCTION danh_muc.chung_tu_chu_so_huu_common() RETURNS trigger
+    LANGUAGE plpgsql SET search_path=pg_catalog,pg_temp AS $ham$
+    DECLARE ma_loi text;
+    BEGIN
+        IF TG_OP='UPDATE' AND (NEW.module_nghiep_vu IS DISTINCT FROM OLD.module_nghiep_vu
+                              OR NEW.loai IS DISTINCT FROM OLD.loai) THEN
+            RAISE EXCEPTION 'CHU_SO_HUU_BAT_BIEN' USING ERRCODE='P0001';
+        END IF;
+        ma_loi := danh_muc.kiem_chu_chung_tu(NEW.loai,NEW.module_nghiep_vu);
+        IF ma_loi IS NOT NULL THEN
+            IF current_user::text<>(SELECT pg_get_userbyid(relowner) FROM pg_class WHERE oid=TG_RELID) THEN
+                RAISE EXCEPTION 'CHUNG_TU_CHI_CHU' USING ERRCODE='42501';
+            END IF;
+            IF num_nonnulls(NEW.so_tien_minor,NEW.tien_te,NEW.thang_tien,NEW.chieu,NEW.doi_tac_id)>0 THEN
+                RAISE EXCEPTION '%',ma_loi USING ERRCODE='P0001';
+            END IF;
+        END IF;
+        -- Trang thai nghiep vu/journal khong nam trong dau chung tu Core.
+        RETURN NEW;
+    END;
+    $ham$;
+    IF NOT EXISTS(SELECT FROM pg_trigger WHERE tgrelid='danh_muc.chung_tu'::regclass
+                  AND tgname='chung_tu_chu_so_huu_common') THEN
+        CREATE TRIGGER chung_tu_chu_so_huu_common BEFORE INSERT OR UPDATE ON danh_muc.chung_tu
+            FOR EACH ROW EXECUTE FUNCTION danh_muc.chung_tu_chu_so_huu_common();
+    END IF;
 
     CREATE OR REPLACE FUNCTION danh_muc.chi_het_hieu_luc() RETURNS trigger
     LANGUAGE plpgsql SET search_path=pg_catalog,pg_temp AS $ham$
@@ -260,6 +330,9 @@ BEGIN
         doi := jsonb_build_object('bang','danh_muc.'||p_loai,'id',p_id);
         hd_doc := split_part(p_hd,':',1)||':'||split_part(p_hd,':',2)||':XEM';
         PERFORM loi_tai_lieu.kiem_quyen(p_ma,p_module,p_pn,p_hd,doi,p_contract,'cho_ghi',p_viec,p_the_he);
+        IF p_loai='chung_tu' AND NOT het THEN
+            PERFORM danh_muc.kiem_chu_chung_tu(p_data->>'loai',p_module);
+        END IF;
         op := 'danh_muc.'||p_loai||CASE WHEN het THEN '.het_hieu_luc' ELSE '.lap' END;
         than := jsonb_build_object('phap_nhan_id',p_pn,'doi_tuong',doi,'phien_ban_contract',p_contract,'noi_dung',p_data);
         quyen := jsonb_build_object('hanh_dong',hd_doc,'doi_tuong',doi,'phien_ban_contract',p_contract);
@@ -349,7 +422,8 @@ BEGIN
     END;
     $ham$;
     FOR ham IN SELECT oid::regprocedure AS ck,proname FROM pg_proc WHERE pronamespace='danh_muc'::regnamespace
-        AND proname IN ('chi_het_hieu_luc','kiem_khoa_ky','ghi_v2','kiem_khoa_ky_v2') LOOP
+        AND proname IN ('kiem_chu_chung_tu','chung_tu_chu_so_huu_common',
+                        'chi_het_hieu_luc','kiem_khoa_ky','ghi_v2','kiem_khoa_ky_v2') LOOP
         EXECUTE format('REVOKE ALL ON FUNCTION %s FROM PUBLIC,%I,%I',ham.ck,chay,login);
         IF ham.proname IN ('ghi_v2','kiem_khoa_ky_v2') THEN
             EXECUTE format('GRANT EXECUTE ON FUNCTION %s TO %I',ham.ck,login);

@@ -31,7 +31,7 @@ SQL_PATH = dc.THU_MUC_SQL / '012_danh_muc.sql'
 SQL = SQL_PATH.read_text(encoding='utf-8')
 LAP, SUA, XEM, DUYET = g209.LAP, g209.SUA, g209.XEM, g209.DUYET
 KHOA = 'demo-g2-12-000001'
-CT = dict(loai='KHAC', khoa_nguon='DEMO', ngay_nghiep_vu='2026-10-30', ma_bam='a'*64,
+CT = dict(loai='HOP_DONG_TEP', khoa_nguon='DEMO', ngay_nghiep_vu='2026-10-30', ma_bam='a'*64,
           so_tien_minor='900719925474099312345', tien_te='VND', thang_tien=0)
 BANG = ('doi_tac', 'du_an', 'tai_khoan', 'tai_khoan_ngan_hang', 'hop_dong', 'chung_tu',
         'hoa_don_danh_tinh', 'khoa_ky', 'lien_ket_chung_tu', 'lien_ket_phan_bo')
@@ -123,7 +123,8 @@ class DanhMucThuanTest(unittest.TestCase):
             dm.khoa_ky(self.conn, ky='2026-13', **{**ts, 'hanh_dong': DUYET})
 
     def test_loi_khong_lo_token_dsn_hoac_stack_driver(self):
-        for ma, status in (('KY_DA_KHOA', 409), ('BIEN_NHAN_KHONG_THAY', 404), ('TAI_LIEU_MTQ', 403)):
+        for ma, status in (('KY_DA_KHOA', 409), ('BIEN_NHAN_KHONG_THAY', 404), ('TAI_LIEU_MTQ', 403),
+                           ('CHU_SO_HUU_SAI', 403), ('M5_CHI_SO_LUONG', 400), ('M2_TIEN_CHUA_CAN_CU', 400)):
             loi = RuntimeError('CANARY_PHIEN postgresql://CANARY:BI_MAT@localhost')
             loi.diag = MagicMock(message_primary=ma)
             self.conn.execute.side_effect = loi
@@ -149,10 +150,19 @@ class DanhMucPostgresTest(unittest.TestCase):
     _ghi = g209.TaiLieuPostgresTest._ghi
     _contract = g209.TaiLieuPostgresTest._contract
     _trang_thai = g209.TaiLieuPostgresTest._trang_thai
-    _resolver = g209.TaiLieuPostgresTest._resolver
     _cap = g209.TaiLieuPostgresTest._cap
     _ctx = g209.TaiLieuPostgresTest._ctx
     _tao = g209.TaiLieuPostgresTest._tao
+
+    def _resolver(self):
+        g209.TaiLieuPostgresTest._resolver(self)
+        # Fixture nay cho phep ro loai bang dich, khong chi tra theo UUID.
+        self.conn.execute('''CREATE OR REPLACE FUNCTION mod_crm.resolver_demo(text,uuid,text,jsonb,uuid,bigint)
+            RETURNS jsonb LANGUAGE sql STABLE SECURITY DEFINER
+            SET search_path=pg_catalog,pg_temp AS $$
+            SELECT tap FROM mod_crm.doi_tuong WHERE id=($4->>'id')::uuid
+              AND $4->>'bang' IN ('doi_tuong','danh_muc.doi_tac','danh_muc.du_an',
+                  'danh_muc.hop_dong','danh_muc.chung_tu','danh_muc.hoa_don_danh_tinh','danh_muc.khoa_ky') $$''')
 
     @classmethod
     def setUpClass(cls):
@@ -202,6 +212,48 @@ class DanhMucPostgresTest(unittest.TestCase):
         self.assertEqual(bat.exception.ma, 'KHOA_CHONG_TRUNG_KHAC_NOI_DUNG')
         self.assertEqual(self.conn.execute('SELECT so_tien_minor FROM danh_muc.chung_tu WHERE id=%s', (self.obj,)).fetchone()[0], int(CT['so_tien_minor']))
 
+    def test_crm_khong_ghi_loai_module_khac_khong_co_bien_nhan(self):
+        self.assertEqual(self.module.execute('SELECT current_user,session_user').fetchone(), (self.module_login,)*2)
+        # Cung phien/quyen hop le; chi thay loai chung tu, khong the do MTQ chan.
+        for loai in ('PHIEU_KHO', 'HD_MUA', 'KHAC'):
+            with self.subTest(loai=loai):
+                with self.assertRaises(dm.LoiDanhMuc) as bat:
+                    self._chung_tu(du_lieu={**CT, 'loai': loai})
+                self.assertEqual(bat.exception.ma, 'CHU_SO_HUU_SAI')
+                self.assertEqual(bat.exception.http_status, 403)
+                self.assertEqual(self.conn.execute('SELECT count(*) FROM danh_muc.chung_tu WHERE phap_nhan_id=%s', (self.pn,)).fetchone()[0], 0)
+                for bang in ('bien_nhan_core', 'bien_nhan_thao_tac'):
+                    self.assertEqual(self.conn.execute(sql.SQL('SELECT count(*) FROM loi_tai_lieu.{} WHERE phap_nhan_id=%s').format(sql.Identifier(bang)), (self.pn,)).fetchone()[0], 0)
+        self.assertFalse(self._chung_tu()['lap_lai'])
+        self.assertEqual(self.conn.execute('SELECT loai,module_nghiep_vu FROM danh_muc.chung_tu WHERE id=%s', (self.obj,)).fetchone(), ('HOP_DONG_TEP', 'crm'))
+        self.assertEqual(self.conn.execute('SELECT count(*) FROM loi_tai_lieu.bien_nhan_thao_tac WHERE phap_nhan_id=%s', (self.pn,)).fetchone()[0], 1)
+
+    def test_sql_v2_chan_sai_chu_ke_ca_bo_qua_python(self):
+        for conn, ma in ((self.module, self.uy), (self.core, self.ma)):
+            with self.subTest(login=conn.info.user):
+                with self.assertRaises(psycopg.errors.RaiseException) as bat, conn.transaction():
+                    conn.execute('SELECT danh_muc.ghi_v2(%s,%s,%s,%s,%s,%s,%s,%s::jsonb)',
+                        (ma.lay_de_truyen(), 'crm', self.pn, LAP, 'chung_tu', self.obj,
+                         KHOA, json.dumps({**CT, 'loai': 'PHIEU_KHO'})))
+                self.assertEqual(bat.exception.diag.message_primary, 'CHU_SO_HUU_SAI')
+                self.assertEqual(self.conn.execute('SELECT count(*) FROM danh_muc.chung_tu WHERE phap_nhan_id=%s', (self.pn,)).fetchone()[0], 0)
+                for bang in ('bien_nhan_core', 'bien_nhan_thao_tac'):
+                    self.assertEqual(self.conn.execute(sql.SQL('SELECT count(*) FROM loi_tai_lieu.{} WHERE phap_nhan_id=%s').format(sql.Identifier(bang)), (self.pn,)).fetchone()[0], 0)
+
+    def test_phan_chu_day_du_va_mo_rong_bang_them_dong(self):
+        phan_chu = self.conn.execute('SELECT loai,module_chu,loi_tien FROM danh_muc.chung_tu_phan_chu').fetchall()
+        self.assertEqual(len(phan_chu), 17)
+        self.assertEqual({m for loai,m,_ in phan_chu if loai=='HD_MUA'}, {'m1','m2'})
+        self.assertIn(('PHIEU_KHO','m5','M5_CHI_SO_LUONG'), phan_chu)
+        self.assertIn(('HD_MUA','m2','M2_TIEN_CHUA_CAN_CU'), phan_chu)
+        self.assertIn(('HOP_DONG_TEP','crm',None), phan_chu)
+        self.assertTrue(all(m=='m1' for loai,m,_ in phan_chu
+                            if loai not in {'PHIEU_KHO','HOP_DONG_TEP','HD_MUA'}))
+        # Provisioning them dong; runtime khong duoc sua bang phan chu.
+        loai_moi = 'DEMO_'+self.obj.hex
+        self.conn.execute('INSERT INTO danh_muc.chung_tu_phan_chu(loai,module_chu) VALUES (%s,%s)', (loai_moi,'crm'))
+        self.assertFalse(self._chung_tu(du_lieu={**CT, 'loai': loai_moi})['lap_lai'])
+
     def test_ghi_core_dung_bien_nhan_core_cung_commit(self):
         self._chung_tu(self.core, ma=self.ma)
         self.assertTrue(self._chung_tu(self.core, ma=self.ma)['lap_lai'])
@@ -236,11 +288,13 @@ class DanhMucPostgresTest(unittest.TestCase):
 
     def test_runtime_khong_dml_bang_va_khong_goi_ham_noi_bo(self):
         for conn in (self.core, self.module):
-            for bang in BANG:
+            for bang in (*BANG, 'chung_tu_phan_chu'):
                 with self.subTest(bang=bang, login=conn.info.user), self.assertRaises(psycopg.errors.InsufficientPrivilege):
                     conn.execute(sql.SQL('INSERT INTO danh_muc.{} DEFAULT VALUES').format(sql.Identifier(bang)))
             with self.assertRaises(psycopg.errors.InsufficientPrivilege):
                 conn.execute('SELECT danh_muc.kiem_khoa_ky(%s,%s)', (self.pn, '2026-10'))
+            with self.assertRaises(psycopg.errors.InsufficientPrivilege):
+                conn.execute("SELECT danh_muc.kiem_chu_chung_tu('PHIEU_KHO','crm')")
 
     def test_cac_dinh_danh_va_het_hieu_luc_khong_xoa(self):
         ts = {k: v for k, v in self.ts.items() if k != 'du_lieu'}
@@ -268,7 +322,7 @@ class DanhMucPostgresTest(unittest.TestCase):
             JOIN pg_class t ON t.oid=c.conrelid JOIN pg_namespace n ON n.oid=t.relnamespace
             JOIN pg_class d ON d.oid=c.confrelid JOIN pg_namespace dn ON dn.oid=d.relnamespace
             WHERE n.nspname='danh_muc' AND c.contype='f' AND dn.nspname NOT IN ('loi','loi_tai_lieu','danh_muc')''').fetchone()[0], 0)
-        self.assertEqual(self.conn.execute("SELECT count(*) FROM pg_class WHERE relnamespace='danh_muc'::regnamespace AND relkind='r' AND relrowsecurity AND relforcerowsecurity").fetchone()[0], len(BANG))
+        self.assertEqual(self.conn.execute("SELECT count(*) FROM pg_class WHERE relnamespace='danh_muc'::regnamespace AND relkind='r' AND relrowsecurity AND relforcerowsecurity").fetchone()[0], len(BANG)+1)
         # Cha dự án pháp nhân khác chỉ là fixture; nghiệp vụ vẫn qua runtime V2.
         cha = uuid4()
         self.conn.execute("INSERT INTO danh_muc.du_an(id,phap_nhan_id,ma_junsky,ten,tao_boi) VALUES (%s,%s,'DEMO','DEMO',%s)", (cha, self.pn_khac, self.nd))

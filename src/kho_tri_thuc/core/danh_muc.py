@@ -22,14 +22,16 @@ class LoiDanhMuc(RuntimeError):
         self.http_status = (404 if ma in {'DANH_MUC_KHONG_THAY', 'BIEN_NHAN_KHONG_THAY'} else
             409 if ma in {'DANH_MUC_XUNG_DOT', 'KY_DA_KHOA', 'KHOA_CHONG_TRUNG_KHAC_NOI_DUNG',
                          'YEU_CAU_DANG_XU_LY', 'BIEN_NHAN_CORE_HET_HAN'} else
-            403 if ma in {'TAI_LIEU_PHIEN', 'TAI_LIEU_MTQ', 'TAI_LIEU_CONG_TAC'} else 400)
+            403 if ma in {'TAI_LIEU_PHIEN', 'TAI_LIEU_MTQ', 'TAI_LIEU_CONG_TAC',
+                         'CHU_SO_HUU_SAI', 'CHUNG_TU_CHI_CHU'} else 400)
         super().__init__('Thao tác danh mục thất bại (' + ma + ')')
 
 
 _LOI = {'DANH_MUC_KHONG_THAY', 'DANH_MUC_XUNG_DOT', 'DANH_MUC_DAU_VAO', 'DANH_MUC_BAT_BIEN',
         'DANH_MUC_CAN_READ_COMMITTED', 'KY_DA_KHOA', 'TAI_LIEU_PHIEN', 'TAI_LIEU_MTQ',
         'TAI_LIEU_CONG_TAC', 'BIEN_NHAN_KHONG_THAY', 'KHOA_CHONG_TRUNG_KHAC_NOI_DUNG',
-        'YEU_CAU_DANG_XU_LY', 'BIEN_NHAN_CORE_HET_HAN'}
+        'YEU_CAU_DANG_XU_LY', 'BIEN_NHAN_CORE_HET_HAN', 'CHU_SO_HUU_SAI',
+        'CHU_SO_HUU_BAT_BIEN', 'CHUNG_TU_CHI_CHU', 'M5_CHI_SO_LUONG', 'M2_TIEN_CHUA_CAN_CU'}
 _TRUONG = {
     'doi_tac': ({'ten_phap_ly', 'ten_chuan_hoa', 'loai'}, {'mst', 'vai_tro'}),
     'du_an': ({'ma_junsky', 'ten'}, {'cha_id', 'giai_doan', 'trang_thai', 'ngay_chuyen_van_hanh'}),
