@@ -361,8 +361,9 @@ class MTQPostgresTest(unittest.TestCase):
         self.assertEqual(self.conn.execute('SELECT phap_nhan_id FROM loi.nhat_ky_kiem_toan WHERE request_id=%s',(req,)).fetchone()[0],self.pn[1])
 
     def test_ban_cong_bo_bat_bien(self):
+        # Dong/o thuoc snapshot phien_ban_id; khong co phien_ban_dong rieng.
         for cau in ('UPDATE loi.mtq_o SET cho_phep=false WHERE dong_id=%s',
-                    'UPDATE loi.mtq_dong SET gioi_han_vnd=999,phien_ban_dong=phien_ban_dong+1 WHERE id=%s'):
+                    'UPDATE loi.mtq_dong SET gioi_han_vnd=999 WHERE id=%s'):
             with self.assertRaises(psycopg.errors.ObjectNotInPrerequisiteState):
                 self.conn.execute(cau,(self.dong[0],))
 
