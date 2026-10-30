@@ -861,3 +861,9 @@ Chi tiết có tệp:dòng: `BANG-DIEU-KIEN-GO-LIVE.md`; quy trình: `CHECKLIST-
 - **Đang chạy:**
   - G2-02 (danh tính / pháp nhân);
   - G2-17 (bộ schema kỹ thuật offline, giao sớm vì không phụ thuộc CSDL).
+### 30/10 ~18:50 — G2: gộp G2-02, G2-17; G2-03 chờ Opus; giao G2-04
+- **G2-02:** PG 17 ok; Chặn DROP DATABASE trong test đã sửa. Ca nghiệp vụ login thật → G2-02b sau G2-03.
+- **G2-17:** 22 ok.
+- **G2-03 (phiên bí mật):** PG 23 ok; đang chờ Opus review.
+- **G2-04 (audit + sổ migration):** đang chạy, dựng trên `lat/g2-03`.
+- **Đã gộp tới nay:** G2-00, 01, 02, 17, 33 (xem trước).
