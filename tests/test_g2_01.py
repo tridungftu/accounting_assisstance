@@ -1,9 +1,9 @@
 """G2-01: bootstrap role/schema; PG do lead chay, khong khoi dong dich vu.
 
 KHO_PG_DSN_TEST tro toi admin localhost (postgres/Core DEMO/kho_test_*).
-Tao DB kho_test_* va login thu rieng; khong doi mat khau hai login Core.
+Tao DB kho_test_*; dat mat khau cho chinh hai login co tien to do script tao.
 Ca quyen dung ket noi LOGIN that ke thua cac vai chay, khong SET ROLE owner.
-Chi don DB kho_test_*; giu role ktt_test_* theo chinh sach repo.
+Chi don DB kho_test_*; giu role ktt_test_* va khoa login bang NOLOGIN.
 """
 
 from __future__ import annotations
@@ -94,6 +94,9 @@ class VaiPostgresTest(unittest.TestCase):
         cls.cac_vai_chu = tuple(cls.tien_to + v for v in CAC_VAI_CHU)
         cls.cac_vai = tuple(cls.tien_to + v for v in CAC_VAI)
         cls.dang_nhap_loi = cls.tien_to + 'dang_nhap_loi'
+        cls.login = cls.dang_nhap_loi
+        cls.login_cai_dat = cls.tien_to + 'dang_nhap_cai_dat'
+        cls.login_la = cls.tien_to + 'login_la'
         cls.admin.execute(sql.SQL('CREATE DATABASE {} TEMPLATE template0').format(sql.Identifier(cls.db)))
         cls.addClassCleanup(cls._don_tai_nguyen)
         cls.conn = psycopg.connect(**{**cls.thong_tin, 'dbname': cls.db}, autocommit=True)
@@ -111,16 +114,13 @@ class VaiPostgresTest(unittest.TestCase):
                 cls.conn.execute(sql.SQL('CREATE TYPE {}.thu_kieu AS ENUM (\'DEMO\')').format(sql.Identifier(khoi)))
                 cls.conn.execute(sql.SQL('CREATE FUNCTION {}.thu_ham() RETURNS integer LANGUAGE sql AS $$ SELECT 1 $$').format(sql.Identifier(khoi)))
             cls.conn.execute('RESET ROLE')
-        # LOGIN rieng de khong thay password/login cua DEMO dang dung.
-        cls.login = cls.tien_to + 'thu_chay'
-        cls.login_cai_dat = cls.tien_to + 'thu_cai_dat'
+        # Chi dat password ban thu co tien to, dung membership do script cap.
         cls.ket_noi_chay = []
-        for login, cac_vai in ((cls.login, cls.cac_vai_chay), (cls.login_cai_dat, ())):
+        for login in (cls.login, cls.login_cai_dat):
             mat_khau = secrets.token_urlsafe(32)
             with cls.conn.transaction():
-                cls.conn.execute(sql.SQL('CREATE ROLE {} LOGIN INHERIT NOSUPERUSER NOBYPASSRLS NOCREATEROLE NOCREATEDB NOREPLICATION PASSWORD {}').format(sql.Identifier(login), sql.Literal(mat_khau)))
-                for vai in cac_vai:
-                    cls.conn.execute(sql.SQL('GRANT {} TO {} WITH INHERIT TRUE, SET FALSE, ADMIN FALSE').format(sql.Identifier(vai), sql.Identifier(login)))
+                cls.conn.execute(sql.SQL('ALTER ROLE {} PASSWORD {}').format(
+                    sql.Identifier(login), sql.Literal(mat_khau)))
             runtime = psycopg.connect(**{**cls.thong_tin, 'dbname': cls.db,
                                          'user': login, 'password': mat_khau}, autocommit=True)
             cls.ket_noi_chay.append(runtime)
@@ -129,7 +129,11 @@ class VaiPostgresTest(unittest.TestCase):
 
     @classmethod
     def _don_tai_nguyen(cls):
-        # Chi DB UUID do lan test tao; giu nguyen moi role ktt_test_*.
+        # Cleanup van khoa login neu setUpClass dung giua chung; khong DROP role.
+        for (login,) in cls.admin.execute('''
+            SELECT rolname FROM pg_roles WHERE rolname=ANY(%s)
+        ''', ([cls.login, cls.login_cai_dat, cls.login_la],)).fetchall():
+            cls.admin.execute(sql.SQL('ALTER ROLE {} NOLOGIN').format(sql.Identifier(login)))
         cls.admin.execute(sql.SQL('DROP DATABASE {}').format(sql.Identifier(cls.db)))
 
     def _bi_chan(self, ket_noi, cau_sql):
@@ -142,9 +146,24 @@ class VaiPostgresTest(unittest.TestCase):
                    m.inherit_option, m.set_option, m.admin_option
             FROM pg_auth_members m JOIN pg_roles duoc_cap ON duoc_cap.oid=m.roleid
             JOIN pg_roles thanh_vien ON thanh_vien.oid=m.member
-            WHERE thanh_vien.rolname = ANY(%s)
-        ''', (list(self.cac_vai),)).fetchall()
+            WHERE thanh_vien.rolname = ANY(%s) OR duoc_cap.rolname = ANY(%s)
+        ''', (list(self.cac_vai), list(self.cac_vai))).fetchall()
         self.assertEqual(set(rows), {(r, self.dang_nhap_loi, True, False, False) for r in self.cac_vai_chay})
+
+    def test_login_la_khong_connect(self):
+        mat_khau = secrets.token_urlsafe(32)
+        self.conn.execute(sql.SQL('CREATE ROLE {} LOGIN INHERIT NOSUPERUSER NOBYPASSRLS NOCREATEROLE NOCREATEDB NOREPLICATION PASSWORD {}').format(
+            sql.Identifier(self.login_la), sql.Literal(mat_khau)))
+        try:
+            self.assertFalse(self.conn.execute(
+                "SELECT has_database_privilege(%s, current_database(), 'CONNECT')",
+                (self.login_la,)).fetchone()[0])
+            with self.assertRaisesRegex(psycopg.Error, 'permission denied for database'):
+                with psycopg.connect(**{**self.thong_tin, 'dbname': self.db,
+                                        'user': self.login_la, 'password': mat_khau}):
+                    self.fail('Login la ket noi duoc')
+        finally:
+            self.conn.execute(sql.SQL('ALTER ROLE {} NOLOGIN').format(sql.Identifier(self.login_la)))
 
     def test_thuoc_tinh_va_owner(self):
         rows = self.conn.execute('''
@@ -217,8 +236,8 @@ class VaiPostgresTest(unittest.TestCase):
             '''SELECT rolname, rolcanlogin, rolsuper, rolbypassrls, rolcreatedb,
                       rolcreaterole, rolinherit, rolreplication
                FROM pg_roles WHERE rolname=ANY(%s) ORDER BY rolname''',
-            '''SELECT m.roleid, m.member, m.grantor, m.inherit_option, m.set_option, m.admin_option
-               FROM pg_auth_members m JOIN pg_roles r ON r.oid=m.member
+            '''SELECT DISTINCT m.roleid, m.member, m.grantor, m.inherit_option, m.set_option, m.admin_option
+               FROM pg_auth_members m JOIN pg_roles r ON r.oid IN (m.member, m.roleid)
                WHERE r.rolname=ANY(%s) ORDER BY m.roleid,m.member,m.grantor''',
             '''SELECT nspname,nspowner,nspacl::text FROM pg_namespace
                WHERE nspowner IN (SELECT oid FROM pg_roles WHERE rolname=ANY(%s)) ORDER BY nspname''',
@@ -243,6 +262,20 @@ class VaiPostgresTest(unittest.TestCase):
                 self.conn.execute(SQL_VAI)
                 self.assertEqual(self._anh_quyen(), truoc)
         self.test_login_that_khong_ddl_hoac_set_role()
+
+    def test_chay_lai_giu_usage_cap_o_lat_sau(self):
+        with self.conn.transaction():
+            for khoi in CAC_KHOI:
+                # Them USAGE truc tiep cho login va cheo khoi cho vai_chay.
+                for vai in (self.login, self.login_cai_dat, *self.cac_vai_chay):
+                    self.conn.execute(sql.SQL('GRANT USAGE ON SCHEMA {} TO {}').format(
+                        sql.Identifier(khoi), sql.Identifier(vai)))
+            truoc = self._anh_quyen()
+            for lan in (2, 3):
+                with self.subTest(lan=lan):
+                    self.conn.execute(SQL_VAI)
+                    self.assertEqual(self._anh_quyen(), truoc)
+            raise psycopg.Rollback()
 
     def test_thu_hoi_public_doi_tuong_co_san_va_chay_lai(self):
         with self.conn.transaction():
@@ -277,6 +310,31 @@ class VaiPostgresTest(unittest.TestCase):
                 with self.conn.transaction():
                     self.conn.execute(SQL_VAI)
             raise psycopg.Rollback()
+
+    def test_chan_membership_tu_role_ngoai_bo(self):
+        for vai in self.cac_vai_chu + self.cac_vai_chay:
+            with self.subTest(vai=vai), self.conn.transaction():
+                role_la = self.tien_to + 'ngoai_bo'
+                self.conn.execute(sql.SQL('CREATE ROLE {} NOLOGIN').format(sql.Identifier(role_la)))
+                self.conn.execute(sql.SQL('GRANT {} TO {} WITH INHERIT TRUE, SET FALSE, ADMIN FALSE').format(
+                    sql.Identifier(vai), sql.Identifier(role_la)))
+                truoc = self._anh_quyen()
+                with self.assertRaisesRegex(psycopg.errors.RaiseException, 'Can lead, membership ngoai pham vi'):
+                    with self.conn.transaction():
+                        self.conn.execute(SQL_VAI)
+                self.assertEqual(self._anh_quyen(), truoc)
+                raise psycopg.Rollback()
+
+    def test_chan_tien_to_ngoai_db_test(self):
+        # postgres la dich admin cho phep, nhung khong duoc bootstrap co tien to.
+        with psycopg.connect(**{**self.thong_tin, 'dbname': 'postgres'}, autocommit=True) as conn:
+            with conn.transaction():
+                conn.execute('SELECT set_config(%s, %s, true)',
+                             ('kho_tri_thuc.tien_to_vai', self.tien_to))
+                with self.assertRaisesRegex(psycopg.errors.RaiseException, 'tien to role chi dung trong kho_test_'):
+                    with conn.transaction():
+                        conn.execute(SQL_VAI)
+                raise psycopg.Rollback()
 
     def test_chan_membership_sai_thuoc_tinh(self):
         with self.conn.transaction():

@@ -27,6 +27,9 @@ BEGIN
     IF current_setting('server_version_num')::integer < 160000 THEN
         RAISE EXCEPTION 'G2-01: can PostgreSQL 16 tro len';
     END IF;
+    IF tien_to <> '' AND current_database() !~ '^kho_test_' THEN
+        RAISE EXCEPTION 'G2-01: tien to role chi dung trong kho_test_*';
+    END IF;
     IF current_database() !~ '^(kho_core_demo_g2_[a-z0-9_]+|kho_test_[a-z0-9_]+)$' THEN
         RAISE EXCEPTION 'G2-01: tu choi dich ngoai Core DEMO/test';
     END IF;
@@ -59,12 +62,13 @@ BEGIN
         END IF;
     END LOOP;
 
-    -- Khong nhan nhom cu/owner, ke ca duong SET ROLE khong ke thua quyen.
+    -- Bat lech hai chieu, ke ca role ngoai bo nhan owner/runtime.
     IF EXISTS (
         SELECT FROM pg_catalog.pg_auth_members m
         JOIN pg_catalog.pg_roles thanh_vien ON thanh_vien.oid = m.member
         JOIN pg_catalog.pg_roles duoc_cap ON duoc_cap.oid = m.roleid
-        WHERE thanh_vien.rolname = ANY(cac_vai)
+        WHERE (thanh_vien.rolname = ANY(cac_vai)
+               OR duoc_cap.rolname = ANY(cac_vai))
           AND NOT (thanh_vien.rolname = login_loi
                    AND duoc_cap.rolname = ANY(cac_vai_chay))
     ) THEN
@@ -93,6 +97,9 @@ BEGIN
         'REVOKE CREATE, TEMPORARY ON DATABASE %I FROM PUBLIC',
         current_database()
     );
+    EXECUTE format('REVOKE CONNECT ON DATABASE %I FROM PUBLIC', current_database());
+    EXECUTE format('GRANT CONNECT ON DATABASE %I TO %I, %I',
+                   current_database(), login_loi, login_cai_dat);
     FOREACH ten_vai IN ARRAY cac_vai_chay || ARRAY[login_loi, login_cai_dat] LOOP
         EXECUTE format('REVOKE CREATE, TEMPORARY ON DATABASE %I FROM %I',
                        current_database(), ten_vai);
@@ -111,7 +118,7 @@ BEGIN
         END IF;
         EXECUTE format('REVOKE ALL ON SCHEMA %I FROM PUBLIC', khoi);
         FOREACH ten_vai IN ARRAY cac_vai_chay || ARRAY[login_loi, login_cai_dat] LOOP
-            EXECUTE format('REVOKE ALL ON SCHEMA %I FROM %I', khoi, ten_vai);
+            EXECUTE format('REVOKE CREATE ON SCHEMA %I FROM %I', khoi, ten_vai);
         END LOOP;
         EXECUTE format('GRANT USAGE ON SCHEMA %I TO %I', khoi, vai_chay);
         -- REVOKE dai tra bien ACL NULL thanh ACL owner, du PUBLIC khong co quyen.
