@@ -1,0 +1,160 @@
+{
+  "trang_thai": "du_thao_cho_Anh_duyet",
+  "kich_hoat": false,
+  "dang_ky": false,
+  "pham_vi": "Bốn schema vào/ra HTTP của /api/v1/che và /api/v1/mo-che (MASK-1/2 nguồn); chỉ để duyệt. Không phải contract Core đã công bố hoặc bằng chứng adapter đã chạy.",
+  "nguon": {
+    "du_an": "Mask file v2",
+    "tep": ["privacy/auto_api.py", "privacy/server.py", "privacy/ocr_client.py"],
+    "doi_chieu": "MaskRequest, KnownItem, UnmaskRequest; api_mask, api_unmask; MAX_TEXT=500000, MAX_KNOWN=500. Chỉ đọc mã, không import/chạy Mask hoặc nạp cấu hình/khóa.",
+    "http_duoc_boc": ["/api/v1/trang-thai", "/api/v1/che", "/api/v1/mo-che"]
+  },
+  "can_lead": [
+    "Duyệt bốn schema nháp trước khi đưa vào sổ contract. ID urn:ktt:du-thao không thuộc namespace contract đã công bố.",
+    "Cần lead: chưa có capability Core đủ schema đã duyệt và bằng chứng chạy adapter để khai. Không tạo engine.json khi chưa đủ điều kiện; G2-17b vẫn bắt capability minItems=1, kể cả khi có ngoại lệ màn hình. engine.json rỗng từ vòng trước không đạt schema; worker không xóa tệp theo AGENTS.md, cần lead bỏ hiện vật cũ trước nghiệm thu gói.",
+    "Bọc HTTP và ánh xạ contract Core thuộc MASK-2. Phát hiện độc lập/che tài liệu chưa có contract và bằng chứng endpoint; không quảng bá MASK-3/4.",
+    "additionalProperties=false là đề xuất siết payload của adapter, không phải tuyên bố Pydantic nguồn từ chối trường thừa. Schema không thay kiểm ngữ nghĩa/ủy quyền."
+  ],
+  "anh_xa_core_cho_duyet": {
+    "ma_luot": "Mã opaque nội bộ của Mask, chỉ adapter/Core giữ theo việc và pháp nhân; không xuất như luot_che_id. Core sinh/tra luot_che_id riêng sau xác minh quyền; UUID đúng hình dạng không tự cấp quyền mở che.",
+    "het_han_sau_giay": "Thời hạn tương đối do Mask trả; Core cần quản lý hạn dùng bảo thủ và tình trạng restart. Chưa triển khai đổi sang het_han_mo_che_luc.",
+    "danh_muc": "Nguồn dùng da_mo/khoa/chua_co, Core dùng da_mo/da_khoa/chua_co. /che thành công có thể trả chua_co; dù gui_duoc=true cũng không đủ điều kiện gửi Cloud.",
+    "dieu_kien_gui": "Cần danh_muc=da_mo, gui_duoc=true, con_sot rỗng và kiểm bảo toàn tiền/ngày thực tế trước gửi. Schema đúng hoặc cờ giu_nguyen_tien_ngay=true không thay kiểm này.",
+    "quy_tac": "Nguồn chưa công bố revision quy tắc; không tự sinh. Contract noi_dung_da_che.v1 có nhánh chua_cong_bo với ma/revision=null.",
+    "mapping": "Do TurnStore của Mask giữ trong RAM; server bỏ mapping trước trả HTTP. Không nhận/lưu/công bố mapping; cum_moi có nội dung gốc chỉ dùng nội bộ, không đưa vào log hoặc contract công bố.",
+    "loi": "Chỉ mô tả phản hồi thành công. Lỗi HTTP hoặc gui_duoc=false là lượt bị chặn, không chuyển thành kết quả gửi được; MASK-2 cần xử lý lỗi riêng."
+  },
+  "schemas": {
+    "che_van_ban_vao": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "$id": "urn:ktt:du-thao:e_mask:che_van_ban_vao.v1",
+      "$comment": "DỰ THẢO, CHƯA DUYỆT/ĐĂNG KÝ/KÍCH HOẠT. POST /api/v1/che: MaskRequest. Văn bản rỗng còn bị kiểm ngữ nghĩa nguồn từ chối.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["van_ban"],
+      "properties": {
+        "van_ban": {"type": "string", "maxLength": 500000},
+        "dinh_danh_da_biet": {
+          "type": "array",
+          "default": [],
+          "maxItems": 500,
+          "items": {
+            "anyOf": [
+              {"type": "string", "maxLength": 300},
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["gia_tri"],
+                "properties": {
+                  "gia_tri": {"type": "string", "maxLength": 300},
+                  "nhom": {"type": "string", "maxLength": 20, "default": "KHAC"}
+                }
+              }
+            ]
+          }
+        }
+      },
+      "examples": [
+        {"van_ban": "DEMO khoản thanh toán 1000000 VND ngày 2026-10-30", "dinh_danh_da_biet": []}
+      ]
+    },
+    "che_van_ban_ra": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "$id": "urn:ktt:du-thao:e_mask:che_van_ban_ra.v1",
+      "$comment": "DỰ THẢO, CHƯA DUYỆT/ĐĂNG KÝ/KÍCH HOẠT. Phản hồi HTTP thành công của api_mask; không nhận mapping. Đây chưa phải noi_dung_da_che.v1, chưa xác nhận điều kiện gửi Cloud.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["ma_luot", "gui_duoc", "con_sot", "van_ban_da_che", "so_cho_thay", "bi_danh", "cum_moi", "canh_bao", "danh_muc", "cho_duyet", "het_han_sau_giay"],
+      "properties": {
+        "ma_luot": {"type": "string", "minLength": 1, "maxLength": 64},
+        "gui_duoc": {"const": true},
+        "con_sot": {"type": "array", "maxItems": 0},
+        "van_ban_da_che": {"type": "string", "minLength": 1},
+        "so_cho_thay": {"type": "integer", "minimum": 0},
+        "bi_danh": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["bi_danh", "nhom", "nguon"],
+            "properties": {
+              "bi_danh": {"type": "string"},
+              "nhom": {"type": "string"},
+              "nguon": {"enum": ["danh_muc", "dinh_danh_da_biet", "phat_hien_moi"]}
+            }
+          }
+        },
+        "cum_moi": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["cum", "bi_danh", "nhom"],
+            "properties": {
+              "cum": {"type": "string"},
+              "bi_danh": {"type": "string"},
+              "nhom": {"type": "string"}
+            }
+          }
+        },
+        "canh_bao": {"type": "array", "items": {"type": "string"}},
+        "danh_muc": {"enum": ["da_mo", "chua_co"]},
+        "cho_duyet": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["so_cum_vua_them"],
+          "properties": {"so_cum_vua_them": {"type": "integer", "minimum": 0}}
+        },
+        "het_han_sau_giay": {"type": "integer", "minimum": 1}
+      },
+      "examples": [
+        {
+          "ma_luot": "DEMO_luot_khong_phai_UUID",
+          "gui_duoc": true,
+          "con_sot": [],
+          "van_ban_da_che": "DEMO khoản thanh toán 1000000 VND ngày 2026-10-30",
+          "so_cho_thay": 0,
+          "bi_danh": [],
+          "cum_moi": [],
+          "canh_bao": [],
+          "danh_muc": "da_mo",
+          "cho_duyet": {"so_cum_vua_them": 0},
+          "het_han_sau_giay": 1800
+        }
+      ]
+    },
+    "mo_che_vao": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "$id": "urn:ktt:du-thao:e_mask:mo_che_vao.v1",
+      "$comment": "DỰ THẢO, CHƯA DUYỆT/ĐĂNG KÝ/KÍCH HOẠT. POST /api/v1/mo-che: UnmaskRequest. ma_luot opaque của Mask khác luot_che_id Core. Nguồn mặc định ket_thuc_luot=false; không tự đổi mặc định ở schema.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["ma_luot", "van_ban"],
+      "properties": {
+        "ma_luot": {"type": "string", "minLength": 1, "maxLength": 64},
+        "van_ban": {"type": "string", "maxLength": 500000},
+        "ket_thuc_luot": {"type": "boolean", "default": false}
+      },
+      "examples": [
+        {"ma_luot": "DEMO_luot_khong_phai_UUID", "van_ban": "", "ket_thuc_luot": true}
+      ]
+    },
+    "mo_che_ra": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "$id": "urn:ktt:du-thao:e_mask:mo_che_ra.v1",
+      "$comment": "DỰ THẢO, CHƯA DUYỆT/ĐĂNG KÝ/KÍCH HOẠT. Phản hồi HTTP thành công của api_unmask. Phải kiểm bi_danh_khong_ro và hạn/quyền lượt trước khi công bố như đã mở che.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["van_ban", "so_cho_mo", "bi_danh_khong_ro", "luot_con_giu"],
+      "properties": {
+        "van_ban": {"type": "string"},
+        "so_cho_mo": {"type": "integer", "minimum": 0},
+        "bi_danh_khong_ro": {"type": "array", "items": {"type": "string"}},
+        "luot_con_giu": {"type": "boolean"}
+      },
+      "examples": [
+        {"van_ban": "", "so_cho_mo": 0, "bi_danh_khong_ro": [], "luot_con_giu": false}
+      ]
+    }
+  }
+}
