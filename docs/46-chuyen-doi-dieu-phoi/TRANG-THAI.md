@@ -767,3 +767,4 @@ Chi tiết có tệp:dòng: `BANG-DIEU-KIEN-GO-LIVE.md`; quy trình: `CHECKLIST-
   - Opus vòng 2: không còn Chặn. OpenAPI 3.1 parse được, 33 path.
 - **Phiếu CSDL:** vẫn chờ Anh.
 - **SDK (phiếu 3):** Codex review 1 Chặn / 4 Cần sửa; Opus đang review, sau đó giao Codex sửa một vòng.
+### 30/10 ~12:00 — Anh trả lời phiếu CSDL: câu 2 A, câu 3 A (danh sách nhân sự gửi sau); câu 1 Anh hỏi lại → lead giải thích, chờ chọn

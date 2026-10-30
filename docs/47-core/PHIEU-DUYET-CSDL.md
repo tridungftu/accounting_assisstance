@@ -74,3 +74,10 @@ Trả lời một dòng, ví dụ: **"Duyệt CSDL; câu 1 A, câu 2 A, câu 3 A
   - `g1\RV-G1A.md` (Codex);
   - `g1\RV-G1A-OPUS.md` (Opus vòng 1);
   - vòng 2: không còn Chặn, hai bổ sung nhỏ đã ghi vào §5 của đặc tả.
+
+## Kết quả Anh trả lời (30/10/2026)
+
+- **Câu 2: A.** Hạn giữ dữ liệu tạm, gồm kết quả OCR/Mask tạm, và tài nguyên test theo phương án A.
+- **Câu 3: A.** Core tự quản tài khoản. Anh sẽ gửi danh sách nhân sự đăng nhập sau.
+- **Câu 1: Anh hỏi lại** "trường hợp nào module tự nhận là người dùng khác được?". Lead đã giải thích bằng ví dụ trong phiên làm việc; chờ Anh chọn A/B.
+- **Duyệt toàn phiếu:** chờ câu 1.
