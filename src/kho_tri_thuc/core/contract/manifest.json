@@ -467,7 +467,16 @@
         "properties": {
           "ma_moi_truong": {"$ref":"urn:ktt:manifest:module.v1#/$defs/ma"},
           "diem_vao": {"$ref":"urn:ktt:manifest:module.v1#/$defs/diem_vao"},
-          "headless": {"const":true},
+          "headless": {"type":"boolean"},
+          "ngoai_le_man_hinh": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["ma_quyet_dinh", "ly_do"],
+            "properties": {
+              "ma_quyet_dinh": {"enum":["CD-038-ENGINE-2A", "CD-038-ENGINE-3A"]},
+              "ly_do": {"type":"string","minLength":1,"pattern":"\\S"}
+            }
+          },
           "cong": {"$ref":"urn:ktt:manifest:module.v1#/$defs/cong"},
           "nhan_listener": {"type":"array","items":{"enum":["socket.fromshare","tham_so_cong"]},"minItems":1,"uniqueItems":true},
           "tham_so_cong": {"const":"--port"},
@@ -475,7 +484,10 @@
           "login_csdl": {"const":false},
           "che_do_mac_dinh": {"const":"tu_kich_hoat_tu_dong"},
           "ranh_giay_de_xuat": {"type":"integer","minimum":1}
-        }
+        },
+        "if": {"properties":{"headless":{"const":false}}},
+        "then": {"required":["ngoai_le_man_hinh"]},
+        "else": {"not":{"required":["ngoai_le_man_hinh"]}}
       },
       "readiness": {
         "type": "object",
