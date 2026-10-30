@@ -68,6 +68,50 @@ class DoiCauTrucThuanTest(unittest.TestCase):
         self.assertNotIn('SELECT 2', lenh)
         self.assertFalse(any(s.startswith('INSERT') for s in lenh))
 
+    def test_khoang_trong_dung_so_thuc_va_chay_lai(self):
+        self.tep = [Path(f'{n:03d}_demo.sql') for n in (1, 3, 11)]
+        noi_dung = (b'SELECT 1', b'SELECT 3', b'SELECT 11')
+        self.cur.fetchall.return_value = [(n, hashlib.sha256(nd).hexdigest())
+                                         for n, nd in zip((1, 3), noi_dung)]
+        self.assertEqual(self._ap(noi_dung), 11)
+        them = [c.args[1][1] for c in self.cur.execute.call_args_list
+                if c.args[0].startswith('INSERT INTO')]
+        self.assertEqual(them, [11])
+        self.assertNotIn('SELECT 3', [c.args[0] for c in self.cur.execute.call_args_list])
+        self.cur.reset_mock()
+        self.cur.fetchone.side_effect = [('kho_test_demo',), ('loi.lich_su_doi_cau_truc',)]
+        self.cur.fetchall.return_value.append((11, hashlib.sha256(noi_dung[2]).hexdigest()))
+        self.assertEqual(self._ap(noi_dung), 11)
+        self.assertFalse(any(c.args[0].startswith('INSERT INTO') for c in self.cur.execute.call_args_list))
+
+    def test_khoang_trong_dich_la_so_phien_ban_khong_phai_so_tep(self):
+        self.tep = [Path('001_demo.sql'), Path('011_demo.sql')]
+        self.assertEqual(self._ap(so_phien_ban=11), 11)
+        self.cur.reset_mock()
+        with self.assertRaises(dc.LoiDoiCauTruc) as bat:
+            self._ap(so_phien_ban=2)
+        self.assertEqual(bat.exception.ma, 'SCHEMA_VERSION')
+        self.conn.transaction.assert_called_once_with()
+        self.cur.execute.assert_not_called()
+
+    def test_khoang_trong_van_chan_checksum_lech_truoc_ddl(self):
+        self.tep = [Path('001_demo.sql'), Path('011_demo.sql')]
+        self.cur.fetchall.return_value = [(1, hashlib.sha256(b'SELECT 1').hexdigest()),
+                                         (11, '0' * 64)]
+        with self.assertRaises(dc.LoiDoiCauTruc) as bat:
+            self._ap()
+        self.assertEqual(bat.exception.ma, 'MIGRATION_CHANGED')
+        self.assertNotIn('SELECT 2', [c.args[0] for c in self.cur.execute.call_args_list])
+
+    def test_chan_chen_bu_so_nho_hon_ban_da_ap_truoc_ddl(self):
+        self.tep.append(Path('003_demo.sql'))
+        self.cur.fetchall.return_value = [(1, hashlib.sha256(b'SELECT 1').hexdigest()),
+                                         (3, hashlib.sha256(b'SELECT 3').hexdigest())]
+        with self.assertRaises(dc.LoiDoiCauTruc) as bat:
+            self._ap((b'SELECT 1', b'SELECT 2', b'SELECT 3'))
+        self.assertEqual(bat.exception.ma, 'MIGRATION_ORDER')
+        self.assertNotIn('SELECT 2', [c.args[0] for c in self.cur.execute.call_args_list])
+
     def test_lech_checksum_chan_truoc_ddl(self):
         self.cur.fetchall.return_value = [(1, '0' * 64)]
         with self.assertRaises(dc.LoiDoiCauTruc) as bat:
@@ -131,7 +175,7 @@ class DoiCauTrucThuanTest(unittest.TestCase):
         self.assertEqual(sum(c[0].startswith('INSERT INTO') for c in lenh[:vi_tri_5]), 4)
 
     def test_sai_thu_tu_va_dich_khong_chay_sql(self):
-        for tep in ([Path('002_demo.sql')], [Path('001_demo.sql'), Path('001_khac.sql')]):
+        for tep in ([Path('000_demo.sql')], [Path('001_demo.sql'), Path('001_khac.sql')]):
             with self.subTest(tep=tep), patch.object(Path, 'read_bytes', return_value=b'SELECT 1'):
                 with self.assertRaises(dc.LoiDoiCauTruc):
                     dc.ap_doi_cau_truc(self.conn, tep)
@@ -254,7 +298,7 @@ class KiemToanPostgresTest(unittest.TestCase):
     def test_so_chan_checksum_ha_ban_va_sua_truc_tiep(self):
         for ban, bam, thong_diep in ((1, '0' * 64, 'MIGRATION_CHANGED'),
                                      (1, hashlib.sha256(CAC_TEP[0].read_bytes()).hexdigest(), 'FUTURE_SCHEMA'),
-                                     (6, '0' * 64, 'MIGRATION_ORDER')):
+                                     (4, hashlib.sha256(CAC_TEP[3].read_bytes()).hexdigest(), 'MIGRATION_ORDER')):
             with self.subTest(ban=ban, thong_diep=thong_diep):
                 with self.assertRaises(psycopg.errors.CheckViolation) as bat:
                     self.conn.execute('''INSERT INTO loi.lich_su_doi_cau_truc
@@ -264,6 +308,25 @@ class KiemToanPostgresTest(unittest.TestCase):
                      'DELETE FROM loi.lich_su_doi_cau_truc', 'TRUNCATE loi.lich_su_doi_cau_truc'):
             with self.subTest(lenh=lenh), self.assertRaises(psycopg.errors.ObjectNotInPrerequisiteState):
                 self.conn.execute(lenh)
+
+    def test_runner_va_trigger_cho_khoang_trong_chan_so_nho_hon(self):
+        goi = 'demo_' + uuid4().hex
+        cac_tep = [Path(f'{n:03d}_demo.sql') for n in (1, 3, 11)]
+        with self.conn.transaction(force_rollback=True), patch.object(Path, 'read_bytes', return_value=b'SELECT 1'):
+            self.assertEqual(dc.ap_doi_cau_truc(self.conn, cac_tep, ma_goi=goi), 11)
+            self.assertEqual(self.conn.execute('''SELECT so_phien_ban FROM loi.lich_su_doi_cau_truc
+                WHERE ma_goi=%s ORDER BY so_phien_ban''', (goi,)).fetchall(), [(1,), (3,), (11,)])
+            self.assertEqual(dc.ap_doi_cau_truc(self.conn, cac_tep, ma_goi=goi), 11)
+            with self.assertRaises(dc.LoiDoiCauTruc) as bat:
+                dc.ap_doi_cau_truc(self.conn, cac_tep, ma_goi=goi, so_phien_ban=3)
+            self.assertEqual(bat.exception.ma, 'FUTURE_SCHEMA')
+            with self.assertRaises(dc.LoiDoiCauTruc) as bat:
+                dc.ap_doi_cau_truc(self.conn, [*cac_tep, Path('002_demo.sql')], ma_goi=goi)
+            self.assertEqual(bat.exception.ma, 'MIGRATION_ORDER')
+            with self.assertRaises(psycopg.errors.CheckViolation) as bat, self.conn.transaction():
+                self.conn.execute('''INSERT INTO loi.lich_su_doi_cau_truc
+                    (ma_goi,so_phien_ban,ma_bam,nguon_lich_su) VALUES (%s,2,%s,'{}')''', (goi, '0' * 64))
+            self.assertIn('FUTURE_SCHEMA', str(bat.exception))
 
     def test_goi_doc_lap_va_nguoi_ap_dung_tu_session_user(self):
         goi = 'demo_' + uuid4().hex

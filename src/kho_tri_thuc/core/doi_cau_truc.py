@@ -34,12 +34,14 @@ THU_MUC_SQL = Path(__file__).with_name('sql')
 
 def _doc_chuoi(cac_tep):
     duong_dan = sorted((Path(p) for p in cac_tep), key=lambda p: p.name)
-    chuoi = []
-    for so, tep in enumerate(duong_dan, 1):
-        if not re.fullmatch(rf'{so:03d}_[a-z0-9_]+\.sql', tep.name):
+    chuoi = {}
+    for tep in duong_dan:
+        khop = re.fullmatch(r'([0-9]{3})_[a-z0-9_]+\.sql', tep.name)
+        if not khop or int(khop[1]) <= max(chuoi, default=0):
             raise LoiDoiCauTruc('MIGRATION_ORDER')
+        so = int(khop[1])
         noi_dung = tep.read_bytes()
-        chuoi.append((noi_dung.decode('utf-8'), hashlib.sha256(noi_dung).hexdigest()))
+        chuoi[so] = (noi_dung.decode('utf-8'), hashlib.sha256(noi_dung).hexdigest())
     if not chuoi:
         raise LoiDoiCauTruc('SCHEMA_VERSION')
     return chuoi
@@ -60,8 +62,8 @@ def ap_doi_cau_truc(conn, cac_tep=None, *, ma_goi='core', so_phien_ban=None,
     try:
         chuoi = _doc_chuoi(THU_MUC_SQL.glob('[0-9][0-9][0-9]_*.sql')
                           if cac_tep is None else cac_tep)
-        dich = len(chuoi) if so_phien_ban is None else so_phien_ban
-        if type(dich) is not int or not 1 <= dich <= len(chuoi):
+        dich = max(chuoi) if so_phien_ban is None else so_phien_ban
+        if type(dich) is not int or dich not in chuoi:
             raise LoiDoiCauTruc('SCHEMA_VERSION')
         nguon = NGUON_CORE if nguon_lich_su is None else nguon_lich_su
         if not isinstance(nguon, dict):
@@ -85,17 +87,19 @@ def ap_doi_cau_truc(conn, cac_tep=None, *, ma_goi='core', so_phien_ban=None,
                 elif ma_goi != 'core' or dich < 4:
                     raise LoiDoiCauTruc('CAN_BOOTSTRAP_004')
                 ban_cu = max(lich_su, default=0)
-                if sorted(lich_su) != list(range(1, ban_cu + 1)):
-                    raise LoiDoiCauTruc('MIGRATION_ORDER')
                 if ban_cu > dich:
                     raise LoiDoiCauTruc('FUTURE_SCHEMA')
+                # Khoảng trống hợp lệ; không chèn bù số nhỏ hơn bản đã áp.
+                if (any(so not in chuoi for so in lich_su)
+                        or any(so <= ban_cu and so not in lich_su for so in chuoi)):
+                    raise LoiDoiCauTruc('MIGRATION_ORDER')
                 # Kiểm TẤT CẢ checksum trước bất kỳ DDL nào của gói.
                 for so, bam in lich_su.items():
-                    if chuoi[so - 1][1] != bam:
+                    if chuoi[so][1] != bam:
                         raise LoiDoiCauTruc('MIGRATION_CHANGED')
                 cho_ghi = []
-                for so, (cau_sql, bam) in enumerate(chuoi[:dich], 1):
-                    if so <= ban_cu:
+                for so, (cau_sql, bam) in chuoi.items():
+                    if so <= ban_cu or so > dich:
                         continue
                     cur.execute(cau_sql)
                     cho_ghi.append((ma_goi, so, bam, nguon_json))

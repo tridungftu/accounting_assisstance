@@ -165,10 +165,8 @@ class TiepNhanPostgresTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         g209.TaiLieuPostgresTest.setUpClass.__func__(cls)
-        # DDL độc lập trên nền 001..009, như fixture G2-08. Cần lead nối
-        # runner: hiện runner đòi số liên tiếp nhưng G2-10 không có SQL 010.
-        with cls.conn.transaction():
-            cls.conn.execute(SQL)
+        # G2-10 không có SQL 010; runner ghi đúng số 011 sau nền 001..009.
+        dc.ap_doi_cau_truc(cls.conn, [*sorted(dc.THU_MUC_SQL.glob('00[1-9]_*.sql')), SQL_PATH])
         vai = cls.tien_to + 'vai_chay_mod_crm'
         for ck in (
             'tra_bien_nhan_thao_tac_v2(text,text,uuid,text,text,text,jsonb,uuid,bigint)',
@@ -186,14 +184,19 @@ class TiepNhanPostgresTest(unittest.TestCase):
                 self.conn.execute('CREATE TABLE mod_crm.tac_dong_demo(id uuid PRIMARY KEY,phap_nhan_id uuid NOT NULL)')
                 self.conn.execute(sql.SQL('GRANT USAGE ON SCHEMA mod_crm TO {}').format(sql.Identifier(self.vai_module)))
                 self.conn.execute(sql.SQL('GRANT INSERT,SELECT ON mod_crm.tac_dong_demo TO {}').format(sql.Identifier(self.vai_module)))
-        self.uy = phien.cap_phien(self.core, nguoi_dung_id=self.nd, module='crm', phap_nhan_id=self.pn,
-            dang_nhap_csdl=self.module_login, pham_vi_hanh_dong=[LAP, g209.SUA, XEM, g209.DUYET],
-            loai='UY_NHIEM_PHIEN', ma_goc=self.ma,
-            hieu_luc_den=datetime.now(timezone.utc)+timedelta(minutes=4)).ma
+        self._cap_lai_phien()
         self.ts = dict(operation='CRM.DEMO.LAP', khoa=KHOA, noi_dung={'demo': True},
             doi_tuong=dict(bang='doi_tuong', id=str(self.obj)), **self._ctx(ma=self.uy))
         self.quyen = dict(hanh_dong=XEM, doi_tuong=self.ts['doi_tuong'], phien_ban_contract='1',
             tai_lieu_id=str(self.tai_lieu_id), bien_the='goc')
+
+    def _cap_lai_phien(self):
+        # G2-06 thu hồi mọi phiên khi đổi vai/phạm vi, kể cả lúc thêm quyền.
+        self.ma = self._cap()
+        self.uy = phien.cap_phien(self.core, nguoi_dung_id=self.nd, module='crm', phap_nhan_id=self.pn,
+            dang_nhap_csdl=self.module_login, pham_vi_hanh_dong=[LAP, g209.SUA, XEM, g209.DUYET],
+            loai='UY_NHIEM_PHIEN', ma_goc=self.ma,
+            hieu_luc_den=datetime.now(timezone.utc)+timedelta(minutes=4)).ma
 
     def _thuc_hien(self, conn=None, **doi):
         conn = conn or self.module
@@ -288,6 +291,8 @@ class TiepNhanPostgresTest(unittest.TestCase):
             SELECT %s,%s,phap_nhan_id,phong_id,vai,%s,'DEMO' FROM loi.mtq_gan_vai
             WHERE nguoi_dung_id=%s AND phap_nhan_id=%s''', (gan,nd2,self.nd,self.nd,self.pn))
         self.conn.execute("INSERT INTO loi.mtq_pham_vi(gan_vai_id,phap_nhan_id,loai,khoa,cap_boi,ly_do) VALUES (%s,%s,'PHAP_NHAN',%s,%s,'DEMO')", (gan,self.pn,str(self.pn),self.nd))
+        self._cap_lai_phien()
+        self.ts['ma'] = self.uy
         ma2 = phien.cap_phien(self.core, nguoi_dung_id=nd2, module='crm', phap_nhan_id=self.pn,
             dang_nhap_csdl=self.cac_thong_tin['core']['user'], pham_vi_hanh_dong=[LAP,XEM],
             hieu_luc_den=datetime.now(timezone.utc)+timedelta(minutes=4)).ma
