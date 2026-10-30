@@ -16,11 +16,89 @@ import re
 
 
 class LoiDoiCauTruc(RuntimeError):
-    """Lỗi an toàn, không giữ thông báo driver có thể chứa credential/SQL."""
+    """Chẩn đoán an toàn; không giữ driver, SQL hoặc giá trị tham số.
 
-    def __init__(self, ma: str):
+    Ngoài lớp SQLSTATE 42 chỉ giữ mã SQLSTATE và vị trí tệp. Context chỉ
+    giữ loại frame, số dòng và thao tác; primary chỉ giữ mẫu lỗi đã biết.
+    Không phản chiếu tên đối tượng hay token SQL vì chúng cũng có thể là dữ liệu.
+    """
+
+    def __init__(self, ma: str, *, so_phien_ban=None, ten_tep=None,
+                 sqlstate=None, context=None, message_primary=None):
         self.ma = ma
-        super().__init__(ma)
+        self.so_phien_ban = (so_phien_ban if type(so_phien_ban) is int
+                             and 1 <= so_phien_ban <= 999 else None)
+        self.ten_tep = (ten_tep if isinstance(ten_tep, str) and re.fullmatch(
+            r'[0-9]{3}_[a-z0-9_]+\.sql', ten_tep) else None)
+        self.sqlstate = (sqlstate if isinstance(sqlstate, str)
+                         and re.fullmatch(r'[0-9A-Z]{5}', sqlstate) else None)
+        lop_42 = self.sqlstate is not None and self.sqlstate.startswith('42')
+        self.context = _loc_context(context) if lop_42 else None
+        self.message_primary = _loc_primary(message_primary) if lop_42 else None
+        chi_tiet = [f'{ten}={gia_tri}' for ten, gia_tri in (
+            ('so_phien_ban', self.so_phien_ban), ('ten_tep', self.ten_tep),
+            ('sqlstate', self.sqlstate), ('context', self.context),
+            ('message_primary', self.message_primary)) if gia_tri is not None]
+        super().__init__(ma + (': ' + '; '.join(chi_tiet) if chi_tiet else ''))
+
+
+def _co_bi_mat(chuoi):
+    return re.search(r'postgres(?:ql)?://|(?:password|host)\s*=', chuoi, re.I)
+
+
+def _loc_context(context):
+    """Allowlist cấu trúc frame; bỏ SQL statement, bind và mọi văn bản tự do."""
+    if not isinstance(context, str) or not context:
+        return None
+    if _co_bi_mat(context):
+        return '[DA_LOC]'
+    cac_dong = []
+    for dong in context.splitlines():
+        khop = re.fullmatch(
+            r'PL/pgSQL function .+ line ([0-9]{1,6}) at '
+            r'(SQL statement|EXECUTE|RAISE|assignment|RETURN|PERFORM|IF|FOR over SELECT rows)',
+            dong.strip())
+        if khop:
+            cac_dong.append(f'PL/pgSQL function [DA_LOC] line {khop[1]} at {khop[2]}')
+        else:
+            khop = re.fullmatch(r'compilation of PL/pgSQL function .+ near line ([0-9]{1,6})',
+                                dong.strip())
+            if khop:
+                cac_dong.append(f'compilation of PL/pgSQL function [DA_LOC] near line {khop[1]}')
+        if len(cac_dong) == 8:
+            break
+    return '\n'.join(cac_dong) if cac_dong else '[DA_LOC]'
+
+
+def _loc_primary(primary):
+    """Chỉ xuất các phần cố định của thông báo; không dùng str(driver)."""
+    if not isinstance(primary, str) or not primary:
+        return None
+    if _co_bi_mat(primary):
+        return '[DA_LOC]'
+    if primary in ('syntax error', 'syntax error at end of input',
+                   'query has no destination for result data'):
+        return primary
+    khop = re.fullmatch(
+        r'(syntax error at or near|unterminated quoted string at or near|'
+        r'unterminated dollar-quoted string at or near|'
+        r'unterminated quoted identifier at or near) .+', primary, re.S)
+    if khop:
+        return khop[1] + ' [DA_LOC]'
+    khop = re.fullmatch(
+        r'(relation|column|function|type|schema|operator) .+ '
+        r'(does not exist|already exists|is ambiguous)', primary, re.S)
+    if khop:
+        return f'{khop[1]} [DA_LOC] {khop[2]}'
+    return '[DA_LOC]'
+
+
+def _doc_truong(chan_doan, ten):
+    # Driver không có diag/sqlstate hoặc property lỗi vẫn giữ được mã lỗi cũ.
+    try:
+        return getattr(chan_doan, ten, None)
+    except Exception:
+        return None
 
 
 # Đây là căn cứ thiết kế, KHÔNG phải chứng cứ migration nguồn đã áp dụng.
@@ -59,10 +137,13 @@ def ap_doi_cau_truc(conn, cac_tep=None, *, ma_goi='core', so_phien_ban=None,
     """
     if not isinstance(ma_goi, str) or not re.fullmatch(r'[a-z][a-z0-9_]{0,62}', ma_goi):
         raise LoiDoiCauTruc('MA_GOI')
-    ma_loi = None
+    loi = None
+    tep_hien_tai = None
     try:
-        chuoi = _doc_chuoi(THU_MUC_SQL.glob('[0-9][0-9][0-9]_*.sql')
-                          if cac_tep is None else cac_tep)
+        cac_tep = [Path(p) for p in (THU_MUC_SQL.glob('[0-9][0-9][0-9]_*.sql')
+                                    if cac_tep is None else cac_tep)]
+        chuoi = _doc_chuoi(cac_tep)
+        ten_theo_so = {int(p.name[:3]): p.name for p in cac_tep}
         dich = max(chuoi) if so_phien_ban is None else so_phien_ban
         if type(dich) is not int or dich not in chuoi:
             raise LoiDoiCauTruc('SCHEMA_VERSION')
@@ -102,6 +183,7 @@ def ap_doi_cau_truc(conn, cac_tep=None, *, ma_goi='core', so_phien_ban=None,
                 for so, (cau_sql, bam) in chuoi.items():
                     if so <= ban_cu or so > dich:
                         continue
+                    tep_hien_tai = (so, ten_theo_so[so])
                     cur.execute(cau_sql)
                     cho_ghi.append((ma_goi, so, bam, nguon_json))
                     if not co_so:
@@ -113,12 +195,20 @@ def ap_doi_cau_truc(conn, cac_tep=None, *, ma_goi='core', so_phien_ban=None,
                                         '(ma_goi,so_phien_ban,ma_bam,nguon_lich_su) '
                                         'VALUES (%s,%s,%s,%s::jsonb)', dong)
                         cho_ghi.clear()
+                    tep_hien_tai = None
                 if cho_ghi:
                     raise LoiDoiCauTruc('CAN_BOOTSTRAP_004')
         return dich
     except LoiDoiCauTruc as exc:
-        ma_loi = exc.ma
-    except Exception:
-        ma_loi = 'DOI_CAU_TRUC_THAT_BAI'
+        loi = LoiDoiCauTruc(exc.ma)
+    except Exception as exc:
+        so, ten = tep_hien_tai or (None, None)
+        diag = _doc_truong(exc, 'diag') if tep_hien_tai else None
+        loi = LoiDoiCauTruc(
+            'DOI_CAU_TRUC_THAT_BAI', so_phien_ban=so, ten_tep=ten,
+            sqlstate=_doc_truong(exc, 'sqlstate') if tep_hien_tai else None,
+            context=_doc_truong(diag, 'context'),
+            message_primary=_doc_truong(diag, 'message_primary'))
+        diag = None  # Không giữ diag thô trong locals của traceback mới.
     # Ngoài except: không giữ __context__ chứa DSN/thông báo SQL của driver.
-    raise LoiDoiCauTruc(ma_loi)
+    raise loi
