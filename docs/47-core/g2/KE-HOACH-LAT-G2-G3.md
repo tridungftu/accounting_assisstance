@@ -215,3 +215,5 @@ Tối đa **bốn Codex đang làm**, tính cả reviewer; hàng dưới là cá
 - **Engine chưa có capability đã kiểm thì chưa có `engine.json`:**
   - AI-1a gộp phần DTO, manifest chuyển sang AI-1b (chờ Anh duyệt `ai.hoi@1`);
   - OCR-1 và MASK-1 làm lại manifest sau G2-17b.
+- **Manifest engine theo adapter (31/10 03:40):** OCR-1 và MASK-1 không có capability đủ bằng chứng → không có `engine.json`. Manifest được viết **cùng lát adapter đầu tiên có test** của mỗi engine: OCR-2, MASK-2, AI-1b, HD-3a, TRICH-3a. MASK-1 gộp phần dự thảo schema. OCR-1 đóng, không gộp (chỉ có test cho manifest chưa tồn tại).
+- **G2-20 mở whitelist:** thêm `src/kho_tri_thuc/core/sql/020_sdk_v2.sql` — cửa V2 cho module ghi kết quả + audit trên cùng `tx` (009 / 004 chỉ cho Core). Lát có SQL quyền → review Opus.
