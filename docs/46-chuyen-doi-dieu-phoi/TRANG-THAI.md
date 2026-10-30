@@ -854,3 +854,10 @@ Chi tiết có tệp:dòng: `BANG-DIEU-KIEN-GO-LIVE.md`; quy trình: `CHECKLIST-
   - G2-00: dựng Core DEMO rỗng;
   - G2-01: role/login/schema, Opus review bắt buộc;
   - G2-33: script tài khoản Windows (xem trước mặc định).
+### 30/10 ~18:25 — G2: gộp G2-00, G2-01, G2-33; giao G2-02, G2-17
+- **G2-00:** 23 ok; xử lý Chặn junction cụm.
+- **G2-01:** PG 20 ok; Opus Đạt, 4 Nên sửa đã làm.
+- **G2-33:** gộp ở dạng chỉ xem trước; đường áp tách G2-33b, sau G2-21.
+- **Đang chạy:**
+  - G2-02 (danh tính / pháp nhân);
+  - G2-17 (bộ schema kỹ thuật offline, giao sớm vì không phụ thuộc CSDL).
