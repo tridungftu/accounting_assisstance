@@ -27,6 +27,14 @@ def ghi_json(path, value):
     path.write_text(json.dumps(value, ensure_ascii=False), encoding='utf-8')
 
 
+def tao_junction(link, target):
+    if os.name == 'nt':
+        import _winapi
+        _winapi.CreateJunction(str(target), str(link))
+    else:
+        link.symlink_to(target, target_is_directory=True)
+
+
 def manifest_demo():
     return {
         'phien_ban_manifest': 1, 'loai': 'module', 'ma': 'mau_demo',
@@ -75,6 +83,45 @@ def manifest_demo():
 
 
 class KiemDuongDanTests(unittest.TestCase):
+    def test_metadata_cd032_khong_can_validator(self):
+        entry = manifest_demo()['contract']['cong_bo'][0]
+        description = {**{k: entry[k] for k in
+                          ('ma', 'phien_ban', 'module_so_huu', 'schema', 'vi_du')},
+                       'muc_dich': 'DEMO', 'module_duoc_doc': ['mau_demo'],
+                       'truong': [{'ten': 'id', 'nghia': 'Định danh DEMO',
+                                   'bat_buoc': True, 'don_vi': 'khong_ap_dung',
+                                   'nguon': 'Thiết kế DEMO'}]}
+        goi._kiem_mo_ta_contract(description, entry)
+        for key in description:
+            invalid = deepcopy(description)
+            invalid.pop(key)
+            with self.subTest(key=key), self.assertRaises(goi.LoiGoi):
+                goi._kiem_mo_ta_contract(invalid, entry)
+        for key in description['truong'][0]:
+            invalid = deepcopy(description)
+            invalid['truong'][0].pop(key)
+            with self.subTest(field=key), self.assertRaises(goi.LoiGoi):
+                goi._kiem_mo_ta_contract(invalid, entry)
+
+    def test_kiem_ke_snapshot_khong_can_validator(self):
+        manifest = manifest_demo()
+        name = manifest['goi']['tep_kiem_ke']
+        files = {'module.json': json.dumps(manifest).encode('utf-8'), 'ui/chinh.js': b'DEMO'}
+        inventory = {'phien_ban': manifest['phien_ban'], 'tep': [
+            {'duong_dan': n, 'bytes': len(raw), 'sha256': hashlib.sha256(raw).hexdigest()}
+            for n, raw in files.items()]}
+        files[name] = json.dumps(inventory).encode('utf-8')
+        goi._kiem_kiem_ke(files, manifest, goi.GioiHan())
+        for raw in (b'DEMO da doi', b'KHAC'):
+            with self.subTest(raw=raw), self.assertRaisesRegex(goi.LoiGoi, 'Bytes hoặc SHA256'):
+                goi._kiem_kiem_ke({**files, 'ui/chinh.js': raw}, manifest, goi.GioiHan())
+        for invalid in ({}, {**inventory, 'phien_ban': '2.0.0'},
+                        {**inventory, 'tep': inventory['tep'][:-1]},
+                        {**inventory, 'tep': inventory['tep'] * 2}):
+            with self.subTest(inventory=invalid), self.assertRaises(goi.LoiGoi):
+                goi._kiem_kiem_ke({**files, name: json.dumps(invalid).encode('utf-8')},
+                                 manifest, goi.GioiHan())
+
     def test_snapshot_handle_hash_va_khong_import_ma_goi(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
@@ -98,18 +145,18 @@ class KiemDuongDanTests(unittest.TestCase):
             with self.assertRaises(goi.LoiGoi):
                 goi._snapshot(root, goi.GioiHan())
 
-    def test_snapshot_symlink_that_khong_can_validator(self):
+    def test_snapshot_junction_that_khong_can_validator(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp) / 'goi_demo'
             root.mkdir()
             outside = Path(tmp) / 'ngoai_demo'
             outside.mkdir()
-            try:
-                (root / 'lien_ket').symlink_to(outside, target_is_directory=True)
-            except OSError:
-                self.skipTest('NOT_RUN: không có quyền tạo symlink Windows')
+            link = root / 'lien_ket'
+            tao_junction(link, outside)
             with self.assertRaises(goi.LoiGoi):
                 goi._snapshot(root, goi.GioiHan())
+            with self.assertRaises(goi.LoiGoi):
+                goi._snapshot(link, goi.GioiHan())
 
     def test_staging_thieu_validator_phai_tu_choi(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -185,8 +232,14 @@ class GoiDemoTests(unittest.TestCase):
         self.save_manifest()
         self.save_schema()
         self.save_example()
-        ghi_json(self.package / 'contract/mo_ta.json',
-                 {'ma': 'ghi_chu_demo.v1', 'phien_ban': '1.0.0', 'muc_dich': 'DEMO'})
+        entry = self.manifest['contract']['cong_bo'][0]
+        self.description = {
+            **{k: entry[k] for k in ('ma', 'phien_ban', 'module_so_huu', 'schema', 'vi_du')},
+            'muc_dich': 'Ghi chú DEMO', 'module_duoc_doc': ['mau_demo'],
+            'truong': [{'ten': name, 'nghia': 'Trường DEMO ' + name, 'bat_buoc': True,
+                        'don_vi': 'khong_ap_dung', 'nguon': 'Thiết kế ghi chú DEMO'}
+                       for name in ('id', 'ngay', 'luc')]}
+        self.save_description()
         for name, raw in {'mau_demo/__init__.py': b'raise RuntimeError("CAM IMPORT GOI")',
                           'mau_demo/chay.py': b'raise RuntimeError("CAM CHAY GOI")',
                           'ui/chinh.js': b'throw new Error("CAM CHAY ASSET");',
@@ -195,6 +248,7 @@ class GoiDemoTests(unittest.TestCase):
             path = self.package / name
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_bytes(raw)
+        self.save_inventory()
         self.destination = self.root / 'du_an_demo'
         self.patcher = patch.object(cai_dat, 'THU_MUC_DU_AN', self.destination)
         self.patcher.start()
@@ -202,12 +256,29 @@ class GoiDemoTests(unittest.TestCase):
 
     def save_manifest(self):
         ghi_json(self.package / 'module.json', self.manifest)
+        self.save_inventory()
 
     def save_schema(self):
         ghi_json(self.package / 'contract/ghi_chu.v1.schema.json', self.schema)
+        self.save_inventory()
 
     def save_example(self):
         ghi_json(self.package / 'contract/ghi_chu.v1.vi_du.json', self.example)
+        self.save_inventory()
+
+    def save_description(self):
+        ghi_json(self.package / 'contract/mo_ta.json', self.description)
+        self.save_inventory()
+
+    def save_inventory(self):
+        inventory = self.package / self.manifest['goi']['tep_kiem_ke']
+        entries = []
+        for path in sorted(self.package.rglob('*')):
+            if path.is_file() and path != inventory:
+                raw = path.read_bytes()
+                entries.append({'duong_dan': path.relative_to(self.package).as_posix(),
+                                'bytes': len(raw), 'sha256': hashlib.sha256(raw).hexdigest()})
+        ghi_json(inventory, {'phien_ban': self.manifest['phien_ban'], 'tep': entries})
 
     def read(self, **kwargs):
         with patch('socket.socket', side_effect=AssertionError('Cấm mạng G2-24')):
@@ -217,9 +288,14 @@ class GoiDemoTests(unittest.TestCase):
         return cai_dat.dua_vao_staging(self.package, ma_lat='g2-24',
                                      phien_ban_core='1.0.0', **kwargs)
 
-    def reject(self):
-        with self.assertRaises(goi.LoiGoi):
+    def reject(self, reason=None):
+        with self.assertRaisesRegex(goi.LoiGoi, reason or '.'):
             self.read()
+        report = self.stage()
+        self.assertEqual(report.ket_luan, 'KHONG_DAT')
+        self.assertIsNone(report.sha256_goi)
+        if reason:
+            self.assertRegex(' '.join(report.ly_do), reason)
 
     def test_goi_hop_le_hash_va_khong_chay_ma(self):
         package = self.read()
@@ -296,15 +372,12 @@ class GoiDemoTests(unittest.TestCase):
                 self.save_manifest()
                 self.reject()
 
-    def test_symlink_ngoai_goi_bi_chan(self):
+    def test_junction_that_ngoai_goi_bi_chan(self):
         outside = self.root / 'ngoai_demo'
         outside.mkdir()
         ghi_json(outside / 'demo.json', {'demo': True})
-        try:
-            (self.package / 'lien_ket').symlink_to(outside, target_is_directory=True)
-        except OSError:
-            self.skipTest('NOT_RUN: Windows không cấp quyền tạo symlink; reparse mock có ca riêng')
-        self.reject()
+        tao_junction(self.package / 'lien_ket', outside)
+        self.reject('symlink hoặc junction')
 
     def test_hardlink_bi_chan(self):
         os.link(self.package / 'ui/chinh.js', self.package / 'ui/lien_ket.js')
@@ -335,10 +408,149 @@ class GoiDemoTests(unittest.TestCase):
             self.save_example()
             self.reject()
 
-    def test_meta_schema_sai_va_id_trung_bi_bac(self):
+    def test_meta_schema_sai_bi_bac(self):
         self.schema['type'] = 'sai_kieu'
         self.save_schema()
         self.reject()
+
+    def test_hai_schema_trung_id_bi_bac(self):
+        ghi_json(self.package / 'contract/trung.v1.schema.json', self.schema)
+        self.save_inventory()
+        self.reject(r'Trùng \$id')
+
+    def test_mo_ta_contract_thieu_tung_metadata_bi_bac(self):
+        original = deepcopy(self.description)
+        for field in original:
+            with self.subTest(field=field):
+                self.description = deepcopy(original)
+                self.description.pop(field)
+                self.save_description()
+                self.reject('contract')
+        self.description = {'muc_dich': 'DEMO'}
+        self.save_description()
+        self.reject('contract')
+
+    def test_mo_ta_contract_khong_khop_manifest_bi_bac(self):
+        original = deepcopy(self.description)
+        for field in ('ma', 'phien_ban', 'module_so_huu', 'schema', 'vi_du'):
+            with self.subTest(field=field):
+                self.description = {**original, field: 'khac_demo'}
+                self.save_description()
+                self.reject('không khớp')
+
+    def test_mo_ta_truong_thieu_thanh_phan_bi_bac(self):
+        original = deepcopy(self.description)
+        for field in ('ten', 'nghia', 'bat_buoc', 'don_vi', 'nguon'):
+            with self.subTest(field=field):
+                self.description = deepcopy(original)
+                self.description['truong'][0].pop(field)
+                self.save_description()
+                self.reject('Trường contract')
+
+    def test_mo_ta_contract_sai_kieu_rong_wildcard_bi_bac(self):
+        original = deepcopy(self.description)
+        for key, value in (('muc_dich', ' '), ('module_duoc_doc', ['*']),
+                           ('module_duoc_doc', 'mau_demo'),
+                           ('module_duoc_doc', ['mau_demo', 'mau_demo']),
+                           ('module_duoc_doc', [{}]), ('truong', []), ('truong', {})):
+            with self.subTest(key=key, value=value):
+                self.description = {**original, key: value}
+                self.save_description()
+                self.reject('contract')
+        for key, value in (('ten', 'tên'), ('bat_buoc', 1), ('don_vi', ''),
+                           ('nguon', None), ('nghia', ' ')):
+            with self.subTest(key=key, value=value):
+                self.description = deepcopy(original)
+                self.description['truong'][0][key] = value
+                self.save_description()
+                self.reject('Trường contract')
+        self.description = deepcopy(original)
+        self.description['truong'].append(deepcopy(original['truong'][0]))
+        self.save_description()
+        self.reject('Trường contract')
+
+    def test_bang_truong_phai_co_truong_con_ke_ca_ref(self):
+        self.schema['properties']['chi_tiet'] = {'$ref': '#/$defs/chi_tiet'}
+        self.schema['$defs'] = {'chi_tiet': {'type': 'array', 'items': {
+            'type': 'object', 'properties': {'ten': {'type': 'string'}}}}}
+        self.save_schema()
+        template = deepcopy(self.description['truong'][0])
+        self.description['truong'].append({**template, 'ten': 'chi_tiet', 'bat_buoc': False})
+        self.save_description()
+        self.reject('thiếu trường hoặc trường con')
+        self.description['truong'].append({**template, 'ten': 'chi_tiet.ten'})
+        self.save_description()
+        self.read()
+
+    def test_schema_cong_bo_va_v4_phai_phan_giai_offline(self):
+        for is_v4 in (False, True):
+            for ref in ('urn:ktt:contract:khong_co.v1', 'khong_co.v1',
+                        'urn:ktt:contract:chung.v1#/$defs/khong_co',
+                        'contract/khong_co.schema.json'):
+                with self.subTest(v4=is_v4, ref=ref):
+                    self.manifest['cong_bo'][0]['schema'] = 'contract/ghi_chu.v1.schema.json'
+                    self.manifest['du_lieu_rieng']['v4_cong_bo_doc'] = []
+                    if is_v4:
+                        self.manifest['du_lieu_rieng']['v4_cong_bo_doc'] = [{
+                            'module': 'nguon_demo', 'ma': 'ghi_chu_demo',
+                            'phien_ban': '1.0.0', 'schema': ref}]
+                    else:
+                        self.manifest['cong_bo'][0]['schema'] = ref
+                    self.save_manifest()
+                    self.reject()
+
+    def test_schema_cong_bo_va_v4_chap_nhan_urn_goi_va_core(self):
+        for ref in (CONTRACT_ID, 'ghi_chu_demo.v1', 'urn:ktt:contract:viec.v1',
+                    'urn:ktt:contract:chung.v1#/$defs/id'):
+            with self.subTest(ref=ref):
+                self.manifest['cong_bo'][0]['schema'] = ref
+                self.manifest['du_lieu_rieng']['v4_cong_bo_doc'] = [{
+                    'module': 'nguon_demo', 'ma': 'ghi_chu_demo',
+                    'phien_ban': '1.0.0', 'schema': ref}]
+                self.save_manifest()
+                self.read()
+
+    def test_asset_doi_bytes_hoac_sha256_khong_cap_nhat_kiem_ke_bi_bac(self):
+        asset = self.package / 'ui/chinh.js'
+        raw = asset.read_bytes()
+        for value in (b'DEMO', b'X' * len(raw)):
+            with self.subTest(size=len(value)):
+                asset.write_bytes(value)
+                self.reject('Bytes hoặc SHA256')
+
+    def test_kiem_ke_sai_bytes_sha256_phien_ban_thieu_thua_trung_bi_bac(self):
+        path = self.package / 'goi/kiem_ke.json'
+        original = json.loads(path.read_text(encoding='utf-8'))
+        for case in ('bytes', 'sha256', 'phien_ban', 'thieu', 'thua', 'trung',
+                     'tu_bam', 'thoat', 'bytes_bool', 'hash_sai', 'rong'):
+            with self.subTest(case=case):
+                inventory = deepcopy(original)
+                if case == 'bytes':
+                    inventory['tep'][0]['bytes'] += 1
+                elif case == 'sha256':
+                    inventory['tep'][0]['sha256'] = '0' * 64
+                elif case == 'phien_ban':
+                    inventory['phien_ban'] = '2.0.0'
+                elif case == 'thieu':
+                    inventory['tep'].pop()
+                elif case in ('thua', 'tu_bam', 'thoat'):
+                    inventory['tep'].append({**inventory['tep'][0], 'duong_dan': {
+                        'thua': 'thua_demo.txt', 'tu_bam': 'goi/kiem_ke.json',
+                        'thoat': '../ngoai_demo.txt'}[case]})
+                elif case == 'trung':
+                    inventory['tep'].append(deepcopy(inventory['tep'][0]))
+                elif case == 'bytes_bool':
+                    inventory['tep'][0]['bytes'] = True
+                elif case == 'hash_sai':
+                    inventory['tep'][0]['sha256'] = 'sai'
+                else:
+                    inventory = {}
+                ghi_json(path, inventory)
+                self.reject()
+
+    def test_kiem_ke_khong_duoc_bo_qua_tep_moi(self):
+        (self.package / 'ui/them_demo.js').write_bytes(b'DEMO')
+        self.reject('không liệt kê đủ')
 
     def test_ref_la_hoac_fragment_thieu_ke_ca_nhanh_khong_chay(self):
         for ref in ('https://example.invalid/x', '../ngoai_demo/schema.json',

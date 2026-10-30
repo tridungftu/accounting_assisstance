@@ -196,6 +196,69 @@ def bam_goi(files):
     return hashes, hashlib.sha256(raw).hexdigest()
 
 
+def _kiem_kiem_ke(files, manifest, gioi_han):
+    """Kiểm kê {phien_ban, tep: [{duong_dan, bytes, sha256}]}.
+
+    Liệt kê đủ mọi tệp, kể cả module.json; chỉ trừ chính tệp kiểm kê để
+    tránh vòng tự băm. Đối chiếu snapshot, không đọc lại đường dẫn nguồn.
+    """
+    name = manifest['goi']['tep_kiem_ke']
+    inventory = doc_json(files[name], gioi_han)
+    if (not isinstance(inventory, dict)
+            or inventory.get('phien_ban') != manifest['phien_ban']
+            or not isinstance(inventory.get('tep'), list)):
+        raise LoiGoi('Kiểm kê gói thiếu phiên bản hoặc danh sách tệp hợp lệ.')
+    seen = set()
+    for item in inventory['tep']:
+        if not isinstance(item, dict):
+            raise LoiGoi('Mục kiểm kê gói không hợp lệ.')
+        path = item.get('duong_dan')
+        kiem_ten_tep(path)
+        size, digest = item.get('bytes'), item.get('sha256')
+        if (path == name or path in seen or path not in files
+                or type(size) is not int or size < 0
+                or not isinstance(digest, str)
+                or not re.fullmatch(r'[0-9a-f]{64}', digest)):
+            raise LoiGoi('Kiểm kê gói có mục trùng, thiếu, thừa hoặc sai định dạng.')
+        seen.add(path)
+        if size != len(files[path]) or digest != hashlib.sha256(files[path]).hexdigest():
+            raise LoiGoi('Bytes hoặc SHA256 thực tế không khớp kiểm kê gói.')
+    if seen != set(files) - {name}:
+        raise LoiGoi('Kiểm kê gói không liệt kê đủ các tệp thực tế.')
+
+
+def _kiem_mo_ta_contract(description, entry):
+    """Metadata CD-032 phải đầy đủ và khớp mục contract đã ghim."""
+    if not isinstance(description, dict):
+        raise LoiGoi('Mô tả contract phải là object JSON.')
+    for key in ('ma', 'phien_ban', 'module_so_huu', 'schema', 'vi_du'):
+        if description.get(key) != entry[key]:
+            raise LoiGoi('Mô tả contract thiếu hoặc không khớp metadata/đường dẫn manifest.')
+    purpose = description.get('muc_dich')
+    readers = description.get('module_duoc_doc')
+    if (not isinstance(purpose, str) or not purpose.strip()
+            or not isinstance(readers, list)
+            or any(not isinstance(m, str) or not re.fullmatch(r'[a-z][a-z0-9_]*', m)
+                   for m in readers)
+            or len(set(readers)) != len(readers)):
+        raise LoiGoi('Mô tả contract thiếu mục đích hoặc danh sách module được đọc hợp lệ.')
+    fields = description.get('truong')
+    if not isinstance(fields, list) or not fields:
+        raise LoiGoi('Mô tả contract thiếu bảng trường.')
+    seen = set()
+    for field in fields:
+        if not isinstance(field, dict):
+            raise LoiGoi('Mô tả trường contract không hợp lệ.')
+        name = field.get('ten')
+        if (not isinstance(name, str)
+                or not re.fullmatch(r'[a-z][a-z0-9_]*(?:\.[a-z][a-z0-9_]*)*', name)
+                or name in seen or type(field.get('bat_buoc')) is not bool
+                or any(not isinstance(field.get(k), str) or not field[k].strip()
+                       for k in ('nghia', 'don_vi', 'nguon'))):
+            raise LoiGoi('Trường contract thiếu tên/nghĩa/bắt buộc/đơn vị/nguồn hợp lệ.')
+        seen.add(name)
+
+
 def _semver(value):
     match = re.fullmatch(r'(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)'
                          r'(?:-([0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?'
@@ -327,6 +390,7 @@ def doc_goi(thu_muc, *, phien_ban_core, phien_ban_sdk_python='1.0.0',
                      *(q['tep'] for q in manifest['quy_trinh']),
                      *(h['chu_ky'] for h in manifest['ham_core_goi'])]:
             tep(name)
+        _kiem_kiem_ke(files, manifest, limits)
         migration_dir = manifest['du_lieu_rieng']['goi_migration']['thu_muc']
         kiem_ten_tep(migration_dir)
         if migration_dir not in dirs:
@@ -352,8 +416,7 @@ def doc_goi(thu_muc, *, phien_ban_core, phien_ban_sdk_python='1.0.0',
                 if group in ('cong_bo', 'su_kien_phat') and entry['module_so_huu'] != manifest['ma']:
                     raise LoiGoi('Sai module sở hữu contract công bố/phát.')
                 description = doc_json(tep(entry['tep_mo_ta']), limits)
-                if not isinstance(description, dict) or not description:
-                    raise LoiGoi('Mô tả contract phải là object JSON có nội dung.')
+                _kiem_mo_ta_contract(description, entry)
                 local[entry['schema']] = doc_json(tep(entry['schema']), limits)
                 contracts.append(entry)
         for op in manifest['thao_tac']:
@@ -408,11 +471,44 @@ def doc_goi(thu_muc, *, phien_ban_core, phien_ban_sdk_python='1.0.0',
             if (not identity or int(identity[1]) != _semver(version)[0]
                     or (identity[2] or '1.0.0') != version):
                 raise LoiGoi('Phiên bản contract không khớp $id đã ghim.')
+            description = doc_json(tep(entry['tep_mo_ta']), limits)
+            described = {field['ten'] for field in description['truong']}
+
+            def check_fields(node, resolver, prefix='', visited=frozenset()):
+                if not isinstance(node, dict):
+                    return
+                resolver = resolver.in_subresource(Resource.from_contents(
+                    node, default_specification=DRAFT202012))
+                for field in ('$ref', '$dynamicRef'):
+                    if field in node and node[field] not in visited:
+                        resolved = resolver.lookup(node[field])
+                        check_fields(resolved.contents, resolved.resolver, prefix,
+                                     visited | {node[field]})
+                for key, child in node.get('properties', {}).items():
+                    path = prefix + key
+                    if path not in described:
+                        raise LoiGoi('Bảng trường contract thiếu trường hoặc trường con trong schema.')
+                    check_fields(child, resolver, path + '.', visited)
+                for key in ('allOf', 'anyOf', 'oneOf', 'prefixItems'):
+                    for child in node.get(key, []):
+                        check_fields(child, resolver, prefix, visited)
+                for key in ('items', 'if', 'then', 'else', 'dependentSchemas'):
+                    if key == 'dependentSchemas':
+                        for child in node.get(key, {}).values():
+                            check_fields(child, resolver, prefix, visited)
+                    elif key in node:
+                        check_fields(node[key], resolver, prefix, visited)
+
+            check_fields(schema, registry.resolver('https://goi.invalid/' + entry['schema']))
             example = doc_json(tep(entry['vi_du']), limits)
             Validator({'$ref': 'https://goi.invalid/' + entry['schema']}, registry=registry,
                       format_checker=checker).validate(example)
         refs = list(manifest['tuong_thich']['contract'])
         refs.extend(op[key] for op in manifest['thao_tac'] for key in ('dau_vao', 'dau_ra'))
+        refs.extend(entry['schema'] for entry in
+                    manifest['cong_bo'] + manifest['du_lieu_rieng']['v4_cong_bo_doc'])
+        refs.extend(engine[key] for engine in manifest['engine_dung']
+                    for key in ('dau_vao', 'dau_ra'))
         for ref in refs:
             if ref.startswith(('schema/', 'contract/')):
                 ref = 'https://goi.invalid/' + ref
