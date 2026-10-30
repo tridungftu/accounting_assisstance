@@ -98,3 +98,11 @@ Trả lời một dòng, ví dụ: **"Duyệt SDK bản 2; phạm vi CRM G2 đ�
 - Biên bản review:
   - `g1\RV-G1C.md`, `g1\RV-G1C-OPUS.md`;
   - `g1\RV-NV.md`, `g1\RV-NV-OPUS.md`.
+
+## Kết quả: ANH ĐÃ DUYỆT bản 2 (30/10/2026 17:30, CD-038)
+
+- **Duyệt toàn phiếu** và phạm vi CRM thử Core ở G2 (mục 3).
+- **Câu 1 – A:** lịch nghĩa vụ chỉ gồm giá bán chia %; phí theo dõi riêng.
+- **Câu 2 – B:** cho phép cọc đợt cuối hoặc nhiều đợt cọc.
+  - VAT cọc dồn vào đợt **không cọc gần nhất phía sau**; hết thì dồn ngược về đợt không cọc gần nhất phía trước.
+  - Lịch toàn đợt cọc → lỗi.

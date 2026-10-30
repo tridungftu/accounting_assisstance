@@ -15,3 +15,11 @@
 **Chi tiết:**
 - `docs\47-core\engine\RV-ENGINE-OPUS.md`;
 - `docs\47-core\engine\GIAO-ENGINE-1.md`, `GIAO-ENGINE-2.md` (đang sửa theo review).
+
+## Kết quả Anh chọn (30/10/2026 17:30, CD-038)
+
+- **Câu 1 – C:** đổi câu hỏi trích xuất sang mẫu cổng AI chung.
+  - Chép phần trích xuất vào engine; không sửa bản gốc.
+  - Đo lại độ chính xác trên bộ đáp án 37 tham số, không được thấp hơn bản gốc; thấp hơn thì dừng, báo Anh.
+- **Câu 2 – A.**
+- **Câu 3 – A.**
