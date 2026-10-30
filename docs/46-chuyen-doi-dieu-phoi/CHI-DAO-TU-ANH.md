@@ -457,4 +457,4 @@
 ## CD-039 · 30/10/2026 17:30 · Lead tự cài tác vụ tự khởi động lại (Anh không ngồi máy)
 **Căn cứ:** Anh 30/10 17:25: "đang không ngồi trên máy tính nên không bấm đúp được". `tools\CAI-TU-KHOI-DONG-LEAD.cmd` ghi "Không cần quyền quản trị" (schtasks cho tài khoản hiện tại).
 **Việc:** Anh cho phép lead **tự cài** tác vụ `KTT-Lead-Tu-Khoi-Dong` bằng đúng lệnh `schtasks /Create …` trong tệp `.cmd` (bỏ `pause`); kiểm bằng `schtasks /Query /TN "KTT-Lead-Tu-Khoi-Dong"`; ghi kết quả vào TRANG-THAI và `var\nhat-ky-tu-khoi-dong.log`. Nếu Windows đòi quyền quản trị/hộp xác nhận → không ép, ghi "Cần Anh bấm đúp khi về máy". Không sửa script ngoài phạm vi CD-037.
-**Trạng thái:** MỚI
+**Trạng thái:** CẦN ANH XÁC NHẬN 30/10 21:55 — tác vụ định kỳ chạy `claude --permission-mode auto` 30 phút/lần là cấu hình lâu dài; lead chỉ cài khi Anh xác nhận trực tiếp trong chat phiên lead (lệnh nằm sẵn trong `tools\CAI-TU-KHOI-DONG-LEAD.cmd`).

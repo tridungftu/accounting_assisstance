@@ -905,3 +905,26 @@ Chi tiết có tệp:dòng: `BANG-DIEU-KIEN-GO-LIVE.md`; quy trình: `CHECKLIST-
 - **Lỗ hổng cổng:** `tools\chay_test_theo_module.py` báo module **ok=0 ERROR=0** khi tiến trình con sập vì lỗi trong `_id()` (test đè `TestCase.id`).
   - Từ nay lead kiểm thêm `ok == tong` (số test khai báo).
   - Mở lát nhỏ sửa bộ chạy: tiến trình con sập → ERROR.
+### 30/10 ~21:15 — G2: đã gộp tới G2-10; G2-11 sửa vòng 2
+- **Đã gộp:** G2-00…G2-10, G2-17, G2-24, G2-33 (xem trước); sửa bộ chạy test (module sập/thiếu ca → LOI).
+- **G2-11** (tiếp nhận + biên nhận) — vòng 2:
+  - sửa fixture phiên;
+  - lead mở whitelist sửa `doi_cau_truc.py` + `test_g2_04.py` sang quy tắc số tăng chặt, cho phép khoảng trống (G2-10 không có SQL).
+- **Hàng tiếp:**
+  - G2-12 (danh mục V2) → G2-13 (kiểm toàn vẹn tiền, Opus) → 14 → 15 → 16 → 18 → 19 (Opus) → 20 → 21 (Opus);
+  - G3 chờ mốc G2-21.
+- **Ghi chú kỹ thuật** (cho lead sau nén ngữ cảnh):
+  - giao việc từ `docs\47-core\g2\GIAO-G2-*.md`, ghép phần chung `GIAO-G2-DOT-A.md`;
+  - worktree `.claude\worktrees\lat-g2-xx`;
+  - review chéo `scratchpad\g2\rv.sh MA NHANH WT "TEP" DE "TEST" OUT`;
+  - Opus review cho lát rủi ro cao bằng subagent `review-lat`.
+
+### 30/10 ~22:00 — G2-11 vòng 5, G2-12 chờ review chéo
+- **G2-11:** review chéo Codex ghi "Cần sửa". Vòng 4:
+  - 004 trả về bản gốc; quy tắc số (tăng dần, cho phép bỏ số) chuyển sang 011;
+  - không lộ biên nhận cho người không có quyền xem.
+  - PostgreSQL: 24 ok, 1 ERROR ở ca mới (phiên không xác minh được) → vòng 5 đang sửa.
+- **G2-12:** vòng 2 sửa SQL 012, test tự áp chuỗi theo số. Đã nhập `lat/g2-11` vào G2-12.
+  - PostgreSQL toàn bộ G2: 411 ok / 1 ERROR (chính ca G2-11 trên) / 2 skip.
+  - Đang review chéo Codex.
+- **CD-039 (tự cài tác vụ tự khởi động lại):** chờ Anh xác nhận trong chat — cấu hình lâu dài chạy Claude 30 phút/lần.
