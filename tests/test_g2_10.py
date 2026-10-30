@@ -186,6 +186,28 @@ class TepThuanTest(unittest.TestCase):
                 ref = tep.KhoTep(self.kho.root).phuc_hoi(self.kn, request_id=rid, **self.ctx)
                 self.assertEqual(ref['het_han_luc'], '2099-01-01T00:00:00Z')
 
+    def test_han_csdl_co_phan_le_giay_doc_va_replay_giong_lan_dau(self):
+        for han, han_csdl, mong_doi in (
+                ('2099-01-01T07:00:00+07:00', '2099-01-01T00:00:00.000000Z',
+                 '2099-01-01T00:00:00Z'),
+                ('2099-01-01T07:00:00.123456+07:00', '2099-01-01T00:00:00.123456Z',
+                 '2099-01-01T00:00:00.123456Z'),
+                ('2099-01-01T00:00:00.12Z', '2099-01-01T00:00:00.120000Z',
+                 '2099-01-01T00:00:00.120000Z')):
+            with self.subTest(han=han):
+                rid = uuid4()
+                ref = self.upload(het_han_luc=han, request_id=rid)
+                self.assertEqual(ref['het_han_luc'], mong_doi)
+                ref_csdl = {**ref, 'het_han_luc': han_csdl}
+                self.lay.return_value = self.view(ref_csdl)
+                self.assertEqual(self.kho.tham_chieu(self.kn, tai_lieu_id=self.tai_lieu_id,
+                    tep_id=ref['tep_id'], bien_the='goc',
+                    **{**self.ctx, 'hanh_dong': g209.XEM}), ref)
+                self.ghi.reset_mock()
+                self.assertEqual(self.kho.phuc_hoi(self.kn, request_id=rid, **self.ctx), ref)
+                self.ghi.assert_not_called()
+                self.assertEqual(ref_csdl['het_han_luc'], han_csdl)
+
     def test_crash_sau_kich_hoat_truoc_commit_phuc_hoi_tu_y_dinh(self):
         kich_hoat = self.kho._kich_hoat
 
