@@ -948,3 +948,15 @@ Chi tiết có tệp:dòng: `BANG-DIEU-KIEN-GO-LIVE.md`; quy trình: `CHECKLIST-
 - **G2-14:** PG 28/28. Review chéo Cần sửa — Chặn: module không tạo được việc cùng transaction (trái SDK §3.4); heartbeat rút ngắn lease. Vòng 2 đang sửa.
 - **G2-15** (bus) và **G2-00b** (chẩn đoán lỗi đổi cấu trúc): xong code, đang chạy PG.
 - **CD-040:** ĐÃ NHẬN; chưa cài tác vụ — chờ Anh bấm xác nhận trong phiên lead.
+
+### 31/10 ~01:00 — gộp G2-14, G2-15, G2-13; hồi quy hợp nhất
+- **Đã gộp:**
+  - G2-14 (`6d6ee92`, review vòng 2 Đạt);
+  - G2-15 (`bd40d8b`, Chặn phiên XEM đã sửa, lead kiểm diff);
+  - G2-13 (`f951c3f`, review Opus vòng 2 Đạt).
+- **Hồi quy G2 trên hợp nhất** (22 module): 565 ok / 1 FAIL — test G2-13 ghi cứng phiên bản cuối = 13. Lead sửa nóng, chạy lại 31/31.
+- **Đang làm:**
+  - G2-16 vòng 2 (2 Cần sửa);
+  - G2-18 (HTTP boundary / dispatcher);
+  - G2-13b (resolver đúng một dòng + mã lỗi).
+- Ghi chú G2-25 / rủi ro chấp nhận: `KE-HOACH-LAT-G2-G3.md` cuối tệp.
