@@ -194,6 +194,8 @@ class KiemToanPostgresTest(unittest.TestCase):
         self.conn.execute("INSERT INTO loi.nguoi_dung(id,dang_nhap,ten,vai_tro) VALUES (%s,%s,'DEMO','XEM')",
                           (nd, 'demo_' + nd.hex))
         self.conn.execute("INSERT INTO loi.phap_nhan(id,ma,ten) VALUES (%s,%s,'DEMO')", (pn, pn.hex))
+        self.conn.execute('INSERT INTO loi.phan_quyen(nguoi_dung_id,phap_nhan_id,module) VALUES (%s,%s,%s)',
+                          (nd, pn, ['CRM']))
         p = phien.cap_phien(self.core, nguoi_dung_id=nd, module='CRM', phap_nhan_id=pn,
                             dang_nhap_csdl=self.login, pham_vi_hanh_dong=['DOC'],
                             hieu_luc_den=datetime.now(timezone.utc) + timedelta(minutes=5))
