@@ -768,3 +768,8 @@ Chi tiết có tệp:dòng: `BANG-DIEU-KIEN-GO-LIVE.md`; quy trình: `CHECKLIST-
 - **Phiếu CSDL:** vẫn chờ Anh.
 - **SDK (phiếu 3):** Codex review 1 Chặn / 4 Cần sửa; Opus đang review, sau đó giao Codex sửa một vòng.
 ### 30/10 ~12:00 — Anh trả lời phiếu CSDL: câu 2 A, câu 3 A (danh sách nhân sự gửi sau); câu 1 Anh hỏi lại → lead giải thích, chờ chọn
+### 30/10 ~12:05 — **Anh DUYỆT phiếu API** (1A: tự đóng sau 5 phút rảnh; 2A: tệp tải lên 20 MB)
+- **Còn chờ:**
+  - phiếu CSDL câu 1 (lead đã giải thích, khuyến nghị A);
+  - phiếu SDK (Codex đang sửa vòng 2).
+- G2 chưa bắt đầu.

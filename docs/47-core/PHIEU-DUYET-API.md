@@ -83,3 +83,12 @@ Trả lời một dòng, ví dụ: **"Duyệt API; câu 1 A, câu 2 A (scan thư
   - `g1\RV-G1B.md` (Codex);
   - `g1\RV-G1B-OPUS.md` (Opus vòng 1);
   - vòng 2: không còn Chặn, ba câu bổ sung đã ghi vào §2.4 và §4.2 của đặc tả.
+
+## Kết quả: ANH ĐÃ DUYỆT (30/10/2026)
+
+- **"Duyệt API, 1A, 2A".**
+- **Câu 1:** module tự đóng sau 5 phút rảnh. Lần mở sau hiện "đang khởi động" rồi tự vào. Admin giữ lâu hơn theo số đo.
+- **Câu 2:** giới hạn tệp tải lên 20 MB.
+- Các mục "hỏi chung ở phiếu CSDL" theo kết quả phiếu CSDL:
+  - câu 2 A, câu 3 A;
+  - câu 1 chờ Anh. Nếu B thì sửa §4.2 đặc tả API trước G2.
