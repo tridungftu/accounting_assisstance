@@ -3,6 +3,7 @@
 ``doc_phien(hash_sid)`` là kho phiên backend: kiểm hạn/thu hồi rồi cập nhật last-used
 nguyên tử và trả PhienHTTP. SID browser không phải mã CSDL G2-03. Bộ ghép ứng
 dụng cung cấp kho này; không dùng danh tính client hoặc kho phiên DEMO cũ.
+Route ghi phạm vi hệ thống bị đóng tại registry/Dispatcher, chờ G2-11c.
 """
 
 from __future__ import annotations

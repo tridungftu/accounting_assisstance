@@ -199,9 +199,10 @@ class BienHTTPTest(unittest.TestCase):
         self.assertEqual(self.route.handler.call_count, 2)
 
     def test_tien_phien_theo_registry_van_bat_buoc_origin_csrf(self):
-        # Đường dẫn khác /phien chứng minh biên HTTP dùng khai báo registry.
-        self.doi_route('DELETE', duong_dan='/api/v1/xac-thuc', phien='tien_phien', pham_vi='he_thong',
+        # Giả lập route lọt đăng ký; biên HTTP vẫn kiểm Origin/CSRF trước.
+        self.route = route_demo('DELETE', duong_dan='/api/v1/xac-thuc', phien='tien_phien', pham_vi='he_thong',
                        path_schema={'type': 'object', 'additionalProperties': False}, doi_tuong=lambda p, b: {})
+        self.registry.tra = Mock(return_value=(self.route, {}))
         self.doc_phien.return_value = replace(self.session, nguoi_dung_id=None, tien_phien=True)
         hd = {'Cookie': '__Host-ktt_tien_phien=PRE_CANARY', 'X-Phap-Nhan-Id': None}
         for bad in ({'Origin': None}, {'Origin': 'https://evil.demo'}, {'X-CSRF-Token': None},
@@ -212,13 +213,15 @@ class BienHTTPTest(unittest.TestCase):
         self.route.handler.assert_not_called()
         self.assertEqual(self.conn.events, [])
         self.assertEqual(wsgi(self.app, 'DELETE', path='/api/v1/xac-thuc',
-                              body={'row_version': '1'}, headers=hd)['status'], 200)
-        self.route.handler.assert_called_once()
+                              body={'row_version': '1'}, headers=hd)['status'], 503)
+        self.route.handler.assert_not_called()
+        self.assertEqual(self.conn.events, [])
         self.xac.assert_not_called()
 
-    def test_post_phien_tien_phien_hop_le_va_het_han(self):
-        self.doi_route('POST', duong_dan='/api/v1/phien', phien='tien_phien', pham_vi='he_thong',
+    def test_post_phien_lot_dang_ky_van_bi_chan_va_kiem_han_tien_phien(self):
+        self.route = route_demo('POST', duong_dan='/api/v1/phien', phien='tien_phien', pham_vi='he_thong',
                        path_schema={'type': 'object', 'additionalProperties': False}, doi_tuong=lambda p, b: {})
+        self.registry.tra = Mock(return_value=(self.route, {}))
         pre = replace(self.session, nguoi_dung_id=None, tien_phien=True)
         hd = {'Cookie': '__Host-ktt_tien_phien=PRE_CANARY', 'X-Phap-Nhan-Id': None, 'Idempotency-Key': None}
         for session in (replace(pre, tao_luc=NOW-timedelta(minutes=10)), None):
@@ -229,8 +232,35 @@ class BienHTTPTest(unittest.TestCase):
         self.assertEqual(self.conn.events, [])
         self.doc_phien.return_value = pre
         self.assertEqual(wsgi(self.app, 'POST', path='/api/v1/phien',
-                              body={'row_version': '1'}, headers=hd)['status'], 200)
-        self.route.handler.assert_called_once()
+                              body={'row_version': '1'}, headers=hd)['status'], 503)
+        self.route.handler.assert_not_called()
+        self.assertEqual(self.conn.events, [])
+        self.tra.assert_not_called()
+        self.ghi.assert_not_called()
+
+    def test_ghi_he_thong_lot_dang_ky_tra_loi_chuan_truoc_handler(self):
+        policy = self.dispatcher.quyen_he_thong = Mock(return_value=True)
+        for method in ('POST', 'PATCH', 'PUT', 'DELETE'):
+            for che_do_phien in ('bat_buoc', 'tien_phien', 'khong'):
+                with self.subTest(method=method, phien=che_do_phien):
+                    route = route_demo(method, pham_vi='he_thong', phien=che_do_phien)
+                    self.registry.tra = Mock(return_value=(route, {'id': str(OBJ)}))
+                    # Thiếu key và sai schema vẫn không lọt tới biên nhận/handler.
+                    result = wsgi(self.app, method, body={},
+                                  headers={'X-Phap-Nhan-Id': None, 'Idempotency-Key': None})
+                    self.assertEqual((result['status'], result['body']['ma']), (503, 'CHUA_SAN_SANG'))
+                    self.assertEqual(set(result['body']),
+                                     {'ma', 'thong_diep', 'request_id', 'thu_lai_duoc'})
+                    self.assertTrue(self.kiem.kiem(ERROR, result['body']))
+                    self.assertEqual(result['body']['request_id'], result['headers']['X-Request-Id'])
+                    UUID(result['body']['request_id'])
+                    self.assertEqual(result['headers']['Retry-After'], '2')
+                    self.assertEqual(self.conn.events, [])
+                    route.handler.assert_not_called()
+        policy.assert_not_called()
+        self.xac.assert_not_called()
+        self.mtq.assert_not_called()
+        self.session.lay_ma.assert_not_called()
         self.tra.assert_not_called()
         self.ghi.assert_not_called()
 
@@ -654,6 +684,19 @@ class BienHTTPTest(unittest.TestCase):
 
 
 class RegistrySchemaTest(unittest.TestCase):
+    def test_dang_ky_ghi_he_thong_loi_dung_ma_khong_them_route(self):
+        for method in ('POST', 'PATCH', 'PUT', 'DELETE'):
+            for che_do_phien in ('bat_buoc', 'tien_phien', 'khong'):
+                with self.subTest(method=method, phien=che_do_phien):
+                    registry = d.Registry()
+                    route = route_demo(method, pham_vi='he_thong', phien=che_do_phien)
+                    with self.assertRaises(d.LoiDangKyRoute) as caught:
+                        registry.dang_ky(route)
+                    self.assertEqual(caught.exception.ma, 'ROUTE_GHI_HE_THONG_CHUA_HO_TRO')
+                    self.assertEqual(str(caught.exception), caught.exception.ma)
+                    self.assertEqual(registry._routes, [])
+                    route.handler.assert_not_called()
+
     def test_khai_bao_phien_pham_vi_sai_bi_tu_choi(self):
         for doi in ({'phien': None}, {'phien': 'typo'}, {'pham_vi': None}, {'pham_vi': 'typo'},
                     {'phien': 'khong'}, {'phien': 'tien_phien'},
