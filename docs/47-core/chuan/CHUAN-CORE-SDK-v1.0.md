@@ -3,7 +3,7 @@
 **Tệp:** `CHUAN-CORE-SDK-v1.0.md`  
 **Phiên bản:** v1.0  
 **Ngày Anh duyệt phiếu SDK bản 2:** 30/10/2026, 17:30 — CD-038  
-**Văn bản chuẩn:** bản soạn để review theo CD-034/CD-038.
+**Văn bản chuẩn:** chờ Anh xem (CD-034 mục 4); đã qua review Opus (Đạt) và sửa 5 điểm nhỏ.
 
 **Đối tượng:** Người lập trình module, engine, adapter và giao diện kết nối Core; áp dụng cho lập trình viên nội bộ và AI worker.
 
@@ -377,7 +377,7 @@ Core lọc header nội bộ do client gửi. Module/frontend không tự dựng
 | Module | Tài khoản máy hạn chế, ví dụ `ktt_module`, khác tài khoản Core. |
 | Engine thông thường | Tài khoản máy hạn chế; không nhận login CSDL. |
 | Engine giữ bí mật | Mask, AI Cloud, tải hóa đơn, ABBYY: **mỗi engine một tài khoản máy riêng**, khác tài khoản module. |
-| Engine cần màn hình | Ngoại lệ được duyệt cho tải hóa đơn và trường hợp ABBYY tương ứng; không tự mở rộng quyền cho engine khác. |
+| Engine cần màn hình | Tải hóa đơn: phiên Windows riêng có màn hình (CD-038 engine 2A). ABBYY: tài khoản riêng (CD-038 engine 3A); quyền/phiên cụ thể ghi ngoại lệ, hỏi Anh (CD-033). Không tự mở rộng quyền cho engine khác. |
 
 Không chạy chung tài khoản Core rồi chỉ hạn chế token của tiến trình con để coi là đã cách ly.
 
@@ -393,6 +393,7 @@ Kho bí mật `D:\DU-LIEU-KE-TOAN\bi-mat\` chỉ cho tài khoản dịch vụ Co
 Credential và bí mật được lấy từ két Core rồi chuyển qua stdin/handle được bảo vệ:
 
 - Mỗi module chỉ nhận credential runtime của chính mình.
+- Mỗi instance nhận credential SDK riêng cùng instance ID qua stdin hoặc handle kế thừa được bảo vệ, cùng kênh bootstrap nhận listener; Core kiểm credential và instance còn sống trên mỗi lời gọi SDK, thu hồi khi dừng hoặc crash (CHUAN-CORE-API §3.11c).
 - Runtime không nhận credential migration.
 - Engine chỉ nhận bí mật cần cho phạm vi được giao.
 - Không truyền qua biến môi trường, dòng lệnh, manifest, tệp cấu hình gói hoặc log.
@@ -456,6 +457,8 @@ RAM/CPU và giới hạn lấy từ Windows Job accounting do Core đo; số t�
 Hệ thống chỉ đề xuất đổi chế độ theo số đo; **Admin bấm áp dụng**, có CAS và audit. Không tự đổi sang luôn chạy.
 
 ### 3.7. Quy tắc riêng cho engine
+
+**Bắt buộc (CD-036):** chỉ chép code gốc khi bắt buộc, ghi nguồn + SHA256 + phiên bản; không sửa bản gốc khi chưa hỏi Anh (Mask v2 theo `CLAUDE.md` của Mask v2); test gốc phải đạt khi chạy qua engine với dữ liệu giả.
 
 **[Engine]**
 
@@ -1307,7 +1310,7 @@ Các mục này không thay điều kiện bắt buộc tại §3 và §6.
 
 | Trách nhiệm | Được làm | Không được làm |
 |---|---|---|
-| [Module] Dịch vụ chung | Gọi SDK theo quyền đã cấp. | Tự dựng lại đăng nhập, kho tệp, OCR, mã hóa hoặc điều phối chung. |
+| [Module] Dịch vụ chung | Gọi SDK theo quyền đã cấp. | Tự dựng lại đăng nhập, kho tệp, OCR, mã hóa hoặc điều phối chung; gọi thẳng máy AI hoặc API Cloud (AI chỉ qua capability `ai.hoi@1`). |
 | [Module] Dữ liệu riêng | Ghi V1, gọi V2, đọc V3/V4 đã cấp. | SQL chéo bảng riêng, DML bảng chung hoặc dùng GRANT tay để vượt contract. |
 | [Module] Contract | Dùng lại hoặc đề xuất bản mới theo quy trình duyệt. | Tạo contract trùng nghĩa, sửa schema dưới `$id` đã phát hành hoặc tự kích hoạt bản chưa duyệt. |
 | [Module] Transaction | Ghi nghiệp vụ, biên nhận, việc/bus trên cùng `tx` khi cần nguyên tử. | Tạo việc qua HTTP rồi ghi biên nhận riêng nhưng coi là cùng transaction. |
@@ -1417,6 +1420,8 @@ Không tạo CSDL hoặc role theo mỗi test; dùng môi trường thử đư�
 
 ### 7.2. Dữ liệu, API và giao diện
 
+- [ ] [Module] AI chỉ qua cổng AI chung (Cloud qua Mask v2).
+
 - [ ] [Module] V1–V4, quyền yêu cầu và quyền được cấp khớp nhau.
 - [ ] [Module] Route nằm đúng namespace, có method/operation/OpenAPI và schema.
 - [ ] [Module] Biên nhận, nghiệp vụ và tạo việc/bus nguyên tử trên cùng `tx` khi cần.
@@ -1428,6 +1433,8 @@ Không tạo CSDL hoặc role theo mỗi test; dùng môi trường thử đư�
 - [ ] [Module] [Engine] Nếu tính lịch CRM: giá bán đủ 100%, phí riêng, VAT cọc đúng 2B và toàn cọc báo lỗi.
 
 ### 7.3. Tiến trình, engine và bí mật
+
+- [ ] [Module] [Engine] Credential SDK theo instance; bị thu hồi khi dừng/crash.
 
 - [ ] [Module] [Engine] Nhận cổng từ Core, readiness thực trước phục vụ.
 - [ ] [Module] Runtime không migrate; phiên bản dữ liệu/checksum khớp.

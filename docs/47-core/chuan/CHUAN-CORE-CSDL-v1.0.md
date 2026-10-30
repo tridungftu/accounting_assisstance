@@ -691,7 +691,7 @@ Không chép lại toàn bộ OpenAPI hoặc JSON Schema trong chuẩn CSDL. Khi
 
 ### 8.2. Điểm còn chờ, không tự chốt
 
-Cách gọi cụ thể (hàm SDK cho biên nhận V2, File Store, mã ủy nhiệm, credential instance) nằm ở `CHUAN-CORE-SDK-v1.0.md`, **chưa ban hành, chờ Anh duyệt phiếu SDK bản 2**. Chưa có SDK thì không tự viết lớp thay thế.
+Cách gọi cụ thể (hàm SDK cho biên nhận V2, File Store, mã ủy nhiệm, credential instance) nằm ở `CHUAN-CORE-SDK-v1.0.md` — **đã ban hành (CD-038, 30/10/2026)**.
 
 | Nội dung | Trạng thái |
 |---|---|

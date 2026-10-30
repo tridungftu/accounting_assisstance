@@ -1005,7 +1005,7 @@ Các đường dẫn dưới đây tính từ gốc repo `accounting_assisstance
 
 **Các điểm còn chờ, không tự quyết định:**
 
-Cách gọi cụ thể (hàm SDK cho biên nhận V2, File Store, mã ủy nhiệm, credential instance) nằm ở `CHUAN-CORE-SDK-v1.0.md`, **chưa ban hành, chờ Anh duyệt phiếu SDK bản 2**. Chưa có SDK thì không tự viết lớp thay thế.
+Cách gọi cụ thể (hàm SDK cho biên nhận V2, File Store, mã ủy nhiệm, credential instance) nằm ở `CHUAN-CORE-SDK-v1.0.md` — **đã ban hành (CD-038, 30/10/2026)**.
 
 - Danh sách nhân sự đăng nhập thật: **chờ Anh**.
 - Phiếu SDK bản 2 và điều kiện mở lại lập trình: theo trạng thái phê duyệt, **chờ Anh** khi chưa có quyết định.
