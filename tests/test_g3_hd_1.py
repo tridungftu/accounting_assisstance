@@ -129,6 +129,43 @@ class Hd1Tests(unittest.TestCase):
                     self.assertEqual(result.ma, code)
         self.assertEqual(read(context=None).trang_thai, TrangThaiEngine.CHO)
 
+    def test_context_mau_thuan_kem_thieu_van_la_loi(self):
+        cases = (
+            (replace(CTX, source_profile_ref="DEMO_LA", profile_document_sha256=None),
+             "PROFILE_REF_MISMATCH", "PROFILE_DOCUMENT_NOT_BOUND"),
+            (replace(CTX, expected_raw_ref=parser.XmlRawRef("b" * 64, len(RAW)), company=None),
+             "RAW_REF_MISMATCH", "COMPANY_ABSENT"),
+            (replace(CTX, profile_document_sha256="b" * 64, company=None),
+             "PROFILE_DOCUMENT_MISMATCH", "COMPANY_ABSENT"),
+            (replace(CTX, profile_payload_sha256=parser.PROFILE_DOCUMENT_SHA256, company=None),
+             "PROFILE_PAYLOAD_CONFUSED", "COMPANY_ABSENT"),
+            (replace(CTX, identity_profile_ref="DEMO_LA", company=None),
+             "IDENTITY_PROFILE_UNSUPPORTED", "COMPANY_ABSENT"),
+        )
+        for context, invalid, missing in cases:
+            with self.subTest(invalid=invalid, missing=missing):
+                result = read(context=context)
+                self.validate(result.hoa_don)
+                self.assertIs(result.context, context)
+                self.assertEqual(result.chi_tiet_nguon, parser.doc_hoa_don_xml(RAW, context))
+                self.assertIn(invalid, result.hoa_don["ly_do_ung_vien"])
+                self.assertIn(missing, result.hoa_don["ly_do_ung_vien"])
+                self.assertIn(invalid, self.codes(result.hoa_don))
+                self.assertIsNone(result.hoa_don["dinh_danh_nguon"])
+                self.assertIsNone(result.hoa_don["ma_bam_noi_dung"])
+                self.assertEqual((result.trang_thai, result.ma), (TrangThaiEngine.LOI, invalid))
+
+    def test_context_chi_thieu_van_cho(self):
+        for context, missing in (
+            (replace(CTX, profile_document_sha256=None), "PROFILE_DOCUMENT_NOT_BOUND"),
+            (replace(CTX, identity_profile_ref=None), "IDENTITY_PROFILE_ABSENT"),
+            (replace(CTX, company=None), "COMPANY_ABSENT"),
+        ):
+            with self.subTest(missing=missing):
+                result = read(context=context)
+                self.validate(result.hoa_don)
+                self.assertEqual((result.trang_thai, result.ma), (TrangThaiEngine.CHO, missing))
+
     def test_header_thieu_rong_trung_mixed_sai_ngay_tien_te_so(self):
         cases = (
             (b"<SHDon>000001</SHDon>", b"", "so_hoa_don"),
@@ -264,6 +301,25 @@ class Hd1Tests(unittest.TestCase):
         self.assertIn("ZIP_MEMBER_READ_ERROR", {i.code for i in result.entries[0].issues})
         self.assertIsNotNone(result.entries[1].result)
         self.assertEqual(result.raw_zip, bytes(raw))
+
+    def test_zip_ten_entry_co_thang_khong_chon_mst_tu_cau_truc_trung(self):
+        duplicate = RAW.replace(b"</NBan>", b"</NBan><NBan/>")
+        for name in ("DEMO.xml", "DEMO#1.xml", "DEMO#1#2.xml"):
+            for raw, expected in ((duplicate, None), (RAW, "0000000001")):
+                with self.subTest(name=name, duplicate=raw == duplicate):
+                    entry = doc.doc_zip(pack((name, raw))).entries[0]
+                    self.assertEqual(entry.entry_name, name)
+                    self.assertEqual(entry.result.raw_xml, raw)
+                    payload = doc.chieu_hoa_don(entry.result, tep_xml_id=XML_ID,
+                                                chi_tiet_nguon_tep_id=DETAIL_ID)
+                    self.validate(payload)
+                    if raw == duplicate:
+                        self.assertIn("STRUCTURE_DUPLICATE", self.codes(payload))
+                        # Parser vẫn giữ occurrence; phép chiếu không được chọn nó.
+                        field = next(f for f in entry.result.header_fields if f.name == "NBan/MST")
+                        self.assertEqual(field.duy_nhat.lexeme, "0000000001")
+                    self.assertEqual(payload["dau_hoa_don"]["ma_so_thue_mua"], "0000000002")
+                    self.assertEqual(payload["dau_hoa_don"]["ma_so_thue_ban"], expected)
 
     def test_zip_context_khong_khop_va_trung_context_khong_duoc_ghep(self):
         raw = pack(("DEMO.xml", RAW))

@@ -101,7 +101,8 @@ def chieu_hoa_don(
         field = header.get(tag)
         text = _text(field)
         if field is not None and any(
-            i.code == "STRUCTURE_DUPLICATE" and field.locator.startswith(i.locator.split("#", 1)[-1] + "/")
+            # Dấu # cuối ngăn path XML; tên entry ZIP có thể chứa #.
+            i.code == "STRUCTURE_DUPLICATE" and field.locator.startswith(i.locator.rsplit("#", 1)[-1] + "/")
             for i in result.issues
         ):
             text = None
@@ -201,9 +202,9 @@ def doc_xml(
     payload = chieu_hoa_don(result, tep_xml_id=tep_xml_id,
                            chi_tiet_nguon_tep_id=chi_tiet_nguon_tep_id, revision=revision)
     state, code, reason = _trang_thai_xml(result)
-    # Wrapper cũ coi đọc được cấu trúc là XONG kể cả context mâu thuẫn.
-    # Biên contract không nhận đó là đọc thành công theo profile đã đăng ký.
-    if state == TrangThaiEngine.XONG:
+    # Context mâu thuẫn là lỗi kể cả khi đồng thời thiếu context (CHO).
+    # Giữ ưu tiên lỗi không đọc được cấu trúc từ wrapper cũ.
+    if state in (TrangThaiEngine.XONG, TrangThaiEngine.CHO):
         for invalid in ("PROFILE_REF_MISMATCH", "PROFILE_DOCUMENT_MISMATCH",
                         "PROFILE_PAYLOAD_CONFUSED", "IDENTITY_PROFILE_UNSUPPORTED", "RAW_REF_MISMATCH"):
             if invalid in result.candidate_reasons:
