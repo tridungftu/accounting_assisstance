@@ -209,6 +209,27 @@ class ThamSoTests(unittest.TestCase):
             with self.subTest(changes=changes), self.assertRaises(ValueError):
                 anh_xa(dong(), **changes)
 
+    def test_uuid_32_ky_tu_khong_co_gach_noi_bi_chan(self):
+        for field, value in (("tep_id", TEP), ("phan_hoi_nguon_tep_id", PHAN_HOI)):
+            with self.subTest(field=field), self.assertRaisesRegex(ValueError, "TRICH_TEP_ID_SAI"):
+                anh_xa(dong(), **{field: value.replace("-", "")})
+
+    def test_cung_uuid_khac_hoa_thuong_khong_phai_tep_rieng(self):
+        value = "abcdef00-0000-4000-8000-000000000001"
+        for original, response in ((value, value.upper()), (value.upper(), value)):
+            with self.subTest(original=original), self.assertRaisesRegex(
+                    ValueError, "TRICH_PHAN_HOI_PHAI_LA_TEP_RIENG"):
+                anh_xa(dong(), tep_id=original, phan_hoi_nguon_tep_id=response)
+
+    def test_uuid_dung_format_khac_nhau_dat_schema_ke_ca_viet_hoa(self):
+        original = "ABCDEF00-0000-4000-8000-000000000001"
+        response = "abcdef00-0000-4000-8000-000000000002"
+        result = anh_xa(dong(), tep_id=original, phan_hoi_nguon_tep_id=response)
+        self.assertEqual(result["nguon_tep_ids"], [original])
+        self.assertEqual(result["phan_hoi_nguon_tep_id"], response)
+        self.assertEqual(result["tham_so"][0]["dan_chung"][0]["vi_tri"]["tep_id"], original)
+        self._kiem_schema(result)
+
     def test_cloud_va_ocr_bi_chan_ca_truoc_lan_chay(self):
         for ai, cfg in ((None, None), (Mock(la_cloud=True), None), (AIGia(), {})):
             with self.subTest(ai=ai, cfg=cfg), self.assertRaisesRegex(ValueError, "CLOUD_BI_CHAN"):

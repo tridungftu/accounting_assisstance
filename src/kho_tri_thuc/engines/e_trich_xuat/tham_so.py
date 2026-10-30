@@ -86,11 +86,18 @@ def anh_xa_tham_so(phan_hoi, *, tep_id, phan_hoi_nguon_tep_id, van_ban,
     """
     if (loai_hop_dong, danh_muc_id, danh_muc_sha256) != ("XD", DANH_MUC_ID, DANH_MUC_SHA256):
         raise ValueError("TRICH_DANH_MUC_KHONG_HO_TRO")
+    tep_uuids = []
     for value in (tep_id, phan_hoi_nguon_tep_id):
         if not isinstance(value, str):
             raise ValueError("TRICH_TEP_ID_SAI")
-        UUID(value)
-    if tep_id == phan_hoi_nguon_tep_id:
+        try:
+            parsed = UUID(value)
+        except ValueError as exc:
+            raise ValueError("TRICH_TEP_ID_SAI") from exc
+        if str(parsed) != value.lower():
+            raise ValueError("TRICH_TEP_ID_SAI")
+        tep_uuids.append(parsed)
+    if tep_uuids[0] == tep_uuids[1]:
         raise ValueError("TRICH_PHAN_HOI_PHAI_LA_TEP_RIENG")
     if type(revision) is not int or revision < 1:
         raise ValueError("TRICH_REVISION_SAI")
