@@ -960,3 +960,23 @@ Chi tiết có tệp:dòng: `BANG-DIEU-KIEN-GO-LIVE.md`; quy trình: `CHECKLIST-
   - G2-18 (HTTP boundary / dispatcher);
   - G2-13b (resolver đúng một dòng + mã lỗi).
 - Ghi chú G2-25 / rủi ro chấp nhận: `KE-HOACH-LAT-G2-G3.md` cuối tệp.
+
+### 31/10 ~03:30 — gộp G2-13b, G2-16, G2-18, G2-19, G2-17b, HD-1, TRICH-1a, AI-1a
+- **Đã gộp sau 01:00:**
+  - G2-16;
+  - G2-13b;
+  - HD-1, TRICH-1a (G3 phần thư viện thuần);
+  - G2-18 (route ghi phạm vi hệ thống bị chặn, chờ G2-11c);
+  - G2-19 (Opus Đạt, 6 Nên sửa đã sửa);
+  - G2-17b;
+  - AI-1a (chỉ DTO).
+- **Đang làm:**
+  - G2-20 (SDK tối thiểu — mốc N còn G2-20 + G2-21);
+  - OCR-1 vòng 2, MASK-1 vòng 2 (manifest theo G2-17b);
+  - hồi quy G2 + G3 trên hợp nhất.
+- **Chờ Anh (đưa vào báo cáo sáng):**
+  - CD-040: cài tác vụ tự khởi động — cần xác nhận trong phiên lead;
+  - thư viện `cryptography` (chữ ký Ed25519 thẻ liên tiến trình G2-19) chưa khai trong `pyproject.toml`;
+  - G2-CR3 `moc_da_xay_ra.v1`: 4 điểm chờ chốt;
+  - AI-1b: schema đầu vào `ai.hoi@1` / cờ chỉ Local.
+- **Việc kỹ thuật ghi nhớ:** thêm `__init__.py` cho `engines/` và các `e_*` (đóng gói wheel).
