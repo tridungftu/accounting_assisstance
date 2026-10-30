@@ -7,6 +7,7 @@ Không lưu credential/DSN; engine không được bootstrap cửa transaction n
 """
 
 from contextlib import contextmanager
+import logging
 import re
 import time
 from types import SimpleNamespace
@@ -25,6 +26,7 @@ _LOI_CORE = {su_kien.LoiSuKien: su_kien._LOI,
              tiep_nhan.LoiTiepNhan: tiep_nhan._LOI, viec.LoiViec: viec._LOI}
 _MA_CORE = frozenset().union(*_LOI_CORE.values())
 _MA_SDK = {'SDK_GIAO_DICH', 'SDK_TX_DA_DONG', 'SDK_LOGIN', 'SDK_NGU_CANH', 'SDK_UY_NHIEM'}
+_LOG = logging.getLogger(__name__)
 
 
 class _LoiCSDL(RuntimeError):
@@ -49,6 +51,67 @@ def _don(conn):
         conn.execute(_DON)
         conn.execute('RESET ROLE')
         conn.execute('RESET search_path')
+        conn.execute('RESET ALL')
+        conn.execute('SELECT pg_advisory_unlock_all()')
+        conn.execute('UNLISTEN *')
+
+
+def _goi_csdl(goi, *tham_so):
+    ma = sqlstate = None
+    try:
+        return goi(*tham_so)
+    except Exception as exc:
+        chinh = getattr(getattr(exc, 'diag', None), 'message_primary', None)
+        if isinstance(chinh, str) and chinh in _MA_CORE:
+            ma = chinh
+        trang_thai = getattr(exc, 'sqlstate', None)
+        if isinstance(trang_thai, str) and re.fullmatch('[0-9A-Z]{5}', trang_thai):
+            sqlstate = trang_thai
+        _xoa_loi(exc)
+    goi = tham_so = chinh = trang_thai = None
+    raise _LoiCSDL(ma, sqlstate)
+
+
+class _ConTro:
+    """Chỉ đọc kết quả, không chuyển tiếp thuộc tính tới cursor/connection."""
+
+    __slots__ = ('__tx', '__cursor')
+
+    def __init__(self, tx, cursor):
+        self.__tx, self.__cursor = tx, cursor
+
+    def __repr__(self):
+        return 'ConTro(<an>)'
+
+    def __reduce__(self):
+        raise TypeError('Không serialize con trỏ SDK')
+
+    @property
+    def rowcount(self):
+        self.__tx._kiem()
+        return self.__cursor.rowcount
+
+    def fetchone(self):
+        self.__tx._kiem()
+        return _goi_csdl(self.__cursor.fetchone)
+
+    def fetchmany(self, size=1):
+        self.__tx._kiem()
+        return _goi_csdl(self.__cursor.fetchmany, size)
+
+    def fetchall(self):
+        self.__tx._kiem()
+        return _goi_csdl(self.__cursor.fetchall)
+
+    def __iter__(self):
+        self.__tx._kiem()
+        return self
+
+    def __next__(self):
+        row = self.fetchone()
+        if row is None:
+            raise StopIteration
+        return row
 
 
 class GiaoDich:
@@ -70,7 +133,7 @@ class GiaoDich:
     @property
     def info(self):
         self._kiem()
-        return self._conn.info
+        return SimpleNamespace(transaction_status=self._conn.info.transaction_status)
 
     @property
     def ngu_canh(self):
@@ -79,19 +142,10 @@ class GiaoDich:
 
     def execute(self, cau, tham_so=None):
         self._kiem()
-        ma = sqlstate = None
         try:
-            return self._conn.execute(cau, tham_so)
-        except Exception as exc:
-            chinh = getattr(getattr(exc, 'diag', None), 'message_primary', None)
-            if isinstance(chinh, str) and chinh in _MA_CORE:
-                ma = chinh
-            trang_thai = getattr(exc, 'sqlstate', None)
-            if isinstance(trang_thai, str) and re.fullmatch('[0-9A-Z]{5}', trang_thai):
-                sqlstate = trang_thai
-            _xoa_loi(exc)
-        tham_so = cau = chinh = trang_thai = None
-        raise _LoiCSDL(ma, sqlstate)
+            return _ConTro(self, _goi_csdl(self._conn.execute, cau, tham_so))
+        finally:
+            cau = tham_so = None
 
 
 class CuaGiaoDich:
@@ -135,7 +189,9 @@ class CuaGiaoDich:
                             raise LoiGiaoDich('SDK_LOGIN', 403)
                         identity = phien.xac_minh_phien(conn, ma=ctx.ma, module=ctx.module,
                             phap_nhan_id=ctx.phap_nhan_id, hanh_dong=ctx.hanh_dong)
-                        if (identity is None or identity.nguoi_dung_id != ctx.nguoi_dung_id
+                        if identity is None:
+                            raise LoiGiaoDich('SDK_UY_NHIEM', 401)
+                        if (identity.nguoi_dung_id != ctx.nguoi_dung_id
                                 or identity.module != ctx.module or identity.phap_nhan_id != ctx.phap_nhan_id
                                 or identity.hanh_dong != ctx.hanh_dong
                                 or identity.viec_id is not None or identity.the_he is not None):
@@ -165,6 +221,20 @@ class CuaGiaoDich:
                 loi = (exc.ma, exc.http_status)
             elif type(exc) in _LOI_CORE and exc.ma in _LOI_CORE[type(exc)]:
                 loi = (exc.ma, exc.http_status)
+            elif isinstance(exc, mtq.LoiMTQ) and exc.ma == '42501':
+                loi = ('42501', 403)
+            elif isinstance(exc, phien.LoiPhien):
+                loi = ('SDK_UY_NHIEM', 403 if getattr(exc, 'http_status', None) == 403 else 401)
+            else:
+                ma = getattr(exc, 'ma', None)
+                status = getattr(exc, 'http_status', None)
+                if (isinstance(ma, str) and re.fullmatch('[A-Z][A-Z0-9_]{0,79}', ma)
+                        and type(status) is int and 400 <= status <= 599):
+                    loi = (ma, status)
+            loai_loi = type(exc).__name__
+            if not re.fullmatch('[A-Za-z_][A-Za-z0-9_]{0,79}', loai_loi):
+                loai_loi = 'Exception'
+            _LOG.warning('loai_loi=%s request_id=%s', loai_loi, ctx.request_id)
             _xoa_loi(exc)
         if tx is not None:
             tx._mo = False

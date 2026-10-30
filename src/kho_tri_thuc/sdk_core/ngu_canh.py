@@ -110,22 +110,33 @@ def _json_cac_cap(cac_cap):
 
 
 class NhanRequest:
-    """Bộ kiểm chứng từ bootstrap tin cậy; nonce chung toàn instance/tiến trình.
+    """Bộ kiểm chứng từ bootstrap tin cậy; nonce chung trong một tiến trình.
+
+    Bất biến: Core cấp nonce_khoi_dong ngẫu nhiên (ít nhất 256 bit) riêng cho
+    từng tiến trình nhận, đổi sau mọi restart, kể cả khi giữ instance_id.
+    Core ký nonce này trong thẻ và chỉ chuyển thẻ tới đúng tiến trình đó.
+    Các bộ đọc trong cùng tiến trình dùng chung nonce bootstrap và sổ RAM;
+    các tiến trình khác không được dùng chung nonce bootstrap. Vì vậy thẻ
+    cũ bị từ chối dù sổ nonce RAM đã mất hoặc instance có nhiều tiến trình.
 
     Caller truyền operation/hành động lấy từ registry, không lấy từ client.
     Khóa chống trùng là header thực nhận (None cho request không có header).
     Không lưu lại thẻ; mã CSDL tiếp tục được Core kiểm trên từng transaction.
     """
 
-    __slots__ = ('issuer', 'module', 'instance_id', '_kiem_chu_ky', '_dong_ho')
+    __slots__ = ('issuer', 'module', 'instance_id', '_nonce_khoi_dong', '_kiem_chu_ky', '_dong_ho')
 
-    def __init__(self, *, issuer, module, instance_id, kiem_chu_ky, dong_ho=time.time):
+    def __init__(self, *, issuer, module, instance_id, nonce_khoi_dong,
+                 kiem_chu_ky, dong_ho=time.time):
         if (not isinstance(issuer, str) or not issuer
                 or not re.fullmatch('[a-z][a-z0-9_]{0,30}', module)
-                or not callable(kiem_chu_ky)):
+                or not callable(kiem_chu_ky)
+                or not isinstance(nonce_khoi_dong, str)
+                or not re.fullmatch('[A-Za-z0-9_-]{43,128}', nonce_khoi_dong)):
             raise LoiNguCanh()
         self.issuer, self.module = issuer, module
         self.instance_id = UUID(str(instance_id))
+        self._nonce_khoi_dong = nonce_khoi_dong
         self._kiem_chu_ky, self._dong_ho = kiem_chu_ky, dong_ho
 
     def __repr__(self):
@@ -152,7 +163,8 @@ class NhanRequest:
             du_lieu = json.loads(payload, object_pairs_hook=_json_cac_cap)
             bat_buoc = {'issuer', 'module', 'instance_id', 'nguoi_dung_id', 'ma_uy_nhiem',
                         'phap_nhan_id', 'module_nguon', 'operation', 'hanh_dong',
-                        'request_id', 'khoa', 'phat_luc', 'het_han', 'nonce', 'hash_request'}
+                        'request_id', 'khoa', 'phat_luc', 'het_han', 'nonce', 'hash_request',
+                        'nonce_khoi_dong'}
             if not isinstance(du_lieu, dict) or set(du_lieu) != bat_buoc:
                 raise ValueError()
             now = self._dong_ho()
@@ -162,6 +174,8 @@ class NhanRequest:
                 raise ValueError()
             if (du_lieu['issuer'] != self.issuer or du_lieu['module'] != self.module
                     or UUID(du_lieu['instance_id']) != self.instance_id
+                    or not isinstance(du_lieu['nonce_khoi_dong'], str)
+                    or not hmac.compare_digest(du_lieu['nonce_khoi_dong'], self._nonce_khoi_dong)
                     or du_lieu['operation'] != operation or du_lieu['hanh_dong'] != hanh_dong
                     or du_lieu['khoa'] != khoa):
                 raise ValueError()
@@ -184,7 +198,7 @@ class NhanRequest:
                           UUID(du_lieu['phap_nhan_id']), du_lieu['module_nguon'], operation,
                           hanh_dong, UUID(du_lieu['request_id']), khoa, den,
                           MaBiMat(du_lieu['ma_uy_nhiem']))
-            nonce = (self.issuer, self.module, self.instance_id,
+            nonce = (self.issuer, self.module, self.instance_id, self._nonce_khoi_dong,
                      hashlib.sha256(du_lieu['nonce'].encode('ascii')).digest())
             with _KHOA_NONCE:
                 for cu in [k for k, het_han in _NONCE.items() if het_han <= now]:

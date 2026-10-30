@@ -45,17 +45,20 @@ class BoTheDemo:
     def __init__(self, *, nguoi=None, pn=None, ma=None):
         self.key = Ed25519PrivateKey.generate()
         self.instance = uuid4()
+        self.nonce_khoi_dong = secrets.token_urlsafe(32)
         self.now = time.time()
         self.nguoi, self.pn = nguoi or uuid4(), pn or uuid4()
         self.ma = ma or phien.MaBiMat('CANARY_UY_NHIEM_' + 'x' * 32)
         self.reader = self.bo_doc()
 
-    def bo_doc(self):
+    def bo_doc(self, *, nonce_khoi_dong=None):
         return nc.NhanRequest(issuer='core-demo', module='crm', instance_id=self.instance,
+            nonce_khoi_dong=nonce_khoi_dong or self.nonce_khoi_dong,
             kiem_chu_ky=self.key.public_key().verify, dong_ho=lambda: self.now)
 
     def payload(self, **doi):
         return dict(issuer='core-demo', module='crm', instance_id=str(self.instance),
+            nonce_khoi_dong=self.nonce_khoi_dong,
             nguoi_dung_id=str(self.nguoi), phap_nhan_id=str(self.pn), module_nguon='core',
             operation='CRM.DEMO.LAP', hanh_dong=g214.LAP, request_id=str(uuid4()),
             ma_uy_nhiem=self.ma.lay_de_truyen(), khoa='DEMO-KEY', phat_luc=self.now,
@@ -75,9 +78,10 @@ class BoTheDemo:
 
 class KetNoiDemo:
     def __init__(self):
-        self.info = SimpleNamespace(transaction_status=0)
+        self.info = SimpleNamespace(transaction_status=0, password='CANARY_PASSWORD')
         self.login = 'dang_nhap_mod_crm'
         self.events = []
+        self.statements = []
         self.closed = False
         self.loi_commit = self.loi_don = False
 
@@ -97,11 +101,13 @@ class KetNoiDemo:
             self.info.transaction_status = 0
 
     def execute(self, cau, ts=None):
+        self.statements.append(cau)
         if cau == gd._DON and self.loi_don:
             raise RuntimeError('CANARY_CREDENTIAL')
         if cau == 'SELECT session_user, current_user':
             return SimpleNamespace(fetchone=lambda: (self.login, self.login))
-        return SimpleNamespace(fetchone=lambda: (1,))
+        return SimpleNamespace(connection=self, rowcount=1, fetchone=lambda: (1,),
+                               fetchmany=lambda size: [(1,)], fetchall=lambda: [(1,)])
 
     def close(self):
         self.closed = True
@@ -167,6 +173,33 @@ class NguCanhTest(unittest.TestCase):
             result = list(pool.map(nhan, range(2)))
         self.assertEqual(sum(ctx is not None for ctx in result), 1)
 
+    def test_restart_cung_instance_so_ram_trong_tu_choi_the_cu_con_han(self):
+        the = self.bo.the()
+        self.bo.nhan(the)
+        nonce_moi = secrets.token_urlsafe(32)
+        reader = self.bo.bo_doc(nonce_khoi_dong=nonce_moi)
+        # Sổ trống mô phỏng tiến trình mới; cùng khóa, issuer, instance và giờ.
+        with patch.object(nc, '_NONCE', {}):
+            with self.assertRaises(nc.LoiNguCanh):
+                reader.nhan_request(the, method='POST', duong_dan='/demo?a=1',
+                    body=b'{"demo":true}', operation='CRM.DEMO.LAP', hanh_dong=g214.LAP, khoa='DEMO-KEY')
+            self.bo.reader = reader
+            self.bo.nhan(self.bo.the(nonce_khoi_dong=nonce_moi))
+
+    def test_tien_trinh_khac_cung_instance_khong_nhan_the_chua_dung(self):
+        the = self.bo.the()
+        reader = self.bo.bo_doc(nonce_khoi_dong=secrets.token_urlsafe(32))
+        with self.assertRaises(nc.LoiNguCanh):
+            reader.nhan_request(the, method='POST', duong_dan='/demo?a=1',
+                body=b'{"demo":true}', operation='CRM.DEMO.LAP', hanh_dong=g214.LAP, khoa='DEMO-KEY')
+        self.bo.nhan(the)
+
+    def test_nonce_bootstrap_bat_buoc_va_khong_lay_tu_the(self):
+        for nonce in (None, '', 'x', 'é' * 43):
+            with self.subTest(nonce=nonce), self.assertRaises(nc.LoiNguCanh):
+                nc.NhanRequest(issuer='core-demo', module='crm', instance_id=self.bo.instance,
+                    nonce_khoi_dong=nonce, kiem_chu_ky=self.bo.key.public_key().verify)
+
     def test_sai_hash_khong_tieu_thu_nonce_retry_nghiep_vu_dung_nonce_moi(self):
         the = self.bo.the()
         with self.assertRaises(nc.LoiNguCanh):
@@ -202,6 +235,7 @@ class NguCanhTest(unittest.TestCase):
             credential = 'CANARY_CREDENTIAL'
             raise RuntimeError(credential + payload.decode(errors='replace'))
         reader = nc.NhanRequest(issuer='core-demo', module='crm', instance_id=self.bo.instance,
+                               nonce_khoi_dong=self.bo.nonce_khoi_dong,
                                kiem_chu_ky=verifier)
         try:
             reader.nhan_request(self.bo.the(), method='POST', duong_dan='/demo?a=1', body=b'{}',
@@ -260,6 +294,102 @@ class GiaoDichTest(unittest.TestCase):
             self.assertNotIn('CANARY', repr(bat.exception.__context__))
             self.assertIsNone(bat.exception.__context__.__traceback__)
         self.assertFalse(self.conn.closed)
+
+    def test_cursor_info_khong_lo_conn_va_cursor_het_hieu_luc_cung_tx(self):
+        with self.cua.giao_dich(self.ctx) as tx:
+            cursor = tx.execute('SELECT 1')
+            self.assertFalse(hasattr(cursor, 'connection'))
+            self.assertFalse(hasattr(cursor, 'execute'))
+            self.assertEqual(vars(tx.info), {'transaction_status': 2})
+            tx.info.transaction_status = 0
+            self.assertEqual(tx.info.transaction_status, 2)
+            self.assertEqual(cursor.rowcount, 1)
+            self.assertEqual(cursor.fetchmany(2), [(1,)])
+            self.assertEqual(cursor.fetchall(), [(1,)])
+            self.assertEqual(next(iter(cursor)), (1,))
+            self.assertNotIn('CANARY', repr(cursor))
+            with self.assertRaises(TypeError):
+                pickle.dumps(cursor)
+        for doc in (cursor.fetchone, cursor.fetchmany, cursor.fetchall,
+                    lambda: cursor.rowcount, lambda: next(cursor), lambda: iter(cursor)):
+            with self.subTest(doc=doc), self.assertRaises(gd.LoiGiaoDich):
+                doc()
+
+    def test_loi_fetch_duoc_khu_bi_mat(self):
+        with self.assertRaises(gd.LoiGiaoDich) as bat:
+            with self.cua.giao_dich(self.ctx) as tx:
+                cursor = tx.execute('SELECT 1')
+                with patch.object(cursor._ConTro__cursor, 'fetchone',
+                                  side_effect=RuntimeError('CANARY_FETCH')):
+                    cursor.fetchone()
+        self.assertNotIn('CANARY', ''.join(traceback.format_exception(bat.exception)))
+
+    def test_don_day_du_truoc_va_sau_handler_loi_don_phai_dong_truoc_tra_pool(self):
+        cac_lenh = (gd._DON, 'RESET ROLE', 'RESET search_path', 'RESET ALL',
+                    'SELECT pg_advisory_unlock_all()', 'UNLISTEN *')
+        with self.cua.giao_dich(self.ctx):
+            pass
+        self.assertEqual(tuple(self.conn.statements[:6]), cac_lenh)
+        self.assertEqual(tuple(self.conn.statements[-6:]), cac_lenh)
+        for lenh in cac_lenh:
+            self.conn.closed = False
+            self.conn.events.clear()
+            tra_pool = []
+            @contextmanager
+            def pool():
+                try:
+                    yield self.conn
+                finally:
+                    tra_pool.append(self.conn.closed)
+            def execute(cau, ts=None):
+                if cau == lenh and 'handler' in self.conn.events:
+                    raise RuntimeError('CANARY_CLEANUP')
+                return KetNoiDemo.execute(self.conn, cau, ts)
+            with self.subTest(lenh=lenh), patch.object(self.cua, '_ket_noi', pool), \
+                    patch.object(self.conn, 'execute', side_effect=execute):
+                with self.assertRaises(gd.LoiGiaoDich):
+                    with self.cua.giao_dich(self.ctx):
+                        self.conn.events.append('handler')
+                self.assertEqual(tra_pool, [True])
+
+    def test_loi_handler_giu_http_ma_va_log_chi_loai_request_id(self):
+        class LoiHandler(RuntimeError):
+            def __init__(self, ma, status):
+                self.ma, self.http_status = ma, status
+                super().__init__('CANARY_HANDLER')
+        loi_phien = phien.LoiPhien('CANARY_PHIEN')
+        loi_quyen = phien.LoiPhien('CANARY_QUYEN')
+        loi_quyen.http_status = 403
+        cases = ((gd.mtq.LoiMTQ('42501'), '42501', 403),
+                 (loi_phien, 'SDK_UY_NHIEM', 401), (loi_quyen, 'SDK_UY_NHIEM', 403),
+                 (LoiHandler('KHONG_TIM_THAY', 404), 'KHONG_TIM_THAY', 404),
+                 (LoiHandler('SAI_NGHIEP_VU', 422), 'SAI_NGHIEP_VU', 422),
+                 (RuntimeError('CANARY_DRIVER'), 'SDK_GIAO_DICH', 500))
+        for exc, ma, status in cases:
+            loai = type(exc).__name__
+            with self.subTest(ma=ma), self.assertLogs(gd._LOG.name, logging.WARNING) as log:
+                with self.assertRaises(gd.LoiGiaoDich) as bat:
+                    with self.cua.giao_dich(self.ctx):
+                        raise exc
+            self.assertEqual((bat.exception.ma, bat.exception.http_status), (ma, status))
+            self.assertEqual([record.getMessage() for record in log.records],
+                             [f'loai_loi={loai} request_id={self.ctx.request_id}'])
+            self.assertNotIn('CANARY', ''.join(log.output))
+            self.assertIsNone(log.records[0].exc_info)
+            self.assertNotIn('CANARY', ''.join(traceback.format_exception(bat.exception)))
+
+    def test_phien_thu_hoi_401_sai_pham_vi_403(self):
+        for identity, status in ((None, 401), (SimpleNamespace(nguoi_dung_id=uuid4()), 403)):
+            self.xac.return_value = identity
+            with self.assertRaises(gd.LoiGiaoDich) as bat:
+                with self.cua.giao_dich(self.ctx):
+                    self.fail('Không được vào handler')
+            self.assertEqual(bat.exception.http_status, status)
+        self.xac.side_effect = phien.LoiPhien('CANARY_PHIEN')
+        with self.assertRaises(gd.LoiGiaoDich) as bat:
+            with self.cua.giao_dich(self.ctx):
+                self.fail('Không được vào handler')
+        self.assertEqual(bat.exception.http_status, 401)
 
     def test_sai_login_sai_actor_va_phien_thu_hoi_chan_truoc_handler(self):
         self.conn.login = 'dang_nhap_mod_m2'
@@ -419,7 +549,6 @@ class SDKPostgresTest(unittest.TestCase):
 
     def test_pool_commit_va_rollback_khong_giu_phien_cu(self):
         for rollback in (False, True):
-            self.module.execute("SELECT set_config('ktt.ma_phien',%s,false)", (self.uy.lay_de_truyen(),))
             try:
                 with self.cua.giao_dich(self.bo.nhan()) as tx:
                     self.assertEqual(tx.execute("SELECT current_setting('ktt.ma_phien',true)").fetchone()[0],
@@ -432,6 +561,48 @@ class SDKPostgresTest(unittest.TestCase):
             with self.module.transaction():
                 for ten in ('ma_phien', 'module', 'phap_nhan_id', 'hanh_dong', 'viec_id', 'the_he'):
                     self.assertFalse(self.module.execute('SELECT current_setting(%s,true)', ('ktt.' + ten,)).fetchone()[0])
+
+    def test_pool_A_roi_B_cung_backend_sach_guc_lock_listen(self):
+        conn_A = self.module
+        pid = conn_A.execute('SELECT pg_backend_pid()').fetchone()[0]
+        app_mac_dinh = conn_A.execute('SHOW application_name').fetchone()[0]
+        bo_A = self.bo
+        lock = secrets.randbits(60)
+        for rollback in (False, True):
+            try:
+                with self.cua.giao_dich(bo_A.nhan()) as tx:
+                    self.assertEqual(tx.execute('SELECT pg_backend_pid()').fetchone()[0], pid)
+                    tx.execute("SELECT set_config('ktt.ma_phien',%s,false)", (bo_A.ma.lay_de_truyen(),))
+                    tx.execute("SELECT set_config('application_name','DEMO_G219_A',false)")
+                    tx.execute("SELECT set_config('ktt.demo_g219','DEMO_A',false)")
+                    tx.execute('SELECT pg_advisory_lock(%s)', (lock,))
+                    tx.execute('LISTEN demo_g219')
+                    if rollback:
+                        raise RuntimeError('DEMO_ROLLBACK')
+            except gd.LoiGiaoDich:
+                if not rollback:
+                    raise
+            self.assertEqual(conn_A.execute('SHOW application_name').fetchone()[0], app_mac_dinh)
+            self.assertFalse(conn_A.execute("SELECT current_setting('ktt.ma_phien',true)").fetchone()[0])
+            self.assertFalse(conn_A.execute("SELECT current_setting('ktt.demo_g219',true)").fetchone()[0])
+            self.assertEqual(conn_A.execute('SELECT * FROM pg_listening_channels()').fetchall(), [])
+            self.assertEqual(conn_A.execute("SELECT count(*) FROM pg_locks WHERE pid=%s AND locktype='advisory'",
+                                           (pid,)).fetchone()[0], 0)
+        # Fixture có người B/pháp nhân/mã khác; vẫn mượn chính connection A.
+        g214.ViecPostgresTest.setUp(self)
+        bo_B = BoTheDemo(nguoi=self.nd, pn=self.pn, ma=self.uy)
+        self.assertNotEqual(bo_A.nguoi, bo_B.nguoi)
+        self.assertNotEqual(bo_A.ma.lay_de_truyen(), bo_B.ma.lay_de_truyen())
+        self.assertIs(self.module, conn_A)
+        with self.cua.giao_dich(bo_B.nhan()) as tx:
+            self.assertEqual(tx.execute('SELECT pg_backend_pid()').fetchone()[0], pid)
+            ma_B = tx.execute("SELECT current_setting('ktt.ma_phien',true)").fetchone()[0]
+            self.assertEqual(ma_B, bo_B.ma.lay_de_truyen())
+            self.assertNotEqual(ma_B, bo_A.ma.lay_de_truyen())
+            identity = phien.xac_minh_phien(tx, ma=phien.MaBiMat(ma_B), module='crm',
+                                           phap_nhan_id=bo_B.pn, hanh_dong=g214.LAP)
+            self.assertEqual(identity.nguoi_dung_id, bo_B.nguoi)
+            self.assertFalse(tx.execute("SELECT current_setting('ktt.demo_g219',true)").fetchone()[0])
 
     def test_handler_rollback_cung_nghiep_vu_bien_nhan_viec_bus(self):
         for rollback in (False, True):
