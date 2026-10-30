@@ -212,12 +212,11 @@ class DanhTinhPostgresTest(unittest.TestCase):
 
     @classmethod
     def _don_tai_nguyen(cls):
-        # Chỉ DB tự tạo; giữ role test, khóa mọi login, không DROP ROLE.
+        # Chỉ khóa login test; runner --pg-demo của lead tự dọn CSDL sau module.
         for (login,) in cls.admin.execute('''
             SELECT rolname FROM pg_roles WHERE rolname=ANY(%s) AND rolcanlogin
         ''', (cls.cac_vai,)).fetchall():
             cls.admin.execute(sql.SQL('ALTER ROLE {} NOLOGIN').format(sql.Identifier(login)))
-        cls.admin.execute(sql.SQL('DROP DATABASE {}').format(sql.Identifier(cls.db)))
 
     def test_dung_login_that_khong_co_quyen_owner_ddl(self):
         self.assertEqual(self.runtime.execute('SELECT current_user, session_user').fetchone(),
@@ -311,9 +310,9 @@ class DanhTinhPostgresTest(unittest.TestCase):
         self.assertEqual(anh(), truoc)
         self.test_gia_actor_phap_nhan_khong_mo_rls()
 
-    @unittest.skip('Cần lead: contract phiên/quyền G2-03; RLS G2-02 đang đóng mặc định')
+    @unittest.skip('chờ G2-03 phiên xác minh')
     def test_nghiep_vu_tao_tra_va_trung_duoi_login_that(self):
-        # Lead cần bổ sung ngữ cảnh phiên G2-03 trước khi bỏ skip.
+        # Lead bật lại ở G2-02b sau khi G2-03 gộp, bổ sung ca cách ly pháp nhân A/B.
         with self.runtime.transaction():
             nd = danh_tinh.tao_nguoi_dung(self.runtime, dang_nhap='demo_g202', ten='DEMO')
             pn = danh_tinh.tao_phap_nhan(self.runtime, ma='DEMO_G202', ten='DEMO')
