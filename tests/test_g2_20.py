@@ -63,6 +63,18 @@ def _data(tep_id=None, contract='demo.kq'):
         revision_truoc=0, nguon=[])
 
 
+class _KenhCoreDemo(engine.KenhCore):
+    """Adapter phía Core của fixture; IPC/xác minh thật còn nợ G2-21/22."""
+
+    __slots__ = ('__goi',)
+
+    def __init__(self, goi):
+        self.__goi = goi
+
+    def goi(self, operation, giu_viec, **payload):
+        return self.__goi(operation, giu_viec, **payload)
+
+
 class DichVuThuanTest(unittest.TestCase):
     def setUp(self):
         self.conn = MagicMock()
@@ -226,7 +238,13 @@ class DichVuThuanTest(unittest.TestCase):
         self.assertEqual([ten for ten in cac_khoi if ten], [
             'loi.sdk_nguon_module', 'loi.ghi_kiem_toan_v2',
             'loi_tai_lieu.ghi_metadata', 'loi_tai_lieu.ghi_ket_qua_v2'])
-        self.assertIn("GRANT USAGE ON SCHEMA loi_tai_lieu TO %I',chu)", SQL)
+        self.assertNotIn('GRANT USAGE ON SCHEMA loi_tai_lieu', SQL)
+        core = SQL[SQL.index('    CREATE OR REPLACE FUNCTION loi.sdk_nguon_module('):
+                   SQL.index('    CREATE OR REPLACE FUNCTION loi_tai_lieu.ghi_metadata(')]
+        self.assertNotIn('loi_tai_lieu.', core)
+        for ham in ('loi.xac_minh_phien', 'loi.mtq_quyet_dinh_phien', 'loi.module_trang_thai'):
+            self.assertIn(ham, core)
+        self.assertIn('Module cai sau 020 can G2-25 cap quyen', SQL)
         self.assertNotRegex(SQL, r'GRANT USAGE ON SCHEMA [^\n]+vai\.rolname')
 
     def test_core_giu_nguyen_logic_cu_ngoai_nhanh_module(self):
@@ -246,13 +264,26 @@ class EngineThuanTest(unittest.TestCase):
         self.now = datetime.now(timezone.utc)
         self.giu = _giu()
         self.kenh = MagicMock(spec=['goi'])
-        self.sdk = engine.SDKEngine(self.giu, kenh_core=self.kenh, dong_ho=lambda: self.now)
+        self.transport = _KenhCoreDemo(self.kenh.goi)
+        self.sdk = engine.SDKEngine(self.giu, kenh_core=self.transport, dong_ho=lambda: self.now)
         self.data = _data()
         del self.data['tep_id']
 
+    def test_tu_choi_closure_va_doi_tuong_tuy_y_co_goi(self):
+        goi = MagicMock()
+        def closure(*args, **kwargs):
+            return goi(*args, **kwargs)
+        for kenh in (closure, SimpleNamespace(goi=closure), self.kenh):
+            with self.subTest(kieu=type(kenh).__name__), self.assertRaises(TypeError):
+                engine.SDKEngine(self.giu, kenh_core=kenh)
+        goi.assert_not_called()
+        self.kenh.goi.assert_not_called()
+        with self.assertRaises(TypeError):
+            engine.KenhCore()
+
     def test_engine_api_dir_dict_khong_co_sql_ket_noi_dsn(self):
         self.assertFalse(hasattr(self.sdk, '__dict__'))
-        for obj in (self.sdk, self.giu):
+        for obj in (self.sdk, self.giu, self.transport):
             names = set(dir(obj)) | set(getattr(obj, '__dict__', {}))
             self.assertFalse(names & {'execute', 'cursor', 'connection', 'conn', 'dsn', 'commit',
                                      'rollback', '_conn', '_ctx', 'transaction', 'ngu_canh'})
@@ -417,26 +448,32 @@ class SDKPostgresTest(unittest.TestCase):
             FROM loi_tai_lieu.ket_qua_xu_ly WHERE id=%s''',(kid,)).fetchone()
         self.assertEqual(row,(giu.viec_id,giu.buoc_viec_id,giu.lan_thu_id,giu.the_he,None))
         self._het_han(giu)
-        with self.assertRaises(gd.LoiGiaoDich):
+        with self.assertRaises(gd.LoiGiaoDich) as bat:
             with self.cua.giao_dich(self._ngu_canh()) as tx:
                 self.sdk.ket_qua.ghi(tx,tai_lieu_id=self.tai_lieu_id,
                                     du_lieu=self.data,giu_viec=giu)
+        self.assertEqual(bat.exception.ma, 'VIEC_MAT_LEASE')
 
     def test_module_khac_va_phap_nhan_khac_bi_bac(self):
         for module, pn in (('m2',self.pn), ('crm',self.pn_khac)):
-            with self.assertRaises(g214.psycopg.Error):
+            ma = 'SDK_MODULE' if module != 'crm' else 'TAI_LIEU_PHIEN'
+            with self.subTest(module=module, pn=pn, cua='ket_qua'), self.assertRaises(g214.psycopg.Error) as bat:
                 self.module.execute('SELECT loi_tai_lieu.ghi_ket_qua_v2(%s,%s,%s,%s,%s,%s::jsonb,%s)',
                     (self.uy.lay_de_truyen(),module,pn,LAP,self.tai_lieu_id,json.dumps(self.data),uuid4()))
-            with self.assertRaises(g214.psycopg.Error):
+            self.assertEqual((bat.exception.sqlstate, bat.exception.diag.message_primary), ('42501', ma))
+            with self.subTest(module=module, pn=pn, cua='audit'), self.assertRaises(g214.psycopg.Error) as bat:
                 self.module.execute('SELECT loi.ghi_kiem_toan_v2(%s,%s,%s,%s,%s,%s,%s,%s)',
                     (self.uy.lay_de_truyen(),module,pn,LAP,'doi_tuong',self.obj,'DAT',uuid4()))
+            self.assertEqual((bat.exception.sqlstate, bat.exception.diag.message_primary), ('42501', ma))
 
     def test_nguon_tu_khai_bi_bac_ca_goi_sql_truc_tiep(self):
         for key in ('module','engine_id','phien_ban_module','ham','actor','viec_id','trang_thai_duyet'):
-            with self.subTest(key=key), self.assertRaises(g214.psycopg.Error):
+            with self.subTest(key=key), self.assertRaises(g214.psycopg.Error) as bat:
                 self.module.execute('SELECT loi_tai_lieu.ghi_ket_qua_v2(%s,%s,%s,%s,%s,%s::jsonb,%s)',
                     (self.uy.lay_de_truyen(),'crm',self.pn,LAP,self.tai_lieu_id,
                      json.dumps(self.data | {key:'GIA'}),uuid4()))
+            self.assertEqual((bat.exception.sqlstate, bat.exception.diag.message_primary),
+                             ('22023', 'SDK_NGUON_TU_KHAI'))
 
     def test_module_khong_ghi_ket_qua_thuoc_module_khac(self):
         # Fixture giữ cùng pháp nhân/quyền MTQ nhưng tài liệu thuộc module khác.
@@ -445,18 +482,23 @@ class SDKPostgresTest(unittest.TestCase):
         self.conn.execute('''INSERT INTO loi_tai_lieu.tai_lieu
             (id,phap_nhan_id,module,loai,ten,bang_doi_tuong,doi_tuong_id,phien_ban_contract,tao_boi)
             VALUES (%s,%s,'m2','DEMO','DEMO','doi_tuong',%s,'1',%s)''', (tid,self.pn,self.obj,self.nd))
-        with self.assertRaises(gd.LoiGiaoDich):
-            with self.cua.giao_dich(self._ngu_canh()) as tx:
-                self.sdk.ket_qua.ghi(tx, tai_lieu_id=tid, du_lieu=self.data)
+        # Transport G2-19 chưa giữ mã TAI_LIEU_* đầy đủ: kiểm mã tại cửa SQL thật.
+        with self.assertRaises(g214.psycopg.Error) as bat:
+            self.module.execute('SELECT loi_tai_lieu.ghi_ket_qua_v2(%s,%s,%s,%s,%s,%s::jsonb,%s)',
+                (self.uy.lay_de_truyen(),'crm',self.pn,LAP,tid,json.dumps(self.data),uuid4()))
+        self.assertEqual((bat.exception.sqlstate, bat.exception.diag.message_primary),
+                         ('42501', 'TAI_LIEU_KHONG_THAY'))
 
     def test_revision_hash_va_thieu_tep_giu_quy_tac_g209(self):
         with self.cua.giao_dich(self._ngu_canh()) as tx:
             kid = self._ghi_kq(tx)
-        for doi in ({'goc_id':str(kid),'revision_truoc':0},
-                    {'nguon':[dict(tep_id=self.ref['tep_id'],sha256='b'*64)]}):
-            with self.assertRaises(gd.LoiGiaoDich):
-                with self.cua.giao_dich(self._ngu_canh()) as tx:
-                    self._ghi_kq(tx, **doi)
+        for doi, state, ma in (({'goc_id':str(kid),'revision_truoc':0}, '40001', 'TAI_LIEU_REVISION'),
+                ({'nguon':[dict(tep_id=self.ref['tep_id'],sha256='b'*64)]}, '22023', 'TAI_LIEU_NGUON')):
+            with self.subTest(ma=ma), self.assertRaises(g214.psycopg.Error) as bat:
+                self.module.execute('SELECT loi_tai_lieu.ghi_ket_qua_v2(%s,%s,%s,%s,%s,%s::jsonb,%s)',
+                    (self.uy.lay_de_truyen(),'crm',self.pn,LAP,self.tai_lieu_id,
+                     json.dumps(self.data | doi),uuid4()))
+            self.assertEqual((bat.exception.sqlstate, bat.exception.diag.message_primary), (state, ma))
         with self.cua.giao_dich(self._ngu_canh()) as tx:
             kid2 = self._ghi_kq(tx, goc_id=str(kid), revision_truoc=1)
             missing = self._ghi_kq(tx, tep_id=None, nguon=[])
@@ -488,6 +530,11 @@ class SDKPostgresTest(unittest.TestCase):
             with self.cua.giao_dich(self._ngu_canh()) as tx:
                 self._ghi_kq(tx)
         self.assertEqual((bat.exception.ma, bat.exception.http_status), ('TAI_LIEU_MTQ', 403))
+        with self.assertRaises(g214.psycopg.Error) as bat:
+            self.module.execute('SELECT loi.ghi_kiem_toan_v2(%s,%s,%s,%s,%s,%s,%s,%s)',
+                (self.uy.lay_de_truyen(),'crm',self.pn,LAP,'doi_tuong',self.obj,'DAT',uuid4()))
+        self.assertEqual((bat.exception.sqlstate, bat.exception.diag.message_primary),
+                         ('42501', 'TAI_LIEU_MTQ'))
         self.conn.execute('UPDATE loi.phien_xac_thuc SET tao_luc=clock_timestamp()-interval \'1 hour\', '
                           'hieu_luc_den=clock_timestamp()-interval \'1 second\' '
                           "WHERE phap_nhan_id=%s AND loai='UY_NHIEM_PHIEN'", (self.pn,))
@@ -507,12 +554,38 @@ class SDKPostgresTest(unittest.TestCase):
             self.assertTrue(r[0])
             self.assertIn('search_path=pg_catalog, pg_temp',r[1])
             self.assertEqual(r[2], self.tien_to + 'vai_doi_cau_truc_' + chu)
-            for schema in ('loi', 'loi_tai_lieu'):
+            for schema in {'loi', chu}:
                 self.assertTrue(self.conn.execute('SELECT has_schema_privilege(%s,%s,\'USAGE\')',
                     (r[2], schema)).fetchone()[0])
             self.assertFalse(self.conn.execute('''SELECT EXISTS(SELECT FROM pg_proc p,
                 LATERAL aclexplode(coalesce(p.proacl,acldefault('f',p.proowner))) a
                 WHERE p.oid=%s::regproc AND a.grantee=0 AND a.privilege_type='EXECUTE')''', (ten,)).fetchone()[0])
+        for ten in ('loi.ghi_kiem_toan_v2', 'loi_tai_lieu.ghi_ket_qua_v2'):
+            # Kiểm ACL trực tiếp: login module thừa kế EXECUTE từ vai_chay_mod_*.
+            acl = self.conn.execute('''SELECT a.grantee,pg_get_userbyid(a.grantee)
+                FROM pg_proc p, LATERAL aclexplode(coalesce(p.proacl,acldefault('f',p.proowner))) a
+                WHERE p.oid=%s::regproc AND a.privilege_type='EXECUTE' ''', (ten,)).fetchall()
+            duoc_cap = {ten_vai for oid, ten_vai in acl if oid != 0}
+            cac_vai = self.conn.execute('''SELECT oid,rolname FROM pg_roles
+                WHERE starts_with(rolname,%s)''', (self.tien_to,)).fetchall()
+            mong_doi = {vai for _, vai in cac_vai if vai.startswith(self.tien_to+'vai_chay_mod_')}
+            self.assertTrue(mong_doi)
+            self.assertEqual(duoc_cap, mong_doi)
+            self.assertTrue(all(oid != 0 for oid, _ in acl))
+            for oid, vai in cac_vai:
+                with self.subTest(ham=ten, vai=vai):
+                    if vai.startswith(self.tien_to+'vai_chay_mod_'):
+                        self.assertTrue(self.conn.execute("SELECT has_function_privilege(%s,%s,'EXECUTE')",
+                            (oid,ten)).fetchone()[0])
+                    elif (vai in (self.tien_to+'dang_nhap_loi', self.tien_to+'dang_nhap_cai_dat')
+                          or vai.startswith(self.tien_to+'vai_doi_cau_truc_')
+                          or vai.startswith(self.tien_to+'dang_nhap_mod_')):
+                        self.assertNotIn(vai, duoc_cap)
+                        if not vai.startswith(self.tien_to+'dang_nhap_mod_'):
+                            self.assertFalse(self.conn.execute("SELECT has_function_privilege(%s,%s,'EXECUTE')",
+                                (oid,ten)).fetchone()[0])
+        self.assertFalse(self.conn.execute("SELECT has_schema_privilege(%s,'loi_tai_lieu','USAGE')",
+            (self.tien_to+'vai_doi_cau_truc_loi',)).fetchone()[0])
         for bang in ('loi_tai_lieu.ket_qua_xu_ly','loi.nhat_ky_kiem_toan'):
             with self.assertRaises(g214.psycopg.errors.InsufficientPrivilege):
                 self.module.execute('INSERT INTO '+bang+' DEFAULT VALUES')
@@ -522,7 +595,7 @@ class SDKPostgresTest(unittest.TestCase):
 
     def test_engine_lease_hop_le_core_gan_nguon_va_mat_lease_tu_choi(self):
         # Kênh fixture đóng vai Core IPC: connection chỉ ở phía server này.
-        # Engine chỉ được thấy đối tượng transport với goi(), không nhận conn.
+        # Engine chỉ nhận KenhCore; IPC/Core verifier thật còn nợ G2-21/22.
         engine_id = self.conn.execute("SELECT id FROM loi.engine_dinh_nghia WHERE ma='demo_g214'").fetchone()[0]
         job = self._moi(engine_id=engine_id)
         # Chỉ nhận việc engine vừa tạo, tránh việc module CHO của fixture.
@@ -531,7 +604,11 @@ class SDKPostgresTest(unittest.TestCase):
         self.assertEqual(giu.viec_id,job)
         def verify(conn, handle):
             viec.trang_thai_lease(conn, handle)
-            return kq_core.NguonCore('crm',self.pn,'1',engine_id,'DEMO_ENGINE','1',
+            # Lease đã khóa ở Core; admin fixture chỉ đọc nguồn từ hàng việc.
+            # Không cấp thêm SELECT bảng cho login runtime để phục vụ test.
+            nguon_engine = self.conn.execute('''SELECT engine_id FROM loi.hang_viec
+                WHERE id=%s AND the_he=%s''', (handle.viec_id,handle.the_he)).fetchone()[0]
+            return kq_core.NguonCore(handle.module,handle.phap_nhan_id,'1',nguon_engine,'DEMO_ENGINE','1',
                 handle.viec_id,handle.the_he,handle.buoc_viec_id,handle.lan_thu_id)
         service = kq_core.BanGiaoKetQua(self.kho,xac_minh_core=verify)
         def goi(op, handle, **payload):
@@ -549,7 +626,7 @@ class SDKPostgresTest(unittest.TestCase):
                         bien_the='goc',**payload,**self._ctx(g209.XEM))
                 return service.ghi(self.core,giu_viec=handle,tai_lieu_id=self.tai_lieu_id,
                     request_id=uuid4(),het_han_luc=None,**payload,**self._ctx(ma=handle.ma))
-        transport = SimpleNamespace(goi=goi)
+        transport = _KenhCoreDemo(goi)
         api = engine.SDKEngine(giu,kenh_core=transport)
         self.assertEqual(api.doc_dau_vao()['tai_lieu_id'],str(self.tai_lieu_id))
         with api.mo_doc(self.ref['tep_id']) as stream:

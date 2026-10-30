@@ -5,6 +5,7 @@ sang tiến trình Core. Core xác minh lease/quyền và gắn nguồn G2-10/14
 lời gọi; kiểm thời gian cục bộ chỉ là chặn sớm, không thay kiểm phía Core.
 """
 
+from abc import ABC, abstractmethod
 from datetime import datetime, timezone
 
 from ..core.viec import GiuViec
@@ -18,11 +19,30 @@ class LoiEngine(RuntimeError):
         super().__init__(ma)
 
 
+class KenhCore(ABC):
+    """Kiểu kênh do bootstrap Core cấp; adapter IPC triển khai goi.
+
+    Không bọc callable tùy ý do engine đưa vào. IPC thật thuộc G2-21/22.
+    """
+
+    __slots__ = ()
+
+    @abstractmethod
+    def goi(self, operation, giu_viec, **payload):
+        raise NotImplementedError
+
+    def __repr__(self):
+        return 'KenhCore(<an>)'
+
+    def __reduce__(self):
+        raise TypeError('Không serialize KenhCore')
+
+
 class SDKEngine:
     __slots__ = ('__giu', '__kenh', '__dong_ho')
 
     def __init__(self, giu_viec, *, kenh_core, dong_ho=None):
-        if not isinstance(giu_viec, GiuViec) or not callable(getattr(kenh_core, 'goi', None)):
+        if not isinstance(giu_viec, GiuViec) or not isinstance(kenh_core, KenhCore):
             raise TypeError('Cần GiuViec và kênh Core')
         self.__giu, self.__kenh = giu_viec, kenh_core
         self.__dong_ho = dong_ho or (lambda: datetime.now(timezone.utc))
