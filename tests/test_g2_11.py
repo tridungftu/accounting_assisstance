@@ -258,6 +258,10 @@ class TiepNhanPostgresTest(unittest.TestCase):
         # G2-10 không có SQL 010; runner ghi đúng số 011 sau nền 001..009.
         dc.ap_doi_cau_truc(cls.conn, [*sorted(dc.THU_MUC_SQL.glob('00[1-9]_*.sql')), SQL_PATH])
         vai = cls.tien_to + 'vai_chay_mod_crm'
+        # 003 yêu cầu provisioning EXECUTE riêng cho module; dùng để kiểm tra
+        # phiên hợp lệ độc lập với quyền hành động MTQ trong ca từ chối replay.
+        cls.conn.execute(sql.SQL('GRANT EXECUTE ON FUNCTION loi.xac_minh_phien(text,text,uuid,text,uuid,bigint) TO {}')
+                         .format(sql.Identifier(vai)))
         for ck in (
             'tra_bien_nhan_thao_tac_v2(text,text,uuid,text,text,text,jsonb,uuid,bigint)',
             'ghi_bien_nhan_thao_tac_v2(text,text,uuid,text,text,text,jsonb,jsonb,jsonb,uuid,bigint)',
