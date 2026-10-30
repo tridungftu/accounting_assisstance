@@ -32,6 +32,7 @@ SQL = SQL_PATH.read_text(encoding='utf-8')
 CAP = 'CRM:MTQ:CAP_PHAM_VI'
 XEM = 'CRM:TIEP_NHAN:XEM'
 KY = 'CRM:G3_G4_SOAN_KY:XEM'
+BAN_KY = 'CRM:BAN_KY:XEM'
 
 
 def than_quyet_dinh(cau):
@@ -54,16 +55,31 @@ class PhamViThuanTest(unittest.TestCase):
         moi = than_quyet_dinh(SQL)
         moi = moi.replace('\n        pham_vi loi.mtq_pham_vi; kiem jsonb; ma_pn text;', '')
         dau = moi.index('                    -- G2-07: kiem scope DA CHON')
-        cuoi = moi.index("                    tien := (giai->>'so_tien_vnd')::numeric;", dau)
+        cuoi = moi.index('                    kq := loi.mtq_quyet_dinh(', dau)
         self.assertEqual(moi[:dau] + moi[cuoi:], cu)
 
     def test_guard_dung_scope_da_chon_va_ma_tung_pn(self):
-        guard = than_quyet_dinh(SQL).split('-- G2-07: kiem scope DA CHON', 1)[1].split('tien :=', 1)[0]
+        guard = than_quyet_dinh(SQL).split('-- G2-07: kiem scope DA CHON', 1)[1].split('kq := loi.mtq_quyet_dinh(', 1)[0]
         self.assertIn('WHERE id=scope_id', guard)
         self.assertIn('loi.xac_minh_phien(m,p_module,pn,p_hanh_dong', guard)
         self.assertIn('loi.mtq_kiem_pham_vi(ma_pn,p_module,pn', guard)
         self.assertIn('RETURN kiem ||', guard)
         self.assertNotIn('ORDER BY', guard)
+
+    def test_guard_ky_doc_lap_va_truoc_nhanh_nguon(self):
+        guard = than_quyet_dinh(SQL).split('-- G2-07: kiem scope DA CHON', 1)[1].split('kq := loi.mtq_quyet_dinh(', 1)[0]
+        ky, kiem = guard.split("IF scope_id IS NOT NULL AND pham_vi.loai IN ('NGUON','HOP_DONG','DU_AN') THEN", 1)
+        self.assertIn("IF p_hanh_dong ~ '^CRM:(G3_G4_SOAN_KY|BAN_KY):'", ky)
+        self.assertIn("scope_id IS NULL OR pham_vi.loai NOT IN ('HOP_DONG','DU_AN')", ky)
+        self.assertIn("'ma','MTQ_PHAM_VI'", ky)
+        self.assertTrue(ky.rstrip().endswith('END IF;'))
+        self.assertIn('loi.mtq_kiem_pham_vi(', kiem)
+
+    def test_du_an_chua_ghim_chi_mien_so_quan_he_khi_doc_thuong(self):
+        self.assertIn("AND (p_loai <> 'DU_AN' OR p_quan_he <> '{}'::jsonb\n"
+                      "                       OR p_hanh_dong ~ '^CRM:(G3_G4_SOAN_KY|BAN_KY):')", SQL)
+        self.assertIn("AND (p_loai NOT IN ('HOP_DONG','DU_AN') OR ghim = '{}'::jsonb)", SQL)
+        self.assertIn('master.crm_ky_mtq (k2/sql_mtq_crm.py, M0065)', SQL)
 
     def test_khong_phu_thuoc_bang_module_hoac_tu_kich_hoat_contract(self):
         self.assertNotRegex(SQL, r'(?i)(FROM|JOIN|REFERENCES|INSERT INTO)\s+(mod_|master\.|nhat_ky\.)')
@@ -203,7 +219,7 @@ class PhamViPostgresTest(unittest.TestCase):
 
     def _ma(self, pn=None):
         return phien.cap_phien(self.core,nguoi_dung_id=self.nd,module='crm',phap_nhan_id=pn or self.pn,
-            dang_nhap_csdl=self.cac_thong_tin['core']['user'],pham_vi_hanh_dong=[CAP,XEM,KY],
+            dang_nhap_csdl=self.cac_thong_tin['core']['user'],pham_vi_hanh_dong=[CAP,XEM,KY,BAN_KY],
             hieu_luc_den=datetime.now(timezone.utc)+timedelta(minutes=5)).ma.lay_de_truyen()
 
     def _cap(self, loai='HOP_DONG', khoa=None, quan_he=None, **doi):
@@ -222,17 +238,17 @@ class PhamViPostgresTest(unittest.TestCase):
             (%(id)s,%(nguon)s,%(tham_chieu)s,%(bam)s,%(loai)s,%(khoa)s,%(pn)s,%(trang_thai)s,%(tu)s,%(den)s)''',ts)
         return id
 
-    def _kich_hoat(self, *, hd=None, da=None, nguon=None):
+    def _kich_hoat(self, *, hd=None, da=None, nguon=None, loai='TIEP_NHAN'):
         pb = uuid4()
         self.conn.execute("INSERT INTO loi.mtq_phien_ban(id,phap_nhan_id,so_phien_ban,tao_boi,ly_do) VALUES (%s,%s,1,%s,'DEMO')",(pb,self.pn,self.nd))
         for vai in ('THUC_HIEN_1','THUC_HIEN_2','TRUONG_PHONG','CFO','NGUOI_XEM'):
             d = self.conn.execute('INSERT INTO loi.mtq_dong(phien_ban_id,phap_nhan_id,phong_id,vai) VALUES (%s,%s,%s,%s) RETURNING id',(pb,self.pn,self.phong,vai)).fetchone()[0]
             if vai == 'CFO':
-                for man in ('TIEP_NHAN','G3_G4_SOAN_KY'):
+                for man in ('TIEP_NHAN','G3_G4_SOAN_KY','BAN_KY'):
                     self.conn.execute("INSERT INTO loi.mtq_o(dong_id,module,man,hanh_dong,cho_phep) VALUES (%s,'CRM',%s,'XEM',true)",(d,man))
         self.conn.execute("UPDATE loi.mtq_phien_ban SET trang_thai='DA_CONG_BO',cong_bo_boi=%s,cong_bo_luc=now(),phien_ban_dong=2 WHERE id=%s",(self.nd,pb))
         self.conn.execute('INSERT INTO loi.mtq_kich_hoat(phap_nhan_id,bat,phien_ban_id,bat_boi,bat_luc) VALUES (%s,true,%s,%s,now())',(self.pn,pb,self.nd))
-        tap = [dict(pn=str(self.pn),hop_le=True,loai='TIEP_NHAN',hd=str(hd) if hd else None,
+        tap = [dict(pn=str(self.pn),hop_le=True,loai=loai,hd=str(hd) if hd else None,
                     da=str(da) if da else None,nguon_khoa=nguon)]
         self.conn.execute('INSERT INTO mod_crm.doi_tuong(id,tap) VALUES (%s,%s::jsonb)',(self.obj,json.dumps(tap)))
 
@@ -358,11 +374,52 @@ class PhamViPostgresTest(unittest.TestCase):
         finally:
             self.conn.execute('ALTER FUNCTION mod_crm.pham_vi_demo_cho(text,uuid,text,jsonb,uuid,bigint) RENAME TO pham_vi_demo')
 
-    def test_du_an_quan_he_rong_khong_du_quyen_ky(self):
+    def test_du_an_quan_he_rong_duoc_doc_thuong_khi_doi_tuong_co_khach(self):
         self._cap('DU_AN',self.da)
         self._kich_hoat(da=self.da)
+        q = {'doi_tac_id':str(self.khach)}
+        self.conn.execute('UPDATE mod_crm.quan_he_demo SET quan_he=%s::jsonb WHERE id=%s',(json.dumps(q),self.obj))
+        self.assertTrue(self._quyet()['cho_phep'])
+
+    def test_du_an_quan_he_rong_khong_du_quyen_ky(self):
+        self._cap('DU_AN',self.da)
+        self._kich_hoat(da=self.da,loai='G3_G4_SOAN_KY')
+        q = {'doi_tac_id':str(self.khach)}
+        self.conn.execute('UPDATE mod_crm.quan_he_demo SET quan_he=%s::jsonb WHERE id=%s',(json.dumps(q),self.obj))
+        self.assertEqual(self._quyet(hanh_dong=KY)['ma'],'MTQ_PHAM_VI_LECH')
         self.conn.execute("UPDATE mod_crm.quan_he_demo SET quan_he='{}'::jsonb WHERE id=%s",(self.obj,))
         self.assertEqual(self._quyet(hanh_dong=KY)['ma'],'MTQ_PHAM_VI_LECH')
+
+    def test_nguon_hop_le_tick_ky_nhung_thieu_pham_vi_hop_dong_du_an_bi_chan(self):
+        khoa = self._cap('NGUON',f'INVOICE_SET|{self.ho_so}|{self.chu_the}')['pham_vi']['khoa']
+        self._kich_hoat(hd=self.hd,nguon=khoa)
+        self.assertTrue(self._quyet()['cho_phep'])
+        for hanh_dong in (KY,BAN_KY):
+            with self.subTest(hanh_dong=hanh_dong):
+                self.conn.execute("UPDATE mod_crm.doi_tuong SET tap=jsonb_set(tap,'{0,loai}',to_jsonb(%s::text)) WHERE id=%s",
+                                  (hanh_dong.split(':')[1],self.obj))
+                kq = self._quyet(hanh_dong=hanh_dong)
+                self.assertFalse(kq['cho_phep'])
+                self.assertEqual(kq['ma'],'MTQ_PHAM_VI')
+
+    def test_nguon_hop_le_tick_ky_van_can_quan_he_hop_dong_khop(self):
+        khoa = self._cap('NGUON',f'INVOICE_SET|{self.ho_so}|{self.chu_the}')['pham_vi']['khoa']
+        self._cap()
+        self._kich_hoat(hd=self.hd,nguon=khoa)
+        sai = {**self.quan_he,'doi_tac_id':str(uuid4())}
+        for hanh_dong in (KY,BAN_KY):
+            self.conn.execute("UPDATE mod_crm.doi_tuong SET tap=jsonb_set(tap,'{0,loai}',to_jsonb(%s::text)) WHERE id=%s",
+                              (hanh_dong.split(':')[1],self.obj))
+            self.conn.execute('UPDATE mod_crm.quan_he_demo SET quan_he=%s::jsonb WHERE id=%s',
+                              (json.dumps(self.quan_he),self.obj))
+            self.assertTrue(self._quyet(hanh_dong=hanh_dong)['cho_phep'])
+            for quan_he in ({},sai):
+                with self.subTest(hanh_dong=hanh_dong,quan_he=quan_he):
+                    self.conn.execute('UPDATE mod_crm.quan_he_demo SET quan_he=%s::jsonb WHERE id=%s',
+                                      (json.dumps(quan_he),self.obj))
+                    kq = self._quyet(hanh_dong=hanh_dong)
+                    self.assertFalse(kq['cho_phep'])
+                    self.assertEqual(kq['ma'],'MTQ_PHAM_VI_LECH')
 
     def test_nguon_doi_anh_xa_sau_cap_bi_chan(self):
         khoa = f'INVOICE_SET|{self.ho_so}|{self.chu_the}'

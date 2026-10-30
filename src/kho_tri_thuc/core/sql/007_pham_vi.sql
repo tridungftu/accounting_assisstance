@@ -158,8 +158,12 @@ BEGIN
                     RETURN jsonb_build_object('ket_luan','TU_CHOI','ma','MTQ_PHAM_VI_LECH');
                 END IF;
             END IF;
+            -- Bao toan master.crm_ky_mtq (k2/sql_mtq_crm.py, M0065):
+            -- DU_AN chua ghim khach duoc doc thuong; G3/BAN_KY luon can ghim khop.
             IF (p_doi_tuong IS NULL AND p_quan_he <> '{}'::jsonb AND p_quan_he IS DISTINCT FROM ghim)
-               OR (p_doi_tuong IS NOT NULL AND p_quan_he IS DISTINCT FROM ghim)
+               OR (p_doi_tuong IS NOT NULL AND p_quan_he IS DISTINCT FROM ghim
+                   AND (p_loai <> 'DU_AN' OR p_quan_he <> '{}'::jsonb
+                       OR p_hanh_dong ~ '^CRM:(G3_G4_SOAN_KY|BAN_KY):'))
                OR (p_doi_tuong IS NOT NULL AND p_hanh_dong ~ '^CRM:(G3_G4_SOAN_KY|BAN_KY):'
                    AND (p_loai NOT IN ('HOP_DONG','DU_AN') OR ghim = '{}'::jsonb)) THEN
                 RETURN jsonb_build_object('ket_luan','TU_CHOI','ma','MTQ_PHAM_VI_LECH');
@@ -268,6 +272,10 @@ BEGIN
                 -- Moi PN can ma rieng, cung nguoi/module/hanh dong/uy nhiem viec.
                 FOR giai IN SELECT value FROM jsonb_array_elements(tap) ORDER BY value->>'pn' LOOP
                     pn := (giai->>'pn')::uuid;
+                    IF giai->'hop_le' = 'false'::jsonb THEN
+                        ma := 'MTQ_DOI_TUONG';
+                        ly_do := coalesce(giai->>'ly_do', 'Đối tượng không hợp lệ'); EXIT;
+                    END IF;
                     IF giai->'hop_le' IS DISTINCT FROM 'true'::jsonb OR pn IS NULL THEN
                         RETURN jsonb_build_object('ket_luan','CHO','cho_phep',false,
                             'ma','MTQ_CAN_RESOLVER_MTQ4','ly_do','Chưa đủ căn cứ đối tượng');
@@ -281,6 +289,14 @@ BEGIN
                         ma := 'MTQ_PHAP_NHAN'; ly_do := 'Thiếu phiên hợp lệ ở một pháp nhân'; EXIT;
                     END IF;
                 END LOOP;
+                IF ma IS NULL THEN
+                    -- QD-20261026-10: moi PN kiem cung tong tien, khong chia nho han muc.
+                    tien := (tap->0->>'so_tien_vnd')::numeric;
+                    IF EXISTS (SELECT FROM jsonb_array_elements(tap)
+                        WHERE (value->>'so_tien_vnd')::numeric IS DISTINCT FROM tien) THEN
+                        ma := 'MTQ_DOI_TUONG'; ly_do := 'Các pháp nhân phải dùng cùng số tiền';
+                    END IF;
+                END IF;
                 IF ma IS NULL AND so_bat > 0 AND so_bat <> so_pn THEN
                     ma := 'MTQ_PN_HON_HOP'; ly_do := 'Đối tượng có pháp nhân chưa bật ma trận';
                 ELSIF ma IS NULL AND so_bat = 0 THEN
@@ -319,6 +335,12 @@ BEGIN
                             s.id LIMIT 1;
                     -- G2-07: kiem scope DA CHON, khong fallback khi ghim lech.
                     SELECT * INTO pham_vi FROM loi.mtq_pham_vi WHERE id=scope_id;
+                    -- Guard ky doc lap voi NGUON va tick: nguon hop le khong thay HOP_DONG/DU_AN.
+                    IF p_hanh_dong ~ '^CRM:(G3_G4_SOAN_KY|BAN_KY):'
+                       AND (scope_id IS NULL OR pham_vi.loai NOT IN ('HOP_DONG','DU_AN')) THEN
+                        RETURN jsonb_build_object('ket_luan','TU_CHOI','cho_phep',false,
+                            'ma','MTQ_PHAM_VI','phap_nhan_id',pn);
+                    END IF;
                     IF scope_id IS NOT NULL AND pham_vi.loai IN ('NGUON','HOP_DONG','DU_AN') THEN
                         SELECT m INTO ma_pn FROM unnest(ARRAY[p_ma] || coalesce(p_cac_ma,'{}'::text[])) m
                             CROSS JOIN LATERAL loi.xac_minh_phien(m,p_module,pn,p_hanh_dong,p_viec_id,p_the_he) x
@@ -330,11 +352,7 @@ BEGIN
                             RETURN kiem || jsonb_build_object('cho_phep',false,'pham_vi_id',scope_id,
                                 'phap_nhan_id',pn);
                         END IF;
-                    ELSIF p_hanh_dong ~ '^CRM:(G3_G4_SOAN_KY|BAN_KY):' THEN
-                        RETURN jsonb_build_object('ket_luan','TU_CHOI','cho_phep',false,
-                            'ma','MTQ_PHAM_VI','phap_nhan_id',pn);
                     END IF;
-                    tien := (giai->>'so_tien_vnd')::numeric;
                     kq := loi.mtq_quyet_dinh(ai, pn, phong, p_hanh_dong, giai->>'loai',
                         obj::text, khoa, scope_loai, tien, scope_id, NULL);
                     kq := kq || jsonb_build_object('ket_luan', CASE WHEN kq->'cho_phep' = 'true'::jsonb
