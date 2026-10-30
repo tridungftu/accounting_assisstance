@@ -534,7 +534,7 @@ class LienKetPostgresTest(unittest.TestCase):
                     het(kn)
                 self.assertEqual(bat.exception.sqlstate,'55P03')
             with kn.transaction():
-                self.assertEqual(het(kn)['row_version'],'2')
+                self.assertEqual(het(kn)['ket_qua']['row_version'],'2')
                 id = uuid4()
                 self._quyen(id)
                 with self.assertRaises(psycopg.errors.LockNotAvailable) as bat,self.module.transaction():
