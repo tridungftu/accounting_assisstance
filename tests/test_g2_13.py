@@ -123,11 +123,21 @@ class LienKetThuanTest(unittest.TestCase):
         self.assertEqual(self._tao(), cho)
         self.conn.commit.assert_not_called()
 
-    def test_sql_dollar_quote_khong_drop_fk_module_hay_bom(self):
+    def test_sql_can_bang_nhan_dollar_va_ham_tinh_ngoai_do(self):
         moc = re.findall(r'\$(?:[A-Za-z_][A-Za-z_0-9]*)?\$', SQL)
-        self.assertEqual((moc[0], moc[-1]), ('$$', '$$'))
+        self.assertTrue(moc)
         self.assertEqual(len(moc) % 2, 0)
-        self.assertTrue(all(a == b for a, b in zip(moc[1:-1:2], moc[2:-1:2])))
+        for i in range(0, len(moc), 2):
+            self.assertEqual(moc[i], moc[i + 1], f'Nhan dollar sai cap {i // 2 + 1}')
+        for nhan in set(moc):
+            self.assertEqual(moc.count(nhan) % 2, 0, nhan)
+        khoi_do = re.findall(r'DO\s+(\$[A-Za-z_0-9]*\$)(.*?)\1\s*;', SQL, re.S)
+        self.assertTrue(khoi_do)
+        for _, than in khoi_do:
+            self.assertNotRegex(than, r'(?i)CREATE\s+(?:OR\s+REPLACE\s+)?FUNCTION')
+        self.assertIn('IF n<>(CASE WHEN b IS NULL THEN 1 ELSE 2 END) THEN', SQL)
+
+    def test_sql_khong_drop_fk_module_hay_bom(self):
         self.assertNotRegex(SQL, r'(?i)\bDROP\s+(TABLE|FUNCTION|TRIGGER|ROLE|DATABASE)')
         self.assertNotRegex(SQL, r'(?i)(REFERENCES|FROM|JOIN)\s+mod_')
         self.assertFalse(SQL_PATH.read_bytes().startswith(b'\xef\xbb\xbf'))

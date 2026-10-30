@@ -9,17 +9,14 @@
 -- Giam suc chua: khoa_lien_ket_noi_bo(pn) -> khoa nghia vu -> doi/kiem tong.
 -- Khoa dieu phoi PN co y tuan tu hoa ghi tien, tranh bo sot chung tu moi
 -- trong luc giam suc chua. Moi duong ghi phai di qua cung giao thuc nay.
-DO $$
+-- Cac ham tinh nam ngoai DO; cac khoi DO chi xu ly role/policy dong.
+-- Giu ngu canh caller qua cac khoi trong cung transaction migration.
+DO $do$
 DECLARE
     tt text := coalesce(current_setting('kho_tri_thuc.tien_to_vai',true),'');
     chu text := tt||'vai_doi_cau_truc_danh_muc';
     chu_loi text := tt||'vai_doi_cau_truc_loi';
     kiem text := tt||'vai_kiem_toan_ven_danh_muc';
-    chay text := tt||'vai_chay_danh_muc';
-    login text := tt||'dang_nhap_loi';
-    vai_cu text := current_setting('role');
-    duong_cu text := current_setting('search_path');
-    bang text; ham record;
 BEGIN
     IF (tt<>'' AND tt !~ '^[a-z][a-z0-9_]*_$')
        OR octet_length(tt||'vai_doi_cau_truc_loi_tai_lieu')>63
@@ -41,9 +38,13 @@ BEGIN
                   OR member=(SELECT oid FROM pg_roles WHERE rolname=kiem)) THEN
         RAISE EXCEPTION 'G2-13: Can lead, vai kiem sai thuoc tinh/membership';
     END IF;
+    PERFORM set_config('kho_tri_thuc.g2_13_vai_cu',current_setting('role'),true);
+    PERFORM set_config('kho_tri_thuc.g2_13_duong_cu',current_setting('search_path'),true);
     EXECUTE format('SET LOCAL ROLE %I',chu_loi);
     EXECUTE format('GRANT USAGE ON SCHEMA loi TO %I',kiem);
     EXECUTE format('GRANT EXECUTE ON FUNCTION loi.mtq_phien_rls() TO %I',kiem);
+END;
+$do$;
 
     -- Dispatcher noi bo co quyen Core, registry G2-05 van la nguon binding.
     -- Khac phan_giai_ham_module: module dich co the khac module caller.
@@ -89,6 +90,14 @@ BEGIN
     END;
     $ham$;
     REVOKE ALL ON FUNCTION loi.goi_nghia_vu_noi_bo(text,text,uuid,text,jsonb,text,uuid,bigint) FROM PUBLIC;
+
+DO $do$
+DECLARE
+    tt text := coalesce(current_setting('kho_tri_thuc.tien_to_vai',true),'');
+    chu text := tt||'vai_doi_cau_truc_danh_muc';
+    kiem text := tt||'vai_kiem_toan_ven_danh_muc';
+    bang text;
+BEGIN
     EXECUTE format('GRANT EXECUTE ON FUNCTION loi.goi_nghia_vu_noi_bo(text,text,uuid,text,jsonb,text,uuid,bigint) TO %I',chu);
 
     EXECUTE format('SET LOCAL ROLE %I',chu);
@@ -116,6 +125,9 @@ BEGIN
     EXECUTE format('SET LOCAL ROLE %I',kiem);
     PERFORM set_config('search_path','pg_catalog,pg_temp',true);
     ALTER DEFAULT PRIVILEGES IN SCHEMA danh_muc REVOKE EXECUTE ON FUNCTIONS FROM PUBLIC;
+END;
+$do$;
+
     CREATE OR REPLACE FUNCTION danh_muc.khoa_lien_ket_noi_bo(p_pn uuid,p_ids uuid[] DEFAULT '{}') RETURNS void
     LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path=pg_catalog,pg_temp AS $ham$
     DECLARE ct uuid;
@@ -168,6 +180,15 @@ BEGIN
                         AND k.muc_dich_lien_ket='MONEY' AND k.mo_hinh_phan_bo='CHILD'
                 ) t)))
     $ham$;
+DO $do$
+DECLARE
+    tt text := coalesce(current_setting('kho_tri_thuc.tien_to_vai',true),'');
+    chu text := tt||'vai_doi_cau_truc_danh_muc';
+    kiem text := tt||'vai_kiem_toan_ven_danh_muc';
+    chay text := tt||'vai_chay_danh_muc';
+    login text := tt||'dang_nhap_loi';
+    ham record;
+BEGIN
     FOR ham IN SELECT oid::regprocedure AS ck FROM pg_proc WHERE pronamespace='danh_muc'::regnamespace
         AND proname IN ('khoa_lien_ket_noi_bo','tong_nghia_vu_noi_bo','kiem_tien_chung_tu_noi_bo') LOOP
         EXECUTE format('REVOKE ALL ON FUNCTION %s FROM PUBLIC,%I,%I',ham.ck,login,chay);
@@ -176,6 +197,9 @@ BEGIN
 
     EXECUTE format('SET LOCAL ROLE %I',chu);
     EXECUTE format('REVOKE CREATE ON SCHEMA danh_muc FROM %I',kiem);
+END;
+$do$;
+
     -- Thay trigger 012 bang guard hep: SUA = HUY cu + INSERT moi.
     -- CREATE OR REPLACE TRIGGER khong xoa doi tuong/lich su.
     CREATE OR REPLACE FUNCTION danh_muc.lien_ket_chi_huy() RETURNS trigger
@@ -252,7 +276,7 @@ BEGIN
             SELECT count(*) INTO n FROM danh_muc.chung_tu WHERE id=ANY(ARRAY[a,b]) AND phap_nhan_id=p_pn
                 AND hieu_luc_den IS NULL AND ((id=a AND so_tien_minor IS NOT NULL AND tien_te=tt AND thang_tien=thang)
                     OR (id=b AND (so_tien_minor IS NULL OR (tien_te=tt AND thang_tien=thang))));
-            IF n<>CASE WHEN b IS NULL THEN 1 ELSE 2 END THEN
+            IF n<>(CASE WHEN b IS NULL THEN 1 ELSE 2 END) THEN
                 RAISE EXCEPTION 'LIEN_KET_PHAM_VI' USING ERRCODE='42501';
             END IF;
             moi := CASE WHEN p_lenh='LAP' THEN p_id ELSE (p_data->>'id_moi')::uuid END;
@@ -343,12 +367,19 @@ BEGIN
         RETURN jsonb_build_object('ket_luan','DAT','id',coalesce(moi,p_id));
     END;
     $ham$;
+DO $do$
+DECLARE
+    tt text := coalesce(current_setting('kho_tri_thuc.tien_to_vai',true),'');
+    chay text := tt||'vai_chay_danh_muc';
+    login text := tt||'dang_nhap_loi';
+    ham record;
+BEGIN
     FOR ham IN SELECT oid::regprocedure AS ck,proname FROM pg_proc WHERE pronamespace='danh_muc'::regnamespace
         AND proname IN ('lien_ket_v2','lien_ket_chi_huy') LOOP
         EXECUTE format('REVOKE ALL ON FUNCTION %s FROM PUBLIC,%I,%I',ham.ck,chay,login);
         IF ham.proname='lien_ket_v2' THEN EXECUTE format('GRANT EXECUTE ON FUNCTION %s TO %I',ham.ck,login); END IF;
     END LOOP;
-    PERFORM set_config('search_path',duong_cu,true);
-    PERFORM set_config('role',vai_cu,true);
+    PERFORM set_config('search_path',current_setting('kho_tri_thuc.g2_13_duong_cu'),true);
+    PERFORM set_config('role',current_setting('kho_tri_thuc.g2_13_vai_cu'),true);
 END;
-$$;
+$do$;
