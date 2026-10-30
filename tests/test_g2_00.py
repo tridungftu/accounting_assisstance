@@ -77,11 +77,13 @@ class DungDemoTests(unittest.TestCase):
         self.conn = MagicMock()
         self.da_co_db = False
         self.so_tao = 0
+        self.thong_tin_cum = None
 
         def execute(sql, params=None):
             result = MagicMock()
             if "current_setting('data_directory')" in sql:
-                result.fetchone.return_value = ("kho_crm_demo", "127.0.0.1", 5432, str(self.cum.data_dir), "160015")
+                result.fetchone.return_value = self.thong_tin_cum or (
+                    "kho_crm_demo", "127.0.0.1", 5432, str(self.cum.data_dir), "160015")
             elif "FROM pg_database" in sql:
                 result.fetchone.return_value = (1,) if self.da_co_db else None
             elif sql.startswith("CREATE DATABASE"):
@@ -97,6 +99,10 @@ class DungDemoTests(unittest.TestCase):
         self.driver.connect.return_value.__enter__.return_value = self.conn
         self.stack.enter_context(patch.dict(sys.modules, {"psycopg": self.driver}))
         self.stack.enter_context(patch.object(demo, "tim_repo_chinh", return_value=self.chinh))
+        # Mô phỏng đường dẫn vật lý, không đọc thư mục dữ liệu PG trên máy.
+        self.resolve = self.stack.enter_context(patch.object(
+            Path, "resolve", autospec=True, side_effect=lambda p, *, strict=False: p.absolute()))
+        self.acl = self.stack.enter_context(patch.object(demo, "_dat_quyen_tep", return_value=True))
         self.doc = self.stack.enter_context(patch.object(demo, "nap_tep", side_effect=self._doc))
         self.stack.enter_context(patch.object(Path, "exists", lambda p: p in self.tep))
         self.stack.enter_context(patch.object(Path, "is_file", lambda p: p in self.tep))
@@ -133,6 +139,8 @@ class DungDemoTests(unittest.TestCase):
         for path in (root, root / "kho-tep", root / "bi-mat"):
             self.mkdir.assert_any_call(path, parents=True, exist_ok=True)
         cau_hinh = json.loads(self.tep[root / demo.TEN_TEP])
+        self.assertEqual(self.acl.call_count, 2)
+        self.acl.assert_called_with(root / demo.TEN_TEP)
         self.assertEqual(cau_hinh["admin_dsn"], DSN.replace("kho_crm_demo", mot["csdl"]))
         kw = self.driver.connect.call_args.kwargs
         self.assertEqual(kw["password"], CANARY)
@@ -173,13 +181,75 @@ class DungDemoTests(unittest.TestCase):
                                      (r"C:\pg-that\data", "127.0.0.1", 5432),
                                      (str(self.cum.data_dir), "10.0.0.1", 5432),
                                      (str(self.cum.data_dir), "127.0.0.1", 5433)):
-            self.conn.execute.side_effect = None
-            self.conn.execute.return_value.fetchone.return_value = ("kho_crm_demo", host, port, data_dir, "160015")
+            self.thong_tin_cum = ("kho_crm_demo", host, port, data_dir, "160015")
             with self.subTest(data_dir=data_dir, host=host, port=port), self.assertRaises(demo.TuChoi):
                 demo.tao_core_demo("g2_00")
+        self.assertTrue(callable(self.conn.execute.side_effect))
+        self.assertEqual(self.conn.execute.call_count, 4)
+        self.assertTrue(all("current_setting('data_directory')" in c.args[0]
+                            for c in self.conn.execute.call_args_list))
         self.assertEqual(self.so_tao, 0)
         self.mkdir.assert_not_called()
         self.assertEqual(self.tep, {})
+
+    def test_junction_cum_data_dir_vao_vung_cam_khong_connect(self):
+        for dich in (Path("D:/DU-LIEU-KE-TOAN/postgresql"),
+                     self.chinh / "var" / "web-that" / "postgresql",
+                     self.chinh / "var" / "plhn-that" / "postgresql"):
+            def resolve(path, *, strict=False):
+                return dich if path == self.cum.data_dir else path.absolute()
+
+            self.resolve.side_effect = resolve
+            with self.subTest(dich=dich), self.assertRaises(demo.TuChoi):
+                demo.tao_core_demo("g2_00")
+        self.resolve.assert_any_call(self.cum.data_dir, strict=True)
+        self.driver.connect.assert_not_called()
+        self.conn.execute.assert_not_called()
+        self.mkdir.assert_not_called()
+        self.acl.assert_not_called()
+        self.assertEqual(self.tep, {})
+
+    def test_junction_data_directory_server_khong_create(self):
+        alias = self.chinh / "var" / "pg-alias-demo"
+        self.thong_tin_cum = ("kho_crm_demo", "127.0.0.1", 5432, str(alias), "160015")
+        self.resolve.side_effect = lambda p, *, strict=False: (
+            Path("D:/DU-LIEU-KE-TOAN/postgresql") if p == alias else p.absolute())
+        with self.assertRaises(demo.TuChoi):
+            demo.tao_core_demo("g2_00")
+        self.resolve.assert_any_call(alias, strict=True)
+        self.assertEqual(self.conn.execute.call_count, 1)
+        self.assertIn("current_setting('data_directory')", self.conn.execute.call_args.args[0])
+        self.assertEqual(self.so_tao, 0)
+        self.mkdir.assert_not_called()
+        self.assertEqual(self.tep, {})
+
+    def test_khong_resolve_duoc_cum_khong_connect(self):
+        def resolve(path, *, strict=False):
+            if path == self.cum.data_dir:
+                self.assertTrue(strict)
+                raise FileNotFoundError(CANARY)
+            return path.absolute()
+
+        self.resolve.side_effect = resolve
+        with self.assertRaises(demo.TuChoi) as caught:
+            demo.tao_core_demo("g2_00")
+        self.assertNotIn(CANARY, str(caught.exception))
+        self.driver.connect.assert_not_called()
+        self.conn.execute.assert_not_called()
+
+    def test_thu_acl_truoc_ghi_dsn_va_khong_can_quyen_quan_tri(self):
+        root = demo.REPO / "var" / "core-demo" / "g2_00"
+        ghi_json = json.dump
+
+        def ghi(noi_dung, stream, **kwargs):
+            self.acl.assert_called_once_with(root / demo.TEN_TEP)
+            self.assertEqual(stream.getvalue(), "")
+            return ghi_json(noi_dung, stream, **kwargs)
+
+        self.acl.return_value = False  # Môi trường không cho đặt ACL: vẫn tạo cấu hình DEMO.
+        with patch.object(demo.json, "dump", side_effect=ghi):
+            self.assertEqual(demo.tao_core_demo("g2_00")["cau_hinh_trang_thai"], "DA_TAO")
+        self.assertEqual(json.loads(self.tep[root / demo.TEN_TEP])["phien_ban"], 1)
 
     def test_cau_hinh_khac_khong_ghi_de_khong_connect(self):
         root = demo.REPO / "var" / "core-demo" / "g2_00"
@@ -235,6 +305,54 @@ class DungDemoTests(unittest.TestCase):
         with redirect_stdout(stdout), redirect_stderr(stderr):
             self.assertEqual(demo.main(["--ma", "g2_00", "--in", CANARY]), 1)
         self.assertNotIn(CANARY, stdout.getvalue() + stderr.getvalue())
+
+
+class QuyenTepTests(unittest.TestCase):
+    def test_acl_windows_chi_sid_hien_tai_khong_ke_thua_khong_in_dsn(self):
+        tep = Path("var/core-demo/g2_00/ket-noi.local.json")
+        stdout, stderr = io.StringIO(), io.StringIO()
+        with patch.object(demo.sys, "platform", "win32"), \
+                patch.dict(demo.os.environ, {"SystemRoot": "C:/Windows"}), \
+                patch.object(demo.subprocess, "run") as chay, \
+                redirect_stdout(stdout), redirect_stderr(stderr):
+            chay.return_value.returncode = 0
+            chay.return_value.stdout = chay.return_value.stderr = DSN
+            self.assertTrue(demo._dat_quyen_tep(tep))
+        args, kwargs = chay.call_args
+        self.assertEqual(args[0][0], str(Path("C:/Windows/System32/WindowsPowerShell/v1.0/powershell.exe")))
+        lenh = args[0][-1]
+        self.assertIn("WindowsIdentity]::GetCurrent().User", lenh)
+        self.assertIn("New-Object System.Security.AccessControl.FileSecurity", lenh)
+        self.assertIn("SetAccessRuleProtection($true, $false)", lenh)
+        self.assertIn("FileSystemAccessRule($sid, 'FullControl', 'Allow')", lenh)
+        self.assertIn("Set-Acl -LiteralPath $p -AclObject $acl", lenh)
+        self.assertEqual(kwargs["input"], str(tep))
+        self.assertTrue(kwargs["capture_output"])
+        self.assertEqual(kwargs["creationflags"], 0x08000000)
+        self.assertNotIn(DSN, str(chay.call_args))
+        self.assertEqual(stdout.getvalue() + stderr.getvalue(), "")
+
+    def test_acl_khong_ho_tro_hoac_loi_khong_lo_credential(self):
+        for loi in (None, OSError(DSN), demo.subprocess.TimeoutExpired("powershell.exe", 15, output=DSN)):
+            stdout, stderr = io.StringIO(), io.StringIO()
+            with self.subTest(loai=type(loi).__name__), \
+                    patch.object(demo.sys, "platform", "win32"), \
+                    patch.dict(demo.os.environ, {"SystemRoot": "C:/Windows"}), \
+                    patch.object(demo.subprocess, "run", side_effect=loi) as chay, \
+                    redirect_stdout(stdout), redirect_stderr(stderr):
+                chay.return_value.returncode = 1
+                chay.return_value.stdout = chay.return_value.stderr = DSN
+                self.assertFalse(demo._dat_quyen_tep(Path("ket-noi.local.json")))
+            self.assertEqual(stdout.getvalue() + stderr.getvalue(), "")
+
+    def test_quyen_tep_posix(self):
+        tep = Path("ket-noi.local.json")
+        with patch.object(demo.sys, "platform", "linux"), \
+                patch.object(Path, "chmod", autospec=True) as chmod, \
+                patch.object(demo.subprocess, "run") as chay:
+            self.assertTrue(demo._dat_quyen_tep(tep))
+            chmod.assert_called_once_with(tep, 0o600)
+            chay.assert_not_called()
 
 
 if __name__ == "__main__":

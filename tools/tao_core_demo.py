@@ -4,7 +4,7 @@
 Lead chạy: python -X utf8 tools/tao_core_demo.py --ma g2_00
 Nguồn cố định: <repo chính>/var/web/crm-demo/ket-noi.local.json.
 Đích: <worktree>/var/core-demo/<ma>/{kho-tep,bi-mat,ket-noi.local.json}.
-Két chỉ là thư mục rỗng; DPAPI/ACL và credential runtime thuộc G2-23/33.
+Két chỉ là thư mục rỗng; DPAPI và credential runtime thuộc G2-23/33.
 Chỉ CREATE DATABASE từ template0 trên cụm DEMO mặc định đã có; không DROP,
 không sửa cấu hình đã tồn tại, không in nội dung DSN hoặc ngoại lệ driver.
 """
@@ -14,7 +14,9 @@ from __future__ import annotations
 import argparse
 import json
 import ntpath
+import os
 import re
+import subprocess
 import sys
 from pathlib import Path
 from urllib.parse import parse_qsl, unquote, urlsplit
@@ -60,9 +62,9 @@ def kiem_duong_dan_cam(path) -> None:
         raise TuChoi("Từ chối đường dẫn dữ liệu thật hoặc cấu hình thật.")
 
 
-def _duong_dan_an_toan(path: Path) -> Path:
+def _duong_dan_an_toan(path: Path, *, strict: bool = False) -> Path:
     kiem_duong_dan_cam(path)
-    dich = path.resolve()
+    dich = path.resolve(strict=strict)
     kiem_duong_dan_cam(dich)
     # Không theo junction/symlink ra khỏi vùng đã chỉ định, kể cả tới tệp khác.
     if ntpath.normcase(str(dich)) != ntpath.normcase(str(path.absolute())):
@@ -111,10 +113,11 @@ def _kiem_cum(conn, tham_so: dict, cum) -> None:
     if not row or len(row) != 5:
         raise TuChoi("Không xác minh được cụm PostgreSQL DEMO.")
     db, host, port, data_dir, version = row
-    kiem_duong_dan_cam(data_dir)
+    data_dir = _duong_dan_an_toan(Path(data_dir), strict=True)
+    du_lieu_cum = _duong_dan_an_toan(cum.data_dir, strict=True)
     if (db != tham_so["dbname"] or host != tham_so["hostaddr"]
             or int(port) != int(tham_so["port"]) or host != cum.host or int(port) != cum.port
-            or ntpath.normcase(ntpath.normpath(str(data_dir))) != ntpath.normcase(ntpath.normpath(str(cum.data_dir)))
+            or ntpath.normcase(str(data_dir)) != ntpath.normcase(str(du_lieu_cum))
             or not 160000 <= int(version) < 170000):
         raise TuChoi("Cụm PostgreSQL không khớp cụm DEMO đã định danh; không tạo CSDL.")
 
@@ -125,6 +128,35 @@ def _kiem_tep_co_san(tep: Path, noi_dung: dict) -> bool:
     if not tep.is_file() or nap_tep(tep) != noi_dung:
         raise TuChoi("Cấu hình đích đã có nhưng khác nội dung; không ghi đè.")
     return True
+
+
+def _dat_quyen_tep(tep: Path) -> bool:
+    """Thử giới hạn tệp cho người dùng hiện tại, không nâng quyền/không in lỗi."""
+    try:
+        if sys.platform != "win32":
+            tep.chmod(0o600)
+            return True
+        # DACL mới chỉ có một ACE, không giữ ACE cũ hoặc quyền kế thừa.
+        lenh = """$ErrorActionPreference = 'Stop'
+[Console]::InputEncoding = [System.Text.Encoding]::UTF8
+$p = [Console]::In.ReadToEnd()
+$sid = [System.Security.Principal.WindowsIdentity]::GetCurrent().User
+$acl = New-Object System.Security.AccessControl.FileSecurity
+$acl.SetOwner($sid)
+$acl.SetAccessRuleProtection($true, $false)
+$rule = New-Object System.Security.AccessControl.FileSystemAccessRule($sid, 'FullControl', 'Allow')
+$acl.AddAccessRule($rule)
+Set-Acl -LiteralPath $p -AclObject $acl
+"""
+        powershell = Path(os.environ["SystemRoot"]) / "System32/WindowsPowerShell/v1.0/powershell.exe"
+        ket_qua = subprocess.run(
+            [str(powershell), "-NoProfile", "-NonInteractive", "-Command", lenh],
+            input=str(tep), encoding="utf-8", capture_output=True, timeout=15,
+            creationflags=0x08000000,
+        )
+        return ket_qua.returncode == 0
+    except (OSError, KeyError, subprocess.SubprocessError):
+        return False  # DEMO vẫn dùng *.local.json ngoài git khi môi trường không hỗ trợ ACL.
 
 
 def tao_core_demo(ma: str) -> dict:
@@ -159,7 +191,7 @@ def _tao_core_demo(ma: str) -> dict:
         moi[khoa] = thay_ten_csdl(goc[khoa], ten)[1]
     da_co_tep = _kiem_tep_co_san(tep, moi)
     cum = cum_mac_dinh(chinh)  # Chỉ tính đường dẫn, không đọc/start/stop cụm.
-    kiem_duong_dan_cam(cum.data_dir)
+    _duong_dan_an_toan(cum.data_dir, strict=True)
     import psycopg
 
     with psycopg.connect(**admin, autocommit=True) as conn:
@@ -175,11 +207,15 @@ def _tao_core_demo(ma: str) -> dict:
     if not da_co_tep:
         try:
             with tep.open("x", encoding="utf-8", newline="\n") as f:
+                _dat_quyen_tep(tep)  # Siết quyền trước khi ghi credential nếu hệ điều hành cho phép.
+                # DEMO giữ *.local.json trong var/, ngoài git; CSDL thật dùng két DPAPI (G2-23).
                 json.dump(moi, f, ensure_ascii=False, indent=2)
                 f.write("\n")
         except FileExistsError:
             _kiem_tep_co_san(tep, moi)
             da_co_tep = True
+    if da_co_tep:
+        _dat_quyen_tep(tep)
     return {"csdl": ten, "csdl_trang_thai": "DA_CO" if da_co else "DA_TAO",
             "cau_hinh_trang_thai": "DA_CO" if da_co_tep else "DA_TAO"}
 
