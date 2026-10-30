@@ -4,6 +4,8 @@ Nâng cổng hỏi/đọc/ghi từ chối M0057–58; không quyết định quy
 không nhận actor, số tiền hay pháp nhân đối tượng do client khai. Resolver
 module lấy căn cứ CSDL qua binding đã kiểm. ``cac_ma`` cung cấp mã riêng cho
 từng pháp nhân của cùng người dùng. CHO luôn có ``cho_phep=False``.
+Mọi pháp nhân dùng cùng số tiền từ resolver; ``hop_le=False`` trả TU_CHOI
+với mã MTQ_DOI_TUONG và lý do module, ghi qua ``ghi_tu_choi_phien``.
 
 Sau rollback nghiệp vụ, caller mở transaction mới để ghi từ chối rồi commit.
 Hàm đọc/hỏi không tự ghi audit. Lỗi driver không giữ thông báo hoặc tham số.

@@ -270,7 +270,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS mtq_tu_choi_yeu_cau ON loi.mtq_tu_choi (reques
 
     -- ABI resolver_mtq v1: (ma, pn, hanh_dong, tham_chieu, viec, the_he)
     -- -> tap JSON M0057: [{pn, hop_le, loai, phong?, hd?, da?, lh?, khach?,
-    -- nguon_khoa?, so_tien_vnd?}]. Tien/quan he chi lay tu resolver, khong tu client.
+    -- nguon_khoa?, so_tien_vnd?, ly_do?}]. Tien/quan he chi lay tu resolver, khong tu client.
     -- Khong tu dang ky/kich hoat contract nghiep vu; thieu binding tra CHO.
     CREATE OR REPLACE FUNCTION loi.mtq_giai_doi_tuong_tap(
         p_ma text, p_module text, p_pn uuid, p_hanh_dong text, p_doi_tuong jsonb,
@@ -360,6 +360,10 @@ CREATE UNIQUE INDEX IF NOT EXISTS mtq_tu_choi_yeu_cau ON loi.mtq_tu_choi (reques
                 -- Moi PN can ma rieng, cung nguoi/module/hanh dong/uy nhiem viec.
                 FOR giai IN SELECT value FROM jsonb_array_elements(tap) ORDER BY value->>'pn' LOOP
                     pn := (giai->>'pn')::uuid;
+                    IF giai->'hop_le' = 'false'::jsonb THEN
+                        ma := 'MTQ_DOI_TUONG';
+                        ly_do := coalesce(giai->>'ly_do', 'Đối tượng không hợp lệ'); EXIT;
+                    END IF;
                     IF giai->'hop_le' IS DISTINCT FROM 'true'::jsonb OR pn IS NULL THEN
                         RETURN jsonb_build_object('ket_luan','CHO','cho_phep',false,
                             'ma','MTQ_CAN_RESOLVER_MTQ4','ly_do','Chưa đủ căn cứ đối tượng');
@@ -373,6 +377,14 @@ CREATE UNIQUE INDEX IF NOT EXISTS mtq_tu_choi_yeu_cau ON loi.mtq_tu_choi (reques
                         ma := 'MTQ_PHAP_NHAN'; ly_do := 'Thiếu phiên hợp lệ ở một pháp nhân'; EXIT;
                     END IF;
                 END LOOP;
+                IF ma IS NULL THEN
+                    -- QD-20261026-10: moi PN kiem cung tong tien, khong chia nho han muc.
+                    tien := (tap->0->>'so_tien_vnd')::numeric;
+                    IF EXISTS (SELECT FROM jsonb_array_elements(tap)
+                        WHERE (value->>'so_tien_vnd')::numeric IS DISTINCT FROM tien) THEN
+                        ma := 'MTQ_DOI_TUONG'; ly_do := 'Các pháp nhân phải dùng cùng số tiền';
+                    END IF;
+                END IF;
                 IF ma IS NULL AND so_bat > 0 AND so_bat <> so_pn THEN
                     ma := 'MTQ_PN_HON_HOP'; ly_do := 'Đối tượng có pháp nhân chưa bật ma trận';
                 ELSIF ma IS NULL AND so_bat = 0 THEN
@@ -409,7 +421,6 @@ CREATE UNIQUE INDEX IF NOT EXISTS mtq_tu_choi_yeu_cau ON loi.mtq_tu_choi (reques
                         ORDER BY CASE s.loai WHEN 'HOP_DONG' THEN 1 WHEN 'DU_AN' THEN 2
                             WHEN 'LOAI_HINH' THEN 3 WHEN 'KHACH' THEN 4 WHEN 'NGUON' THEN 5 ELSE 6 END,
                             s.id LIMIT 1;
-                    tien := (giai->>'so_tien_vnd')::numeric;
                     kq := loi.mtq_quyet_dinh(ai, pn, phong, p_hanh_dong, giai->>'loai',
                         obj::text, khoa, scope_loai, tien, scope_id, NULL);
                     kq := kq || jsonb_build_object('ket_luan', CASE WHEN kq->'cho_phep' = 'true'::jsonb
