@@ -217,3 +217,7 @@ Tối đa **bốn Codex đang làm**, tính cả reviewer; hàng dưới là cá
   - OCR-1 và MASK-1 làm lại manifest sau G2-17b.
 - **Manifest engine theo adapter (31/10 03:40):** OCR-1 và MASK-1 không có capability đủ bằng chứng → không có `engine.json`. Manifest được viết **cùng lát adapter đầu tiên có test** của mỗi engine: OCR-2, MASK-2, AI-1b, HD-3a, TRICH-3a. MASK-1 gộp phần dự thảo schema. OCR-1 đóng, không gộp (chỉ có test cho manifest chưa tồn tại).
 - **G2-20 mở whitelist:** thêm `src/kho_tri_thuc/core/sql/020_sdk_v2.sql` — cửa V2 cho module ghi kết quả + audit trên cùng `tx` (009 / 004 chỉ cho Core). Lát có SQL quyền → review Opus.
+- **Nợ từ G2-20 (review Opus):**
+  - **G2-25** phải cấp EXECUTE `loi.ghi_ket_qua_v2` / `ghi_kiem_toan_v2` (và các cửa V2 module khác) cho `vai_chay_mod_<ma>` khi cài module mới, kèm test;
+  - **G2-21 / G2-22:** bộ xác minh `BanGiaoKetQua` + IPC Core thật (engine_id từ lease), heartbeat qua IPC không so danh tính đối tượng;
+  - audit `doi_tuong` theo danh mục cho phép; `ket_qua.ghi` có `khoa` chống trùng (§3.3).
