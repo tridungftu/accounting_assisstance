@@ -824,3 +824,13 @@ Chi tiết có tệp:dòng: `BANG-DIEU-KIEN-GO-LIVE.md`; quy trình: `CHECKLIST-
   - Review: Opus Đạt (không quyết định mới); Codex 91,7%; đã sửa một lượt.
 - **Chuẩn SDK:** soạn sau khi Anh duyệt phiếu SDK bản 2.
 - **Giao việc 5 engine:** `docs\47-core\engine\GIAO-ENGINE-1.md`, `-2.md`. Codex đang review chéo; sau đó Opus kiểm bảng dùng lại (CD-036).
+### 30/10 ~15:10 — **Cần Anh chọn: PHIEU-CAU-HOI-ENGINE** (3 câu)
+- **Giao việc 5 engine:**
+  - Codex review: 18/18 dòng nguồn có thật.
+  - Opus review: 3 Chặn — OCR đang kéo theo hiệu đính gọi thẳng Ollama; trích xuất cần AI có khuôn trả lời; tải hóa đơn cần CAPTCHA.
+  - Codex đang sửa bản giao việc.
+- **Ba câu cho Anh:** `docs\47-core\engine\PHIEU-CAU-HOI-ENGINE.md` (AI trích xuất; CAPTCHA; Mask/bí mật engine).
+- **Còn chờ Anh:**
+  - phiếu SDK bản 2;
+  - câu hỏi `crossSessionInbound`;
+  - cài tác vụ tự khởi động.
