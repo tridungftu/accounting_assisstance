@@ -660,9 +660,11 @@ class LienKetPostgresTest(unittest.TestCase):
 
     def test_chuoi_sql_tang_va_ap_lai_khong_noi_quyen(self):
         tep = sorted(dc.THU_MUC_SQL.glob('[0-9][0-9][0-9]_*.sql'),key=lambda p:int(p.name.split('_')[0]))
-        self.assertEqual(dc.ap_doi_cau_truc(self.conn,tep),13)
+        cuoi = int(tep[-1].name.split('_')[0])  # chuỗi tiếp tục tăng sau 013
+        self.assertGreaterEqual(cuoi,13)
+        self.assertEqual(dc.ap_doi_cau_truc(self.conn,tep),cuoi)
         self.conn.execute(SQL)
-        self.assertEqual(self.conn.execute("SELECT max(so_phien_ban) FROM loi.lich_su_doi_cau_truc WHERE ma_goi='core'").fetchone()[0],13)
+        self.assertEqual(self.conn.execute("SELECT max(so_phien_ban) FROM loi.lich_su_doi_cau_truc WHERE ma_goi='core'").fetchone()[0],cuoi)
 
     def test_b_la_chung_tu_can_cu_khong_tru_tien_hai_lan(self):
         b = uuid4()
