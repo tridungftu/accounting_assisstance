@@ -27,6 +27,15 @@ from . import tai_lieu
 TOI_DA = 20 * 1024 * 1024
 
 
+def _dinh_dang_thoi_diem(value):
+    """RFC 3339 UTC/Z chung.v1; bỏ phần lẻ bằng 0, giữ microsecond khác 0."""
+    if value is None:
+        return None
+    if isinstance(value, str):
+        value = datetime.fromisoformat(value.replace('Z', '+00:00'))
+    return value.astimezone(timezone.utc).isoformat().replace('+00:00', 'Z')
+
+
 class LoiTep(RuntimeError):
     def __init__(self, ma):
         self.ma = ma
@@ -165,10 +174,7 @@ class KhoTep:
 
     @staticmethod
     def _tham_chieu(tep_id, meta):
-        han = meta.get('het_han_luc')
-        if han is not None:
-            han = datetime.fromisoformat(han.replace('Z', '+00:00'))
-            han = han.astimezone(timezone.utc).isoformat().replace('+00:00', 'Z')
+        han = _dinh_dang_thoi_diem(meta.get('het_han_luc'))
         return dict(contract='tham_chieu_tep.v1', phien_ban='1.0.0', tep_id=str(tep_id),
             **{k: meta[k] for k in ('ten_tep', 'mime', 'kich_thuoc', 'sha256')},
             het_han_luc=han)
@@ -192,7 +198,7 @@ class KhoTep:
             han = datetime.fromisoformat(het_han_luc.replace('Z', '+00:00'))
             if han.tzinfo is None or han <= datetime.now(timezone.utc):
                 raise ValueError('Thời hạn tạm phải ở tương lai và có múi giờ')
-            het_han_luc = han.astimezone(timezone.utc).isoformat().replace('+00:00', 'Z')
+            het_han_luc = _dinh_dang_thoi_diem(han)
         content = _doc_luong(luong, gioi_han)
         bam = hashlib.sha256(content).hexdigest()
         intent = dict(request_id=rid, tai_lieu_id=tid, bien_the=bien_the,
@@ -240,7 +246,7 @@ class KhoTep:
                         for k in ('sha256', 'kich_thuoc', 'mime', 'ten_tep'))):
                     raise LoiTep('TEP_XUNG_DOT_PHUC_HOI')
                 self._kich_hoat(intent)
-                return ref
+                return self._tham_chieu(ref['tep_id'], ref)
         return self._ghi_metadata(conn, intent, ctx)
 
     def tham_chieu(self, conn, *, tai_lieu_id, tep_id, bien_the, **ctx):
@@ -255,7 +261,7 @@ class KhoTep:
                     raise LoiTep('TEP_HET_HAN')
                 if not re.fullmatch('[0-9a-f]{64}', ref['sha256']):
                     raise LoiTep('TEP_HASH')
-                return ref
+                return self._tham_chieu(ref['tep_id'], ref)
         raise LoiTep('TEP_KHONG_THAY')
 
     def mo_doc(self, conn, *, tai_lieu_id, tep_id, bien_the, **ctx):
