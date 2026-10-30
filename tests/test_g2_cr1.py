@@ -141,13 +141,47 @@ class DuAnDangBanTests(unittest.TestCase):
         for path, field in visit(self.demo):
             if field in optional:
                 continue
-            # Nhánh mốc riêng nhận đủ bộ khi có ID hoặc lần mốc.
+            # Giữ các ca bỏ từng trường, kể cả bộ tham chiếu mốc riêng.
             value = deepcopy(self.demo)
             target = value
             for part in path:
                 target = target[part]
             target.pop(field)
             with self.subTest(path=path, field=field):
+                self.reject(value)
+
+    def test_moc_rieng_thieu_ca_bo_tham_chieu_bi_bac(self):
+        value = deepcopy(self.demo)
+        for field in ('moc_du_an_id', 'lan_moc', 'ngay_du_kien', 'ngay_thuc_te'):
+            value['tien_do'][1]['moc'].pop(field)
+        self.reject(value)
+
+    def test_moc_rieng_chi_con_ngay_van_buoc_du_bo(self):
+        # Ngày mốc riêng cũng là dấu hiệu đã khai, kể cả ngày thực tế null.
+        for retained in ('ngay_du_kien', 'ngay_thuc_te'):
+            value = deepcopy(self.demo)
+            source = value['tien_do'][1]['moc']
+            value['tien_do'][0]['moc'][retained] = source[retained]
+            with self.subTest(retained=retained):
+                self.reject(value)
+
+    def test_moc_rieng_nullable_dung_dac_ta(self):
+        value = deepcopy(self.demo)
+        self.validate(value)  # Ngày thực tế null vẫn phải có trường.
+        value['tien_do'][1]['moc']['ngay_thuc_te'] = '2026-12-02'
+        self.validate(value)
+        for field in ('moc_du_an_id', 'lan_moc', 'ngay_du_kien'):
+            value = deepcopy(self.demo)
+            value['tien_do'][1]['moc'][field] = None
+            with self.subTest(field=field):
+                self.reject(value)
+
+    def test_cac_nhanh_moc_thieu_dong_thoi_truong_dieu_kien_bi_bac(self):
+        for index, fields in ((0, ('su_kien', 'so_ngay_sau_moc')), (2, ('ngay',))):
+            value = deepcopy(self.demo)
+            for field in fields:
+                value['tien_do'][index]['moc'].pop(field)
+            with self.subTest(index=index):
                 self.reject(value)
 
     def test_nguon_tep_rong_trung_null_sai_uuid_bi_bac(self):
