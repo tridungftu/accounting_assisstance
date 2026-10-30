@@ -899,3 +899,9 @@ Chi tiết có tệp:dòng: `BANG-DIEU-KIEN-GO-LIVE.md`; quy trình: `CHECKLIST-
   - bật `crossSessionInbound`;
   - cài `tools\CAI-TU-KHOI-DONG-LEAD.cmd`;
   - danh sách nhân sự đăng nhập.
+### 30/10 ~20:35 — gộp G2-07, G2-08; G2-09 sửa test; lỗ hổng cổng test
+- **G2-07:** PG 26 ok, Chặn NGUON/G3 đã sửa.
+- **G2-08:** review Codex Đạt, PG 24 ok.
+- **Lỗ hổng cổng:** `tools\chay_test_theo_module.py` báo module **ok=0 ERROR=0** khi tiến trình con sập vì lỗi trong `_id()` (test đè `TestCase.id`).
+  - Từ nay lead kiểm thêm `ok == tong` (số test khai báo).
+  - Mở lát nhỏ sửa bộ chạy: tiến trình con sập → ERROR.

@@ -143,7 +143,12 @@ class _KetQuaGhiTienDo(unittest.TestResult):
 
     @staticmethod
     def _id(test):
-        return _LOC.text(test.id())[:200]
+        try:
+            ten = test.id()
+        except (AttributeError, TypeError):
+            # Test có thể dùng `id` làm dữ liệu, che phương thức của TestCase.
+            ten = unittest.TestCase.id(test)
+        return _LOC.text(ten)[:200]
 
     def startTest(self, test):
         super().startTest(test)
@@ -1056,13 +1061,29 @@ def _chay_mot_module(repo: Path, module: str, gioi_han: int, thu_muc_nhat_ky: Pa
     ket["loi_dau"] = dong_loi[0] if dong_loi else ""
     if treo:
         ket["test_treo"] = dang_chay or ""
-    elif not ket_thuc:
-        # Tiến trình con chết/thoát trước khi chạy hết (nạp module hỏng, sys.exit trong test, lỗi phần mềm...).
-        ket["error"] += 1
-        ket["ids_loi"].append(f"TIEN_TRINH_CON_CHET(ma={ma_ra}) khi chay {dang_chay or 'nap module'}")
-        cuoi_log = [d.strip() for d in tep_log.read_text(encoding="utf-8", errors="replace").splitlines() if d.strip()]
-        ket["loi_dau"] = ket["loi_dau"] or (cuoi_log[-1][:300] if cuoi_log else f"tien trinh con thoat ma {ma_ra} truoc khi chay het")
-        ket["test_treo"] = ""
+    else:
+        # `het` được ghi trong finally: vẫn có thể có ngoại lệ làm con sập sau đó.
+        log = tep_log.read_text(encoding="utf-8", errors="replace")
+        da_ghi = sum(dem[e] for e in ("ok", "fail", "error", "skip"))
+        bo_do = max(0, tong - da_ghi) if tong is not None else 0
+        ly_do = []
+        if ma_ra != 0:
+            ly_do.append(f"tien trinh con thoat ma {ma_ra}")
+        if "Traceback (most recent call last)" in log:
+            ly_do.append("co traceback trong log")
+        if bo_do:
+            ly_do.append(f"chi ghi {da_ghi}/{tong} ca; {bo_do} ca bo do tinh ERROR")
+        if not ket_thuc:
+            ly_do.append("thieu su kien het")
+        if ly_do:
+            ket["error"] += max(bo_do, int(ket["error"] == 0))
+            ket["ids_loi"].append(f"TIEN_TRINH_CON_CHET(ma={ma_ra}) khi chay {dang_chay or 'nap module'}")
+            cuoi_log = [d.strip() for d in log.splitlines() if d.strip()]
+            chi_tiet = ket["loi_dau"] or (cuoi_log[-1] if cuoi_log else "")
+            ket["loi_dau"] = ("; ".join(ly_do) + (f": {chi_tiet}" if chi_tiet else ""))[:300]
+            dong_loi.append(ket["loi_dau"])
+            tb_dau_tien = tb_dau_tien or log[:TB_TOI_DA]
+            ket["test_treo"] = ""
     ket["_dong_loi"] = dong_loi  # chỉ dùng để thống kê, bỏ trước khi ghi JSON
     ket["_tb_dau"] = tb_dau_tien or ""
     return ket
