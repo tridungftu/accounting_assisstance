@@ -69,10 +69,18 @@ class Bootstrap:
     @classmethod
     def nhan(cls, *, kiem_chu_ky, stdin=None, stdout=None):
         vao = sys.stdin.buffer if stdin is None else stdin
-        ra = sys.stdout.buffer if stdout is None else stdout
+        ra = stdout
         cfg = raw = None
         nghe = None
         try:
+            if stdout is None:
+                # Giữ fd pipe riêng cho protocol; cả print, sys.__stdout__ và
+                # os.write lên fd stdout của runtime đều không làm đầy pipe.
+                sys.stdout.flush()
+                fd = sys.stdout.fileno()
+                ra = os.fdopen(os.dup(fd), 'wb', buffering=0)
+                with open(os.devnull, 'wb') as bo:
+                    os.dup2(bo.fileno(), fd)
             cfg = doc_thong_diep(vao.readline(TOI_DA))
             if (not isinstance(cfg, dict) or cfg.get('protocol') != PROTOCOL
                     or cfg.get('kieu') != 'khoi_dong' or type(cfg.get('pid')) is not int
@@ -100,6 +108,8 @@ class Bootstrap:
             _xoa_loi(exc)
             if nghe is not None:
                 nghe.close()
+            if stdout is None and ra is not None:
+                ra.close()
         finally:
             raw = cfg = None
         raise LoiBootstrap()

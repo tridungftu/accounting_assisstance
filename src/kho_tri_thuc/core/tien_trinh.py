@@ -22,7 +22,7 @@ from types import SimpleNamespace
 from uuid import UUID, uuid4
 
 from . import so_cong
-from ..nguon.trich6_host import Trich6Host, _JobWindows, _doc_dong, env_con
+from ..nguon.trich6_host import LoiHost, Trich6Host, _JobWindows, _doc_dong, env_con
 from ..sdk_core.bootstrap import (PROTOCOL, dinh_danh_lan_tao, doc_thong_diep,
                                   gui_thong_diep)
 from ..sdk_core.ngu_canh import _xoa_loi
@@ -127,7 +127,14 @@ class TienTrinhCore:
         # Dùng nguyên thuật toán EOF -> grace -> Job -> xác nhận terminal của #6/M2.
         don = SimpleNamespace(cho_dung=self.cho_dung, cho_job=10)
         don._cho_job_rong = lambda job, han: Trich6Host._cho_job_rong(don, job, han)
-        Trich6Host._don(don, self._proc, self._job)
+        # Host luôn đóng Job trong finally. Giữ handle thật nếu chưa xác nhận
+        # dừng để kiem_con còn kiểm được worker, không đoán Job đã rỗng.
+        job = None if self._job is None else SimpleNamespace(
+            so_tien_trinh=self._job.so_tien_trinh, ket_thuc=self._job.ket_thuc,
+            dong=lambda: None)
+        Trich6Host._don(don, self._proc, job)
+        if self._job is not None:
+            self._job.dong()
         self._proc = self._job = None
 
     def khoi_dong(self):
@@ -232,18 +239,36 @@ class TienTrinhCore:
             return self._so(so_cong.gia_han, self.instance_id, self.the_he)
 
     def _thu_sau_khi_chet(self):
-        if (self._proc.poll() is None
-                or not Trich6Host._cho_job_rong(self, self._job, min(self.cho_dung, 10))):
-            raise LoiTienTrinh('DUNG_CHUA_XAC_NHAN')
-        # Chỉ trả thế hệ sau khi con và toàn bộ Job hết quyền accept.
-        if not self._khoa_loi:
-            self._so(so_cong.tra, self.instance_id, self.the_he)
+        ma = 'DUNG_CHUA_XAC_NHAN'
+        da_dung = False
+        try:
+            da_dung = (self._proc.poll() is not None
+                and Trich6Host._cho_job_rong(self, self._job, min(self.cho_dung, 10)))
+        except LoiHost as exc:
+            ma = exc.ma
+            _xoa_loi(exc)
+        if not da_dung:
+            raise LoiTienTrinh(ma)
+        # Thu hồi quyền trong máy trước: lỗi sổ không được giữ _proc/accept cũ.
         self._job.dong()
-        self._proc.stdin.close()
-        self._proc.stdout.close()
+        proc = self._proc
         self._proc = self._job = self._nonce = None
         self._da_nhan = False
         self.trang_thai, self.chu_accept = 'stopped', 'core'
+        for kenh in (proc.stdin, proc.stdout):
+            try:
+                kenh.close()
+            except OSError:
+                pass
+        if not self._khoa_loi:
+            ma = None
+            try:
+                self._so(so_cong.tra, self.instance_id, self.the_he)
+            except Exception as exc:
+                ma = exc.ma if isinstance(exc, so_cong.LoiSoCong) else 'CONG_THAT_BAI'
+                _xoa_loi(exc)
+            if ma is not None:
+                raise LoiTienTrinh(ma)
         # Vẫn giữ listener: lần sau dùng đúng socket/cổng, không có khoảng hở bind.
         return True
 

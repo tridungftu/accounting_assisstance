@@ -43,6 +43,9 @@ def _child():
         b._cfg[b.tham_so['sai']] = b.tham_so['gia_tri']
     b.bao_san_sang(phien_ban=b.tham_so.get('version', '1'), contracts=['demo/v1'],
                    kiem_san_sang=lambda: True)
+    if b.tham_so.get('stdout_lon'):
+        print('x' * (256 * 1024), flush=True)
+        os.write(sys.stdout.fileno(), b'y' * (256 * 1024))
     if b.tham_so.get('chet'):
         return
     if b.tham_so.get('echo'):
@@ -256,6 +259,97 @@ class TienTrinhThuanTest(unittest.TestCase):
         self.c.kiem_con()
         self.assertEqual(self.c.trang_thai, 'stopped')
 
+    def _kiem_mat_lease(self, thu_hoi):
+        proc, job = self.c._proc, self.c._job
+        def tra_loi(*args):
+            # Lỗi thật xảy ra trước khi sổ thay đổi; quyền trong máy phải đã thu.
+            self.assertIsNone(self.c._proc)
+            self.assertIsNone(self.c._job)
+            self.assertEqual((self.c.trang_thai, self.c.chu_accept), ('stopped', 'core'))
+            job.dong.assert_called_once()
+            self.assertTrue(proc.stdin.closed)
+            self.assertTrue(self.c._nonce is None and not self.c._da_nhan)
+            raise sc.LoiSoCong('CONG_MAT_LEASE')
+        with patch.object(sc, 'tra', side_effect=tra_loi):
+            with self.assertRaisesRegex(tt.LoiTienTrinh, 'CONG_MAT_LEASE') as bat:
+                thu_hoi()
+        self.assertEqual(bat.exception.ma, 'CONG_MAT_LEASE')
+        self.assertIsNone(bat.exception.__context__)
+        self.nghe.close.assert_not_called()
+        self.c.accept()
+        self.assertFalse(self.c.kiem_con())
+        self.assertTrue(self.c.thu_hoi())
+        # Không tự bỏ qua chủ trong sổ (đối chiếu là G2-22).
+        with self.assertRaisesRegex(tt.LoiTienTrinh, 'CONG_CAN_DOI_CHIEU'):
+            self.c.khoi_dong()
+        self.assertEqual(self.spawn.call_count, 1)
+        # Giả lập sổ đã được xử lý bên ngoài rồi khởi động lại cùng controller.
+        self.so.dong.update(giu_boi=None, trang_thai='TRONG')
+        self.proc.stdin = io.BytesIO()
+        self.proc.poll.return_value = None
+        self.job.reset_mock()
+        self.c.khoi_dong()
+        self.assertEqual((self.c.trang_thai, self.c.the_he), ('ready', 2))
+        self.nghe.bind.assert_called_once()
+
+    def test_lease_het_khi_con_chet_khong_ket_controller(self):
+        self.c.khoi_dong()
+        self.proc.poll.return_value = 0
+        self._kiem_mat_lease(self.c.kiem_con)
+
+    def test_lease_het_trong_drain_khong_ket_controller(self):
+        self.c.khoi_dong()
+        def dung(*args):
+            self.assertEqual(self.c.trang_thai, 'dang_dung')
+            self.proc.poll.return_value = 0
+        self.proc.wait.side_effect = dung
+        self._kiem_mat_lease(lambda: self.c.thu_hoi(timeout=0.1))
+
+    def test_loi_transaction_tra_khong_pha_thu_hoi_noi_bo(self):
+        self.c.khoi_dong()
+        self.proc.poll.return_value = 0
+        with patch.object(sc, 'tra', side_effect=RuntimeError('G221_SECRET')):
+            with self.assertRaisesRegex(tt.LoiTienTrinh, 'CONG_THAT_BAI') as bat:
+                self.c.kiem_con()
+        self.assertIsNone(self.c._proc)
+        self.assertEqual(self.c.chu_accept, 'core')
+        self.assertNotIn('G221_SECRET', ''.join(traceback.format_exception(bat.exception)))
+
+    def test_don_loi_giua_chung_giu_job_de_kiem_con_thu_lai(self):
+        self.don.stop()  # Dùng cleanup host thật, chỉ giả các thao tác OS.
+        self.c._doc_dong = lambda *_: None
+        def dung(*args):
+            self.proc.poll.return_value = 0
+        self.proc.wait.side_effect = dung
+        self.job.so_tien_trinh.side_effect = [
+            tt.LoiHost('JOB_TRUY_VAN_LOI', 'G221_SECRET'), 0]
+        with self.assertRaisesRegex(tt.LoiTienTrinh, 'DUNG_CHUA_XAC_NHAN'):
+            self.c.khoi_dong()
+        self.assertIs(self.c._proc, self.proc)
+        self.assertIs(self.c._job, self.job)
+        self.job.dong.assert_not_called()
+        self.assertEqual(self.c.chu_accept, 'con')
+        self.assertTrue(self.c.kiem_con())
+        self.job.dong.assert_called_once()
+        self.assertIsNone(self.c._proc)
+        self.assertIsNone(self.c._job)
+        self.assertEqual(self.c.chu_accept, 'core')
+
+    def test_kiem_con_loi_job_tra_loi_tien_trinh_co_ma(self):
+        self.c.khoi_dong()
+        self.proc.poll.return_value = 0
+        with patch.object(self.job, 'so_tien_trinh', side_effect=
+                          tt.LoiHost('JOB_TRUY_VAN_LOI', 'G221_SECRET')):
+            with self.assertRaisesRegex(tt.LoiTienTrinh, 'JOB_TRUY_VAN_LOI') as bat:
+                self.c.kiem_con()
+        self.assertEqual(bat.exception.ma, 'JOB_TRUY_VAN_LOI')
+        self.assertIsNone(bat.exception.__context__)
+        self.assertNotIn('G221_SECRET', ''.join(traceback.format_exception(bat.exception)))
+        self.assertIs(self.c._proc, self.proc)
+        self.job.dong.assert_not_called()
+        self.assertEqual(self.c.chu_accept, 'con')
+        self.assertTrue(self.c.kiem_con())
+
     def test_con_chet_nhung_job_con_worker_khong_thu_hoi(self):
         self.c.khoi_dong()
         self.proc.poll.return_value = 0
@@ -405,6 +499,18 @@ class TienTrinhLoopbackTest(unittest.TestCase):
         self.assertTrue(c.kiem_con())
         self.assertEqual(so.dong['trang_thai'], 'TRONG')
         self.assertEqual(c._nghe.getsockname()[1], so.dong['cong'])
+
+    def test_stdout_hon_64kb_sau_readiness_khong_chan_accept_va_drain(self):
+        c, so = self._tao({'stdout_lon': True, 'echo': True})
+        c.khoi_dong()
+        pid = c._proc.pid
+        # Core không xả stdout sau readiness; con vẫn đi qua print/os.write
+        # hơn 64 KB rồi accept và nhận lệnh drain qua kênh bootstrap riêng.
+        with socket.create_connection(('127.0.0.1', so.dong['cong']), timeout=3) as client:
+            client.sendall(b'ping')
+            self.assertEqual(client.recv(100), str(pid).encode('ascii'))
+        self.assertTrue(c.thu_hoi(timeout=5))
+        self.assertEqual((c.chu_accept, so.dong['trang_thai']), ('core', 'TRONG'))
 
     def test_drain_qua_han_khong_kill_va_thu_sau_terminal(self):
         c, so = self._tao({'drain_giay': 0.4})
