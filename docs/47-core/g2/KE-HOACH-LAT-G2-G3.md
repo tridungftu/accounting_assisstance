@@ -199,3 +199,14 @@ Tối đa **bốn Codex đang làm**, tính cả reviewer; hàng dưới là cá
 3. Schema Mask/AI và capability chưa có bằng chứng nguồn có thể chặn tích hợp; không tự bổ sung contract/thuật toán.
 4. Đổi câu hỏi trích xuất có thể giảm chất lượng; thiếu số đo trước/sau 37 tham số thì chưa đủ nghiệm thu.
 5. CSDL–filesystem–nguồn ngoài không có một transaction chung; phải giữ staging, biên nhận, bàn giao và trạng thái chưa rõ, không retry mù.
+## Ghi chú lead khi giao (31/10)
+- **G2-13b (Codex, nhỏ):**
+  - tra resolver phải ra đúng một dòng `dang_dung`, nếu không → `CHO` / `LIEN_KET_RESOLVER`;
+  - thêm `LIEN_KET_CAN_READ_COMMITTED` vào bảng mã lỗi `danh_muc.py`.
+  - Nguồn: `RV-G2-13-OPUS-v2.md`.
+- **G2-25 phải thêm:**
+  - cấp wrapper kiểm cố định module (ABI 013) với REVOKE EXECUTE PUBLIC / login;
+  - `vai_kiem_toan_ven_mod_<ma>` không có thành viên;
+  - cấp `USAGE loi` + EXECUTE `mtq_phien_rls()` cho role kiểm module.
+  - Test kiểm cả ba.
+- **Rủi ro chấp nhận (G2-13):** hàm kiểm boolean theo ngưỡng dò được tổng bằng chia đôi, chỉ với role kiểm của chính module.
