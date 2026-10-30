@@ -1,0 +1,2765 @@
+{
+ "phien_ban": "16.15",
+ "csdl": [
+  "kho_crm_demo_20261019_307b998d",
+  "kho_crm_demo_feedback_1773c885",
+  "kho_crm_demo_lt_p8783",
+  "kho_crm_demo_lt_p8784",
+  "kho_crm_demo_lt_p8785",
+  "kho_crm_demo_lt_p8786",
+  "kho_crm_demo_lt_p8787",
+  "kho_crm_demo_lt_p8788",
+  "kho_crm_demo_lt_p8789",
+  "kho_crm_demo_lt_p8790",
+  "kho_crm_demo_lt_p8791",
+  "kho_crm_demo_lt_p8792",
+  "kho_crm_demo_lt_p8793",
+  "kho_crm_demo_lt_p8794",
+  "kho_crm_demo_lt_p8795",
+  "kho_crm_demo_lt_p8796",
+  "kho_crm_demo_lt_p8797",
+  "kho_crm_demo_lt_p8798",
+  "kho_crm_demo_lt_p8799",
+  "kho_crm_demo_lt_p8799b",
+  "postgres"
+ ],
+ "so_csdl_kho_test_con_lai": 303,
+ "csdl_dang_xem": "kho_crm_demo_20261019_307b998d",
+ "role": [
+  {
+   "ten": "app_cong_ai",
+   "login": false,
+   "super": false,
+   "bypassrls": false,
+   "createrole": false,
+   "createdb": false,
+   "inherit": true
+  },
+  {
+   "ten": "app_doc",
+   "login": false,
+   "super": false,
+   "bypassrls": false,
+   "createrole": false,
+   "createdb": false,
+   "inherit": true
+  },
+  {
+   "ten": "app_ke_toan",
+   "login": false,
+   "super": false,
+   "bypassrls": false,
+   "createrole": false,
+   "createdb": false,
+   "inherit": true
+  },
+  {
+   "ten": "app_web",
+   "login": false,
+   "super": false,
+   "bypassrls": false,
+   "createrole": false,
+   "createdb": false,
+   "inherit": false
+  },
+  {
+   "ten": "kho_crm_demo_app_8578e07dcdd8",
+   "login": true,
+   "super": false,
+   "bypassrls": false,
+   "createrole": false,
+   "createdb": false,
+   "inherit": true
+  },
+  {
+   "ten": "kho_test_crm03_3c4c8f6f8f01",
+   "login": true,
+   "super": false,
+   "bypassrls": false,
+   "createrole": false,
+   "createdb": false,
+   "inherit": false
+  },
+  {
+   "ten": "kho_test_crm_fk2_5fe343921cf5",
+   "login": true,
+   "super": false,
+   "bypassrls": false,
+   "createrole": false,
+   "createdb": false,
+   "inherit": false
+  },
+  {
+   "ten": "kho_test_crm_http_669ee8af7fa3",
+   "login": true,
+   "super": false,
+   "bypassrls": false,
+   "createrole": false,
+   "createdb": false,
+   "inherit": true
+  },
+  {
+   "ten": "kho_test_crm_http_a3729b4b9eb2",
+   "login": true,
+   "super": false,
+   "bypassrls": false,
+   "createrole": false,
+   "createdb": false,
+   "inherit": true
+  },
+  {
+   "ten": "kho_test_crm_http_c610d5998c14",
+   "login": true,
+   "super": false,
+   "bypassrls": false,
+   "createrole": false,
+   "createdb": false,
+   "inherit": true
+  },
+  {
+   "ten": "kho_test_crm_map2_ab3d3121ca85",
+   "login": true,
+   "super": false,
+   "bypassrls": false,
+   "createrole": false,
+   "createdb": false,
+   "inherit": false
+  },
+  {
+   "ten": "kho_test_crm_r02_fbee24c664dd",
+   "login": true,
+   "super": false,
+   "bypassrls": false,
+   "createrole": false,
+   "createdb": false,
+   "inherit": false
+  },
+  {
+   "ten": "kho_test_crm_r02_target_c5f8a257ec",
+   "login": true,
+   "super": false,
+   "bypassrls": false,
+   "createrole": false,
+   "createdb": false,
+   "inherit": false
+  },
+  {
+   "ten": "kho_test_crm_svc_0b694e360f5d",
+   "login": true,
+   "super": false,
+   "bypassrls": false,
+   "createrole": false,
+   "createdb": false,
+   "inherit": false
+  },
+  {
+   "ten": "kho_test_m1r02_2b09a26c69cc",
+   "login": true,
+   "super": false,
+   "bypassrls": false,
+   "createrole": false,
+   "createdb": false,
+   "inherit": true
+  },
+  {
+   "ten": "kho_test_m1r02_b6be72b2e8f9",
+   "login": true,
+   "super": false,
+   "bypassrls": false,
+   "createrole": false,
+   "createdb": false,
+   "inherit": true
+  },
+  {
+   "ten": "kho_test_m1r03_927d8df9fd90",
+   "login": true,
+   "super": false,
+   "bypassrls": false,
+   "createrole": false,
+   "createdb": false,
+   "inherit": true
+  },
+  {
+   "ten": "kho_test_mtq_m4_review_50cf83ccbd50_nguon",
+   "login": false,
+   "super": false,
+   "bypassrls": false,
+   "createrole": false,
+   "createdb": false,
+   "inherit": true
+  },
+  {
+   "ten": "kho_test_mtq_m4_review_74d730245a0e_nguon",
+   "login": false,
+   "super": false,
+   "bypassrls": false,
+   "createrole": false,
+   "createdb": false,
+   "inherit": true
+  },
+  {
+   "ten": "kho_test_mtq_m4_review_81deb3eaab68_nguon",
+   "login": false,
+   "super": false,
+   "bypassrls": false,
+   "createrole": false,
+   "createdb": false,
+   "inherit": true
+  },
+  {
+   "ten": "kho_test_mtq_m4_review_8c1590489b8f_nguon",
+   "login": false,
+   "super": false,
+   "bypassrls": false,
+   "createrole": false,
+   "createdb": false,
+   "inherit": true
+  },
+  {
+   "ten": "ktt_crm_feedback_1773c885",
+   "login": true,
+   "super": false,
+   "bypassrls": false,
+   "createrole": false,
+   "createdb": false,
+   "inherit": true
+  },
+  {
+   "ten": "ktt_l11v_f_0cb4ccc5b82e033b",
+   "login": true,
+   "super": false,
+   "bypassrls": false,
+   "createrole": false,
+   "createdb": false,
+   "inherit": true
+  },
+  {
+   "ten": "ktt_l11v_f_12db1cbfd7e10e83",
+   "login": true,
+   "super": false,
+   "bypassrls": false,
+   "createrole": false,
+   "createdb": false,
+   "inherit": true
+  },
+  {
+   "ten": "ktt_l11v_f_1488f12ac8bad6b5",
+   "login": true,
+   "super": false,
+   "bypassrls": false,
+   "createrole": false,
+   "createdb": false,
+   "inherit": true
+  },
+  {
+   "ten": "ktt_l11v_f_1f53d52855cd26a8",
+   "login": true,
+   "super": false,
+   "bypassrls": false,
+   "createrole": false,
+   "createdb": false,
+   "inherit": true
+  },
+  {
+   "ten": "ktt_l11v_f_32b1f73f9f2f56a0",
+   "login": true,
+   "super": false,
+   "bypassrls": false,
+   "createrole": false,
+   "createdb": false,
+   "inherit": true
+  },
+  {
+   "ten": "ktt_l11v_f_37b4bd2f32fb4563",
+   "login": true,
+   "super": false,
+   "bypassrls": false,
+   "createrole": false,
+   "createdb": false,
+   "inherit": true
+  },
+  {
+   "ten": "ktt_l11v_f_3dc63900e2138bb1",
+   "login": true,
+   "super": false,
+   "bypassrls": false,
+   "createrole": false,
+   "createdb": false,
+   "inherit": true
+  },
+  {
+   "ten": "ktt_l11v_f_3e54dece76857b48",
+   "login": true,
+   "super": false,
+   "bypassrls": false,
+   "createrole": false,
+   "createdb": false,
+   "inherit": true
+  },
+  {
+   "ten": "ktt_l11v_f_4031a09316147459",
+   "login": true,
+   "super": false,
+   "bypassrls": false,
+   "createrole": false,
+   "createdb": false,
+   "inherit": true
+  },
+  {
+   "ten": "ktt_l11v_f_4137cdefad8d11ef",
+   "login": true,
+   "super": false,
+   "bypassrls": false,
+   "createrole": false,
+   "createdb": false,
+   "inherit": true
+  },
+  {
+   "ten": "ktt_l11v_f_4dcd824cb396191d",
+   "login": true,
+   "super": false,
+   "bypassrls": false,
+   "createrole": false,
+   "createdb": false,
+   "inherit": true
+  },
+  {
+   "ten": "ktt_l11v_f_5864af7affa5a182",
+   "login": true,
+   "super": false,
+   "bypassrls": false,
+   "createrole": false,
+   "createdb": false,
+   "inherit": true
+  },
+  {
+   "ten": "ktt_l11v_f_59434bb795fb8dc6",
+   "login": true,
+   "super": false,
+   "bypassrls": false,
+   "createrole": false,
+   "createdb": false,
+   "inherit": true
+  },
+  {
+   "ten": "ktt_l11v_f_660f71bbfb4324a9",
+   "login": true,
+   "super": false,
+   "bypassrls": false,
+   "createrole": false,
+   "createdb": false,
+   "inherit": true
+  },
+  {
+   "ten": "ktt_l11v_f_726d54c0de4ce80b",
+   "login": true,
+   "super": false,
+   "bypassrls": false,
+   "createrole": false,
+   "createdb": false,
+   "inherit": true
+  },
+  {
+   "ten": "ktt_l11v_f_758cca7e6fac8c6b",
+   "login": true,
+   "super": false,
+   "bypassrls": false,
+   "createrole": false,
+   "createdb": false,
+   "inherit": true
+  },
+  {
+   "ten": "ktt_l11v_f_7b19f372d1b0c6e3",
+   "login": true,
+   "super": false,
+   "bypassrls": false,
+   "createrole": false,
+   "createdb": false,
+   "inherit": true
+  },
+  {
+   "ten": "ktt_l11v_f_8cb40be1f0c04471",
+   "login": true,
+   "super": false,
+   "bypassrls": false,
+   "createrole": false,
+   "createdb": false,
+   "inherit": true
+  },
+  {
+   "ten": "ktt_l11v_f_94d1bac117f63c9f",
+   "login": true,
+   "super": false,
+   "bypassrls": false,
+   "createrole": false,
+   "createdb": false,
+   "inherit": true
+  },
+  {
+   "ten": "ktt_l11v_f_c8f8b0e62e6c5bec",
+   "login": true,
+   "super": false,
+   "bypassrls": false,
+   "createrole": false,
+   "createdb": false,
+   "inherit": true
+  },
+  {
+   "ten": "ktt_l11v_f_d02eec9d744c6b76",
+   "login": true,
+   "super": false,
+   "bypassrls": false,
+   "createrole": false,
+   "createdb": false,
+   "inherit": true
+  },
+  {
+   "ten": "ktt_l11v_f_db2e462d0ee0abb1",
+   "login": true,
+   "super": false,
+   "bypassrls": false,
+   "createrole": false,
+   "createdb": false,
+   "inherit": true
+  },
+  {
+   "ten": "ktt_l11v_f_e2336e4bc26a1935",
+   "login": true,
+   "super": false,
+   "bypassrls": false,
+   "createrole": false,
+   "createdb": false,
+   "inherit": true
+  },
+  {
+   "ten": "ktt_l11v_f_ec71d06d15718ab3",
+   "login": true,
+   "super": false,
+   "bypassrls": false,
+   "createrole": false,
+   "createdb": false,
+   "inherit": true
+  },
+  {
+   "ten": "ktt_l11v_f_eec3aa822235c1b9",
+   "login": true,
+   "super": false,
+   "bypassrls": false,
+   "createrole": false,
+   "createdb": false,
+   "inherit": true
+  },
+  {
+   "ten": "ktt_l11v_f_f2d25079a535ce44",
+   "login": true,
+   "super": false,
+   "bypassrls": false,
+   "createrole": false,
+   "createdb": false,
+   "inherit": true
+  },
+  {
+   "ten": "ktt_l11v_w_01f6be8522caf3e4",
+   "login": true,
+   "super": false,
+   "bypassrls": false,
+   "createrole": false,
+   "createdb": false,
+   "inherit": true
+  },
+  {
+   "ten": "ktt_l11v_w_05fa1f49d2bb628f",
+   "login": true,
+   "super": false,
+   "bypassrls": false,
+   "createrole": false,
+   "createdb": false,
+   "inherit": true
+  },
+  {
+   "ten": "ktt_l11v_w_084cb49fc5755bfd",
+   "login": true,
+   "super": false,
+   "bypassrls": false,
+   "createrole": false,
+   "createdb": false,
+   "inherit": true
+  },
+  {
+   "ten": "ktt_l11v_w_0e7a0817fdfdfae1",
+   "login": true,
+   "super": false,
+   "bypassrls": false,
+   "createrole": false,
+   "createdb": false,
+   "inherit": true
+  },
+  {
+   "ten": "ktt_l11v_w_1e852094b1a7a47e",
+   "login": true,
+   "super": false,
+   "bypassrls": false,
+   "createrole": false,
+   "createdb": false,
+   "inherit": true
+  },
+  {
+   "ten": "ktt_l11v_w_22d7369960a68a73",
+   "login": true,
+   "super": false,
+   "bypassrls": false,
+   "createrole": false,
+   "createdb": false,
+   "inherit": true
+  },
+  {
+   "ten": "ktt_l11v_w_25b746cd9bc016bf",
+   "login": true,
+   "super": false,
+   "bypassrls": false,
+   "createrole": false,
+   "createdb": false,
+   "inherit": true
+  },
+  {
+   "ten": "ktt_l11v_w_3b5a9ad2e34528e6",
+   "login": true,
+   "super": false,
+   "bypassrls": false,
+   "createrole": false,
+   "createdb": false,
+   "inherit": true
+  },
+  {
+   "ten": "ktt_l11v_w_433d86c1e98fec4d",
+   "login": true,
+   "super": false,
+   "bypassrls": false,
+   "createrole": false,
+   "createdb": false,
+   "inherit": true
+  },
+  {
+   "ten": "ktt_l11v_w_443e3e075ad3ad6e",
+   "login": true,
+   "super": false,
+   "bypassrls": false,
+   "createrole": false,
+   "createdb": false,
+   "inherit": true
+  },
+  {
+   "ten": "ktt_l11v_w_4fb7e25a3a69baf8",
+   "login": true,
+   "super": false,
+   "bypassrls": false,
+   "createrole": false,
+   "createdb": false,
+   "inherit": true
+  },
+  {
+   "ten": "ktt_l11v_w_5045238b3bf56eba",
+   "login": true,
+   "super": false,
+   "bypassrls": false,
+   "createrole": false,
+   "createdb": false,
+   "inherit": true
+  },
+  {
+   "ten": "ktt_l11v_w_625d8bd354ce677b",
+   "login": true,
+   "super": false,
+   "bypassrls": false,
+   "createrole": false,
+   "createdb": false,
+   "inherit": true
+  },
+  {
+   "ten": "ktt_l11v_w_66516d42c4ba77e4",
+   "login": true,
+   "super": false,
+   "bypassrls": false,
+   "createrole": false,
+   "createdb": false,
+   "inherit": true
+  },
+  {
+   "ten": "ktt_l11v_w_67772dfd966692d0",
+   "login": true,
+   "super": false,
+   "bypassrls": false,
+   "createrole": false,
+   "createdb": false,
+   "inherit": true
+  },
+  {
+   "ten": "ktt_l11v_w_69b948097a8a1b3d",
+   "login": true,
+   "super": false,
+   "bypassrls": false,
+   "createrole": false,
+   "createdb": false,
+   "inherit": true
+  },
+  {
+   "ten": "ktt_l11v_w_70292363af972a5b",
+   "login": true,
+   "super": false,
+   "bypassrls": false,
+   "createrole": false,
+   "createdb": false,
+   "inherit": true
+  },
+  {
+   "ten": "ktt_l11v_w_746de8cb3e93da92",
+   "login": true,
+   "super": false,
+   "bypassrls": false,
+   "createrole": false,
+   "createdb": false,
+   "inherit": true
+  },
+  {
+   "ten": "ktt_l11v_w_875fb4023e9c3e69",
+   "login": true,
+   "super": false,
+   "bypassrls": false,
+   "createrole": false,
+   "createdb": false,
+   "inherit": true
+  },
+  {
+   "ten": "ktt_l11v_w_896f1ba8f685c8cb",
+   "login": true,
+   "super": false,
+   "bypassrls": false,
+   "createrole": false,
+   "createdb": false,
+   "inherit": true
+  },
+  {
+   "ten": "ktt_l11v_w_a3c6bfa1977b0103",
+   "login": true,
+   "super": false,
+   "bypassrls": false,
+   "createrole": false,
+   "createdb": false,
+   "inherit": true
+  },
+  {
+   "ten": "ktt_l11v_w_a6a6d971e26df04a",
+   "login": true,
+   "super": false,
+   "bypassrls": false,
+   "createrole": false,
+   "createdb": false,
+   "inherit": true
+  },
+  {
+   "ten": "ktt_l11v_w_ab963c599e63d282",
+   "login": true,
+   "super": false,
+   "bypassrls": false,
+   "createrole": false,
+   "createdb": false,
+   "inherit": true
+  },
+  {
+   "ten": "ktt_l11v_w_ba1428c42a68791a",
+   "login": true,
+   "super": false,
+   "bypassrls": false,
+   "createrole": false,
+   "createdb": false,
+   "inherit": true
+  },
+  {
+   "ten": "ktt_l11v_w_c4aa06b9ec24b81e",
+   "login": true,
+   "super": false,
+   "bypassrls": false,
+   "createrole": false,
+   "createdb": false,
+   "inherit": true
+  },
+  {
+   "ten": "ktt_l11v_w_d26c7cf110b74cc3",
+   "login": true,
+   "super": false,
+   "bypassrls": false,
+   "createrole": false,
+   "createdb": false,
+   "inherit": true
+  },
+  {
+   "ten": "ktt_m2_ind_05c53eff23848f74",
+   "login": true,
+   "super": false,
+   "bypassrls": false,
+   "createrole": false,
+   "createdb": false,
+   "inherit": true
+  },
+  {
+   "ten": "ktt_m2_ind_078b28d4f68b7cab",
+   "login": true,
+   "super": false,
+   "bypassrls": false,
+   "createrole": false,
+   "createdb": false,
+   "inherit": true
+  },
+  {
+   "ten": "ktt_m2_ind_088bb7d420ab46c4",
+   "login": true,
+   "super": false,
+   "bypassrls": false,
+   "createrole": false,
+   "createdb": false,
+   "inherit": true
+  },
+  {
+   "ten": "ktt_m2_ind_0b8095ac815c42cb",
+   "login": true,
+   "super": false,
+   "bypassrls": false,
+   "createrole": false,
+   "createdb": false,
+   "inherit": true
+  },
+  {
+   "ten": "ktt_m2_ind_0dce106bbb75ab2c",
+   "login": true,
+   "super": false,
+   "bypassrls": false,
+   "createrole": false,
+   "createdb": false,
+   "inherit": true
+  },
+  {
+   "ten": "ktt_m2_ind_0f5490964bcdcbf0",
+   "login": true,
+   "super": false,
+   "bypassrls": false,
+   "createrole": false,
+   "createdb": false,
+   "inherit": true
+  },
+  {
+   "ten": "ktt_m2_ind_10679c6ef95bce84",
+   "login": true,
+   "super": false,
+   "bypassrls": false,
+   "createrole": false,
+   "createdb": false,
+   "inherit": true
+  },
+  {
+   "ten": "ktt_m2_ind_1121d82ae99a1879",
+   "login": true,
+   "super": false,
+   "bypassrls": false,
+   "createrole": false,
+   "createdb": false,
+   "inherit": true
+  },
+  {
+   "ten": "ktt_m2_ind_13e2c8fa08ab5d95",
+   "login": true,
+   "super": false,
+   "bypassrls": false,
+   "createrole": false,
+   "createdb": false,
+   "inherit": true
+  },
+  {
+   "ten": "ktt_m2_ind_160da13749f98279",
+   "login": true,
+   "super": false,
+   "bypassrls": false,
+   "createrole": false,
+   "createdb": false,
+   "inherit": true
+  },
+  {
+   "ten": "ktt_m2_ind_17078c8609fc2c87",
+   "login": true,
+   "super": false,
+   "bypassrls": false,
+   "createrole": false,
+   "createdb": false,
+   "inherit": true
+  },
+  {
+   "ten": "ktt_m2_ind_209f7091472e0924",
+   "login": true,
+   "super": false,
+   "bypassrls": false,
+   "createrole": false,
+   "createdb": false,
+   "inherit": true
+  },
+  {
+   "ten": "ktt_m2_ind_21fb6eaf9243bf18",
+   "login": true,
+   "super": false,
+   "bypassrls": false,
+   "createrole": false,
+   "createdb": false,
+   "inherit": true
+  },
+  {
+   "ten": "ktt_m2_ind_293faf654e29fc64",
+   "login": true,
+   "super": false,
+   "bypassrls": false,
+   "createrole": false,
+   "createdb": false,
+   "inherit": true
+  },
+  {
+   "ten": "ktt_m2_ind_2a3bfd530cf53c30",
+   "login": true,
+   "super": false,
+   "bypassrls": false,
+   "createrole": false,
+   "createdb": false,
+   "inherit": true
+  },
+  {
+   "ten": "ktt_m2_ind_2cd7267d48965402",
+   "login": true,
+   "super": false,
+   "bypassrls": false,
+   "createrole": false,
+   "createdb": false,
+   "inherit": true
+  },
+  {
+   "ten": "ktt_m2_ind_2f83344c36fb8831",
+   "login": true,
+   "super": false,
+   "bypassrls": false,
+   "createrole": false,
+   "createdb": false,
+   "inherit": true
+  },
+  {
+   "ten": "ktt_m2_ind_33099cf36f6ebe3b",
+   "login": true,
+   "super": false,
+   "bypassrls": false,
+   "createrole": false,
+   "createdb": false,
+   "inherit": true
+  },
+  {
+   "ten": "ktt_m2_ind_3616428d4aa34293",
+   "login": true,
+   "super": false,
+   "bypassrls": false,
+   "createrole": false,
+   "createdb": false,
+   "inherit": true
+  },
+  {
+   "ten": "ktt_m2_ind_3eec5860471a77d7",
+   "login": true,
+   "super": false,
+   "bypassrls": false,
+   "createrole": false,
+   "createdb": false,
+   "inherit": true
+  },
+  {
+   "ten": "ktt_m2_ind_4a3d215b31e28bc9",
+   "login": true,
+   "super": false,
+   "bypassrls": false,
+   "createrole": false,
+   "createdb": false,
+   "inherit": true
+  },
+  {
+   "ten": "ktt_m2_ind_4cd27aa802cd4f94",
+   "login": true,
+   "super": false,
+   "bypassrls": false,
+   "createrole": false,
+   "createdb": false,
+   "inherit": true
+  },
+  {
+   "ten": "ktt_m2_ind_533ed429b007b2bf",
+   "login": true,
+   "super": false,
+   "bypassrls": false,
+   "createrole": false,
+   "createdb": false,
+   "inherit": true
+  },
+  {
+   "ten": "ktt_m2_ind_54214835d2d583d6",
+   "login": true,
+   "super": false,
+   "bypassrls": false,
+   "createrole": false,
+   "createdb": false,
+   "inherit": true
+  },
+  {
+   "ten": "ktt_m2_ind_599ce317058203b3",
+   "login": true,
+   "super": false,
+   "bypassrls": false,
+   "createrole": false,
+   "createdb": false,
+   "inherit": true
+  },
+  {
+   "ten": "ktt_m2_ind_665ab51b6ba3cecb",
+   "login": true,
+   "super": false,
+   "bypassrls": false,
+   "createrole": false,
+   "createdb": false,
+   "inherit": true
+  },
+  {
+   "ten": "ktt_m2_ind_69489bd810369e77",
+   "login": true,
+   "super": false,
+   "bypassrls": false,
+   "createrole": false,
+   "createdb": false,
+   "inherit": true
+  },
+  {
+   "ten": "ktt_m2_ind_6b783c91777c30d4",
+   "login": true,
+   "super": false,
+   "bypassrls": false,
+   "createrole": false,
+   "createdb": false,
+   "inherit": true
+  },
+  {
+   "ten": "ktt_m2_ind_710f63fe5b68f356",
+   "login": true,
+   "super": false,
+   "bypassrls": false,
+   "createrole": false,
+   "createdb": false,
+   "inherit": true
+  },
+  {
+   "ten": "ktt_m2_ind_74c41f66142faebc",
+   "login": true,
+   "super": false,
+   "bypassrls": false,
+   "createrole": false,
+   "createdb": false,
+   "inherit": true
+  },
+  {
+   "ten": "ktt_m2_ind_81b9a97f1ca6da05",
+   "login": true,
+   "super": false,
+   "bypassrls": false,
+   "createrole": false,
+   "createdb": false,
+   "inherit": true
+  },
+  {
+   "ten": "ktt_m2_ind_852d0731dc6d1c62",
+   "login": true,
+   "super": false,
+   "bypassrls": false,
+   "createrole": false,
+   "createdb": false,
+   "inherit": true
+  },
+  {
+   "ten": "ktt_m2_ind_8537308daca843d1",
+   "login": true,
+   "super": false,
+   "bypassrls": false,
+   "createrole": false,
+   "createdb": false,
+   "inherit": true
+  },
+  {
+   "ten": "ktt_m2_ind_8b764b0a229ecfec",
+   "login": true,
+   "super": false,
+   "bypassrls": false,
+   "createrole": false,
+   "createdb": false,
+   "inherit": true
+  },
+  {
+   "ten": "ktt_m2_ind_8eafa6cc0d500322",
+   "login": true,
+   "super": false,
+   "bypassrls": false,
+   "createrole": false,
+   "createdb": false,
+   "inherit": true
+  },
+  {
+   "ten": "ktt_m2_ind_9345a7689aede8ce",
+   "login": true,
+   "super": false,
+   "bypassrls": false,
+   "createrole": false,
+   "createdb": false,
+   "inherit": true
+  },
+  {
+   "ten": "ktt_m2_ind_99bac6c71eb15f88",
+   "login": true,
+   "super": false,
+   "bypassrls": false,
+   "createrole": false,
+   "createdb": false,
+   "inherit": true
+  },
+  {
+   "ten": "ktt_m2_ind_9b481a89f538d4b2",
+   "login": true,
+   "super": false,
+   "bypassrls": false,
+   "createrole": false,
+   "createdb": false,
+   "inherit": true
+  },
+  {
+   "ten": "ktt_m2_ind_a2e39b3b30811db5",
+   "login": true,
+   "super": false,
+   "bypassrls": false,
+   "createrole": false,
+   "createdb": false,
+   "inherit": true
+  },
+  {
+   "ten": "ktt_m2_ind_a368c23a458eaa50",
+   "login": true,
+   "super": false,
+   "bypassrls": false,
+   "createrole": false,
+   "createdb": false,
+   "inherit": true
+  },
+  {
+   "ten": "ktt_m2_ind_b7c92b950950fd77",
+   "login": true,
+   "super": false,
+   "bypassrls": false,
+   "createrole": false,
+   "createdb": false,
+   "inherit": true
+  },
+  {
+   "ten": "ktt_m2_ind_bc028825e745e1cd",
+   "login": true,
+   "super": false,
+   "bypassrls": false,
+   "createrole": false,
+   "createdb": false,
+   "inherit": true
+  },
+  {
+   "ten": "ktt_m2_ind_c832f4390c44ad32",
+   "login": true,
+   "super": false,
+   "bypassrls": false,
+   "createrole": false,
+   "createdb": false,
+   "inherit": true
+  },
+  {
+   "ten": "ktt_m2_ind_c94691ccb1648a71",
+   "login": true,
+   "super": false,
+   "bypassrls": false,
+   "createrole": false,
+   "createdb": false,
+   "inherit": true
+  },
+  {
+   "ten": "ktt_m2_ind_cb541c900d9d7810",
+   "login": true,
+   "super": false,
+   "bypassrls": false,
+   "createrole": false,
+   "createdb": false,
+   "inherit": true
+  },
+  {
+   "ten": "ktt_m2_ind_cb62a2ff660bdb50",
+   "login": true,
+   "super": false,
+   "bypassrls": false,
+   "createrole": false,
+   "createdb": false,
+   "inherit": true
+  },
+  {
+   "ten": "ktt_m2_ind_d97e85cfc8450c2f",
+   "login": true,
+   "super": false,
+   "bypassrls": false,
+   "createrole": false,
+   "createdb": false,
+   "inherit": true
+  },
+  {
+   "ten": "ktt_m2_ind_dd6397165ecd7d6e",
+   "login": true,
+   "super": false,
+   "bypassrls": false,
+   "createrole": false,
+   "createdb": false,
+   "inherit": true
+  },
+  {
+   "ten": "ktt_m2_ind_e32fe73d75d87f87",
+   "login": true,
+   "super": false,
+   "bypassrls": false,
+   "createrole": false,
+   "createdb": false,
+   "inherit": true
+  },
+  {
+   "ten": "ktt_m2_ind_e52fe6e1ab217629",
+   "login": true,
+   "super": false,
+   "bypassrls": false,
+   "createrole": false,
+   "createdb": false,
+   "inherit": true
+  },
+  {
+   "ten": "ktt_m2_ind_e54572d0e100fc07",
+   "login": true,
+   "super": false,
+   "bypassrls": false,
+   "createrole": false,
+   "createdb": false,
+   "inherit": true
+  },
+  {
+   "ten": "ktt_m2_ind_ebbeedaa7f41369d",
+   "login": true,
+   "super": false,
+   "bypassrls": false,
+   "createrole": false,
+   "createdb": false,
+   "inherit": true
+  },
+  {
+   "ten": "ktt_m2_ind_ef05f838578aea4c",
+   "login": true,
+   "super": false,
+   "bypassrls": false,
+   "createrole": false,
+   "createdb": false,
+   "inherit": true
+  },
+  {
+   "ten": "ktt_m2_ind_f8693caea49c577b",
+   "login": true,
+   "super": false,
+   "bypassrls": false,
+   "createrole": false,
+   "createdb": false,
+   "inherit": true
+  },
+  {
+   "ten": "ktt_m4_ind_0d80937ce2bf5b87",
+   "login": true,
+   "super": false,
+   "bypassrls": false,
+   "createrole": false,
+   "createdb": false,
+   "inherit": true
+  },
+  {
+   "ten": "ktt_m4_ind_4784c784442eb33f",
+   "login": true,
+   "super": false,
+   "bypassrls": false,
+   "createrole": false,
+   "createdb": false,
+   "inherit": true
+  },
+  {
+   "ten": "ktt_m4_ind_4dead43333834249",
+   "login": true,
+   "super": false,
+   "bypassrls": false,
+   "createrole": false,
+   "createdb": false,
+   "inherit": true
+  },
+  {
+   "ten": "ktt_m4_ind_551f90ac3ebe12a3",
+   "login": true,
+   "super": false,
+   "bypassrls": false,
+   "createrole": false,
+   "createdb": false,
+   "inherit": true
+  },
+  {
+   "ten": "ktt_m4_ind_6610e84936b6ce2c",
+   "login": true,
+   "super": false,
+   "bypassrls": false,
+   "createrole": false,
+   "createdb": false,
+   "inherit": true
+  },
+  {
+   "ten": "ktt_m4_ind_7082de158d2fe544",
+   "login": true,
+   "super": false,
+   "bypassrls": false,
+   "createrole": false,
+   "createdb": false,
+   "inherit": true
+  },
+  {
+   "ten": "ktt_m4_ind_99c093ce9120ce42",
+   "login": true,
+   "super": false,
+   "bypassrls": false,
+   "createrole": false,
+   "createdb": false,
+   "inherit": true
+  },
+  {
+   "ten": "ktt_m4_ind_a66557bfbc8fc6a5",
+   "login": true,
+   "super": false,
+   "bypassrls": false,
+   "createrole": false,
+   "createdb": false,
+   "inherit": true
+  },
+  {
+   "ten": "ktt_m4_ind_a88f604f88ab4569",
+   "login": true,
+   "super": false,
+   "bypassrls": false,
+   "createrole": false,
+   "createdb": false,
+   "inherit": true
+  },
+  {
+   "ten": "ktt_m4_ind_d1152be8d80cc02e",
+   "login": true,
+   "super": false,
+   "bypassrls": false,
+   "createrole": false,
+   "createdb": false,
+   "inherit": true
+  },
+  {
+   "ten": "ktt_m4c24_h12_41bde1c47cf9",
+   "login": false,
+   "super": false,
+   "bypassrls": false,
+   "createrole": false,
+   "createdb": false,
+   "inherit": true
+  },
+  {
+   "ten": "ktt_m4c24_h12_8ad04af9205b",
+   "login": false,
+   "super": false,
+   "bypassrls": false,
+   "createrole": false,
+   "createdb": false,
+   "inherit": true
+  },
+  {
+   "ten": "ktt_m4c24_h12_ce02a68014c9",
+   "login": false,
+   "super": false,
+   "bypassrls": false,
+   "createrole": false,
+   "createdb": false,
+   "inherit": true
+  },
+  {
+   "ten": "ktt_m4c24_pg9_probe3_71d1ad579b67",
+   "login": false,
+   "super": false,
+   "bypassrls": false,
+   "createrole": false,
+   "createdb": false,
+   "inherit": true
+  },
+  {
+   "ten": "ktt_m4c24_pg9_probe3_8800ff84504d",
+   "login": false,
+   "super": false,
+   "bypassrls": false,
+   "createrole": false,
+   "createdb": false,
+   "inherit": true
+  },
+  {
+   "ten": "ktt_m4c24_pg9_probe3_d6f61ab603be",
+   "login": false,
+   "super": false,
+   "bypassrls": false,
+   "createrole": false,
+   "createdb": false,
+   "inherit": true
+  },
+  {
+   "ten": "ktt_m4c24_pg9_probe3_fc35836a449e",
+   "login": false,
+   "super": false,
+   "bypassrls": false,
+   "createrole": false,
+   "createdb": false,
+   "inherit": true
+  },
+  {
+   "ten": "ktt_m4dc26_native13_0de353e4eb97",
+   "login": false,
+   "super": false,
+   "bypassrls": false,
+   "createrole": false,
+   "createdb": false,
+   "inherit": true
+  },
+  {
+   "ten": "ktt_m4dc26_native13_0e4b7dca3d7e",
+   "login": false,
+   "super": false,
+   "bypassrls": false,
+   "createrole": false,
+   "createdb": false,
+   "inherit": true
+  },
+  {
+   "ten": "ktt_m4dc26_native13_0f5cdd9db8af",
+   "login": false,
+   "super": false,
+   "bypassrls": false,
+   "createrole": false,
+   "createdb": false,
+   "inherit": true
+  },
+  {
+   "ten": "ktt_m4dc26_native13_4bcd3edcbbb4",
+   "login": false,
+   "super": false,
+   "bypassrls": false,
+   "createrole": false,
+   "createdb": false,
+   "inherit": true
+  },
+  {
+   "ten": "ktt_m4dc26_native13_90b977469280",
+   "login": false,
+   "super": false,
+   "bypassrls": false,
+   "createrole": false,
+   "createdb": false,
+   "inherit": true
+  },
+  {
+   "ten": "ktt_m4dc26_native13_c70cbe556e66",
+   "login": false,
+   "super": false,
+   "bypassrls": false,
+   "createrole": false,
+   "createdb": false,
+   "inherit": true
+  },
+  {
+   "ten": "ktt_m4dc26_native13_f6363a92a406",
+   "login": false,
+   "super": false,
+   "bypassrls": false,
+   "createrole": false,
+   "createdb": false,
+   "inherit": true
+  },
+  {
+   "ten": "ktt_m4dc_extra_179b8b82af28",
+   "login": false,
+   "super": false,
+   "bypassrls": false,
+   "createrole": false,
+   "createdb": false,
+   "inherit": true
+  },
+  {
+   "ten": "ktt_m4kt26_native20_568b5f88b3e6",
+   "login": false,
+   "super": false,
+   "bypassrls": false,
+   "createrole": false,
+   "createdb": false,
+   "inherit": true
+  },
+  {
+   "ten": "ktt_m4kt26_native20_84caa3afb1eb",
+   "login": false,
+   "super": false,
+   "bypassrls": false,
+   "createrole": false,
+   "createdb": false,
+   "inherit": true
+  },
+  {
+   "ten": "ktt_m4rq26_native6_103a00068ed8",
+   "login": false,
+   "super": false,
+   "bypassrls": false,
+   "createrole": false,
+   "createdb": false,
+   "inherit": true
+  },
+  {
+   "ten": "ktt_m4rq_http3_077cfea77eaa",
+   "login": false,
+   "super": false,
+   "bypassrls": false,
+   "createrole": false,
+   "createdb": false,
+   "inherit": true
+  },
+  {
+   "ten": "ktt_rq27_gui_47377fad8ba6_a01",
+   "login": false,
+   "super": false,
+   "bypassrls": false,
+   "createrole": false,
+   "createdb": false,
+   "inherit": true
+  },
+  {
+   "ten": "ktt_rq27_gui_47377fad8ba6_a02",
+   "login": false,
+   "super": false,
+   "bypassrls": false,
+   "createrole": false,
+   "createdb": false,
+   "inherit": true
+  },
+  {
+   "ten": "ktt_rq27_gui_812f9b47249e",
+   "login": false,
+   "super": false,
+   "bypassrls": false,
+   "createrole": false,
+   "createdb": false,
+   "inherit": true
+  },
+  {
+   "ten": "ktt_rq27_gui_812f9b47249e_a02",
+   "login": false,
+   "super": false,
+   "bypassrls": false,
+   "createrole": false,
+   "createdb": false,
+   "inherit": true
+  },
+  {
+   "ten": "ktt_rq27_gui_812f9b47249e_a03",
+   "login": false,
+   "super": false,
+   "bypassrls": false,
+   "createrole": false,
+   "createdb": false,
+   "inherit": true
+  },
+  {
+   "ten": "ktt_rq27_gui_812f9b47249e_a04",
+   "login": false,
+   "super": false,
+   "bypassrls": false,
+   "createrole": false,
+   "createdb": false,
+   "inherit": true
+  },
+  {
+   "ten": "ktt_rq27_http3_b1049bc00dc4",
+   "login": false,
+   "super": false,
+   "bypassrls": false,
+   "createrole": false,
+   "createdb": false,
+   "inherit": true
+  },
+  {
+   "ten": "ktt_rq27_native6_38043044cd52",
+   "login": false,
+   "super": false,
+   "bypassrls": false,
+   "createrole": false,
+   "createdb": false,
+   "inherit": true
+  },
+  {
+   "ten": "postgres",
+   "login": true,
+   "super": true,
+   "bypassrls": true,
+   "createrole": true,
+   "createdb": true,
+   "inherit": true
+  },
+  {
+   "ten": "rv_demo_kt_19bae316",
+   "login": true,
+   "super": false,
+   "bypassrls": false,
+   "createrole": false,
+   "createdb": false,
+   "inherit": true
+  },
+  {
+   "ten": "rv_demo_kt_33f2c15b",
+   "login": true,
+   "super": false,
+   "bypassrls": false,
+   "createrole": false,
+   "createdb": false,
+   "inherit": true
+  },
+  {
+   "ten": "rv_demo_kt_3fe55629",
+   "login": true,
+   "super": false,
+   "bypassrls": false,
+   "createrole": false,
+   "createdb": false,
+   "inherit": true
+  },
+  {
+   "ten": "rv_demo_kt_4eb074c5",
+   "login": true,
+   "super": false,
+   "bypassrls": false,
+   "createrole": false,
+   "createdb": false,
+   "inherit": true
+  },
+  {
+   "ten": "rv_demo_kt_52e23616",
+   "login": true,
+   "super": false,
+   "bypassrls": false,
+   "createrole": false,
+   "createdb": false,
+   "inherit": true
+  },
+  {
+   "ten": "rv_demo_kt_56f2502a",
+   "login": true,
+   "super": false,
+   "bypassrls": false,
+   "createrole": false,
+   "createdb": false,
+   "inherit": true
+  },
+  {
+   "ten": "rv_demo_kt_59a77283",
+   "login": true,
+   "super": false,
+   "bypassrls": false,
+   "createrole": false,
+   "createdb": false,
+   "inherit": true
+  },
+  {
+   "ten": "rv_demo_kt_5af9c42f",
+   "login": true,
+   "super": false,
+   "bypassrls": false,
+   "createrole": false,
+   "createdb": false,
+   "inherit": true
+  },
+  {
+   "ten": "rv_demo_kt_5be428dd",
+   "login": true,
+   "super": false,
+   "bypassrls": false,
+   "createrole": false,
+   "createdb": false,
+   "inherit": true
+  },
+  {
+   "ten": "rv_demo_kt_5bef3870",
+   "login": true,
+   "super": false,
+   "bypassrls": false,
+   "createrole": false,
+   "createdb": false,
+   "inherit": true
+  },
+  {
+   "ten": "rv_demo_kt_5d81206d",
+   "login": true,
+   "super": false,
+   "bypassrls": false,
+   "createrole": false,
+   "createdb": false,
+   "inherit": true
+  },
+  {
+   "ten": "rv_demo_kt_6111516f",
+   "login": true,
+   "super": false,
+   "bypassrls": false,
+   "createrole": false,
+   "createdb": false,
+   "inherit": true
+  },
+  {
+   "ten": "rv_demo_kt_614a93a8",
+   "login": true,
+   "super": false,
+   "bypassrls": false,
+   "createrole": false,
+   "createdb": false,
+   "inherit": true
+  },
+  {
+   "ten": "rv_demo_kt_62f0d0d4",
+   "login": true,
+   "super": false,
+   "bypassrls": false,
+   "createrole": false,
+   "createdb": false,
+   "inherit": true
+  },
+  {
+   "ten": "rv_demo_kt_69ab8626",
+   "login": true,
+   "super": false,
+   "bypassrls": false,
+   "createrole": false,
+   "createdb": false,
+   "inherit": true
+  },
+  {
+   "ten": "rv_demo_kt_7856ec03",
+   "login": true,
+   "super": false,
+   "bypassrls": false,
+   "createrole": false,
+   "createdb": false,
+   "inherit": true
+  },
+  {
+   "ten": "rv_demo_kt_8bbe7554",
+   "login": true,
+   "super": false,
+   "bypassrls": false,
+   "createrole": false,
+   "createdb": false,
+   "inherit": true
+  },
+  {
+   "ten": "rv_demo_kt_8c99bce8",
+   "login": true,
+   "super": false,
+   "bypassrls": false,
+   "createrole": false,
+   "createdb": false,
+   "inherit": true
+  },
+  {
+   "ten": "rv_demo_kt_8f80ce5c",
+   "login": true,
+   "super": false,
+   "bypassrls": false,
+   "createrole": false,
+   "createdb": false,
+   "inherit": true
+  },
+  {
+   "ten": "rv_demo_kt_94e269a1",
+   "login": true,
+   "super": false,
+   "bypassrls": false,
+   "createrole": false,
+   "createdb": false,
+   "inherit": true
+  },
+  {
+   "ten": "rv_demo_kt_a0a146b7",
+   "login": true,
+   "super": false,
+   "bypassrls": false,
+   "createrole": false,
+   "createdb": false,
+   "inherit": true
+  },
+  {
+   "ten": "rv_demo_kt_a6185aa5",
+   "login": true,
+   "super": false,
+   "bypassrls": false,
+   "createrole": false,
+   "createdb": false,
+   "inherit": true
+  },
+  {
+   "ten": "rv_demo_kt_a8428bd8",
+   "login": true,
+   "super": false,
+   "bypassrls": false,
+   "createrole": false,
+   "createdb": false,
+   "inherit": true
+  },
+  {
+   "ten": "rv_demo_kt_a89c7da2",
+   "login": true,
+   "super": false,
+   "bypassrls": false,
+   "createrole": false,
+   "createdb": false,
+   "inherit": true
+  },
+  {
+   "ten": "rv_demo_kt_b73dd6f2",
+   "login": true,
+   "super": false,
+   "bypassrls": false,
+   "createrole": false,
+   "createdb": false,
+   "inherit": true
+  },
+  {
+   "ten": "rv_demo_kt_b9192e06",
+   "login": true,
+   "super": false,
+   "bypassrls": false,
+   "createrole": false,
+   "createdb": false,
+   "inherit": true
+  },
+  {
+   "ten": "rv_demo_kt_bc4938ef",
+   "login": true,
+   "super": false,
+   "bypassrls": false,
+   "createrole": false,
+   "createdb": false,
+   "inherit": true
+  },
+  {
+   "ten": "rv_demo_kt_bf3c8852",
+   "login": true,
+   "super": false,
+   "bypassrls": false,
+   "createrole": false,
+   "createdb": false,
+   "inherit": true
+  },
+  {
+   "ten": "rv_demo_kt_c31b4e04",
+   "login": true,
+   "super": false,
+   "bypassrls": false,
+   "createrole": false,
+   "createdb": false,
+   "inherit": true
+  },
+  {
+   "ten": "rv_demo_kt_c69e90f1",
+   "login": true,
+   "super": false,
+   "bypassrls": false,
+   "createrole": false,
+   "createdb": false,
+   "inherit": true
+  },
+  {
+   "ten": "rv_demo_kt_d8be5014",
+   "login": true,
+   "super": false,
+   "bypassrls": false,
+   "createrole": false,
+   "createdb": false,
+   "inherit": true
+  },
+  {
+   "ten": "rv_demo_kt_da709601",
+   "login": true,
+   "super": false,
+   "bypassrls": false,
+   "createrole": false,
+   "createdb": false,
+   "inherit": true
+  },
+  {
+   "ten": "rv_demo_kt_de4c7c52",
+   "login": true,
+   "super": false,
+   "bypassrls": false,
+   "createrole": false,
+   "createdb": false,
+   "inherit": true
+  },
+  {
+   "ten": "rv_demo_kt_e8e4d245",
+   "login": true,
+   "super": false,
+   "bypassrls": false,
+   "createrole": false,
+   "createdb": false,
+   "inherit": true
+  },
+  {
+   "ten": "rv_demo_kt_ea8f38d6",
+   "login": true,
+   "super": false,
+   "bypassrls": false,
+   "createrole": false,
+   "createdb": false,
+   "inherit": true
+  },
+  {
+   "ten": "rv_demo_kt_f11517b7",
+   "login": true,
+   "super": false,
+   "bypassrls": false,
+   "createrole": false,
+   "createdb": false,
+   "inherit": true
+  },
+  {
+   "ten": "rv_demo_kt_f5370390",
+   "login": true,
+   "super": false,
+   "bypassrls": false,
+   "createrole": false,
+   "createdb": false,
+   "inherit": true
+  },
+  {
+   "ten": "rv_demo_kt_f544a813",
+   "login": true,
+   "super": false,
+   "bypassrls": false,
+   "createrole": false,
+   "createdb": false,
+   "inherit": true
+  }
+ ],
+ "so_role_ktt_test": 651,
+ "thanh_vien_role": [
+  [
+   "app_ke_toan",
+   "rv_demo_kt_19bae316"
+  ],
+  [
+   "app_ke_toan",
+   "rv_demo_kt_33f2c15b"
+  ],
+  [
+   "app_ke_toan",
+   "rv_demo_kt_3fe55629"
+  ],
+  [
+   "app_ke_toan",
+   "rv_demo_kt_4eb074c5"
+  ],
+  [
+   "app_ke_toan",
+   "rv_demo_kt_52e23616"
+  ],
+  [
+   "app_ke_toan",
+   "rv_demo_kt_56f2502a"
+  ],
+  [
+   "app_ke_toan",
+   "rv_demo_kt_59a77283"
+  ],
+  [
+   "app_ke_toan",
+   "rv_demo_kt_5af9c42f"
+  ],
+  [
+   "app_ke_toan",
+   "rv_demo_kt_5be428dd"
+  ],
+  [
+   "app_ke_toan",
+   "rv_demo_kt_5bef3870"
+  ],
+  [
+   "app_ke_toan",
+   "rv_demo_kt_5d81206d"
+  ],
+  [
+   "app_ke_toan",
+   "rv_demo_kt_6111516f"
+  ],
+  [
+   "app_ke_toan",
+   "rv_demo_kt_614a93a8"
+  ],
+  [
+   "app_ke_toan",
+   "rv_demo_kt_62f0d0d4"
+  ],
+  [
+   "app_ke_toan",
+   "rv_demo_kt_69ab8626"
+  ],
+  [
+   "app_ke_toan",
+   "rv_demo_kt_7856ec03"
+  ],
+  [
+   "app_ke_toan",
+   "rv_demo_kt_8bbe7554"
+  ],
+  [
+   "app_ke_toan",
+   "rv_demo_kt_8c99bce8"
+  ],
+  [
+   "app_ke_toan",
+   "rv_demo_kt_8f80ce5c"
+  ],
+  [
+   "app_ke_toan",
+   "rv_demo_kt_94e269a1"
+  ],
+  [
+   "app_ke_toan",
+   "rv_demo_kt_a0a146b7"
+  ],
+  [
+   "app_ke_toan",
+   "rv_demo_kt_a6185aa5"
+  ],
+  [
+   "app_ke_toan",
+   "rv_demo_kt_a8428bd8"
+  ],
+  [
+   "app_ke_toan",
+   "rv_demo_kt_a89c7da2"
+  ],
+  [
+   "app_ke_toan",
+   "rv_demo_kt_b73dd6f2"
+  ],
+  [
+   "app_ke_toan",
+   "rv_demo_kt_b9192e06"
+  ],
+  [
+   "app_ke_toan",
+   "rv_demo_kt_bc4938ef"
+  ],
+  [
+   "app_ke_toan",
+   "rv_demo_kt_bf3c8852"
+  ],
+  [
+   "app_ke_toan",
+   "rv_demo_kt_c31b4e04"
+  ],
+  [
+   "app_ke_toan",
+   "rv_demo_kt_c69e90f1"
+  ],
+  [
+   "app_ke_toan",
+   "rv_demo_kt_d8be5014"
+  ],
+  [
+   "app_ke_toan",
+   "rv_demo_kt_da709601"
+  ],
+  [
+   "app_ke_toan",
+   "rv_demo_kt_de4c7c52"
+  ],
+  [
+   "app_ke_toan",
+   "rv_demo_kt_e8e4d245"
+  ],
+  [
+   "app_ke_toan",
+   "rv_demo_kt_ea8f38d6"
+  ],
+  [
+   "app_ke_toan",
+   "rv_demo_kt_f11517b7"
+  ],
+  [
+   "app_ke_toan",
+   "rv_demo_kt_f5370390"
+  ],
+  [
+   "app_ke_toan",
+   "rv_demo_kt_f544a813"
+  ],
+  [
+   "app_web",
+   "kho_crm_demo_app_8578e07dcdd8"
+  ],
+  [
+   "app_web",
+   "kho_test_crm03_3c4c8f6f8f01"
+  ],
+  [
+   "app_web",
+   "kho_test_crm_fk2_5fe343921cf5"
+  ],
+  [
+   "app_web",
+   "kho_test_crm_http_669ee8af7fa3"
+  ],
+  [
+   "app_web",
+   "kho_test_crm_http_a3729b4b9eb2"
+  ],
+  [
+   "app_web",
+   "kho_test_crm_http_c610d5998c14"
+  ],
+  [
+   "app_web",
+   "kho_test_crm_map2_ab3d3121ca85"
+  ],
+  [
+   "app_web",
+   "kho_test_crm_r02_fbee24c664dd"
+  ],
+  [
+   "app_web",
+   "kho_test_crm_r02_target_c5f8a257ec"
+  ],
+  [
+   "app_web",
+   "kho_test_crm_svc_0b694e360f5d"
+  ],
+  [
+   "app_web",
+   "kho_test_m1r02_2b09a26c69cc"
+  ],
+  [
+   "app_web",
+   "kho_test_m1r02_b6be72b2e8f9"
+  ],
+  [
+   "app_web",
+   "kho_test_m1r03_927d8df9fd90"
+  ],
+  [
+   "app_web",
+   "ktt_crm_feedback_1773c885"
+  ],
+  [
+   "app_web",
+   "ktt_l11v_f_0cb4ccc5b82e033b"
+  ],
+  [
+   "app_web",
+   "ktt_l11v_f_12db1cbfd7e10e83"
+  ],
+  [
+   "app_web",
+   "ktt_l11v_f_1488f12ac8bad6b5"
+  ],
+  [
+   "app_web",
+   "ktt_l11v_f_1f53d52855cd26a8"
+  ],
+  [
+   "app_web",
+   "ktt_l11v_f_32b1f73f9f2f56a0"
+  ],
+  [
+   "app_web",
+   "ktt_l11v_f_37b4bd2f32fb4563"
+  ],
+  [
+   "app_web",
+   "ktt_l11v_f_3dc63900e2138bb1"
+  ],
+  [
+   "app_web",
+   "ktt_l11v_f_3e54dece76857b48"
+  ],
+  [
+   "app_web",
+   "ktt_l11v_f_4031a09316147459"
+  ],
+  [
+   "app_web",
+   "ktt_l11v_f_4137cdefad8d11ef"
+  ],
+  [
+   "app_web",
+   "ktt_l11v_f_4dcd824cb396191d"
+  ],
+  [
+   "app_web",
+   "ktt_l11v_f_5864af7affa5a182"
+  ],
+  [
+   "app_web",
+   "ktt_l11v_f_59434bb795fb8dc6"
+  ],
+  [
+   "app_web",
+   "ktt_l11v_f_660f71bbfb4324a9"
+  ],
+  [
+   "app_web",
+   "ktt_l11v_f_726d54c0de4ce80b"
+  ],
+  [
+   "app_web",
+   "ktt_l11v_f_758cca7e6fac8c6b"
+  ],
+  [
+   "app_web",
+   "ktt_l11v_f_7b19f372d1b0c6e3"
+  ],
+  [
+   "app_web",
+   "ktt_l11v_f_8cb40be1f0c04471"
+  ],
+  [
+   "app_web",
+   "ktt_l11v_f_94d1bac117f63c9f"
+  ],
+  [
+   "app_web",
+   "ktt_l11v_f_c8f8b0e62e6c5bec"
+  ],
+  [
+   "app_web",
+   "ktt_l11v_f_d02eec9d744c6b76"
+  ],
+  [
+   "app_web",
+   "ktt_l11v_f_db2e462d0ee0abb1"
+  ],
+  [
+   "app_web",
+   "ktt_l11v_f_e2336e4bc26a1935"
+  ],
+  [
+   "app_web",
+   "ktt_l11v_f_ec71d06d15718ab3"
+  ],
+  [
+   "app_web",
+   "ktt_l11v_f_eec3aa822235c1b9"
+  ],
+  [
+   "app_web",
+   "ktt_l11v_f_f2d25079a535ce44"
+  ],
+  [
+   "app_web",
+   "ktt_l11v_w_01f6be8522caf3e4"
+  ],
+  [
+   "app_web",
+   "ktt_l11v_w_05fa1f49d2bb628f"
+  ],
+  [
+   "app_web",
+   "ktt_l11v_w_084cb49fc5755bfd"
+  ],
+  [
+   "app_web",
+   "ktt_l11v_w_0e7a0817fdfdfae1"
+  ],
+  [
+   "app_web",
+   "ktt_l11v_w_1e852094b1a7a47e"
+  ],
+  [
+   "app_web",
+   "ktt_l11v_w_22d7369960a68a73"
+  ],
+  [
+   "app_web",
+   "ktt_l11v_w_25b746cd9bc016bf"
+  ],
+  [
+   "app_web",
+   "ktt_l11v_w_3b5a9ad2e34528e6"
+  ],
+  [
+   "app_web",
+   "ktt_l11v_w_433d86c1e98fec4d"
+  ],
+  [
+   "app_web",
+   "ktt_l11v_w_443e3e075ad3ad6e"
+  ],
+  [
+   "app_web",
+   "ktt_l11v_w_4fb7e25a3a69baf8"
+  ],
+  [
+   "app_web",
+   "ktt_l11v_w_5045238b3bf56eba"
+  ],
+  [
+   "app_web",
+   "ktt_l11v_w_625d8bd354ce677b"
+  ],
+  [
+   "app_web",
+   "ktt_l11v_w_66516d42c4ba77e4"
+  ],
+  [
+   "app_web",
+   "ktt_l11v_w_67772dfd966692d0"
+  ],
+  [
+   "app_web",
+   "ktt_l11v_w_69b948097a8a1b3d"
+  ],
+  [
+   "app_web",
+   "ktt_l11v_w_70292363af972a5b"
+  ],
+  [
+   "app_web",
+   "ktt_l11v_w_746de8cb3e93da92"
+  ],
+  [
+   "app_web",
+   "ktt_l11v_w_875fb4023e9c3e69"
+  ],
+  [
+   "app_web",
+   "ktt_l11v_w_896f1ba8f685c8cb"
+  ],
+  [
+   "app_web",
+   "ktt_l11v_w_a3c6bfa1977b0103"
+  ],
+  [
+   "app_web",
+   "ktt_l11v_w_a6a6d971e26df04a"
+  ],
+  [
+   "app_web",
+   "ktt_l11v_w_ab963c599e63d282"
+  ],
+  [
+   "app_web",
+   "ktt_l11v_w_ba1428c42a68791a"
+  ],
+  [
+   "app_web",
+   "ktt_l11v_w_c4aa06b9ec24b81e"
+  ],
+  [
+   "app_web",
+   "ktt_l11v_w_d26c7cf110b74cc3"
+  ],
+  [
+   "app_web",
+   "ktt_m2_ind_05c53eff23848f74"
+  ],
+  [
+   "app_web",
+   "ktt_m2_ind_078b28d4f68b7cab"
+  ],
+  [
+   "app_web",
+   "ktt_m2_ind_088bb7d420ab46c4"
+  ],
+  [
+   "app_web",
+   "ktt_m2_ind_0b8095ac815c42cb"
+  ],
+  [
+   "app_web",
+   "ktt_m2_ind_0dce106bbb75ab2c"
+  ],
+  [
+   "app_web",
+   "ktt_m2_ind_0f5490964bcdcbf0"
+  ],
+  [
+   "app_web",
+   "ktt_m2_ind_10679c6ef95bce84"
+  ],
+  [
+   "app_web",
+   "ktt_m2_ind_1121d82ae99a1879"
+  ],
+  [
+   "app_web",
+   "ktt_m2_ind_13e2c8fa08ab5d95"
+  ],
+  [
+   "app_web",
+   "ktt_m2_ind_160da13749f98279"
+  ],
+  [
+   "app_web",
+   "ktt_m2_ind_17078c8609fc2c87"
+  ],
+  [
+   "app_web",
+   "ktt_m2_ind_209f7091472e0924"
+  ],
+  [
+   "app_web",
+   "ktt_m2_ind_21fb6eaf9243bf18"
+  ],
+  [
+   "app_web",
+   "ktt_m2_ind_293faf654e29fc64"
+  ],
+  [
+   "app_web",
+   "ktt_m2_ind_2a3bfd530cf53c30"
+  ],
+  [
+   "app_web",
+   "ktt_m2_ind_2cd7267d48965402"
+  ],
+  [
+   "app_web",
+   "ktt_m2_ind_2f83344c36fb8831"
+  ],
+  [
+   "app_web",
+   "ktt_m2_ind_33099cf36f6ebe3b"
+  ],
+  [
+   "app_web",
+   "ktt_m2_ind_3616428d4aa34293"
+  ],
+  [
+   "app_web",
+   "ktt_m2_ind_3eec5860471a77d7"
+  ],
+  [
+   "app_web",
+   "ktt_m2_ind_4a3d215b31e28bc9"
+  ],
+  [
+   "app_web",
+   "ktt_m2_ind_4cd27aa802cd4f94"
+  ],
+  [
+   "app_web",
+   "ktt_m2_ind_533ed429b007b2bf"
+  ],
+  [
+   "app_web",
+   "ktt_m2_ind_54214835d2d583d6"
+  ],
+  [
+   "app_web",
+   "ktt_m2_ind_599ce317058203b3"
+  ],
+  [
+   "app_web",
+   "ktt_m2_ind_665ab51b6ba3cecb"
+  ],
+  [
+   "app_web",
+   "ktt_m2_ind_69489bd810369e77"
+  ],
+  [
+   "app_web",
+   "ktt_m2_ind_6b783c91777c30d4"
+  ],
+  [
+   "app_web",
+   "ktt_m2_ind_710f63fe5b68f356"
+  ],
+  [
+   "app_web",
+   "ktt_m2_ind_74c41f66142faebc"
+  ],
+  [
+   "app_web",
+   "ktt_m2_ind_81b9a97f1ca6da05"
+  ],
+  [
+   "app_web",
+   "ktt_m2_ind_852d0731dc6d1c62"
+  ],
+  [
+   "app_web",
+   "ktt_m2_ind_8537308daca843d1"
+  ],
+  [
+   "app_web",
+   "ktt_m2_ind_8b764b0a229ecfec"
+  ],
+  [
+   "app_web",
+   "ktt_m2_ind_8eafa6cc0d500322"
+  ],
+  [
+   "app_web",
+   "ktt_m2_ind_9345a7689aede8ce"
+  ],
+  [
+   "app_web",
+   "ktt_m2_ind_99bac6c71eb15f88"
+  ],
+  [
+   "app_web",
+   "ktt_m2_ind_9b481a89f538d4b2"
+  ],
+  [
+   "app_web",
+   "ktt_m2_ind_a2e39b3b30811db5"
+  ],
+  [
+   "app_web",
+   "ktt_m2_ind_a368c23a458eaa50"
+  ],
+  [
+   "app_web",
+   "ktt_m2_ind_b7c92b950950fd77"
+  ],
+  [
+   "app_web",
+   "ktt_m2_ind_bc028825e745e1cd"
+  ],
+  [
+   "app_web",
+   "ktt_m2_ind_c832f4390c44ad32"
+  ],
+  [
+   "app_web",
+   "ktt_m2_ind_c94691ccb1648a71"
+  ],
+  [
+   "app_web",
+   "ktt_m2_ind_cb541c900d9d7810"
+  ],
+  [
+   "app_web",
+   "ktt_m2_ind_cb62a2ff660bdb50"
+  ],
+  [
+   "app_web",
+   "ktt_m2_ind_d97e85cfc8450c2f"
+  ],
+  [
+   "app_web",
+   "ktt_m2_ind_dd6397165ecd7d6e"
+  ],
+  [
+   "app_web",
+   "ktt_m2_ind_e32fe73d75d87f87"
+  ],
+  [
+   "app_web",
+   "ktt_m2_ind_e52fe6e1ab217629"
+  ],
+  [
+   "app_web",
+   "ktt_m2_ind_e54572d0e100fc07"
+  ],
+  [
+   "app_web",
+   "ktt_m2_ind_ebbeedaa7f41369d"
+  ],
+  [
+   "app_web",
+   "ktt_m2_ind_ef05f838578aea4c"
+  ],
+  [
+   "app_web",
+   "ktt_m2_ind_f8693caea49c577b"
+  ],
+  [
+   "app_web",
+   "ktt_m4_ind_0d80937ce2bf5b87"
+  ],
+  [
+   "app_web",
+   "ktt_m4_ind_4784c784442eb33f"
+  ],
+  [
+   "app_web",
+   "ktt_m4_ind_4dead43333834249"
+  ],
+  [
+   "app_web",
+   "ktt_m4_ind_551f90ac3ebe12a3"
+  ],
+  [
+   "app_web",
+   "ktt_m4_ind_6610e84936b6ce2c"
+  ],
+  [
+   "app_web",
+   "ktt_m4_ind_7082de158d2fe544"
+  ],
+  [
+   "app_web",
+   "ktt_m4_ind_99c093ce9120ce42"
+  ],
+  [
+   "app_web",
+   "ktt_m4_ind_a66557bfbc8fc6a5"
+  ],
+  [
+   "app_web",
+   "ktt_m4_ind_a88f604f88ab4569"
+  ],
+  [
+   "app_web",
+   "ktt_m4_ind_d1152be8d80cc02e"
+  ],
+  [
+   "app_web",
+   "ktt_m4c24_h12_41bde1c47cf9"
+  ],
+  [
+   "app_web",
+   "ktt_m4c24_h12_8ad04af9205b"
+  ],
+  [
+   "app_web",
+   "ktt_m4c24_h12_ce02a68014c9"
+  ],
+  [
+   "app_web",
+   "ktt_m4c24_pg9_probe3_71d1ad579b67"
+  ],
+  [
+   "app_web",
+   "ktt_m4c24_pg9_probe3_8800ff84504d"
+  ],
+  [
+   "app_web",
+   "ktt_m4c24_pg9_probe3_d6f61ab603be"
+  ],
+  [
+   "app_web",
+   "ktt_m4c24_pg9_probe3_fc35836a449e"
+  ],
+  [
+   "app_web",
+   "ktt_m4dc26_native13_0de353e4eb97"
+  ],
+  [
+   "app_web",
+   "ktt_m4dc26_native13_0e4b7dca3d7e"
+  ],
+  [
+   "app_web",
+   "ktt_m4dc26_native13_0f5cdd9db8af"
+  ],
+  [
+   "app_web",
+   "ktt_m4dc26_native13_4bcd3edcbbb4"
+  ],
+  [
+   "app_web",
+   "ktt_m4dc26_native13_90b977469280"
+  ],
+  [
+   "app_web",
+   "ktt_m4dc26_native13_c70cbe556e66"
+  ],
+  [
+   "app_web",
+   "ktt_m4dc26_native13_f6363a92a406"
+  ],
+  [
+   "app_web",
+   "ktt_m4dc_extra_179b8b82af28"
+  ],
+  [
+   "app_web",
+   "ktt_m4kt26_native20_568b5f88b3e6"
+  ],
+  [
+   "app_web",
+   "ktt_m4kt26_native20_84caa3afb1eb"
+  ],
+  [
+   "app_web",
+   "ktt_m4rq26_native6_103a00068ed8"
+  ],
+  [
+   "app_web",
+   "ktt_m4rq_http3_077cfea77eaa"
+  ],
+  [
+   "app_web",
+   "ktt_rq27_gui_47377fad8ba6_a01"
+  ],
+  [
+   "app_web",
+   "ktt_rq27_gui_47377fad8ba6_a02"
+  ],
+  [
+   "app_web",
+   "ktt_rq27_gui_812f9b47249e"
+  ],
+  [
+   "app_web",
+   "ktt_rq27_gui_812f9b47249e_a02"
+  ],
+  [
+   "app_web",
+   "ktt_rq27_gui_812f9b47249e_a03"
+  ],
+  [
+   "app_web",
+   "ktt_rq27_gui_812f9b47249e_a04"
+  ],
+  [
+   "app_web",
+   "ktt_rq27_http3_b1049bc00dc4"
+  ],
+  [
+   "app_web",
+   "ktt_rq27_native6_38043044cd52"
+  ],
+  [
+   "pg_read_all_settings",
+   "pg_monitor"
+  ],
+  [
+   "pg_read_all_stats",
+   "pg_monitor"
+  ],
+  [
+   "pg_stat_scan_tables",
+   "pg_monitor"
+  ]
+ ],
+ "schema": [
+  {
+   "ten": "bao_mat",
+   "chu": "postgres",
+   "acl": "{postgres=UC/postgres}",
+   "bang": 1,
+   "bang_rls": 0,
+   "bang_force_rls": 0,
+   "view": 0,
+   "ham": 0,
+   "ham_definer": 0
+  },
+  {
+   "ten": "giao_tiep",
+   "chu": "postgres",
+   "acl": "{postgres=UC/postgres,app_web=U/postgres}",
+   "bang": 5,
+   "bang_rls": 5,
+   "bang_force_rls": 0,
+   "view": 0,
+   "ham": 10,
+   "ham_definer": 6
+  },
+  {
+   "ten": "kho",
+   "chu": "postgres",
+   "acl": "{postgres=UC/postgres,app_web=U/postgres}",
+   "bang": 36,
+   "bang_rls": 28,
+   "bang_force_rls": 0,
+   "view": 1,
+   "ham": 89,
+   "ham_definer": 62
+  },
+  {
+   "ten": "m4",
+   "chu": "postgres",
+   "acl": "{postgres=UC/postgres,app_web=U/postgres}",
+   "bang": 28,
+   "bang_rls": 28,
+   "bang_force_rls": 0,
+   "view": 0,
+   "ham": 51,
+   "ham_definer": 21
+  },
+  {
+   "ten": "master",
+   "chu": "postgres",
+   "acl": "{postgres=UC/postgres,app_web=U/postgres}",
+   "bang": 55,
+   "bang_rls": 39,
+   "bang_force_rls": 0,
+   "view": 0,
+   "ham": 98,
+   "ham_definer": 31
+  },
+  {
+   "ten": "nhat_ky",
+   "chu": "postgres",
+   "acl": "{postgres=UC/postgres,app_web=U/postgres}",
+   "bang": 3,
+   "bang_rls": 0,
+   "bang_force_rls": 0,
+   "view": 0,
+   "ham": 2,
+   "ham_definer": 0
+  },
+  {
+   "ten": "public",
+   "chu": "pg_database_owner",
+   "acl": "{pg_database_owner=UC/pg_database_owner,=U/pg_database_owner}",
+   "bang": 0,
+   "bang_rls": 0,
+   "bang_force_rls": 0,
+   "view": 0,
+   "ham": 71,
+   "ham_definer": 0
+  }
+ ],
+ "public_quyen_ham_execute_mac_dinh": 167,
+ "default_privileges": [],
+ "policy_theo_schema": [
+  [
+   "giao_tiep",
+   1,
+   "app_web"
+  ],
+  [
+   "kho",
+   25,
+   "app_web | public"
+  ],
+  [
+   "m4",
+   26,
+   "app_web"
+  ],
+  [
+   "master",
+   16,
+   "app_web | public"
+  ]
+ ],
+ "migration_da_chay": "23 23"
+}

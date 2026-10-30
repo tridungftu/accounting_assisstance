@@ -707,3 +707,33 @@ Chi tiết có tệp:dòng: `BANG-DIEU-KIEN-GO-LIVE.md`; quy trình: `CHECKLIST-
   - BG-B2 chờ DA-B1 + BG-B1;
   - UI (DA-U, TEN-U, BG-U) chờ backend và việc ui-dem nhận hợp nhất.
 - **Chờ Anh:** phiếu dọn dẹp D1–D2.
+### 30/10 10:30 — CD-026…030: DỪNG LẬP TRÌNH; bắt đầu G0 khảo sát Core (TL 55)
+- **Khoảng trống 27/10 16:30 → 30/10 10:00:**
+  - Phiên lead kết thúc sau mốc 16:30 mà không bàn giao. Hạn mức tuần Claude đã 100% từ 16:00. Kết quả worker và gate lúc đó chưa được thu; nay ghi vào bảng dưới.
+  - **Bài học:** khi hạn mức sắp hết, lead phải ghi TRANG-THAI kèm danh sách việc chưa thu trước khi ngừng.
+- **Bảng trạng thái khi dừng.** Không gộp thêm gì. Mọi nhánh giữ nguyên. Ở G4, lát còn giá trị chuyển vào module mới.
+
+| Lát | Nhánh / commit gốc | Tệp chưa commit | Gate PG | Review | Còn gì |
+|---|---|---|---|---|---|
+| DA-B1 (CD-022/023) | `lat/da-b1` @a2346a9 | 3 | chưa chạy (vòng 2 xong 27/10 16:37) | chưa | gate, review |
+| TEN-B1 (CD-022) | `lat/ten-b1` @a2346a9 | 3 | chưa chạy (vòng 2 xong 16:32) | chưa | gate, review |
+| BG-B1 (CD-024) | `lat/bg-b1` @a2346a9 | 3 | 74 ok, 0 mã mới | chưa | review |
+| MTQ-4f2 v2 | `lat/mtq-4f2` @ed4a1c1 | 4 | 141 ok, 0 mã mới | chưa | review |
+| MTQ-NEN-2c | `lat/mtq-nen-2c` @7cee117 | 3 | 233 ok, 0 mã mới (sau khi nối test với NEN-2b) | chưa | review; stash `cdef8fe1` giữ bản trước |
+| XS-5a2 | `lat/xs-5a2` @b76d47c | 0 | — | — | Codex dừng "Cần lead": CRM đếm qua bảng M0 ngoài V1/V3/V4. Đưa vào đặc tả G1a |
+
+- **Nhánh hợp nhất @7cee117: chạy cả bộ PG** (189 module) → 4062 ok / 30 ERROR / 85 FAIL, 3 mã lỗi mới.
+  - **Đỏ thật:** `test_mtq_crm_sql`, 9 ERROR / 20 FAIL, sau khi gộp 4b2b + 4i-b1. Chưa điều tra; sửa khi mở lại lập trình.
+  - **Nghi chập chờn (thời gian):** `test_chay_test_pg_demo`, `test_m4_request_http` h02, `test_trich6_host`.
+- **Tạm hoãn:** CD-022/023/024 (giao diện Dự án/Báo giá); go-live CD-016 (không phát hành tối thứ Sáu 30/10).
+- **G0 khảo sát** (`docs\47-core\g0\`, đề `GIAO-G0.md`):
+  - **4 Codex chỉ đọc đang chạy:** KS-A (Core hiện có ↔ TL 54 §9), KS-B (CSDL + 67 migration), KS-C (route/API), KS-D (công cụ ngoài/engine).
+  - **Kiểm xác suất** chọn trước khi gộp: **KS-B**.
+- **Số liệu catalog DEMO** (lead lấy, chỉ đọc): `so-lieu-csdl-demo.json`.
+  - PostgreSQL 16.
+  - CSDL DEMO của Anh ở migration 23.
+  - Tồn đọng **303 CSDL `kho_test_*` và 651 role `ktt_test_*`**. Cần cách dọn (QD-09). KS-B sẽ đề xuất.
+  - `D:\DU-LIEU-KE-TOAN\postgresql` **rỗng**: CSDL thật chung chưa dựng.
+- **Engine Studio, OCR đối chiếu:** tìm thấy ở `D:\GPT\Local AI\engine-console` và `D:\GPT\Local AI\ocr-dual-release`. Chờ Anh xác nhận đúng bản.
+- **Hạn mức đầu ngày 30/10:** Claude tuần 1%, khung 5 giờ 6%.
+- **Tiếp theo:** gom KS-A…D → review chéo Codex → KHAO-SAT-CORE.md → G1a CSDL (phiếu 1) → G1b API (phiếu 2) → G1c SDK (phiếu 3).

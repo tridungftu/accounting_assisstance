@@ -293,3 +293,64 @@
 2. Claude: ghi chuỗi % hạn mức (5 giờ, tuần mọi model, tuần Fable) theo các mốc đã ghi; số token theo model của từng worker/subagent nếu công cụ trả về; nếu Anh chạy `/usage` trong terminal thì dán vào.
 3. Ghi `bao-cao-ngay\USAGE-TONG-HOP.md`; từ nay mỗi tối cập nhật thêm một dòng (CD-020 mục 5).
 **Trạng thái:** ĐÃ NHẬN 16:00 27/10 — đã ghi `bao-cao-ngay/USAGE-TONG-HOP.md`: Codex 377 lượt ≈ 33,2 triệu token (24–27/10); Claude tuần mọi model **100%** (đặt lại 29/10) → lead chỉ giữ gate/gộp, review giao Codex, tạm dừng Claude tự đọc khi rút thăm; mỗi tối thêm một dòng.
+
+## CD-026 · 30/10/2026 09:30 · ĐỊNH HƯỚNG LẠI: Core chung theo KE_HOACH_CORE_DATABASE_API_V1 — DỪNG LẬP TRÌNH, làm khảo sát + đặc tả
+**Căn cứ:** Anh gửi `KE_HOACH_CORE_DATABASE_API_V1.md` (29/10) ngày 30/10 09:16 và chốt 09:25 qua bảng chọn; lưu tại `D:\Claude\Phan mem ho tro ke toan\54-ke-hoach-core-database-api-v1.md` (TL 54, §14 = quyết định của Anh). `CLAUDE.md` đã thêm dòng "DỪNG LẬP TRÌNH" (ràng buộc cứng).
+**Quyết định của Anh:** (1) **Core chung cho mọi công cụ**, phần mềm kế toán là các module trên Core (cùng OCR, Mask, Tra cứu tài liệu, Phân tích tài chính); (2) **dừng hẳn mọi lập trình** tới khi Anh duyệt đặc tả; (3) database = **CSDL thật chung `D:\DU-LIEU-KE-TOAN`**; (4) **tên schema/bảng/cột tiếng Việt không dấu**.
+**Việc:**
+1. **Dừng ngay:** không giao lát code mới, không gộp, không migration. Lát đang dở (XS-5a2, dòng giao diện CD-022/023/024, MTQ-NEN-2c…) giữ nguyên nhánh; ghi bảng "trạng thái khi dừng" trong `TRANG-THAI.md` (nhánh, commit, đã review chưa, còn gì). Tạm hoãn CD-022/023/024 và go-live CD-016 (không phát hành tối thứ Sáu 30/10). `/loop` vẫn chạy nhưng chỉ cho việc khảo sát/đặc tả.
+2. **Giai đoạn 1 — Khảo sát (chỉ đọc), ghi `docs\47-core\KHAO-SAT-CORE.md`:**
+   (a) **Đối chiếu từng khối Core TL 54 §9** với cái đã có trong `hop-nhat-20261023` (XS-1…XS-5, MTQ, cổng AI, OCR-1, MASK-1/2, khung khai báo module, công tắc, kho file, sao lưu/mã hóa): có / một phần / chưa, kèm tệp:dòng;
+   (b) **database:** cụm DEMO và `D:\DU-LIEU-KE-TOAN` — phiên bản, schema, role, quyền PUBLIC/kế thừa, 67 migration hiện có thuộc module nào;
+   (c) **các công cụ ngoài phần mềm kế toán** mà Core phải chứa: Engine Studio (`engine-console`), OCR đối chiếu (`ocr-dual-release`), Mask v2, phần mềm review xây dựng (đóng băng), phần mềm theo dõi khoản vay — thư mục, API thực tế, cách khởi động, cổng, dữ liệu. **Thư mục chưa có quyền → liệt kê và hỏi Anh** (Anh chưa cho biết vị trí `engine-console`, `ocr-dual-release`);
+   (d) trả lời các mục TL 54 §12 đã biết từ tài liệu; mục chưa biết ghi "chờ Anh".
+3. **Giai đoạn 2 — Đặc tả chênh lệch** (không viết lại cái đã đúng), ghi `docs\47-core\DAC-TA-CORE-V1.md`: bảng **tên tiếng Việt không dấu** cho schema/bảng/role (thay `platform_core`, `platform_mod_*`, `users`, `jobs`…); mô hình dữ liệu Core; ma trận quyền (dùng lại MTQ, pháp nhân ↔ workspace); `module.json`; JSON Schema các contract (§5.2); OpenAPI `/api/v1/` nhóm §6.2; vòng đời job/workflow; Engine Manager + Adapter cho OCR và Mask; cách chuyển 67 migration chung sang migration theo module; **module mẫu đề xuất** để thử Core (gợi ý M9 hoặc Tra cứu tài liệu — nhỏ, dùng OCR + AI); kế hoạch chuyển từng module kế toán.
+4. Worker: được dùng Codex/Claude **chỉ đọc** cho khảo sát; tài liệu đặc tả do lead soạn, review chéo một vòng.
+5. Báo Anh bằng **một phiếu duyệt** (≤ 2 trang tóm tắt + các câu chốt dạng bảng chọn) khi xong giai đoạn 1–2. Anh duyệt xong mới mở lại lập trình bằng CD mới.
+**Trạng thái:** ĐÃ NHẬN 30/10 10:30.
+- Đã dừng lập trình; bảng trạng thái khi dừng ở TRANG-THAI 30/10.
+- G0 giao 4 Codex chỉ đọc (KS-A…D, `docs\47-core\g0\`); lead đã lấy số liệu catalog DEMO.
+- CSDL thật `D:\DU-LIEU-KE-TOAN\postgresql` còn rỗng.
+- Engine Studio, OCR đối chiếu: lead tìm thấy ở `D:\GPT\Local AI\`, chờ Anh xác nhận.
+
+## CD-027 · 30/10/2026 09:40 · Kế hoạch chuẩn hóa Core (API · CSDL · SDK) rồi dựng lại M4, CRM, M2 và 4 engine (bổ sung CD-026)
+**Căn cứ:** Anh 30/10 09:31 ("chuẩn hóa cấu trúc API, chuẩn hóa CSDL — chia khối dữ liệu cho từng module, chuẩn hóa SDK của Core; sau đó tạo từng module M2, M4, CRM, đồng thời tạo lại engine OCR, Mask, trích xuất, hóa đơn điện tử"); chốt 09:35: engine hóa đơn = **tải + đọc hóa đơn điện tử (XML/ZIP, cổng thuế)**; thứ tự **Core → 4 engine → M4, CRM, M2 song song**. Kế hoạch: `D:\Claude\Phan mem ho tro ke toan\55-ke-hoach-chuan-hoa-core-va-dung-lai-module-engine.md` (TL 55).
+**Việc:**
+1. Làm theo TL 55: **G0 Khảo sát** (= CD-026 mục 2) → **G1 Chuẩn hóa** G1a CSDL (khối `loi`, `loi_tai_lieu`, `danh_muc`, `mod_crm`, `mod_m2`, `mod_m4`, `cong_bo_*`; role chạy/migration riêng; migration theo gói module; bảng ánh xạ 67 migration), G1b API (`/api/v1/`, 202 + việc, lỗi chuẩn, idempotency, row_version, OpenAPI, bảng ánh xạ route cũ), G1c SDK (Python + JS, contract JSON Schema, mẫu `module.json`, bộ kiểm tuân thủ) → **phiếu cổng C** cho Anh.
+2. **Lệnh dừng lập trình CD-026 giữ tới cổng C.** Sau khi Anh duyệt cổng C, Anh sẽ mở lại bằng CD mới cho G2 (dựng Core) → G3 (e_ocr, e_mask, e_trich_xuat, e_hoa_don) → G4 (M4 mẫu đầu tiên, CRM, M2 song song).
+3. Tên đề xuất trong TL 55 là nháp; lead chốt sau khảo sát, giữ tiếng Việt không dấu.
+4. Việc đang dở (CD-022/023/024, XS-5a2, MTQ-NEN-2c) giữ nhánh; ở G4 chuyển vào module mới.
+5. G0/G1 ghi vào `docs\47-core\` (KHAO-SAT-CORE.md, DAC-TA-CSDL.md, DAC-TA-API.md + OpenAPI, DAC-TA-SDK.md + JSON Schema, PHIEU-CONG-C.md).
+**Trạng thái:** ĐÃ NHẬN 30/10 10:30 — G0 đang chạy; G1a → G1b → G1c theo thứ tự, phiếu nào xong gửi trước (CD-029).
+
+## CD-028 · 30/10/2026 09:45 · Nguyên tắc cổng: Core giữ cổng của từng engine/module, khi cần thì nhả cho engine/module chiếm
+**Căn cứ:** Anh 30/10 09:33 ("mỗi engine hoặc module chạy 1 cổng, Core giữ cổng đó ở máy chủ; khi cần gọi engine hoặc vào module thì Core tự nhả cổng để engine hay module chiếm lại cổng đó"). TL 55 §10.
+**Việc (đưa vào đặc tả G1 — DAC-TA-API/DAC-TA-SDK; dựng ở G2):**
+1. Sổ cổng trong `loi`: Core cấp một cổng cố định cho mỗi engine/module khi đăng ký/cài; chỉ nghe trên máy chủ.
+2. Core giữ ổ nghe khi engine/module chưa chạy; có yêu cầu → khởi động và **chuyển giao ổ nghe** (Windows `socket.share()`/`fromshare()`), không khoảng hở; kiểm danh tính/phiên bản/readiness.
+3. Rảnh quá thời gian cấu hình → dừng có kiểm soát → Core giữ lại cổng. **Không engine/module nào mặc định "luôn chạy", kể cả OCR, AI** (Anh 09:38).
+3b. **Đo và đề xuất chế độ chạy (Anh 09:38):** Core ghi mỗi lần khởi động (giờ yêu cầu, thời gian tới sẵn sàng, thời gian chạy việc, thời gian rảnh trước khi đóng, số lần/ngày, RAM/CPU); hằng tuần **đề xuất** cho từng engine/module: tự kích hoạt + tự đóng (mặc định) / giữ lâu hơn / luôn chạy, kèm số liệu căn cứ; **chỉ Admin bấm áp dụng**, Core không tự đổi. TL 55 §10 mục 8.
+4. Engine cũ không nhận ổ nghe chuyển giao: đóng rồi khởi động ngay với tham số cổng; cổng bị chiếm → báo lỗi, không dừng ứng dụng lạ.
+5. Người dùng chỉ dùng địa chỉ Core; Core chuyển tiếp tới cổng nội bộ. **Mỗi module là tiến trình riêng** (thay TL 54 §4.2) — SDK/khung module phải hỗ trợ chạy độc lập và nhận ổ nghe từ Core.
+6. Làm thử nghiệm kỹ thuật nhỏ (chỉ đọc/tài liệu ở G1; code thử ở G2): đo thời gian khởi động + chuyển giao cổng cho 1 engine Python.
+**Trạng thái:** ĐÃ NHẬN 30/10 10:30 — đưa vào đặc tả API/SDK (G1b/G1c); KS-A đánh giá chỗ phải tách tiến trình trong server.py.
+
+## CD-029 · 30/10/2026 09:55 · Anh đồng ý hướng triển khai TL 55; bộ API, phân chia CSDL, SDK phải gửi Anh duyệt trước
+**Căn cứ:** Anh 30/10 09:53: "ok về hướng triển khai, nhưng khi có bộ API, bộ phân chia CSDL và SDK thì gửi tôi xem để duyệt trước".
+**Việc:**
+1. Hướng TL 55 (G0 → G5) **đã được Anh đồng ý**; tiếp tục G0–G1 theo CD-026/027/028.
+2. **Cổng C tách thành 3 phiếu duyệt riêng, gửi Anh ngay khi từng bộ xong (không chờ đủ cả ba):** (a) **Phân chia CSDL** — sơ đồ khối dữ liệu theo module, bảng tên tiếng Việt không dấu, role, quy tắc ghi/đọc, bảng ánh xạ 67 migration cũ; (b) **Bộ API** — danh sách route `/api/v1/` theo nhóm, quy ước chung, ví dụ request/response cho 2–3 route tiêu biểu, bảng ánh xạ route cũ; (c) **SDK** — danh sách dịch vụ SDK Python/JS và hàm chính, contract dữ liệu, mẫu `module.json`, bộ kiểm tuân thủ.
+3. Mỗi phiếu: tóm tắt ≤ 2 trang bằng tiếng Việt, kết luận trước, các điểm cần Anh chọn ở dạng bảng (phương án + khuyến nghị); chi tiết kỹ thuật (OpenAPI, JSON Schema) để phụ lục. Ghi `docs\47-core\PHIEU-DUYET-CSDL.md`, `PHIEU-DUYET-API.md`, `PHIEU-DUYET-SDK.md` và ghi một dòng "Cần Anh duyệt" vào TRANG-THAI.
+4. **Không bắt đầu G2 (lập trình Core)** khi chưa có đủ 3 phiếu được Anh duyệt.
+**Trạng thái:** ĐÃ NHẬN 30/10 10:30 — 3 phiếu riêng: PHIEU-DUYET-CSDL, PHIEU-DUYET-API, PHIEU-DUYET-SDK; không vào G2 khi chưa đủ 3 phiếu được duyệt.
+
+## CD-030 · 30/10/2026 10:00 · Bắt đầu triển khai TL 55 — dùng tối đa Codex, tiết kiệm Claude, vẫn giữ chất lượng
+**Căn cứ:** Anh 30/10 09:56: "cho lead triển khai, lưu ý sử dụng tối đa Codex, và dùng tiết kiệm với Claude nhưng phải đảm bảo chất lượng". Thực hiện CD-026…CD-029 ngay.
+**Phân công (thay CD-004 cho giai đoạn này):**
+1. **Codex làm phần lớn:** khảo sát chỉ đọc (G0), soạn nháp đặc tả CSDL/API/SDK, OpenAPI, JSON Schema, bảng ánh xạ migration/route, review chéo lẫn nhau giữa các worker Codex. Chạy **tối đa 4 Codex** song song, lát nhỏ, handoff ≤ 1 trang.
+2. **Claude chỉ ở các điểm quyết định chất lượng:** lead (Opus) chia lát, ghép và **viết phần tóm tắt + câu chốt của 3 phiếu duyệt**; review Opus **chỉ** cho: thiết kế khối dữ liệu/role/RLS, quy ước API chung, contract SDK cốt lõi, nguyên tắc cổng — mỗi phần một lượt, tối đa 2 vòng. Kiểm nhanh nhẹ dùng Haiku. Không dùng Claude cho việc soạn nháp, liệt kê, đếm, chuyển định dạng.
+3. **Giữ chất lượng:** mỗi tài liệu Codex soạn phải qua 1 vòng review chéo Codex + kiểm xác suất của lead (~1/4 lát, chọn trước rồi mới gộp — bài học 27/10); mọi khẳng định về code hiện có phải kèm tệp:dòng; Opus review bắt buộc trước khi gửi Anh mỗi phiếu.
+4. **Hạn mức:** ghi `/usage` đầu ngày và cuối ngày vào `USAGE-TONG-HOP.md`; Claude tuần ≥ 80% → lead chỉ giữ ghép phiếu + review Opus của phiếu, còn lại chuyển Codex; Codex báo hết công suất → giảm còn 3 worker, không giao lại dồn.
+5. Thứ tự: G0 khảo sát (song song 4 Codex: (a) xương sống/Core hiện có, (b) database + 67 migration, (c) route/API hiện có, (d) công cụ ngoài: Mask v2, OCR-1, bộ tải hóa đơn, #6/E1; Engine Studio/OCR đối chiếu chờ Anh cho vị trí) → G1a CSDL → G1b API → G1c SDK; phiếu nào xong gửi Anh trước (CD-029).
+6. Lệnh dừng lập trình (CD-026) vẫn giữ: G0–G1 chỉ tài liệu; không code, không gộp code, không migration.
+**Trạng thái:** ĐÃ NHẬN 30/10 10:30 — 4 Codex chỉ đọc; Claude chỉ ghép phiếu + review Opus điểm cốt lõi; kiểm xác suất chọn trước (G0: KS-B); /usage đầu ngày đã ghi (tuần 1%).
