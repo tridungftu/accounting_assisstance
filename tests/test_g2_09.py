@@ -47,7 +47,7 @@ BANG = ('tai_lieu', 'tep_goc', 'tai_lieu_tep', 'quyen_tai_lieu', 'ket_qua_xu_ly'
 class TaiLieuThuanTest(unittest.TestCase):
     def setUp(self):
         self.conn = MagicMock()
-        self.id = uuid4()
+        self.tai_lieu_id = uuid4()
         self.ctx = dict(ma=phien.MaBiMat('CANARY_PHIEN'), module='crm', phap_nhan_id=uuid4(), hanh_dong=LAP)
         self.thong_tin = dict(loai='DEMO', ten='DEMO', doi_tuong={'bang': 'doi_tuong', 'id': str(uuid4())},
                              phien_ban_contract='1')
@@ -56,18 +56,18 @@ class TaiLieuThuanTest(unittest.TestCase):
                        nguon=[dict(tep_id=str(uuid4()), sha256=BAM)])
 
     def _tao(self, **doi):
-        return tl.tao(self.conn, tai_lieu_id=self.id, thong_tin=doi.pop('thong_tin', self.thong_tin),
+        return tl.tao(self.conn, tai_lieu_id=self.tai_lieu_id, thong_tin=doi.pop('thong_tin', self.thong_tin),
                       request_id=uuid4(), **{**self.ctx, **doi})
 
     def _ket_qua(self, **doi):
-        return tl.ghi_ket_qua_core(self.conn, tai_lieu_id=self.id, du_lieu=doi.pop('du_lieu', self.kq),
+        return tl.ghi_ket_qua_core(self.conn, tai_lieu_id=self.tai_lieu_id, du_lieu=doi.pop('du_lieu', self.kq),
             thong_tin_core=doi.pop('thong_tin_core', CORE), request_id=uuid4(), **{**self.ctx, **doi})
 
     def test_bind_khong_tu_commit(self):
         self._tao()
         cau, ts = self.conn.execute.call_args.args
         self.assertNotIn('CANARY', cau)
-        self.assertEqual(ts[:6], ('CANARY_PHIEN', 'crm', self.ctx['phap_nhan_id'], LAP, 'tai_lieu', self.id))
+        self.assertEqual(ts[:6], ('CANARY_PHIEN', 'crm', self.ctx['phap_nhan_id'], LAP, 'tai_lieu', self.tai_lieu_id))
         self.assertEqual(json.loads(ts[6]), self.thong_tin)
         for ten in ('commit', 'rollback', 'transaction'):
             getattr(self.conn, ten).assert_not_called()
@@ -83,7 +83,7 @@ class TaiLieuThuanTest(unittest.TestCase):
         data = json.loads(self.conn.execute.call_args.args[1][6])
         self.assertEqual(data['ham'], CORE['ham'])
         self.assertNotIn('trang_thai_duyet', data)
-        tl.duyet(self.conn, tai_lieu_id=self.id, ket_qua_id=uuid4(), row_version='3',
+        tl.duyet(self.conn, tai_lieu_id=self.tai_lieu_id, ket_qua_id=uuid4(), row_version='3',
             trang_thai_duyet='da_duyet', request_id=uuid4(), **{**self.ctx, 'hanh_dong': DUYET})
         data = json.loads(self.conn.execute.call_args.args[1][6])
         self.assertEqual(data['row_version'], '3')
@@ -95,7 +95,7 @@ class TaiLieuThuanTest(unittest.TestCase):
                 self._ket_qua(du_lieu={**self.kq, 'revision_truoc': ban})
         for ban in (1, True, '0', '01', '9223372036854775808'):
             with self.subTest(ban=ban), self.assertRaises(ValueError):
-                tl.duyet(self.conn, tai_lieu_id=self.id, ket_qua_id=uuid4(), row_version=ban,
+                tl.duyet(self.conn, tai_lieu_id=self.tai_lieu_id, ket_qua_id=uuid4(), row_version=ban,
                     trang_thai_duyet='da_duyet', request_id=uuid4(), **{**self.ctx, 'hanh_dong': DUYET})
         self.conn.execute.assert_not_called()
 
@@ -122,27 +122,27 @@ class TaiLieuThuanTest(unittest.TestCase):
         for doi in ({'sha256': None}, {'sha256': 'A'*64}, {'kich_thuoc': True}, {'kich_thuoc': -1},
                     {'kich_thuoc': 9007199254740992}, {'duong_dan': 'C:/GIA'}):
             with self.subTest(doi=doi), self.assertRaises(ValueError):
-                tl.ghi_tep_da_kiem(self.conn, tai_lieu_id=self.id, thong_tin={**tep, **doi},
+                tl.ghi_tep_da_kiem(self.conn, tai_lieu_id=self.tai_lieu_id, thong_tin={**tep, **doi},
                     request_id=uuid4(), **self.ctx)
         self.conn.execute.assert_not_called()
 
     def test_gan_bien_the_cap_quyen_va_cong_bo_dung_cua(self):
-        tl.gan_bien_the(self.conn, tai_lieu_id=self.id, tep_id=uuid4(), bien_the='da_che',
+        tl.gan_bien_the(self.conn, tai_lieu_id=self.tai_lieu_id, tep_id=uuid4(), bien_the='da_che',
             revision_truoc=0, request_id=uuid4(), **self.ctx)
         self.assertEqual(self.conn.execute.call_args.args[1][4], 'bien_the')
-        tl.cap_quyen(self.conn, tai_lieu_id=self.id, du_lieu=dict(nguoi_dung_id=str(uuid4()),
+        tl.cap_quyen(self.conn, tai_lieu_id=self.tai_lieu_id, du_lieu=dict(nguoi_dung_id=str(uuid4()),
             bien_the='da_che', cho_phep=False, revision_truoc=1), request_id=uuid4(),
             **{**self.ctx, 'hanh_dong': DUYET})
         self.assertEqual(self.conn.execute.call_args.args[1][4], 'quyen')
-        tl.cong_bo(self.conn, tai_lieu_id=self.id, ket_qua_id=uuid4(), request_id=uuid4(),
+        tl.cong_bo(self.conn, tai_lieu_id=self.tai_lieu_id, ket_qua_id=uuid4(), request_id=uuid4(),
             **{**self.ctx, 'hanh_dong': DUYET})
         self.assertEqual(self.conn.execute.call_args.args[1][4], 'cong_bo')
 
     def test_doc_chi_bien_the_duoc_hoi_va_khong_nhan_actor(self):
-        tl.lay(self.conn, tai_lieu_id=self.id, bien_the='da_che', **{**self.ctx, 'hanh_dong': XEM})
+        tl.lay(self.conn, tai_lieu_id=self.tai_lieu_id, bien_the='da_che', **{**self.ctx, 'hanh_dong': XEM})
         self.assertEqual(self.conn.execute.call_args.args[1][5], 'da_che')
         with self.assertRaises(ValueError):
-            tl.lay(self.conn, tai_lieu_id=self.id, bien_the='*', **{**self.ctx, 'hanh_dong': XEM})
+            tl.lay(self.conn, tai_lieu_id=self.tai_lieu_id, bien_the='*', **{**self.ctx, 'hanh_dong': XEM})
 
     def test_loi_driver_khong_lo_token_hoac_sql(self):
         for ma in ('TAI_LIEU_REVISION', 'TAI_LIEU_THAT_BAI'):
@@ -224,7 +224,7 @@ class TaiLieuPostgresTest(unittest.TestCase):
             payload=dict(row_version='1', che_do='VAN_HANH', nguoi_thu_ids=[]), request_id=uuid4())
         self.ma = self._cap()
         self.ct = self._contract('crm', ma='demo_'+uuid4().hex[:10])
-        self.id = uuid4()
+        self.tai_lieu_id = uuid4()
         self._tao()
 
     def _cap(self, module='crm', hd=None, pn=None):
@@ -236,28 +236,28 @@ class TaiLieuPostgresTest(unittest.TestCase):
         return {**dict(ma=self.ma, module='crm', phap_nhan_id=self.pn, hanh_dong=hd), **doi}
 
     def _tao(self):
-        return tl.tao(self.core, tai_lieu_id=self.id, thong_tin=dict(loai='DEMO', ten='DEMO',
+        return tl.tao(self.core, tai_lieu_id=self.tai_lieu_id, thong_tin=dict(loai='DEMO', ten='DEMO',
             doi_tuong=dict(bang='doi_tuong', id=str(self.obj)), phien_ban_contract='1'), request_id=uuid4(), **self._ctx())
 
     def _tep(self, bien_the='ocr', *, bam=BAM, **doi):
-        tep = tl.ghi_tep_da_kiem(self.core, tai_lieu_id=self.id, thong_tin=dict(ten_tep='DEMO.txt', sha256=bam,
+        tep = tl.ghi_tep_da_kiem(self.core, tai_lieu_id=self.tai_lieu_id, thong_tin=dict(ten_tep='DEMO.txt', sha256=bam,
             kich_thuoc=4, mime='text/plain', khoa_luu_tru='raw/'+bam, **doi), request_id=uuid4(), **self._ctx())
-        tl.gan_bien_the(self.core, tai_lieu_id=self.id, tep_id=tep, bien_the=bien_the, revision_truoc=0,
+        tl.gan_bien_the(self.core, tai_lieu_id=self.tai_lieu_id, tep_id=tep, bien_the=bien_the, revision_truoc=0,
             request_id=uuid4(), **self._ctx())
         return tep
 
     def _ket_qua(self, tep=None, *, nguon=None, **doi):
-        return tl.ghi_ket_qua_core(self.core, tai_lieu_id=self.id, du_lieu={
+        return tl.ghi_ket_qua_core(self.core, tai_lieu_id=self.tai_lieu_id, du_lieu={
             'tep_id': str(tep) if tep else None, 'bien_the': 'ocr', 'ma_contract': self.ct,
             'phien_ban_contract': '1', 'trang_thai': 'thanh_cong', 'ly_do': 'DEMO', 'revision_truoc': 0,
             'nguon': nguon if nguon is not None else ([dict(tep_id=str(tep), sha256=BAM)] if tep else []), **doi},
             thong_tin_core=CORE, request_id=uuid4(), **self._ctx())
 
     def _lay(self, bien_the='ocr', **doi):
-        return tl.lay(self.core, tai_lieu_id=self.id, bien_the=bien_the, **self._ctx(XEM, **doi))
+        return tl.lay(self.core, tai_lieu_id=self.tai_lieu_id, bien_the=bien_the, **self._ctx(XEM, **doi))
 
     def _cong_bo(self, kq):
-        return tl.cong_bo(self.core, tai_lieu_id=self.id, ket_qua_id=kq, request_id=uuid4(), **self._ctx(DUYET))
+        return tl.cong_bo(self.core, tai_lieu_id=self.tai_lieu_id, ket_qua_id=kq, request_id=uuid4(), **self._ctx(DUYET))
 
     def test_revision_tang_duyet_doc_lap_va_lich_su_bat_bien(self):
         tep = self._tep()
@@ -265,7 +265,7 @@ class TaiLieuPostgresTest(unittest.TestCase):
         self.assertEqual(self._lay()['ket_qua'][0]['trang_thai_duyet'], 'chua_duyet')
         self._cong_bo(kq)
         self.assertEqual(self._lay()['ket_qua'][0]['trang_thai_duyet'], 'chua_duyet')
-        tl.duyet(self.core, tai_lieu_id=self.id, ket_qua_id=kq, row_version='1', trang_thai_duyet='da_duyet',
+        tl.duyet(self.core, tai_lieu_id=self.tai_lieu_id, ket_qua_id=kq, row_version='1', trang_thai_duyet='da_duyet',
             request_id=uuid4(), **self._ctx(DUYET))
         kq2 = self._ket_qua(tep, goc_id=str(kq), revision_truoc=1)
         ket_qua = self._lay()['ket_qua']
@@ -277,7 +277,7 @@ class TaiLieuPostgresTest(unittest.TestCase):
         self.assertEqual(bat.exception.ma, 'TAI_LIEU_REVISION')
 
     def test_cung_pn_duoc_sai_pn_phien_va_fk_bi_chan(self):
-        self.assertEqual(self._lay()['id'], str(self.id))
+        self.assertEqual(self._lay()['id'], str(self.tai_lieu_id))
         for ctx in ({'phap_nhan_id': self.pn_khac}, {'ma': phien.MaBiMat('GIA'*24)}):
             with self.subTest(ctx=ctx), self.assertRaises(tl.LoiTaiLieu):
                 self._lay(**ctx)
@@ -286,13 +286,13 @@ class TaiLieuPostgresTest(unittest.TestCase):
             self._lay(ma=ma, phap_nhan_id=self.pn_khac)
         self.assertEqual(bat.exception.ma, 'TAI_LIEU_KHONG_THAY')
         tep = self._tep()
-        id_cu = self.id
-        self.id = uuid4()
+        id_cu = self.tai_lieu_id
+        self.tai_lieu_id = uuid4()
         self._tao()
         with self.assertRaises(tl.LoiTaiLieu):
-            tl.gan_bien_the(self.core, tai_lieu_id=self.id, tep_id=tep, bien_the='goc',
+            tl.gan_bien_the(self.core, tai_lieu_id=self.tai_lieu_id, tep_id=tep, bien_the='goc',
                 revision_truoc=0, request_id=uuid4(), **self._ctx())
-        self.id = id_cu
+        self.tai_lieu_id = id_cu
 
         # Tao ho so/tep PN B bang login Core + phien PN B, roi thu gan vao PN A.
         pn_cu, obj_cu, ma_cu = self.pn, self.obj, self.ma
@@ -301,19 +301,19 @@ class TaiLieuPostgresTest(unittest.TestCase):
             (self.obj, json.dumps([dict(pn=str(self.pn), hop_le=True, loai='TIEP_NHAN', so_tien_vnd='0')])))
         cong_tac.doi_che_do(self.core, ma=self._cap(module='core', hd=['CORE:MODULE:SUA']), module='crm',
             phap_nhan_id=self.pn, payload=dict(row_version='1', che_do='VAN_HANH', nguoi_thu_ids=[]), request_id=uuid4())
-        self.ma, self.id = self._cap(), uuid4()
+        self.ma, self.tai_lieu_id = self._cap(), uuid4()
         self._tao()
         tep_khac = self._tep()
-        self.pn, self.obj, self.ma, self.id = pn_cu, obj_cu, ma_cu, id_cu
+        self.pn, self.obj, self.ma, self.tai_lieu_id = pn_cu, obj_cu, ma_cu, id_cu
         with self.assertRaises(tl.LoiTaiLieu):
-            tl.gan_bien_the(self.core, tai_lieu_id=self.id, tep_id=tep_khac, bien_the='da_che',
+            tl.gan_bien_the(self.core, tai_lieu_id=self.tai_lieu_id, tep_id=tep_khac, bien_the='da_che',
                 revision_truoc=0, request_id=uuid4(), **self._ctx())
 
     def test_cong_bo_thieu_tep_hoac_nguon_bi_chan(self):
         # Bo qua Python validator de chung minh CSDL cung tu choi hash thieu.
         with self.assertRaises(psycopg.errors.NotNullViolation):
             self.core.execute('SELECT loi_tai_lieu.ghi_metadata(%s,%s,%s,%s,%s,%s,%s::jsonb,%s)',
-                (self.ma.lay_de_truyen(), 'crm', self.pn, LAP, 'tep', self.id,
+                (self.ma.lay_de_truyen(), 'crm', self.pn, LAP, 'tep', self.tai_lieu_id,
                  json.dumps(dict(ten_tep='DEMO.txt', kich_thuoc=4, mime='text/plain', khoa_luu_tru='raw/demo')), uuid4()))
         for tep in (None, self._tep()):
             kq = self._ket_qua(tep, nguon=[])
@@ -344,18 +344,18 @@ class TaiLieuPostgresTest(unittest.TestCase):
             dang_nhap_csdl=self.module_login, pham_vi_hanh_dong=[LAP, XEM], loai='UY_NHIEM_PHIEN', ma_goc=goc,
             hieu_luc_den=datetime.now(timezone.utc)+timedelta(minutes=4)).ma
         with self.assertRaises(tl.LoiTaiLieu):
-            tl.ghi_ket_qua_core(self.module, tai_lieu_id=self.id, du_lieu=dict(tep_id=None, bien_the='ocr',
+            tl.ghi_ket_qua_core(self.module, tai_lieu_id=self.tai_lieu_id, du_lieu=dict(tep_id=None, bien_the='ocr',
                 ma_contract=self.ct, phien_ban_contract='1', trang_thai='thanh_cong', ly_do='GIA',
                 revision_truoc=0, nguon=[]), thong_tin_core=CORE, request_id=uuid4(), **self._ctx(ma=uy))
         self.assertEqual(self.module.execute('SELECT loi_tai_lieu.doc_metadata(%s,%s,%s,%s,%s,%s)',
-            (uy.lay_de_truyen(), 'crm', self.pn, XEM, self.id, 'ocr')).fetchone()[0]['id'], str(self.id))
+            (uy.lay_de_truyen(), 'crm', self.pn, XEM, self.tai_lieu_id, 'ocr')).fetchone()[0]['id'], str(self.tai_lieu_id))
         chu_ky = 'loi_tai_lieu.ghi_metadata(text,text,uuid,text,text,uuid,jsonb,uuid,uuid,bigint)'
         # Ke ca provisioning cap nham EXECUTE, cua ghi van chan session_user module.
         self.conn.execute(sql.SQL('GRANT EXECUTE ON FUNCTION '+chu_ky+' TO {}').format(sql.Identifier(self.module_login)))
         try:
             with self.assertRaises(psycopg.errors.InsufficientPrivilege) as bat:
                 self.module.execute('SELECT loi_tai_lieu.ghi_metadata(%s,%s,%s,%s,%s,%s,%s::jsonb,%s)',
-                    (uy.lay_de_truyen(), 'crm', self.pn, LAP, 'ket_qua', self.id,
+                    (uy.lay_de_truyen(), 'crm', self.pn, LAP, 'ket_qua', self.tai_lieu_id,
                      json.dumps(dict(engine_id=str(uuid4()), ham='OCR_GIA', nguon=[])), uuid4()))
             self.assertEqual(bat.exception.diag.message_primary, 'TAI_LIEU_CHI_CORE')
         finally:
@@ -380,7 +380,7 @@ class TaiLieuPostgresTest(unittest.TestCase):
         tep = self._tep()
         kq = self._ket_qua(tep)
         for cho_phep, ban in ((False, 0), (True, 1)):
-            tl.cap_quyen(self.core, tai_lieu_id=self.id, du_lieu=dict(nguoi_dung_id=str(self.nd), bien_the='ocr',
+            tl.cap_quyen(self.core, tai_lieu_id=self.tai_lieu_id, du_lieu=dict(nguoi_dung_id=str(self.nd), bien_the='ocr',
                 cho_phep=cho_phep, revision_truoc=ban), request_id=uuid4(), **self._ctx(DUYET))
             if cho_phep:
                 self.assertEqual(len(self._lay()['tep']), 1)
@@ -389,10 +389,10 @@ class TaiLieuPostgresTest(unittest.TestCase):
                     self._lay()
                 self.assertEqual(bat.exception.ma, 'TAI_LIEU_NOI_DUNG')
                 self.assertEqual(self._lay('da_che')['tep'], [])
-        tl.duyet(self.core, tai_lieu_id=self.id, ket_qua_id=kq, row_version='1',
+        tl.duyet(self.core, tai_lieu_id=self.tai_lieu_id, ket_qua_id=kq, row_version='1',
             trang_thai_duyet='da_duyet', request_id=uuid4(), **self._ctx(DUYET))
         with self.assertRaises(tl.LoiTaiLieu) as bat:
-            tl.duyet(self.core, tai_lieu_id=self.id, ket_qua_id=kq, row_version='1',
+            tl.duyet(self.core, tai_lieu_id=self.tai_lieu_id, ket_qua_id=kq, row_version='1',
                 trang_thai_duyet='tu_choi', request_id=uuid4(), **self._ctx(DUYET))
         self.assertEqual(bat.exception.ma, 'TAI_LIEU_REVISION')
         self.assertEqual(self._lay()['ket_qua'][0]['row_version'], '2')
@@ -407,16 +407,16 @@ class TaiLieuPostgresTest(unittest.TestCase):
 
     def test_cung_hash_khong_cung_quyen(self):
         self._tep()
-        id_cu = self.id
-        self.id = uuid4()
+        id_cu = self.tai_lieu_id
+        self.tai_lieu_id = uuid4()
         self._tao()
         self._tep()
-        tl.cap_quyen(self.core, tai_lieu_id=self.id, du_lieu=dict(nguoi_dung_id=str(self.nd), bien_the='ocr',
+        tl.cap_quyen(self.core, tai_lieu_id=self.tai_lieu_id, du_lieu=dict(nguoi_dung_id=str(self.nd), bien_the='ocr',
             cho_phep=False, revision_truoc=0), request_id=uuid4(), **self._ctx(DUYET))
         with self.assertRaises(tl.LoiTaiLieu) as bat:
             self._lay()
         self.assertEqual(bat.exception.ma, 'TAI_LIEU_NOI_DUNG')
-        self.id = id_cu
+        self.tai_lieu_id = id_cu
         self.assertEqual(self._lay()['tep'][0]['tham_chieu']['sha256'], BAM)
 
     def test_tep_het_han_khong_cong_bo_duoc(self):
@@ -446,7 +446,7 @@ class TaiLieuPostgresTest(unittest.TestCase):
             with psycopg.connect(**self.cac_thong_tin['core'], autocommit=True) as kn:
                 hen.wait(timeout=10)
                 try:
-                    return tl.ghi_ket_qua_core(kn, tai_lieu_id=self.id, du_lieu=dict(tep_id=str(tep),
+                    return tl.ghi_ket_qua_core(kn, tai_lieu_id=self.tai_lieu_id, du_lieu=dict(tep_id=str(tep),
                         bien_the='ocr', ma_contract=self.ct, phien_ban_contract='1', trang_thai='thanh_cong',
                         ly_do='DEMO', revision_truoc=1, goc_id=str(kq), nguon=[dict(tep_id=str(tep), sha256=BAM)]),
                         thong_tin_core=CORE, request_id=uuid4(), **self._ctx())
