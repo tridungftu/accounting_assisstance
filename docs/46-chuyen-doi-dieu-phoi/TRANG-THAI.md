@@ -867,3 +867,8 @@ Chi tiết có tệp:dòng: `BANG-DIEU-KIEN-GO-LIVE.md`; quy trình: `CHECKLIST-
 - **G2-03 (phiên bí mật):** PG 23 ok; đang chờ Opus review.
 - **G2-04 (audit + sổ migration):** đang chạy, dựng trên `lat/g2-03`.
 - **Đã gộp tới nay:** G2-00, 01, 02, 17, 33 (xem trước).
+### 30/10 ~19:15 — G2: gộp G2-03, G2-04; G2-05 chờ review; giao G2-06
+- **G2-03 (phiên bí mật):** Opus 2 vòng, Chặn kiểm `phan_quyen` đã sửa; PG 26 + 11 thuần.
+- **G2-04 (audit + sổ migration):** review Codex Đạt; PG 25.
+- **G2-05 (registry + sổ contract):** PG 25 ok; review Codex đang chạy.
+- **G2-02b bị chặn:** RLS runtime của bảng danh tính đóng; cần policy theo phiên → gộp vào G2-06 (MTQ + RLS theo phiên, Opus bắt buộc), đang chạy.
