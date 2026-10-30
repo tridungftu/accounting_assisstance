@@ -23,11 +23,13 @@ Tài liệu này gồm quy ước API, danh mục route nền, chuyển tiếp l
 
 **Hiện trạng cần tận dụng:** shell đã có kiểm Host/Origin/token, nhưng token dùng chung ứng dụng; phiên CRM hiện là danh tính DEMO trong RAM (`src/kho_tri_thuc/giao_dien/server.py:918`, `src/kho_tri_thuc/giao_dien/server.py:193`). Báo giá đã kiểm `expected_revision` và trả các lỗi xung đột; giữ kiểm nghiệp vụ này khi bổ sung `row_version` (`src/kho_tri_thuc/giao_dien/crm_g.py:75`, `src/kho_tri_thuc/giao_dien/crm_g.py:83`). Hàng việc có nền tạo/chống trùng trong transaction và yêu cầu dừng (`src/kho_tri_thuc/ha_tang/hang_viec.py:21`, `src/kho_tri_thuc/ha_tang/hang_viec.py:69`).
 
-KS-A xác định Dispatcher còn gọi trực tiếp trong tiến trình, chưa thành proxy liên tiến trình (`docs/47-core/g0/KS-A.md:18`). KS-C ghi nhận lỗi, phân trang, tải tệp và việc lâu chưa thống nhất (`docs/47-core/g0/KS-C.md:162`). KS-D và KS-E yêu cầu phân biệt readiness thực, kết quả RAM và phê duyệt nghiệp vụ (`docs/47-core/g0/KS-D.md:47`, `docs/47-core/g0/KS-E.md:79`, `docs/47-core/g0/KS-E.md:93`).
+KS-A xác định Dispatcher còn gọi trực tiếp trong tiến trình, chưa thành proxy liên tiến trình (`docs/47-core/g0/KS-A.md:18`). KS-C ghi nhận lỗi, phân trang, tải tệp và việc lâu chưa thống nhất (`docs/47-core/g0/KS-C.md:162`). Readiness hiện chưa thử nạp/inference; revision, duyệt và lưu RAM có vòng đời riêng (`docs/47-core/g0/KS-D.md:47`, `docs/47-core/g0/KS-E.md:110`, `docs/47-core/g0/KS-E.md:112`, `docs/47-core/g0/KS-E.md:113`, `docs/47-core/g0/KS-E.md:114`, `docs/47-core/g0/KS-E.md:116`).
 
 Tên route giữ gạch nối đúng handoff và TL 55 §2; tên trường JSON dùng tiếng Việt không dấu, `snake_case`. Giữ các tên kỹ thuật đã được yêu cầu hoặc chuẩn hóa: `module`, `engine`, `row_version`, `request_id`, tên header, trạng thái tiến trình/việc và từ khóa OpenAPI.
 
-**Phụ thuộc CSDL:** các khối `loi`, `loi_tai_lieu`, `danh_muc`, `mod_crm`, `mod_m2`, `mod_m4`, `cong_bo_<module>` dùng tên nháp TL 55, **theo phiếu CSDL**. API không cam kết tên bảng, cách lưu phiên, biên nhận chống trùng hoặc sổ cổng trước khi phiếu đó được duyệt.
+**Phụ thuộc CSDL:** dùng bản vòng 2, vẫn chờ duyệt; danh tính/ủy nhiệm theo `docs/47-core/g1/DAC-TA-CSDL.md:135`, login theo `docs/47-core/g1/DAC-TA-CSDL.md:257`, xác minh transaction theo `docs/47-core/g1/DAC-TA-CSDL.md:291`. Đây là thiết kế đích; không xác nhận đã triển khai. Biên nhận nghiệp vụ tuân mẫu K2 tại `src/kho_tri_thuc/ha_tang/pg_migrations.py:3385`.
+
+**Căn cứ hiệu chỉnh vòng 2:** `O` = `docs/47-core/g1/RV-G1B-OPUS.md`; `R` = `docs/47-core/g1/RV-G1B.md`; `D` = `docs/47-core/g1/DAC-TA-CSDL.md`. Dẫn `O:19`/`R:10`/`D:301` là `tệp:dòng`; cũng áp dụng cho `x-can-cu` và bảng xử lý cuối tệp. Đề xuất mới dưới đây viện dẫn yêu cầu thiết kế, không coi review là bằng chứng runtime.
 
 ## 2. Quy ước chung
 
@@ -35,8 +37,9 @@ Tên route giữ gạch nối đúng handoff và TL 55 §2; tên trường JSON 
 
 **Đề xuất:**
 
-- Core là đầu mối xác thực. Giai đoạn đầu dùng tài khoản Core; có thể thay bằng nhà cung cấp danh tính sau khi Anh chọn tại C1.
+- Core là đầu mối xác thực. Nguồn đăng nhập hỏi chung ở phiếu CSDL, không hỏi lại tại API (`O:50`).
 - Cookie phiên `__Host-ktt_phien`: `Secure; HttpOnly; SameSite=Strict; Path=/`, không có `Domain`. SID ngẫu nhiên; kho phiên dùng chung, có thu hồi và không lưu SID nguyên văn.
+- TLS là điều kiện phục vụ ngoài loopback; `http://<IP LAN>` không phải cấu hình đăng nhập hợp lệ với cookie này. DEMO loopback vẫn tách riêng, chỉ dữ liệu giả; không bỏ `Secure` cho LAN (`O:21`).
 - Phiên hết hạn sau 30 phút không hoạt động hoặc 8 giờ tuyệt đối. Đăng nhập thành công đổi SID và CSRF token; đăng xuất thu hồi phiên tại backend.
 - `GET /phien` trả trạng thái phiên và CSRF token. Khi chưa đăng nhập, cấp cookie tiền phiên `__Host-ktt_tien_phien`, hiệu lực 10 phút.
 - Mọi thao tác ghi, gồm đăng nhập/đăng xuất, phải có `Origin` đúng nguồn Core và `X-CSRF-Token` gắn với phiên hoặc tiền phiên. Thiếu hoặc sai trả 403.
@@ -50,10 +53,10 @@ Client chọn pháp nhân bằng header **`X-Phap-Nhan-Id`** trên từng reques
 Core xác thực phiên rồi kiểm đồng thời: thành viên pháp nhân, quyền người dùng/MTQ, quyền module, quyền thao tác, quyền hồ sơ, trường và biến thể nội dung. `actor`, vai trò hoặc pháp nhân tự khai trong body không tạo quyền.
 
 - Tài liệu, tệp, báo giá và việc nghiệp vụ phải thuộc đúng pháp nhân đã kiểm.
-- Module đặt ngữ cảnh transaction từ ngữ cảnh Core đã xác thực; RLS và role **theo phiếu CSDL**. Không để kết nối pool mang ngữ cảnh request trước.
+- Module dùng mã ủy nhiệm bí mật do Core cấp, không dùng SID; hàm CSDL xác minh mã rồi mới đặt/đối chiếu ngữ cảnh transaction. GUC danh tính tự khai không tạo thẩm quyền; không để pool mang ngữ cảnh request trước (`D:301`, `O:19`).
 - Download kiểm lại quyền trước khi mở luồng bytes; không chỉ kiểm đường dẫn.
 - Việc nền lưu người tạo, pháp nhân, module và phiên bản contract; kiểm lại quyền khi nhận việc, trước bước nhạy cảm, trước ghi và trước công bố kết quả. Không chạy bằng quyền toàn hệ thống khi người tạo mất quyền.
-- Việc quản trị toàn hệ thống có `phap_nhan_id: null`, chỉ Admin hệ thống truy cập. Với `/viec/{id}`, thiếu header chỉ hợp lệ cho loại việc này; việc nghiệp vụ luôn yêu cầu header khớp.
+- Việc, kết quả và tệp quản trị toàn hệ thống có `phap_nhan_id: null`, chỉ Admin hệ thống truy cập, không gắn giả một pháp nhân. Route đọc theo ID chỉ được bỏ header cho tài nguyên hệ thống; tài nguyên nghiệp vụ bắt buộc header khớp. Tệp hệ thống có `tai_lieu_id: null`, do chức trách quản trị Core tạo hoặc Admin upload gói; không dùng `null` để bỏ qua quyền dữ liệu nghiệp vụ (`R:11`, `D:303`).
 - Khi tài nguyên nằm ngoài phạm vi được thấy, trả 404; không tiết lộ sự tồn tại của hồ sơ pháp nhân khác.
 
 Lời gọi engine/quy trình có header `X-Module-Ma`; Core kiểm module được cấp quyền và quyền của người gọi. Header này là lựa chọn ngữ cảnh, không phải bằng chứng thẩm quyền.
@@ -74,6 +77,8 @@ Dạng lỗi duy nhất:
 ```
 
 Thông điệp tiếng Việt; không chứa SQL, DSN, khóa, cookie, header xác thực, đường dẫn vật lý hoặc toàn văn tài liệu. Stack trace chỉ ở log được kiểm soát, đã loại dữ liệu nhạy cảm.
+
+`chi_tiet` tùy chọn có dạng `[{"truong":"ten","ma":"BAT_BUOC"}]`: chỉ tên trường đã khai trong schema và mã lỗi, không có giá trị đầu vào. Mã lỗi/HTTP của module phải khai trong contract đã đăng ký; mã chưa khai hoặc payload sai trả 502 `PHAN_HOI_SAI_CONTRACT`, không chuyển lỗi thô (`O:16`).
 
 | HTTP | Sử dụng |
 |---|---|
@@ -98,17 +103,20 @@ Thông điệp tiếng Việt; không chứa SQL, DSN, khóa, cookie, header xá
 
 Header **`Idempotency-Key`** bắt buộc cho POST/PATCH/PUT nghiệp vụ và quản trị; ngoại lệ đăng nhập/đăng xuất. Giá trị 16–128 ký tự ASCII an toàn, không chứa dữ liệu nghiệp vụ.
 
-**Phạm vi:** người dùng × pháp nhân hoặc phạm vi hệ thống × module đã xác thực × operation đã đăng ký × khóa. Fingerprint gồm method, đường dẫn chuẩn hóa, body chuẩn hóa và hash tệp nếu có.
+**Quyền sở hữu biên nhận** (`O:31`, `src/kho_tri_thuc/ha_tang/pg_migrations.py:3385`):
 
-**Đề xuất thời hạn:** 24 giờ từ kết quả cuối; không hết hạn khi việc còn hoạt động hoặc kết quả ghi còn chưa xác định. Lưu biên nhận bền vững **theo phiếu CSDL**.
-
-- Cùng khóa/cùng fingerprint: trả lại kết quả hoặc cùng `viec_id`; vẫn kiểm phiên/quyền hiện tại.
+- Operation do Core sở hữu: Core ghi biên nhận cùng transaction thay đổi dữ liệu hoặc tạo việc. Phạm vi người dùng × pháp nhân/phạm vi hệ thống × module × operation × khóa. Chỉ biên nhận Core có thời hạn đề xuất 24 giờ từ kết quả cuối; giữ tiếp khi việc còn hoạt động hoặc kết quả chưa xác định.
+- Operation nghiệp vụ `/module/*`: Core chỉ khóa request đang chạy, chuyển nguyên `Idempotency-Key` trong token ký. Module qua SDK giữ biên nhận **vĩnh viễn, bất biến**, cùng transaction nghiệp vụ/tạo việc qua hàm CSDL Core V2 trên chính kết nối đó (không commit việc riêng bằng HTTP); Core không ghi bản biên nhận hoàn tất thứ hai. Namespace metadata `/module` do Core sở hữu không thuộc quy tắc ghi nghiệp vụ này.
+- Module giữ UNIQUE `(phap_nhan_id, module, operation, client_key)` theo K2, lưu người tạo; kiểm quyền hành động **trước** tra biên nhận và quyền đọc kết quả của người gọi **trước** phát lại, kể cả người tạo khác. Không có quyền thấy kết quả thì 404 (`src/kho_tri_thuc/k2/crm_mau.py:5`, `src/kho_tri_thuc/k2/crm_mau.py:160`, `O:35`).
+- Fingerprint = mã operation ổn định + body chuẩn hóa; body logic bao gồm ID tài nguyên đích/pháp nhân và hash bytes tệp nếu có. Không gồm đường dẫn, method hay chính khóa; alias và v1 chuẩn hóa về cùng operation/body/khóa. Ràng buộc method/path trong chữ ký vận chuyển ở §4.2 độc lập với fingerprint chống trùng (`O:34`, `src/kho_tri_thuc/k2/crm_mau.py:7`).
+- Cùng khóa/cùng fingerprint: trả lại kết quả hoặc cùng `viec_id`; vẫn kiểm phiên/quyền hiện tại. Sau 504/crash, biên nhận **module** là nguồn đối chiếu duy nhất cho operation module; mất khóa đang chạy tại Core không cho phép bỏ kiểm biên nhận (`O:33`).
 - Cùng khóa/khác fingerprint: 409 `KHOA_CHONG_TRUNG_KHAC_NOI_DUNG`.
 - Đang ghi đồng bộ: 409 `YEU_CAU_DANG_XU_LY`, `Retry-After: 2`.
-- Lưu thay đổi nghiệp vụ và biên nhận trong cùng transaction khi có thể. Tác động ngoài CSDL phải có cơ chế đối chiếu; không tuyên bố exactly-once.
-- Hết thời hạn biên nhận không đồng nghĩa được phép ghi trùng nghiệp vụ.
+- Tác động ngoài CSDL phải có cơ chế đối chiếu; không tuyên bố exactly-once. Hết thời hạn biên nhận Core không cho phép ghi trùng nghiệp vụ; tuyệt đối không áp 24 giờ để dọn biên nhận module (`O:36`).
 
 `row_version` truyền dưới dạng **chuỗi số nguyên**, tránh mất chính xác trong JavaScript; cập nhật so sánh và ghi nguyên tử, lệch trả 409. Giữ thêm CAS nghiệp vụ như `expected_revision`, hash căn cứ hoặc phiên bản mẫu khi operation cần; không tự đồng nhất chúng với `row_version`.
+
+Mỗi operation khai trường CAS bắt buộc; PATCH ghi chú báo giá yêu cầu cả `row_version` lẫn `expected_revision`, lệch một trong hai trả 409 (`O:46`, `src/kho_tri_thuc/giao_dien/crm_g.py:75`).
 
 ### 2.5. Phân trang, thời gian, số tiền và phiên bản
 
@@ -124,9 +132,15 @@ Việc lâu trả **202 + `viec_id` + `Location: /api/v1/viec/{id}`**, chỉ sau
 
 Trạng thái việc: `queued/running/waiting_input/cancel_requested/cancelled/succeeded/failed/interrupted`. Hủy là đề nghị hợp tác; không hoàn tác tác động đã commit. Gửi lại đề nghị cho việc đã kết thúc trả cùng trạng thái cuối. `succeeded` không đồng nghĩa kết quả đã được phê duyệt.
 
+Sau restart Core hoặc hết lease, việc `running` mất heartbeat chuyển `interrupted`, không suy thành `succeeded`. Chỉ xếp lại nếu contract khai thử lại an toàn, đã đối chiếu tác động/biên nhận và kiểm quyền; thu hồi mã ủy nhiệm thế hệ cũ, tạo lần thử và mã mới. Việc ghi/nhập chưa rõ kết quả phải đối chiếu hoặc chờ xử lý, không chạy lại mù (`O:18`, `D:301`, `D:315`).
+
+Theo dõi dùng polling; v1 này không công bố SSE. `GET /viec` lọc `ma_module`, `trang_thai`, phân trang và chỉ trả việc người tạo còn quyền xem hoặc có MTQ `viec.giam_sat` theo đúng pháp nhân + module; việc hệ thống chỉ Admin. Không có quyền xem việc người khác thì GET theo ID trả 404; danh sách loại dòng đó. Mất kết nối thì đọc lại snapshot, không cam kết phát lại sự kiện (`O:18`, `R:10`).
+
 Upload qua `multipart/form-data`, không base64 trong JSON; metadata có schema. **Đề xuất:** JSON tối đa 1 MiB, tệp tối đa 20 MiB và tiếp tục chịu giới hạn nhỏ hơn của capability. Nhận vào vùng tạm, kiểm kích thước/MIME thực/hash/quyền trước công bố; kiểm nội dung lâu chuyển thành việc riêng. Chưa hỗ trợ chia mảnh hoặc tiếp tục upload.
 
 Download dùng ID, không nhận đường dẫn hoặc URL tùy ý. Frontend gọi bằng `fetch` với cookie và header pháp nhân rồi tải blob. Trả `Content-Disposition: attachment`, `Cache-Control: no-store`, `X-Content-Type-Options: nosniff`; tên tệp được làm sạch. V1 chưa hỗ trợ Range.
+
+Kết quả tải theo hai bước: GET `/ket-qua/{id}` lấy `tep_id`, rồi GET `/tep/{tep_id}/noi-dung`; không có `/ket-qua/{id}/noi-dung`. Core giữ quan hệ kết quả–tệp, kiểm lại quyền kết quả/biến thể khi tải; tệp hệ thống chỉ Admin, bỏ header pháp nhân. Module sinh DOCX/báo cáo phải ghi qua SDK vào File Store Core, đăng ký metadata/quan hệ trước công bố; Core không proxy bytes thô từ module (`O:21`, `R:10`, `R:11`).
 
 Retention theo loại dữ liệu phải được duyệt; chưa cấu hình chính sách thì từ chối tiếp nhận tương ứng. Không tự biến dữ liệu RAM-only của OCR/Mask thành lưu lâu dài. API kết quả trong lát này trả **metadata và tham chiếu tệp**; cấu trúc nội dung JSON bên trong tệp theo các contract của phiếu SDK.
 
@@ -156,14 +170,17 @@ Trong bảng, mọi đường dẫn trừ health được đặt sau `/api/v1`. 
 | POST `/engine/{ma_engine}/viec` | Gửi lệnh có schema qua Core/adapter | `engine.goi` + quyền module/dữ liệu | 202 |
 | GET `/quy-trinh` | Quy trình được phép chạy | `quy_trinh.doc`, pháp nhân | ĐB |
 | POST `/quy-trinh/{id}/lan-chay` | Chạy phiên bản quy trình đã ghim | `quy_trinh.chay` + quyền module | 202 |
-| GET `/viec/{id}` | Theo dõi việc | Chủ việc hoặc quyền giám sát trong phạm vi | ĐB |
+| GET `/viec` | Danh sách việc, lọc module/trạng thái, phân trang (`R:10`) | Chủ việc còn quyền hoặc MTQ `viec.giam_sat` theo pháp nhân + module; hệ thống chỉ Admin (`O:18`) | ĐB |
+| GET `/viec/{id}` | Theo dõi snapshot việc | Chủ việc còn quyền hoặc MTQ `viec.giam_sat` theo pháp nhân + module; ngoài quyền → 404 (`O:18`) | ĐB |
 | GET `/viec/{id}/ket-qua` | Danh sách metadata kết quả | Quyền việc và từng kết quả | ĐB |
 | POST `/viec/{id}/huy` | Ghi đề nghị hủy | Chủ việc có quyền hủy hoặc quản trị phù hợp | 202 |
 | GET `/quan-tri/module` | Registry module | Admin hệ thống | ĐB |
 | POST `/quan-tri/module/{ma_module}/thao-tac` | Kiểm gói, cài/nâng cấp, khởi động/dừng | Admin hệ thống | 202 |
+| GET `/quan-tri/module/{ma_module}/che-do` | Đọc công tắc/người thử/phiên bản (`R:10`) | Admin pháp nhân hoặc hệ thống | ĐB |
 | PATCH `/quan-tri/module/{ma_module}/che-do` | Đổi `TAT/THU/VAN_HANH`, người thử | Admin pháp nhân hoặc hệ thống | ĐB |
 | GET `/quan-tri/engine` | Registry engine | Admin hệ thống | ĐB |
 | POST `/quan-tri/engine` | Đăng ký engine từ hồ sơ chạy đã duyệt | Admin hệ thống | ĐB, 201 |
+| GET `/quan-tri/engine/{ma_engine}/ho-so-chay` | Đọc hồ sơ an toàn và phiên bản (`R:10`) | Admin hệ thống | ĐB |
 | PUT `/quan-tri/engine/{ma_engine}/ho-so-chay` | Đổi hồ sơ/chính sách, kiểm phiên bản | Admin hệ thống | ĐB |
 | POST `/quan-tri/engine/{ma_engine}/thao-tac` | Kiểm tra, khởi động hoặc dừng | Admin hệ thống | 202 |
 | GET `/quan-tri/cap-quyen/{ma_module}` | Quyền thực cấp cho module | Admin pháp nhân/hệ thống | ĐB |
@@ -182,25 +199,37 @@ Trong bảng, mọi đường dẫn trừ health được đặt sau `/api/v1`. 
 
 ### 4.1. Luồng phục vụ
 
-1. Core xác thực, kiểm Origin/CSRF nếu ghi, pháp nhân, quyền, route/schema/version và chống trùng.
+1. Core xác thực, kiểm Origin/CSRF nếu ghi, pháp nhân, quyền, route/schema/version. Operation Core tra biên nhận Core; operation module chỉ khóa request đang chạy, biên nhận do module kiểm trong transaction (§2.4; `O:31`).
 2. Dispatcher tra registry bằng mã module, không dùng host/cổng do client gửi. Chỉ chuyển route đã đăng ký; tách rõ route metadata Core và route nghiệp vụ.
 3. Module chưa chạy: khóa phối hợp theo module/node; các request dùng chung một lần khởi động.
 4. Core giữ cổng cố định trong sổ cổng `loi`, **theo phiếu CSDL**. Khởi động headless từ hồ sơ đã duyệt; chuyển ổ nghe qua kênh khởi động riêng.
 5. Kiểm instance ID, process identity gồm thời điểm tạo, phiên bản, contract và readiness. Có TCP listener chưa đủ để đánh dấu `ready`.
 6. Khi sẵn sàng mới chuyển request; kiểm schema response, chuẩn hóa lỗi và giữ `request_id`.
-7. Khi dừng: ngừng nhận việc mới, đợi việc/kết quả được bàn giao, thu hồi quyền accept của tiến trình con rồi Core giữ lại ổ nghe. Bản Core giữ không tự accept request nghiệp vụ khi module đang sở hữu.
+7. Khi dừng: lấy cùng khóa với dispatch, đổi `dang_dung`, ngừng nhận request/việc mới và chờ bàn giao. Đếm cả request đồng bộ, lease, download/kết quả đang dùng; chỉ thu hồi accept và trả ổ nghe cho Core khi drain xong. Request đến lúc `dang_dung` trả 503 `TIEN_TRINH_DANG_DUNG`, `Retry-After: 2`, chưa chuyển nên được thử lại cùng khóa (`O:20`).
 
 Engine dùng cùng nền vòng đời nhưng lời gọi capability đi qua adapter; không proxy nguyên URL engine cho trình duyệt.
 
 ### 4.2. Ngữ cảnh liên tiến trình
 
-**Đề xuất chốt tại C2: dùng token ngữ cảnh có chữ ký; không tin chỉ vì kết nối loopback.**
+**Báo kỹ thuật:** dùng token ngữ cảnh ký; không coi loopback là danh tính; không cần Anh chọn lại cơ chế này (`O:22`).
 
-Core loại header nội bộ do client tự gửi, tạo token TTL tối đa 30 giây chứa: bên phát hành, module nhận/instance, người dùng, mã phiên tham chiếu, pháp nhân hoặc phạm vi hệ thống, module nguồn, operation, `request_id`, thời điểm phát hành/hết hạn, nonce và hash method/đường dẫn/body.
+Core loại header nội bộ do client tự gửi, tạo token TTL tối đa 30 giây chứa: bên phát hành, module nhận/instance, người dùng, **mã ủy nhiệm bí mật (không phải SID)**, pháp nhân hoặc phạm vi hệ thống, module nguồn, operation, `Idempotency-Key` nếu ghi, `request_id`, thời điểm phát hành/hết hạn, nonce và hash method/đường dẫn/body. Mã ủy nhiệm ràng buộc login nhận + module + pháp nhân + hạn + phạm vi hành động (`O:19`, `O:33`, `D:135`, `D:301`).
 
 Khóa ký chỉ Core giữ; module nhận khóa kiểm chứng qua kênh bootstrap được bảo vệ. Module kiểm chữ ký, đối tượng nhận, thời hạn, nonce và ràng buộc request. Không chuyển cookie người dùng hoặc khóa engine sang module.
 
-Token không thay kiểm quyền hiện hành. SDK kiểm trạng thái phiên/quyền tại Core và đặt ngữ cảnh CSDL đúng transaction. Việc nền dùng danh tính thực thi/lease riêng, không lưu token HTTP 30 giây để dùng về sau. Gọi SDK liên tiến trình phải xác thực tiến trình module và chỉ cho phép quyền đã cấp.
+Token không thay kiểm quyền hiện hành. Hàm `SECURITY DEFINER` băm mã ủy nhiệm rồi đối chiếu `loi.phien_xac_thuc`: hạn/thu hồi, `session_user`, module, pháp nhân, hành động. Runtime không SELECT/DML bảng phiên; GUC người dùng/ngày hiệu lực chỉ để đối chiếu, không thể tự đặt thành danh tính khác. Việc nền dùng mã riêng gắn `viec_id` + thế hệ lease, được cấp lại sau kiểm quyền, không lưu token HTTP để dùng về sau (`D:135`, `D:301`, `O:19`).
+
+Mỗi instance nhận credential SDK riêng cùng instance ID qua stdin/handle kế thừa được bảo vệ, cùng kênh bootstrap `fromshare`. Core xác thực credential + instance đang sống trên mỗi lời gọi SDK, thu hồi khi dừng/crash; không đưa credential/mã ủy nhiệm/mật khẩu vào biến môi trường, dòng lệnh, manifest, response công khai hoặc log. Login CSDL module cũng trao qua kênh này, không dùng credential SDK thay mật khẩu CSDL (`O:19`, `D:267`).
+
+| Tiến trình | Login CSDL / đường truy cập đích (`D:257`) |
+|---|---|
+| Core, worker Core nội bộ | `dang_nhap_loi`, chỉ các role runtime Core đã cấp |
+| Module X | `dang_nhap_mod_x`, chỉ runtime riêng + EXECUTE/SELECT contract đã cấp; mã ủy nhiệm phải khớp login |
+| Adapter kế toán chuyển tiếp | `dang_nhap_ke_toan_cu`, không dùng làm login chung module |
+| Engine, worker máy phụ | **Không có login CSDL**, chỉ kéo việc/đầu vào và trả kết quả qua API Core với ủy nhiệm đúng việc |
+| Cài đặt/bảo trì | `dang_nhap_cai_dat`, chỉ chức trách bảo trì, không xử lý request nghiệp vụ |
+
+Membership runtime kế thừa quyền hữu hạn, `SET FALSE, ADMIN FALSE`, không owner/BYPASSRLS; máy phụ không nhận mật khẩu CSDL hay khóa mã hóa (`D:265`, `D:267`, `D:315`).
 
 ### 4.3. Thời hạn và lỗi
 
@@ -212,6 +241,7 @@ Token không thay kiểm quyền hiện hành. SDK kiểm trạng thái phiên/q
 | Khởi động một instance | Hồ sơ được cấu hình 1–120 giây; mặc định 120 giây. |
 | Hết 30 giây khi chưa chuyển request | 503 `MODULE_DANG_KHOI_DONG`, `Retry-After: 2`; khởi động có thể tiếp tục trong giới hạn instance. |
 | Hết hạn khởi động | `failed`; 503 `KHOI_DONG_QUA_HAN`. |
+| Đang drain | 503 `TIEN_TRINH_DANG_DUNG`, `Retry-After: 2`, không chuyển request (`O:20`). |
 | Đã chuyển request nhưng hết deadline | 504 `PHAN_HOI_QUA_HAN`; đối chiếu bằng cùng khóa, không tự ghi lại. |
 | Sai danh tính/phiên bản/readiness | Không chuyển tiếp; 503 `TIEN_TRINH_KHONG_HOP_LE`. |
 | Response sai contract | 502 `PHAN_HOI_SAI_CONTRACT`; không trả payload thô. |
@@ -219,23 +249,29 @@ Token không thay kiểm quyền hiện hành. SDK kiểm trạng thái phiên/q
 
 Lệnh đã thiết kế là việc lâu được ghi việc và trả 202 ngay; worker khởi động engine/module sau. Không đổi một request ghi đang dở thành 202 khi chưa có bản ghi việc bền vững.
 
+Đề xuất chống vòng khởi động lỗi: giãn 2/4 giây sau hai lần lỗi liên tiếp; lần thứ ba giữ `failed`, request trả ngay 503 `KHOI_DONG_BI_KHOA`, không tự khởi động tiếp. Chỉ Admin kiểm tra/khởi động qua `/thao-tac` để mở lại; trạng thái khóa/bộ đếm lưu trong registry Core và không mất khi Core restart (`O:20`).
+
 Engine cũ chưa nhận socket: đóng listener giữ cổng rồi khởi động ngay với cổng được cấp; ghi rõ đây là chế độ chuyển tiếp có khoảng hở. Không tự dò cổng khác. Chuyển giao socket trên Windows và thu hồi sau crash phải được thử ở G2; khảo sát chưa xác nhận cơ chế này đã có (`docs/47-core/g0/KS-A.md:75`, `docs/47-core/g0/KS-D.md:79`).
+
+Chuyển ổ nghe chỉ áp dụng tiến trình trên máy Core. Máy phụ chỉ chủ động kéo việc từ Core, không có cổng nhận do Core cấp/chuyển giao (`O:20`, `D:262`).
 
 ## 5. Quản trị và đề xuất chế độ chạy
 
-Trạng thái tiến trình dùng `stopped/starting/ready/busy/failed`, độc lập với:
+Trạng thái tiến trình dùng `stopped/starting/ready/busy/dang_dung/failed`, độc lập với (`O:20`):
 
 - Công tắc nghiệp vụ module `TAT/THU/VAN_HANH`.
 - Trạng thái việc và trạng thái duyệt kết quả.
 - Chính sách `tu_kich_hoat_tu_dong/giu_lau_hon/luon_chay`.
 
-Mặc định mọi module/engine tự kích hoạt và tự đóng khi rảnh; đề xuất ban đầu rảnh 300 giây. Không đóng khi còn việc, lease, download đang hoạt động hoặc ánh xạ Mask còn được dùng. Đề nghị dừng chờ drain tối đa 300 giây; hết hạn báo lỗi, không tự cưỡng bức hủy việc. Tắt nghiệp vụ không xóa dữ liệu và không mặc nhiên cấm mọi quyền đọc lịch sử.
+Mặc định mọi module/engine tự kích hoạt và tự đóng khi rảnh; đề xuất ban đầu rảnh 300 giây. Quyết định rảnh và tăng/giảm bộ đếm request đồng bộ dùng **cùng khóa với dispatch**, ngăn đóng tiến trình vừa nhận request. Không đóng khi còn request, việc, lease, download hoặc ánh xạ Mask đang dùng. `dang_dung` chờ tối đa 300 giây; hết hạn báo lỗi dừng, giữ drain và cổng thuộc instance hiện tại để Admin xử lý, không tự cưỡng bức hủy việc (`O:20`). Tắt nghiệp vụ không xóa dữ liệu và không mặc nhiên cấm mọi quyền đọc lịch sử.
 
 Mỗi lần khởi động ghi: giờ yêu cầu, giờ sẵn sàng, độ trễ khởi động, thời gian xử lý việc, thời gian rảnh trước đóng, RAM đỉnh, CPU và kết quả khởi động. Tổng hợp số lần/ngày và p50/p95 khởi động.
 
 Hằng tuần tạo đề xuất bất biến theo từng module/engine, kèm kỳ số liệu, số mẫu, cấu hình hiện tại, cấu hình đề xuất và lý do. Thiếu số mẫu hoặc thiếu đo RAM/CPU phải ghi rõ; không suy ra chế độ luôn chạy từ dữ liệu thiếu.
 
 **Chỉ Admin bấm áp dụng.** API kiểm quyền, phiên bản đề xuất, `row_version` cấu hình hiện tại; ghi audit trước/sau. Không tự áp dụng, không khởi động lại tiến trình đang bận để áp dụng chính sách. Gói module và hồ sơ chạy phải được kiểm trước; API không nhận lệnh shell, executable, URL hoặc khóa bí mật tùy ý.
+
+PUT hồ sơ chạy cũng ghi audit người sửa, thời điểm, `request_id`, trước/sau như áp dụng đề xuất; không ghi credential (`O:45`).
 
 ## 6. Ba ví dụ đầy đủ
 
@@ -387,14 +423,15 @@ Các giá trị trong OpenAPI phản ánh phương án khuyến nghị; chưa ph
 
 | Câu | Phương án và trade-off | Khuyến nghị |
 |---|---|---|
-| **C1. Nguồn đăng nhập và phiên?** | A. Tài khoản Core, triển khai độc lập nhưng phải quản lý mật khẩu. B. OIDC theo hệ thống danh tính sẵn có, quản trị tập trung nhưng phụ thuộc hạ tầng đó. | A cho bản đầu nếu chưa có nhà cung cấp danh tính; phiên rảnh 30 phút, tuyệt đối 8 giờ. |
-| **C2. Tin cậy liên tiến trình?** | A. Token ký, khóa kiểm chứng theo instance; thêm phần quản lý khóa nhưng chống giả ngữ cảnh. B. Chỉ loopback + bí mật chung; đơn giản hơn nhưng phạm vi lộ bí mật rộng. | A; TTL 30 giây và kiểm quyền hiện hành. |
-| **C3. Deadline và đóng khi rảnh?** | A. Đồng bộ 30 giây, khởi động tối đa 120 giây, rảnh 300 giây. B. Tăng chờ đồng bộ tới 120 giây, ít lỗi chờ khởi động hơn nhưng giữ nhiều kết nối. | A; việc lâu luôn 202; điều chỉnh theo số đo, không tự chuyển luôn chạy. |
-| **C4. Giữ biên nhận chống trùng bao lâu?** | A. 24 giờ, ít lưu trữ. B. 7 ngày, thuận lợi với người dùng quay lại muộn nhưng tăng dữ liệu biên nhận. Cả hai giữ tiếp khi việc chưa kết thúc. | A ban đầu; chống trùng nghiệp vụ vẫn tồn tại độc lập. |
-| **C5. Giới hạn upload ban đầu?** | A. 20 MiB, phù hợp giới hạn OCR khảo sát. B. 50 MiB ở Core, vẫn có thể bị capability từ chối sau đó. | A; JSON 1 MiB; chưa làm upload tiếp tục/chia mảnh. |
-| **C6. Kết quả OCR/Mask và retention?** | A. Chính sách theo loại; vùng tạm đề xuất 24 giờ, giữ hồ sơ lâu dài chỉ theo chính sách được duyệt. B. Giữ mọi nội dung lâu dài, thuận lợi phục hồi nhưng tăng rủi ro và dung lượng. | A; không thay RAM-only trước khi duyệt chính sách và cách phục hồi duyệt. |
+| **C1. Nguồn đăng nhập** | **hỏi chung ở phiếu CSDL**, câu 3: A. Tài khoản Core. B. Danh tính sẵn có; quản trị tập trung nhưng cần xác định hệ nguồn. | A nếu chưa có hệ tập trung; không lấy hai quyết định (`O:50`, `D:453`). |
+| **C2. Chờ khi mở module sau lúc rảnh?** | A. Đóng sau 5 phút, ít RAM; lần mở sau hiện “đang khởi động”, tự thử lại cùng khóa nếu 503 trước dispatch. B. Giữ 30 phút, giảm chờ nhưng tăng RAM. | A; không module nào luôn chạy nếu Admin chưa áp dụng. Chính sách deadline 30 giây/khởi động 120 giây giữ ở phần báo kỹ thuật (`O:53`). |
+| **C3. Giới hạn upload ban đầu?** | A. 20 MiB. B. 50 MiB ở Core, vẫn chịu giới hạn nhỏ hơn của capability. Cần Anh cho biết hồ sơ scan M4 thường nặng bao nhiêu. | A, JSON 1 MiB; chưa upload tiếp tục/chia mảnh (`O:56`, `docs/47-core/g0/KS-E.md:111`). |
 
-**Tình trạng kiểm tra:** chỉ đối chiếu tĩnh tài liệu và các đoạn mã dẫn nguồn; không sửa tệp, không chạy ứng dụng, test, migration hoặc dịch vụ. Phụ lục dưới đây là bản nháp contract; chưa được xác nhận bằng parser/linter OpenAPI hoặc thử nghiệm tích hợp.
+**Báo kỹ thuật, không thêm câu hỏi:** token ký/credential instance và chống trùng là yêu cầu thiết kế ở §2.4/§4.2, không còn phương án loopback + bí mật chung hoặc dọn biên nhận module sau 24 giờ (`O:22`, `O:31`). Retention **hỏi chung ở phiếu CSDL**, câu 2 (`D:452`), không đặt mặc định mới cho OCR/Mask tại API.
+
+**Quyết định chuyển đổi phải ghép khi duyệt bộ API:** đề xuất phân ranh nhóm `V` theo bản đồ CSDL: registry/tiếp nhận chung về Core; cấu hình lịch nguồn riêng M0; định khoản/tri thức/duyệt/báo cáo kế toán chưa phân loại giữ adapter `ke_toan_cu`, không tự đăng ký module `that`. Lead phải ghép mã module/chủ nghiệp vụ và contract cụ thể trước mở T*; tài liệu này không coi tên `V` là đã duyệt (`D:225`, `D:51`, `D:57`, `R:12`). Đề xuất giữ alias theo từng nhóm đủ contract/quyền, gỡ sau khi hết phụ thuộc và có quyết định ngừng; phương án ngừng ngay chỉ dùng khi client đã chuyển đủ. Hai phương án và điều kiện này là nội dung phê duyệt chuyển đổi trong bộ phiếu, không thêm câu hỏi riêng vượt ba câu ưu tiên Opus (`R:12`, `O:48`).
+
+**Tình trạng kiểm tra:** chỉ sửa hai tài liệu và kiểm contract tĩnh; không chạy ứng dụng, test nghiệp vụ, migration hoặc dịch vụ. Kết quả kiểm phụ lục ghi ở mục “Vòng 2 — đã xử lý”; chưa có bằng chứng runtime/tích hợp (`docs/47-core/g1/GIAO-G1B.md:8`).
 
 # Phụ lục — openapi-v1.yaml
 
@@ -407,12 +444,13 @@ info:
   description: |
     Ban nhap G1b-1, chua duoc phep trien khai.
     Duong dan dung gach noi; truong JSON dung snake_case.
-    Cac khoi du lieu va cach luu phien/bien nhan theo phieu CSDL.
+    Danh tinh va login theo phieu CSDL vong 2; bien nhan module vinh vien theo K2.
     Contract noi dung tep ket qua theo phieu SDK.
     Tat ca response co X-Request-Id va Cache-Control: no-store.
     Ghi phai kiem Origin, CSRF, quyen va schema.
     Moi loi HTTP dung schema Loi, ke ca loi tu proxy/adapter.
     Cac nguong thoi gian, dung luong va retention la de xuat cho Anh duyet.
+    Can cu hieu chinh: O:16, O:18, O:19, O:20, O:21, O:31; R:9, R:10, R:11.
 servers:
   - url: /
 security:
@@ -573,6 +611,8 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/TaiLieu' }
+        '409':
+          $ref: '#/components/responses/XungDot'
         default: *loi
 
   /api/v1/tai-lieu/{id}:
@@ -611,18 +651,23 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/TaiLieu' }
+        '409':
+          $ref: '#/components/responses/XungDot'
         default: *loi
 
   /api/v1/tep:
     parameters:
-      - $ref: '#/components/parameters/PhapNhan'
+      - $ref: '#/components/parameters/PhapNhanTuyChon'
     post:
       tags: [du_lieu]
       operationId: tai_len_tep
       summary: Nhan mot tep qua multipart
       description: |
         Tep toi da 20 MiB; kiem MIME thuc va gioi han capability.
-        Goi module chi Admin he thong duoc tai len.
+        Goi module chi Admin he thong duoc tai len, bo header phap nhan,
+        tao tep he thong phap_nhan_id/tai_lieu_id null.
+        muc_dich tai_lieu bat buoc header phap nhan va quyen tep.tai_len.
+        Can cu: R:11.
         Khong tu dong OCR hoac phe duyet noi dung trong request upload.
       x-quyen: tep.tai_len
       security: *xac_thuc_ghi
@@ -648,16 +693,22 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Tep' }
+        '409':
+          $ref: '#/components/responses/XungDot'
         default: *loi
 
   /api/v1/tep/{id}:
     parameters:
       - $ref: '#/components/parameters/Id'
-      - $ref: '#/components/parameters/PhapNhan'
+      - $ref: '#/components/parameters/PhapNhanTuyChon'
     get:
       tags: [du_lieu]
       operationId: doc_tep
       summary: Doc metadata tep
+      description: |
+        Tep nghiep vu bat buoc header phap nhan khop va quyen noi dung.
+        Tep he thong phap_nhan_id null chi Admin, bo header phap nhan.
+        Can cu: R:11.
       x-quyen: tep.doc
       responses:
         '200':
@@ -671,7 +722,7 @@ paths:
   /api/v1/tep/{id}/noi-dung:
     parameters:
       - $ref: '#/components/parameters/Id'
-      - $ref: '#/components/parameters/PhapNhan'
+      - $ref: '#/components/parameters/PhapNhanTuyChon'
     get:
       tags: [du_lieu]
       operationId: tai_xuong_tep
@@ -679,6 +730,10 @@ paths:
       description: |
         Khong nhan duong dan vat ly; khong ho tro Range trong v1.
         Content-Type co the dung application/octet-stream an toan.
+        Tep ket qua phai kiem lai quyen ket qua/bien the da dang ky.
+        Tep he thong phap_nhan_id null chi Admin, bo header phap nhan.
+        Khong proxy bytes tho tu module; module ghi qua SDK vao kho Core.
+        Can cu: O:21; R:11; D:317.
       x-quyen: tep.tai_xuong
       responses:
         '200':
@@ -823,6 +878,8 @@ paths:
       responses:
         '202':
           $ref: '#/components/responses/DaNhanViec'
+        '409':
+          $ref: '#/components/responses/XungDot'
         default: *loi
 
   /api/v1/quy-trinh:
@@ -867,6 +924,49 @@ paths:
       responses:
         '202':
           $ref: '#/components/responses/DaNhanViec'
+        '409':
+          $ref: '#/components/responses/XungDot'
+        default: *loi
+
+  /api/v1/viec:
+    get:
+      tags: [viec]
+      operationId: liet_ke_viec
+      summary: Liet ke snapshot viec theo quyen
+      description: |
+        Loc theo ma_module/trang_thai neu co, phan trang on dinh.
+        Co header phap nhan thi chi liet ke viec thuoc phap nhan do.
+        Bo header chi cho Admin he thong, chi liet ke viec he thong.
+        Chu viec phai con quyen; xem nguoi khac can MTQ viec.giam_sat
+        dung phap nhan va module; loai dong ngoai quyen.
+        Poll theo Retry-After; khong co SSE hay phat lai su kien trong v1.
+        Can cu: O:18; R:10.
+      x-quyen: chu_viec_con_quyen_hoac_MTQ_viec.giam_sat
+      parameters:
+        - $ref: '#/components/parameters/PhapNhanTuyChon'
+        - $ref: '#/components/parameters/ConTro'
+        - $ref: '#/components/parameters/KichThuocTrang'
+        - name: ma_module
+          in: query
+          required: false
+          schema: { $ref: '#/components/schemas/Ma' }
+        - name: trang_thai
+          in: query
+          required: false
+          schema: { $ref: '#/components/schemas/TrangThaiViec' }
+      responses:
+        '200':
+          description: Trang snapshot viec duoc phep xem
+          headers:
+            X-Request-Id:
+              schema: { $ref: '#/components/schemas/Id' }
+            Cache-Control:
+              schema: { type: string, const: no-store }
+            Retry-After:
+              schema: { type: integer, minimum: 1, default: 2 }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TrangViec' }
         default: *loi
 
   /api/v1/viec/{id}:
@@ -880,6 +980,12 @@ paths:
       description: |
         Viec nghiep vu bat buoc header phap nhan khop.
         Viec he thong co phap_nhan_id null chi Admin he thong doc.
+        Chu viec phai con quyen; xem nguoi khac can MTQ viec.giam_sat
+        dung phap nhan va module; thieu quyen tra 404. Can cu: O:18.
+        Sau restart/het lease, running mat heartbeat thanh interrupted.
+        Chi xep lai khi contract khai thu_lai_an_toan va da doi chieu;
+        khong tu coi thanh succeeded hoac chay lai ghi/nhap mu. Can cu: O:18.
+      x-quyen: chu_viec_con_quyen_hoac_MTQ_viec.giam_sat
       responses:
         '200':
           description: Trang thai viec
@@ -931,6 +1037,8 @@ paths:
       responses:
         '202':
           $ref: '#/components/responses/DaNhanViec'
+        '409':
+          $ref: '#/components/responses/XungDot'
         default: *loi
 
   /api/v1/quan-tri/module:
@@ -974,12 +1082,28 @@ paths:
       responses:
         '202':
           $ref: '#/components/responses/DaNhanViec'
+        '409':
+          $ref: '#/components/responses/XungDot'
         default: *loi
 
   /api/v1/quan-tri/module/{ma_module}/che-do:
     parameters:
       - $ref: '#/components/parameters/MaModule'
       - $ref: '#/components/parameters/PhapNhan'
+    get:
+      tags: [quan_tri]
+      operationId: doc_che_do_module
+      summary: Doc cong tac, nguoi thu va phien ban
+      x-can-cu: 'R:10'
+      x-quyen: quan_tri.module
+      responses:
+        '200':
+          description: Cong tac hien tai theo phap nhan
+          headers: *dau_ra_khong_cookie
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CheDoModule' }
+        default: *loi
     patch:
       tags: [quan_tri]
       operationId: doi_che_do_module
@@ -1002,6 +1126,8 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/CheDoModule' }
+        '409':
+          $ref: '#/components/responses/XungDot'
         default: *loi
 
   /api/v1/quan-tri/engine:
@@ -1049,11 +1175,27 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/BoPhan' }
+        '409':
+          $ref: '#/components/responses/XungDot'
         default: *loi
 
   /api/v1/quan-tri/engine/{ma_engine}/ho-so-chay:
     parameters:
       - $ref: '#/components/parameters/MaEngine'
+    get:
+      tags: [quan_tri]
+      operationId: doc_ho_so_chay_engine
+      summary: Doc ho so an toan va phien ban
+      x-can-cu: 'R:10'
+      x-quyen: quan_tri.he_thong
+      responses:
+        '200':
+          description: Ho so da duyet, khong bi mat hay duong dan vat ly
+          headers: *dau_ra_khong_cookie
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/HoSoChay' }
+        default: *loi
     put:
       tags: [quan_tri]
       operationId: doi_ho_so_chay_engine
@@ -1061,6 +1203,7 @@ paths:
       description: |
         Kiem row_version; khong doi am tham cau hinh cua viec dang chay.
         Khong nhan khoa, duong dan executable hay lenh shell trong body.
+        Audit nguoi sua, thoi diem, request_id va gia tri truoc/sau. Can cu: O:45.
       x-quyen: quan_tri.he_thong
       security: *xac_thuc_ghi
       parameters: *ghi
@@ -1076,6 +1219,8 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/HoSoChay' }
+        '409':
+          $ref: '#/components/responses/XungDot'
         default: *loi
 
   /api/v1/quan-tri/engine/{ma_engine}/thao-tac:
@@ -1100,6 +1245,8 @@ paths:
       responses:
         '202':
           $ref: '#/components/responses/DaNhanViec'
+        '409':
+          $ref: '#/components/responses/XungDot'
         default: *loi
 
   /api/v1/quan-tri/cap-quyen/{ma_module}:
@@ -1142,6 +1289,8 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/CapQuyen' }
+        '409':
+          $ref: '#/components/responses/XungDot'
         default: *loi
 
   /api/v1/quan-tri/so-do:
@@ -1221,6 +1370,8 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/DaApDungDeXuat' }
+        '409':
+          $ref: '#/components/responses/XungDot'
         default: *loi
 
   /api/v1/module/crm/bao-gia/{id}:
@@ -1248,7 +1399,12 @@ paths:
       description: |
         Dispatcher chuyen toi tien trinh CRM sau kiem quyen/schema.
         Module kiem CAS nghiep vu va row_version trong giao dich ghi.
-        Lech mot trong hai tra 409; khong tu ghi de.
+        Bat buoc ca row_version va expected_revision; lech mot trong hai tra 409.
+        Core chi khoa request dang chay va chuyen Idempotency-Key trong token ky.
+        Module giu bien nhan bat bien vinh vien cung transaction nghiep vu;
+        kiem quyen hanh dong truoc tra va quyen doc ket qua truoc replay.
+        Fingerprint la operation + body logic chuan hoa (gom id dich), khong path/key.
+        Sau 504 chi doi chieu bien nhan module, khong tu ghi de. Can cu: O:31; O:46.
       x-quyen: crm.bao_gia.sua
       security: *xac_thuc_ghi
       parameters: *ghi
@@ -1264,6 +1420,8 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/GhiChuBaoGia' }
+        '409':
+          $ref: '#/components/responses/XungDot'
         default: *loi
 
   /healthz:
@@ -1319,7 +1477,9 @@ components:
       type: apiKey
       in: cookie
       name: __Host-ktt_phien
-      description: SID opaque; Secure, HttpOnly, SameSite=Strict, Path=/
+      description: |
+        SID opaque; Secure, HttpOnly, SameSite=Strict, Path=/.
+        TLS bat buoc ngoai loopback; HTTP IP LAN khong ho tro dang nhap. Can cu: O:21.
     tien_phien:
       type: apiKey
       in: cookie
@@ -1384,8 +1544,12 @@ components:
         maxLength: 128
         pattern: '^[A-Za-z0-9._:-]+$'
       description: |
-        Pham vi nguoi dung/phap nhan hoac he thong/module/operation.
-        Giu 24 gio tu ket qua cuoi; khong het han khi viec con hoat dong.
+        Core: pham vi nguoi dung/phap nhan hoac he thong/module/operation;
+        bien nhan cung transaction, 24 gio tu ket qua cuoi, giu tiep khi chua xac dinh.
+        Module: UNIQUE phap_nhan/module/operation/key theo K2, bien nhan vinh vien
+        cung transaction nghiep vu; replay kiem quyen hanh dong va doc ket qua.
+        Fingerprint operation + body logic chuan hoa, gom id dich va hash tep;
+        khong gom method/path/key; alias va v1 dung chung. Can cu: O:31.
     ConTro:
       name: con_tro
       in: query
@@ -1427,6 +1591,38 @@ components:
       content:
         application/json:
           schema: { $ref: '#/components/schemas/Loi' }
+    XungDot:
+      description: CAS cu, khoa khac noi dung hoac yeu cau dang xu ly. Can cu R:14.
+      headers:
+        X-Request-Id:
+          schema: { $ref: '#/components/schemas/Id' }
+        Cache-Control:
+          schema: { type: string, const: no-store }
+        Retry-After:
+          description: Gia tri 2 khi YEU_CAU_DANG_XU_LY
+          schema: { type: integer, minimum: 1 }
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Loi' }
+          examples:
+            phien_ban:
+              value:
+                ma: XUNG_DOT_PHIEN_BAN
+                thong_diep: Dữ liệu đã đổi. Anh tải lại trước khi lưu.
+                request_id: 10000000-0000-4000-8000-000000000099
+                thu_lai_duoc: false
+            khoa_khac_noi_dung:
+              value:
+                ma: KHOA_CHONG_TRUNG_KHAC_NOI_DUNG
+                thong_diep: Khóa đã dùng với nội dung khác.
+                request_id: 10000000-0000-4000-8000-000000000099
+                thu_lai_duoc: false
+            dang_xu_ly:
+              value:
+                ma: YEU_CAU_DANG_XU_LY
+                thong_diep: Yêu cầu đang xử lý. Anh thử lại cùng khóa.
+                request_id: 10000000-0000-4000-8000-000000000099
+                thu_lai_duoc: true
     DaNhanViec:
       description: Viec hoac de nghi huy da duoc ghi ben vung
       headers:
@@ -1495,6 +1691,17 @@ components:
           description: Thong diep tieng Viet an toan cho nguoi dung
         request_id: { $ref: '#/components/schemas/Id' }
         thu_lai_duoc: { type: boolean }
+        chi_tiet:
+          type: array
+          maxItems: 100
+          items:
+            type: object
+            additionalProperties: false
+            required: [truong, ma]
+            properties:
+              truong: { type: string, minLength: 1, maxLength: 255 }
+              ma: { type: string, pattern: '^[A-Z][A-Z0-9_]{0,95}$' }
+          description: Chi ten truong da khai va ma loi, khong chua gia tri. Can cu O:16.
 
     DangNhap:
       type: object
@@ -1579,7 +1786,27 @@ components:
       description: |
         Tep chua gan tai lieu chi chu tai len hoac Admin dung pham vi duoc doc.
         Khi gan tai lieu, Core kiem quyen tai lieu va phap nhan.
+        muc_dich tai_lieu can header phap nhan khop; goi_module chi Admin,
+        bo header va cam tai_lieu_id, tao tep he thong. Can cu: R:11.
+      allOf:
+        - if:
+            properties:
+              muc_dich: { const: goi_module }
+          then:
+            not:
+              required: [tai_lieu_id]
     Tep:
+      description: |
+        phap_nhan_id null chi tep he thong, tai_lieu_id phai null, chi Admin doc/tai.
+        Tep ket qua giu cung pham vi voi ket qua/viec va quan he quyen tai Core.
+        Can cu: R:11; O:21.
+      allOf:
+        - if:
+            properties:
+              phap_nhan_id: { type: 'null' }
+          then:
+            properties:
+              tai_lieu_id: { type: 'null' }
       type: object
       additionalProperties: false
       required:
@@ -1593,7 +1820,7 @@ components:
         - het_han_luc
       properties:
         id: { $ref: '#/components/schemas/Id' }
-        phap_nhan_id: { $ref: '#/components/schemas/Id' }
+        phap_nhan_id: { type: [string, 'null'], format: uuid }
         tai_lieu_id: { type: [string, 'null'], format: uuid }
         ten_tep: { type: string, minLength: 1, maxLength: 255 }
         mime: { type: string, minLength: 1, maxLength: 127 }
@@ -1647,14 +1874,18 @@ components:
         het_han_luc: { type: [string, 'null'], format: date-time }
       description: |
         Chi metadata; noi dung tai qua tep_id va contract theo phieu SDK.
-        Tep ket qua quan tri he thong duoc tai theo quyen Admin he thong;
-        khi dung route tep co header phap nhan, Core kiem ngu canh tep goc
-        va quyen Admin, khong cho suy ra quyen doc du lieu nghiep vu.
+        Ket qua/tep quan tri he thong cung phap_nhan_id null, chi Admin doc/tai,
+        bo header phap nhan; khong gan phap nhan gia hoac suy quyen nghiep vu.
+        GET ket-qua lay tep_id, GET tep/{tep_id}/noi-dung tai bytes tu kho Core.
+        Khong co route ket-qua/{id}/noi-dung. Can cu: R:10; R:11; O:21.
         Khong dong nhat succeeded voi da_duyet.
 
     TrangThaiTienTrinh:
       type: string
-      enum: [stopped, starting, ready, busy, failed]
+      enum: [stopped, starting, ready, busy, dang_dung, failed]
+      description: |
+        dang_dung tu choi request moi 503 TIEN_TRINH_DANG_DUNG, Retry-After 2.
+        Quyet dinh dong va dem request dong bo cung khoa voi dispatch. Can cu: O:20.
     CheDoChay:
       type: string
       enum: [tu_kich_hoat_tu_dong, giu_lau_hon, luon_chay]
@@ -1804,6 +2035,10 @@ components:
           items: { $ref: '#/components/schemas/Id' }
 
     TrangThaiViec:
+      description: |
+        running mat heartbeat sau restart/het lease thanh interrupted, khong succeeded.
+        Chi xep lai khi contract khai thu_lai_an_toan, doi chieu tac dong/bien nhan,
+        kiem quyen va cap uy nhiem the he moi; khong chay lai ghi/nhap mu. Can cu: O:18; D:301.
       type: string
       enum:
         - queued
@@ -2176,6 +2411,18 @@ components:
           items: { $ref: '#/components/schemas/TaiLieu' }
         con_tiep: { type: boolean }
         con_tro_tiep: { type: [string, 'null'], maxLength: 4096 }
+    TrangViec:
+      type: object
+      additionalProperties: false
+      required: [danh_sach, con_tiep, con_tro_tiep]
+      properties:
+        danh_sach:
+          type: array
+          maxItems: 100
+          items: { $ref: '#/components/schemas/Viec' }
+        con_tiep: { type: boolean }
+        con_tro_tiep: { type: [string, 'null'], maxLength: 4096 }
+      x-can-cu: 'R:10; O:18'
     TrangKetQua:
       type: object
       additionalProperties: false
@@ -2227,6 +2474,8 @@ x-quy-uoc-bat-buoc:
     phien_tuyet_doi_giay: 28800
     tien_phien_giay: 600
     csrf_gan_voi_phien: true
+    tls_bat_buoc_ngoai_loopback: true
+    x-can-cu: 'O:21'
     origin_phai_khop: true
     cors_tuy_y: false
   gioi_han:
@@ -2240,10 +2489,34 @@ x-quy-uoc-bat-buoc:
     khoi_dong_toi_da_giay: 120
     drain_toi_da_giay: 300
     ranh_mac_dinh_giay: 300
+    x-can-cu: 'O:20'
+    gian_cach_khoi_dong_loi_giay: [2, 4]
+    loi_lien_tiep_giu_failed: 3
+    chi_admin_mo_lai: true
+    khoa_khoi_dong_loi_luu_ben: true
+    dang_dung_tu_choi_request_moi: true
+    dong_ranh_cung_khoa_dispatch: true
+    dem_ca_request_dong_bo: true
+    drain_qua_han_giu_instance_va_cong: true
   chong_trung:
     header: Idempotency-Key
-    giu_sau_ket_qua_giay: 86400
-    giu_tiep_khi_chua_ket_thuc: true
+    x-can-cu: 'O:31; src/kho_tri_thuc/ha_tang/pg_migrations.py:3385'
+    core:
+      chu_bien_nhan: Core
+      giu_sau_ket_qua_giay: 86400
+      giu_tiep_khi_chua_ket_thuc: true
+      cung_transaction: true
+    module:
+      chu_bien_nhan: module_qua_SDK
+      core_chi_khoa_request_dang_chay: true
+      chuyen_key_trong_token_ky: true
+      vinh_vien_bat_bien: true
+      cung_transaction_nghiep_vu: true
+      pham_vi: [phap_nhan_id, module, operation, client_key]
+      kiem_quyen_doc_ket_qua_truoc_replay: true
+      nguon_doi_chieu_504: bien_nhan_module
+    fingerprint: operation_va_body_logic_chuan_hoa_gom_id_dich_hash_tep
+    fingerprint_khong_gom: [method, duong_dan, client_key]
     kiem_quyen_truoc_replay: true
     replay_cung_viec_id: true
     khong_tuyen_bo_exactly_once: true
@@ -2257,6 +2530,18 @@ x-quy-uoc-bat-buoc:
     cong_noi_bo_loopback: true
     token_ngu_canh_co_chu_ky: true
     token_ttl_toi_da_giay: 30
+    x-can-cu: 'O:19; D:135; D:257; D:301'
+    ma_uy_nhiem_bi_mat_khong_phai_SID: true
+    ham_csdl_bam_doi_chieu: loi.phien_xac_thuc
+    xac_minh: [session_user, module, phap_nhan_id, han, thu_hoi, hanh_dong, viec_id, the_he_lease]
+    khong_tin_GUC_danh_tinh_tu_khai: true
+    credential_SDK_rieng_moi_instance: true
+    bootstrap: stdin_hoac_handle_cung_kenh_fromshare
+    thu_hoi_credential_khi_dung_crash: true
+    cam_bi_mat_qua: [bien_moi_truong, dong_lenh, manifest, log]
+    engine_va_may_phu_khong_login_CSDL: true
+    chuyen_socket_chi_may_Core: true
+    may_phu_chi_keo_viec_khong_cong_nhan: true
     rang_buoc_instance_method_path_body_hash: true
     khong_chuyen_cookie_nguoi_dung: true
     kiem_quyen_hien_hanh: true
@@ -2267,6 +2552,16 @@ x-quy-uoc-bat-buoc:
   du_lieu:
     ten_khoi: theo_phieu_CSDL
     contract_noi_dung_tep: theo_phieu_SDK
+    x-can-cu: 'O:16; O:18; O:21; R:11'
+    loi_chi_tiet_chi_ten_truong_va_ma: true
+    loi_module_chua_khai_tra_502: true
+    tep_module_qua_SDK_kho_Core: true
+    tep_he_thong_phap_nhan_null_chi_Admin: true
+    viec_mat_heartbeat_thanh_interrupted: true
+    chi_xep_lai_khi_contract_thu_lai_an_toan_va_da_doi_chieu: true
+    giam_sat_viec: MTQ_viec.giam_sat_theo_phap_nhan_va_module
+    theo_doi_viec: polling_snapshot
+    SSE_cong_khai: false
     chinh_sach_retention_phai_duoc_duyet: true
     succeeded_khong_tu_phe_duyet: true
     kiem_quyen_api_download_viec_nen: true
@@ -2277,3 +2572,30 @@ x-quy-uoc-bat-buoc:
     khong_mac_dinh_engine_nao_luon_chay: true
     khong_nhan_lenh_shell_hoac_khoa_tuy_y: true
 ```
+
+## Vòng 2 — đã xử lý
+
+Mã O theo mục/C1 của review Opus; R-1…R-6 theo thứ tự dòng phát hiện Codex (`O:14`, `O:26`, `R:7`). Thiết kế vẫn chờ duyệt, không xác nhận đã lập trình.
+
+| Mã phát hiện | Chỗ sửa |
+|---|---|
+| O-C1 (chặn) | §2.4: Core cùng transaction/24 giờ; module qua SDK/K2 vĩnh viễn; fingerprint không path; đối chiếu 504; thân `docs/47-core/g1/DAC-TA-API.md:106`, OpenAPI `docs/47-core/g1/DAC-TA-API.md:2501` |
+| O-1 | §2.3: chi_tiet an toàn và lỗi module chưa khai → 502; schema Loi; thân `docs/47-core/g1/DAC-TA-API.md:81`, OpenAPI `docs/47-core/g1/DAC-TA-API.md:1694` |
+| O-3a | §2.6: mất heartbeat → interrupted, đối chiếu trước thử lại; enum/quy tắc việc; thân `docs/47-core/g1/DAC-TA-API.md:135`, OpenAPI `docs/47-core/g1/DAC-TA-API.md:2037` |
+| O-3b | §2.6/§3: MTQ viec.giam_sat theo pháp nhân + module, ngoài quyền → 404; thân `docs/47-core/g1/DAC-TA-API.md:137`, OpenAPI `docs/47-core/g1/DAC-TA-API.md:978` |
+| O-4a | §4.2: mã bí mật, hàm băm đối chiếu loi.phien_xac_thuc, mã việc/thế hệ lease, bảng login; thân `docs/47-core/g1/DAC-TA-API.md:220`, OpenAPI `docs/47-core/g1/DAC-TA-API.md:2528` |
+| O-4b | §4.2: credential riêng mỗi instance/bootstrap, thu hồi, cấm môi trường/dòng lệnh; thân `docs/47-core/g1/DAC-TA-API.md:222`, OpenAPI `docs/47-core/g1/DAC-TA-API.md:2538` |
+| O-5a | §4.1/§5: dang_dung, từ chối request mới, cùng khóa dispatch/đếm request đồng bộ; thân `docs/47-core/g1/DAC-TA-API.md:208`, OpenAPI `docs/47-core/g1/DAC-TA-API.md:1883` |
+| O-5b | §4.3: giãn 2/4 giây, ba lỗi giữ failed, lưu bền, chờ Admin; thân `docs/47-core/g1/DAC-TA-API.md:252`, OpenAPI `docs/47-core/g1/DAC-TA-API.md:2494` |
+| O-5c | §4.3: chuyển socket chỉ máy Core, máy phụ chỉ kéo việc; thân `docs/47-core/g1/DAC-TA-API.md:256`, OpenAPI `docs/47-core/g1/DAC-TA-API.md:2543` |
+| O-6a | §2.1: TLS ngoài loopback, cookie Secure, DEMO riêng; thân `docs/47-core/g1/DAC-TA-API.md:42`, OpenAPI `docs/47-core/g1/DAC-TA-API.md:2477` |
+| O-6b | §2.6: module ghi SDK/kho Core, tải theo ID, không proxy bytes; thân `docs/47-core/g1/DAC-TA-API.md:143`, OpenAPI `docs/47-core/g1/DAC-TA-API.md:728` |
+| O-7; R-4 | §7: ba câu, đăng nhập/retention hỏi chung CSDL; báo kỹ thuật; ghép phê duyệt V/alias; thân `docs/47-core/g1/DAC-TA-API.md:420` |
+| O-để sau (audit/CAS) | §2.4/§5: CAS bắt buộc theo operation và audit PUT hồ sơ; thân `docs/47-core/g1/DAC-TA-API.md:274`, OpenAPI `docs/47-core/g1/DAC-TA-API.md:1201` |
+| R-1 (chặn) | §1/§3, ví dụ, OpenAPI và bảng ánh xạ: tên route gạch nối; thân `docs/47-core/g1/DAC-TA-API.md:28`, OpenAPI `docs/47-core/g1/DAC-TA-API.md:1377` |
+| R-2 (chặn) | §2.6/§3: GET viec, GET che-do/ho-so-chay; polling/tải hai bước/thao-tac; không đích Core giả định; thân `docs/47-core/g1/DAC-TA-API.md:173`, OpenAPI `docs/47-core/g1/DAC-TA-API.md:931` |
+| R-3 | §2.2/§2.6: kết quả/tệp hệ thống null chỉ Admin, không pháp nhân giả; header tùy phạm vi; thân `docs/47-core/g1/DAC-TA-API.md:59`, OpenAPI `docs/47-core/g1/DAC-TA-API.md:1798` |
+| R-5 | §1: thay nguồn KS-E về revision, duyệt, TTL/RAM và readiness; thân `docs/47-core/g1/DAC-TA-API.md:26` |
+| R-6 (gợi ý) | 409 tường minh tại mọi operation ghi chống trùng/CAS; ba ví dụ XungDot; thân `docs/47-core/g1/DAC-TA-API.md:117`, OpenAPI `docs/47-core/g1/DAC-TA-API.md:1594` |
+
+**Kiểm tĩnh vòng 2:** 42/42 operation thân ↔ OpenAPI, 33 path, 235 `$ref` có đích; không trùng `operationId`, alias YAML có anchor. Bảng ánh xạ giữ nguyên 147 dòng nguồn/tệp:dòng (các mẫu gộp), 88 tham chiếu đích Core đều khớp 27 dạng path/giá trị sau khi đối chiếu tham số. Đã kiểm UTF-8 không BOM và `git diff --check`; không chạy test nghiệp vụ. Môi trường chưa có YAML/OpenAPI validator dùng được, nên chưa chứng nhận cú pháp/schema bằng validator đầy đủ hoặc runtime; không cài thêm hay gọi dịch vụ (`docs/47-core/g1/GIAO-G1B.md:8`; contract ở các vị trí trong bảng trên).
