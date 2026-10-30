@@ -531,7 +531,7 @@ Quy tắc sau áp dụng cho **từng trường tiền trong nhóm**, kể cả 
 |---|---|
 | Bút toán `dong[].so_tien`, lô `tong_no/tong_co` | Tiền ghi sổ, không suy VAT; VND scale 0, Nợ = Có > 0; lô bằng tổng các phiên bản đã duyệt được ghim, cùng VND |
 | CRM `don_gia`/`don_gia_niem_yet`, `gia_dat_tru_m2`, tiền trong `tham_so` | `don_gia` theo `co_so_thue`; niêm yết và đất trừ trước VAT. Tham số theo `ma`/catalog ghim, chưa rõ thì không dùng tính. Tiền nguồn giữ scale; tiền kết quả theo VND/USD ở trên |
-| CRM `tong_truoc_vat`, `tong_vat`, `tong_gom_vat` | Lần lượt trước VAT, riêng VAT, gồm VAT; `tong_truoc_vat + tong_vat = tong_gom_vat`. Không cộng phí chưa chốt |
+| CRM `tong_truoc_vat`, `tong_vat`, `tong_gom_vat` | Lần lượt giá bán trước VAT, riêng VAT, giá bán gồm VAT; `tong_truoc_vat + tong_vat = tong_gom_vat`. Phí theo dõi riêng, không cộng vào các tổng giá bán (CD-038 câu 1A) |
 | CRM `gia_tri_nhap`, `gia_tri_gom_vat`, `trong_do_vat` | Tiền nhập lịch là tiền trả tại đợt đã xử lý VAT; `%` tính trên giá bán trước VAT. Tổng đợt giá bán = tổng gồm VAT; tổng VAT đợt = tổng VAT; tổng % đợt giá bán = 100. Kiểm cùng đơn vị, tiền/VAT không âm, VAT ≤ tiền đợt |
 | CRM phí `muc` | Theo `co_so_gia_tri` của `PhiCrm`; `CHUA_RO` không được dùng tính nghĩa vụ. Phí là mức theo đơn vị tính, chưa phải số tiền đến hạn |
 | M4 hợp đồng `gia_tri_hop_dong`, BOQ `don_gia/thanh_tien_ghi`, tiền trong `thay_doi_tham_so` | Cơ sở theo `gom_vat`, tài liệu BOQ/catalog tham số ghim; chưa đủ căn cứ giữ `CHUA_RO`, không tính VAT mặc định. Nguồn giữ scale tối đa 6, không tự sửa `thanh_tien_ghi` bằng phép nhân |
@@ -541,7 +541,7 @@ Quy tắc sau áp dụng cho **từng trường tiền trong nhóm**, kể cả 
 | Nghiệm thu: mọi trường tiền review/kế toán xác nhận | `co_so_gia_tri` chỉ áp tiền kế toán xác nhận; tiền review kế thừa kết luận chính xác của đợt. Kế toán/nguồn giữ scale tối đa 2; chưa rõ VAT thì không tự tính VAT; các khoản tạm ứng/thu hồi/giữ lại tách riêng |
 | Công nợ: ba trường tiền | Cùng cơ sở nghĩa vụ đã được duyệt, cùng tiền tệ/scale của căn cứ ghim; số còn lại = phải trả − đã thanh toán chỉ khi đủ căn cứ và policy. Cơ sở VAT/scale vận hành cụ thể **chờ Anh**, chưa tính/ghi nhận từ JSON nháp |
 
-Các bất biến cộng tiền dùng decimal chính xác, không dùng float. `null`/thiếu không bằng 0; chưa xác định thì `CHO`, không bỏ dòng lỗi để tổng vẫn khớp. CRM chỉ áp bất biến %/tổng giá bán cho `loai_khoan=GIA_BAN`; phạm vi phí và VAT cọc ngoại lệ tiếp tục chờ Anh tại NV-CRM §1–§2.
+Các bất biến cộng tiền dùng decimal chính xác, không dùng float. `null`/thiếu không bằng 0; chưa xác định thì `CHO`, không bỏ dòng lỗi để tổng vẫn khớp. CRM bản đầu chỉ có lịch `loai_khoan=GIA_BAN`, Σ%=100 cho phần giá bán; phí theo dõi riêng. VAT cọc chuyển giữa các đợt theo NV-CRM §1–§2 (CD-038 câu 1A/2B), không làm đổi tổng VAT hoặc tổng tiền giá bán.
 
 *Kiểm vòng 2 là kiểm tài liệu: parse JSON, đối chiếu vỏ/kiểu đã khai và tính lại tổng bằng decimal; chưa chứng nhận JSON Schema đầy đủ hoặc runtime. Không chạy ứng dụng hay truy cập kho dữ liệu.*
 ---
@@ -606,7 +606,7 @@ Chưa tìm thấy tài liệu tên bắt đầu bằng “50” trong các tệp
 | `ngay_ky` | Ngày ký thực tế | `chung.ngay` hoặc `null` | B; phải có khi đã ký | ngày | TL42 §8 |
 | `tham_so` | Tham số và căn cứ của phiên bản | Mảng object theo bảng dưới | B | — | TK §6; `CRM:373` |
 | `gia_thue` | Giá và kết quả VAT của phiên bản | Object `GiaCrm` bên dưới | B | VND/USD | CD-024; TL42 §7 |
-| `phi` | Các phí kế thừa nguyên từ revision báo giá khi chuyển Soạn | Mảng `PhiCrm` tại §3 | B; được rỗng | Theo dòng | TL42 §6; `GK:341`–`343`; phạm vi sinh nghĩa vụ chờ Anh |
+| `phi` | Các phí theo dõi riêng, kế thừa nguyên từ revision báo giá khi chuyển Soạn; không thuộc lịch nghĩa vụ bản đầu | Mảng `PhiCrm` tại §3 | B; được rỗng | Theo dòng | TL42 §6; `GK:341`–`343`; CD-038 câu 1A |
 | `lich_thanh_toan` | Các đợt theo đúng thứ tự thanh toán | Mảng `DongLichCrm` bên dưới | B | — | CD-024; TK §6 |
 | `tep_nguon` | Thông tin tải/xem tài liệu hợp đồng chính, khác danh sách ID nguồn trong vỏ | `tham_chieu_tep.v1` | ĐK: phiên bản từ tài liệu/ký; `tep_id` phải thuộc `nguon_tep_ids` | — | DL §4; `CRM:358` |
 
@@ -671,7 +671,7 @@ Chưa tìm thấy tài liệu tên bắt đầu bằng “50” trong các tệp
 | `module_nghia_vu` | Chủ đợt nghĩa vụ | Hằng `CRM` | B trong hợp đồng; bỏ ở báo giá dự kiến | — | CSDL §3.6, §6.2 |
 | `loai_nghia_vu` | Loại đợt bán dùng khi nối tiền | Hằng `lich_thu` | B trong hợp đồng; bỏ ở báo giá dự kiến | — | CSDL §3.6, §6.2; tên lịch nguồn |
 | `khoa_nghia_vu` | Khóa đợt ổn định qua các phiên bản, chỉ để theo dõi/đối chiếu; không dùng làm đích liên kết tiền (đích luôn là bộ ba với `nghia_vu_id` của đúng phiên bản) | `chung.chuoi` | B trong hợp đồng; bỏ ở báo giá | — | CRM:419–422; CSDL §6.2 |
-| `loai_khoan` | Phân biệt giá bán với loại khoản khác theo catalog ghim | `chung.chuoi`, bản nháp minh họa `GIA_BAN` | B; catalog phí chờ Anh | — | TK §6; review Opus S3 |
+| `loai_khoan` | Loại khoản của lịch; bản đầu chỉ giá bán, dành khả năng mở rộng tương thích về sau | `chung.chuoi`, bản đầu chỉ nhận `GIA_BAN` | B | — | TK §6; CD-038 câu 1A |
 | `lan` | Thứ tự đợt thanh toán | Integer dương | B | lần | TL45 §2 BG-01 |
 | `gia_tri_nhap` | Giá trị gốc người dùng nhập: % hoặc tiền | `chung.gia_tri` | B | % hoặc VND/USD | TL45 §8 BG-20 |
 | `ty_le` | Tỷ lệ tính trên giá trước VAT | `chung.thap_phan` | B | % | CD-024 |
@@ -697,15 +697,58 @@ Chưa tìm thấy tài liệu tên bắt đầu bằng “50” trong các tệp
 
 **Quy tắc nghiệp vụ đã chốt:**
 
-1. Trong nhánh giá bán `loai_khoan=GIA_BAN`, tổng tỷ lệ bằng 100%; tỷ lệ tính trên tổng giá bán trước VAT. Tổng tiền các đợt giá bán bằng tổng giá bán gồm VAT; tổng `trong_do_vat` của các đợt đó bằng tổng VAT giá bán. Phạm vi phí trong lịch bản 1 còn chờ Anh, không tự cộng phí vào các tổng này.
-2. Nhánh đã chốt: một đợt cọc có đợt kế tiếp không phải cọc thì cọc không thu VAT, VAT cọc dồn vào đợt kế tiếp. Chênh làm tròn dồn đợt cuối; VND đến đồng (scale 0, half-up), theo bảng thang tiền chung. Không mặc định dòng đầu luôn là cọc sau khi người dùng đã đổi đánh dấu. **Cọc ở dòng cuối/lịch một dòng hoặc nhiều dòng cọc: chờ Anh**, chưa áp một thuật toán dồn VAT suy đoán; trường hợp này chặn in/hiệu lực khi chưa chốt và chưa tính được tiền/VAT hợp lệ.
+1. Lịch nghĩa vụ bản đầu chỉ gồm giá bán `loai_khoan=GIA_BAN`, tổng tỷ lệ bằng 100%; tỷ lệ tính trên tổng giá bán trước VAT. Phí theo dõi riêng, không cộng vào các tổng này (CD-038 câu 1A).
+2. **CD-038 câu 2B:** cho phép cọc ở đợt cuối hoặc nhiều đợt cọc, không ràng buộc cọc ở dòng 1. Theo thứ tự `lan`, VAT phân bổ của mỗi đợt cọc dồn vào đợt **không cọc gần nhất phía sau**; nếu không còn đợt không cọc phía sau thì dồn ngược về đợt **không cọc gần nhất phía trước**. Nhiều đợt cọc cùng đích thì cộng toàn bộ VAT vào đích đó. Đợt cọc luôn có `trong_do_vat=0`. **Lịch toàn đợt cọc → lỗi**, kể cả lịch một dòng cọc; chặn in/hiệu lực. Lịch một dòng không cọc vẫn hợp lệ khi đủ các điều kiện khác.
 3. `gia_tri_nhap` giữ ô gốc; bên nhận không suy lại tỷ lệ bằng cách chia tiền đợt cho tổng gồm VAT.
 4. Mốc chưa có ngày thực tế: hiển thị dự kiến, **không đếm quá hạn**. Qua ngày dự kiến sinh việc chờ chỉnh ngày; khi có thực tế mới tính hạn theo thực tế cộng số ngày đã khai.
 5. Phiên bản đã duyệt nhưng chưa tới ngày hiệu lực không được coi là phiên bản đang hiệu lực. Lịch và tiền đã nối không tự chứng minh doanh thu hoặc nghĩa vụ VAT ghi sổ của M3.
 
+**Bất biến tiền sau dồn VAT (áp dụng cả `bao_gia`/`hop_dong_ban`):** gọi N là tổng giá bán trước VAT, V là tổng VAT đã tính theo căn cứ thuế, G=N+V. Với tỷ lệ pᵢ, Σpᵢ=100, phân bổ Bᵢ từ Npᵢ/100 và Vᵢ từ Vpᵢ/100; làm tròn half-up theo thang tiền chung, VND scale 0; dòng cuối nhận phần dư của B và V để ΣB=N, ΣVᵢ=V. Sau đó mới dồn VAT: gọi d(c) là đích không cọc theo quy tắc 2; T꜀=0 tại cọc, Tⱼ=Vⱼ+ΣV꜀ với d(c)=j tại đợt không cọc. Tiền thu Aᵢ=Bᵢ+Tᵢ; `gia_tri_gom_vat=Aᵢ`, `trong_do_vat=Tᵢ`. Bắt buộc ΣT=V, ΣA=G, Σ(A−T)=N; mọi B/V/T/A không âm và Tᵢ≤Aᵢ. Dòng cuối là cọc vẫn nhận phần dư VAT phân bổ trước khi chuyển phần VAT đó tới đích không cọc; không gán VAT thực thu cho cọc để bù sai số. Kết quả ngoài miền → lỗi, không sửa đầu vào để che lệch.
+
 **Định danh khi nối tiền:** chỉ dùng `nghia_vu_id`, không công bố thêm alias `dong_id`, `khoa_nghia_vu` hay `lich_thu_id`. Bộ ba chuẩn là `(module_nghia_vu=CRM, loai_nghia_vu=lich_thu, nghia_vu_id)`; ghim thêm `ban.id` và `ban.ma_bam`. ID báo giá là dự kiến; khi nguồn ghi dòng nghĩa vụ phải công bố đúng ID dòng đã lưu, không giả định UUID dự kiến bằng UUID lịch thu. Nguồn CRM tạo dòng mới cho phiên bản mới (CRM:660); UUID dòng cũ giữ nguyên cho lịch sử, không tự coi UUID dòng là khóa logic xuyên phiên bản. Resolver chủ CRM dùng quan hệ thay thế/khóa logic legacy nội bộ để kiểm cả chuỗi tiền đã nối, không công bố thêm alias ID; tách/gộp đợt phải xác lập ID mới và xử lý tiền đã nối, không tái dùng ID khác nghĩa. Bên nhận sự kiện §5.1 kiểm đúng bộ ba/phiên bản/hash qua liên kết Core và contract CRM trong transaction theo D §6.2.
 
-**Phí trong lịch nghĩa vụ hợp đồng bán bản 1: chờ Anh** quyết định có gồm phí bảo trì/sử dụng/hạ tầng hay chỉ giá bán chia %. `phi` vẫn giữ nguyên khi chuyển Soạn; chưa có quyết định thì không suy phí thành nghĩa vụ hoặc bỏ phí khỏi dữ liệu. `loai_khoan` là mã catalog ghim và mỗi khoản giữ cơ sở tính/VAT riêng; đã có chỗ phân biệt khoản giá bán với khoản phí về sau. Nếu cần mở rộng catalog/schema sau phát hành, tạo phiên bản mới có ánh xạ và tiếp tục phục vụ bản cũ, không đổi nghĩa tổng/%/ID của bản cũ. Quy tắc này áp cho cả báo giá và hợp đồng; hai câu về phí và VAT cọc là điểm chờ duyệt, không phải quyết định vòng 2.
+**Phí theo CD-038 câu 1A:** lịch nghĩa vụ hợp đồng bán/báo giá bản đầu chỉ có giá bán chia %, Σ%=100 cho giá bán. `phi` theo dõi riêng và giữ nguyên khi chuyển Soạn, không suy thành nghĩa vụ của lịch giá bán và không bỏ khỏi dữ liệu. Bổ sung phí vào nghiệp vụ về sau phải tương thích, không phá phiên bản đã công bố: giữ nghĩa tổng/%/ID giá bán và cơ sở tính/VAT từng khoản, có ánh xạ và tiếp tục phục vụ bản cũ nếu cần phiên bản mới. Hai câu 1A/2B đã được Anh chốt, không còn là điểm chờ duyệt.
+
+#### Ba ví dụ JSON DEMO theo CD-038 câu 2B
+
+Các JSON sau là **trích đoạn các trường tính tiền của `lich_thanh_toan`**, áp dụng cho cả hai contract; khi công bố phải ghép đủ vỏ, ID và mốc như ví dụ đầy đủ bên dưới. Cả ba dùng N=1.000.000.000 VND, không có phần đất trừ/miễn thuế, thuế suất 10%: V=1.000.000.000×10%=100.000.000 VND; G=1.100.000.000 VND; phí tách riêng.
+
+**Cọc đợt cuối — p=30/50/20%:** B=300/500/200 triệu; VAT phân bổ=30/50/20 triệu. Cọc dòng 3 không còn đích phía sau nên 20 triệu chuyển về dòng 2: T=30/(50+20)/0=30/70/0 triệu; A=330/570/200 triệu. Σp=100%; ΣT=100 triệu; ΣA=1.100 triệu; Σ(A−T)=1.000 triệu.
+
+```json
+{
+  "lich_thanh_toan": [
+    {"lan": 1, "loai_khoan": "GIA_BAN", "ty_le": "30", "la_dat_coc": false, "gia_tri_gom_vat": {"gia_tri": "330000000", "don_vi_tien": "VND"}, "trong_do_vat": {"gia_tri": "30000000", "don_vi_tien": "VND"}},
+    {"lan": 2, "loai_khoan": "GIA_BAN", "ty_le": "50", "la_dat_coc": false, "gia_tri_gom_vat": {"gia_tri": "570000000", "don_vi_tien": "VND"}, "trong_do_vat": {"gia_tri": "70000000", "don_vi_tien": "VND"}},
+    {"lan": 3, "loai_khoan": "GIA_BAN", "ty_le": "20", "la_dat_coc": true, "gia_tri_gom_vat": {"gia_tri": "200000000", "don_vi_tien": "VND"}, "trong_do_vat": {"gia_tri": "0", "don_vi_tien": "VND"}}
+  ]
+}
+```
+
+**Hai đợt cọc liền nhau — p=20/30/50%:** B=200/300/500 triệu; VAT phân bổ=20/30/50 triệu. Cọc dòng 1 và 2 cùng dồn về dòng 3: T=0/0/(50+20+30)=0/0/100 triệu; A=200/300/600 triệu. Σp=100%; ΣT=100 triệu; ΣA=1.100 triệu; Σ(A−T)=1.000 triệu.
+
+```json
+{
+  "lich_thanh_toan": [
+    {"lan": 1, "loai_khoan": "GIA_BAN", "ty_le": "20", "la_dat_coc": true, "gia_tri_gom_vat": {"gia_tri": "200000000", "don_vi_tien": "VND"}, "trong_do_vat": {"gia_tri": "0", "don_vi_tien": "VND"}},
+    {"lan": 2, "loai_khoan": "GIA_BAN", "ty_le": "30", "la_dat_coc": true, "gia_tri_gom_vat": {"gia_tri": "300000000", "don_vi_tien": "VND"}, "trong_do_vat": {"gia_tri": "0", "don_vi_tien": "VND"}},
+    {"lan": 3, "loai_khoan": "GIA_BAN", "ty_le": "50", "la_dat_coc": false, "gia_tri_gom_vat": {"gia_tri": "600000000", "don_vi_tien": "VND"}, "trong_do_vat": {"gia_tri": "100000000", "don_vi_tien": "VND"}}
+  ]
+}
+```
+
+**Cọc xen giữa — p=10/30/20/40%:** B=100/300/200/400 triệu; VAT phân bổ=10/30/20/40 triệu. Cọc dòng 1 dồn về dòng 2; cọc dòng 3 dồn về dòng 4 (ưu tiên phía sau dù dòng 2 cũng không cọc): T=0/(30+10)/0/(40+20)=0/40/0/60 triệu; A=100/340/200/460 triệu. Σp=100%; ΣT=100 triệu; ΣA=1.100 triệu; Σ(A−T)=1.000 triệu.
+
+```json
+{
+  "lich_thanh_toan": [
+    {"lan": 1, "loai_khoan": "GIA_BAN", "ty_le": "10", "la_dat_coc": true, "gia_tri_gom_vat": {"gia_tri": "100000000", "don_vi_tien": "VND"}, "trong_do_vat": {"gia_tri": "0", "don_vi_tien": "VND"}},
+    {"lan": 2, "loai_khoan": "GIA_BAN", "ty_le": "30", "la_dat_coc": false, "gia_tri_gom_vat": {"gia_tri": "340000000", "don_vi_tien": "VND"}, "trong_do_vat": {"gia_tri": "40000000", "don_vi_tien": "VND"}},
+    {"lan": 3, "loai_khoan": "GIA_BAN", "ty_le": "20", "la_dat_coc": true, "gia_tri_gom_vat": {"gia_tri": "200000000", "don_vi_tien": "VND"}, "trong_do_vat": {"gia_tri": "0", "don_vi_tien": "VND"}},
+    {"lan": 4, "loai_khoan": "GIA_BAN", "ty_le": "40", "la_dat_coc": false, "gia_tri_gom_vat": {"gia_tri": "460000000", "don_vi_tien": "VND"}, "trong_do_vat": {"gia_tri": "60000000", "don_vi_tien": "VND"}}
+  ]
+}
+```
 
 #### Ví dụ JSON DEMO
 
@@ -868,7 +911,7 @@ Resolver liên kết tiền từ chối mọi `nghia_vu_id` không đi kèm bộ
 | `het_han` | Ngày hết hạn báo giá nếu có | `chung.ngay` | T | ngày | `GK:335` |
 | `ghi_chu` | Ghi chú chung | `chung.chuoi` | T | — | `GK:336` |
 
-**Quy tắc:** áp dụng cùng quy tắc VAT/lịch tại §1. Lưu nháp được phép thiếu dữ liệu; trước in phải đủ căn cứ tính tiền, tổng tỷ lệ 100% và tỷ giá khi cần. Chọn dự án nạp tiến độ chuẩn; sửa lịch phải thể hiện nguồn theo khách. Không cộng phí vào tổng giá trị khi chưa có cơ sở tính tương ứng. Bản in và chuyển Soạn phải giữ sáu cột lịch theo CD-024.
+**Quy tắc:** áp dụng cùng quy tắc VAT/lịch và bất biến tiền tại §1 theo CD-038 câu 1A/2B; lịch chỉ giá bán chia %, phí theo dõi riêng. Lưu nháp được phép thiếu dữ liệu; trước in phải đủ căn cứ tính tiền, tổng tỷ lệ giá bán 100% và tỷ giá khi cần; lịch toàn cọc → lỗi. Cho phép cọc cuối/nhiều cọc, dồn VAT tới đợt không cọc gần nhất phía sau, hết phía sau thì về đợt không cọc gần nhất phía trước. Chọn dự án nạp tiến độ chuẩn; sửa lịch phải thể hiện nguồn theo khách. Bản in và chuyển Soạn phải giữ sáu cột lịch theo CD-024 cùng cờ cọc/tiền/VAT đã tính.
 
 #### Ví dụ JSON DEMO
 
@@ -954,7 +997,7 @@ Resolver liên kết tiền từ chối mọi `nghia_vu_id` không đi kèm bộ
 }
 ```
 
-**Trạng thái/phiên bản:** `nhap` / `1.0.0`. **Chờ Anh:** mã catalog `trang_thai`; xử lý cọc ở dòng cuối/lịch một dòng và trường hợp nhiều dòng đánh dấu cọc; chi tiết thuật toán phân bổ, suy ngược và làm tròn ngoài quy tắc đã chốt. Công thức tại KK §4 là **đề xuất triển khai**, chưa nâng thành quy tắc contract bắt buộc. Mã hiện tại còn phân biệt dữ liệu cũ và dữ liệu mới có tiền chính VND (`GK:391`–`396`); không tự đổi tiền tệ hoặc tính lại báo giá cũ khi chuyển đổi.
+**Trạng thái/phiên bản:** `nhap` / `1.0.0`. **Chờ Anh:** mã catalog `trang_thai`; chi tiết suy ngược ngoài quy tắc đã chốt. Phạm vi giá bán/phí và VAT cọc đã chốt theo CD-038 câu 1A/2B tại §1; công thức triển khai/suy ngược tại KK §4 vẫn là đề xuất ở phần ngoài quy tắc đó. Mã hiện tại còn phân biệt dữ liệu cũ và dữ liệu mới có tiền chính VND (`GK:391`–`396`); không tự đổi tiền tệ hoặc tính lại báo giá cũ khi chuyển đổi.
 
 ### 3. `du_an_dang_ban.v1`
 
@@ -1885,4 +1928,6 @@ Mã `OPUS-*` theo `RV-NV-OPUS.md`; `NV-*` theo số dòng phát hiện của `RV
 | NV-7 (gợi ý) | NV-M2 bảng trường: dẫn P:5260 (`phien_ban_nguon`), P:5299 (`lan_tiep_nhan_id`), P:5277 (`trang_thai_can_cu_tien`) |
 
 Các mục Opus “Để sau” tiếp tục để sau: mapping `bank_id/cashflow_id/entry_dm` chờ NCC; nối M1–M4 chưa được coi là đã có contract nghĩa vụ M4; TL50 chưa xác nhận nguồn. Ký hiệu `id`/`chung.id` đã thống nhất ý nghĩa ở từ điển, không tạo kiểu mới.
+
+CD-038 (30/10): đã áp câu 1A/2B cho `bao_gia`/`hop_dong_ban`: lịch giá bán 100%, phí riêng, VAT cọc tìm đích không cọc sau/trước, lỗi toàn cọc; bổ sung bất biến tiền và 3 ví dụ JSON có phép tính.
 
