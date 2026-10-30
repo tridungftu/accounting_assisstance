@@ -905,3 +905,16 @@ Chi tiết có tệp:dòng: `BANG-DIEU-KIEN-GO-LIVE.md`; quy trình: `CHECKLIST-
 - **Lỗ hổng cổng:** `tools\chay_test_theo_module.py` báo module **ok=0 ERROR=0** khi tiến trình con sập vì lỗi trong `_id()` (test đè `TestCase.id`).
   - Từ nay lead kiểm thêm `ok == tong` (số test khai báo).
   - Mở lát nhỏ sửa bộ chạy: tiến trình con sập → ERROR.
+### 30/10 ~21:15 — G2: đã gộp tới G2-10; G2-11 sửa vòng 2
+- **Đã gộp:** G2-00…G2-10, G2-17, G2-24, G2-33 (xem trước); sửa bộ chạy test (module sập/thiếu ca → LOI).
+- **G2-11** (tiếp nhận + biên nhận) — vòng 2:
+  - sửa fixture phiên;
+  - lead mở whitelist sửa `doi_cau_truc.py` + `test_g2_04.py` sang quy tắc số tăng chặt, cho phép khoảng trống (G2-10 không có SQL).
+- **Hàng tiếp:**
+  - G2-12 (danh mục V2) → G2-13 (kiểm toàn vẹn tiền, Opus) → 14 → 15 → 16 → 18 → 19 (Opus) → 20 → 21 (Opus);
+  - G3 chờ mốc G2-21.
+- **Ghi chú kỹ thuật** (cho lead sau nén ngữ cảnh):
+  - giao việc từ `docs\47-core\g2\GIAO-G2-*.md`, ghép phần chung `GIAO-G2-DOT-A.md`;
+  - worktree `.claude\worktrees\lat-g2-xx`;
+  - review chéo `scratchpad\g2\rv.sh MA NHANH WT "TEP" DE "TEST" OUT`;
+  - Opus review cho lát rủi ro cao bằng subagent `review-lat`.
