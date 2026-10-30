@@ -254,7 +254,7 @@ BEGIN
         IF het THEN khoa := ARRAY['row_version']; END IF;
         IF EXISTS(SELECT FROM jsonb_object_keys(p_data) k WHERE NOT k=ANY(khoa))
            OR (het AND (p_loai='khoa_ky' OR coalesce(p_data->>'row_version','') !~ '^[1-9][0-9]{0,18}$'))
-           OR split_part(p_hd,':',3) IS DISTINCT FROM CASE WHEN het THEN 'SUA' WHEN p_loai='khoa_ky' THEN 'DUYET' ELSE 'LAP' END THEN
+           OR split_part(p_hd,':',3) IS DISTINCT FROM (CASE WHEN het THEN 'SUA' WHEN p_loai='khoa_ky' THEN 'DUYET' ELSE 'LAP' END) THEN
             RAISE EXCEPTION 'DANH_MUC_DAU_VAO' USING ERRCODE='22023';
         END IF;
         doi := jsonb_build_object('bang','danh_muc.'||p_loai,'id',p_id);

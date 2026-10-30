@@ -157,8 +157,9 @@ class DanhMucPostgresTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         g209.TaiLieuPostgresTest.setUpClass.__func__(cls)
-        dc.ap_doi_cau_truc(cls.conn, [*sorted(dc.THU_MUC_SQL.glob('00[1-9]_*.sql')),
-            dc.THU_MUC_SQL / '011_tiep_nhan.sql', SQL_PATH])
+        cls.tep_sql = sorted(dc.THU_MUC_SQL.glob('[0-9][0-9][0-9]_*.sql'),
+                             key=lambda tep: int(tep.name.split('_', 1)[0]))
+        dc.ap_doi_cau_truc(cls.conn, cls.tep_sql)
         cls.vai_module = cls.tien_to + 'vai_chay_mod_crm'
         cls.conn.execute(sql.SQL('GRANT USAGE ON SCHEMA danh_muc TO {}').format(sql.Identifier(cls.vai_module)))
         for ck in (CK_GHI, CK_KIEM):
@@ -181,6 +182,14 @@ class DanhMucPostgresTest(unittest.TestCase):
         with conn.transaction():
             return dm.khoa_ky(conn, ky='2026-10', doi_tuong_id=self.obj, khoa='demo-g2-12-khoa01',
                 **self._ctx(DUYET, **{'ma': self.uy, **doi}))
+
+    def test_ap_day_du_chuoi_sql_theo_thu_tu_so(self):
+        chuoi = dc._doc_chuoi(self.tep_sql)
+        self.assertEqual(self.conn.execute('''SELECT so_phien_ban, ma_bam
+            FROM loi.lich_su_doi_cau_truc WHERE ma_goi='core'
+            ORDER BY so_phien_ban''').fetchall(),
+            [(so, bam) for so, (_, bam) in chuoi.items()])
+        self.assertEqual(dc.ap_doi_cau_truc(self.conn, self.tep_sql), max(chuoi))
 
     def test_ghi_module_login_that_va_replay_khac_noi_dung(self):
         self.assertEqual(self.module.execute('SELECT current_user,session_user').fetchone(), (self.module_login,)*2)
