@@ -452,7 +452,9 @@ class SDKPostgresTest(unittest.TestCase):
             with self.cua.giao_dich(self._ngu_canh()) as tx:
                 self.sdk.ket_qua.ghi(tx,tai_lieu_id=self.tai_lieu_id,
                                     du_lieu=self.data,giu_viec=giu)
-        self.assertEqual(bat.exception.ma, 'VIEC_MAT_LEASE')
+        # 014: xac_minh_phien bác ủy nhiệm khi giu_den hết hạn; cửa V2
+        # trả TAI_LIEU_PHIEN trước khi tới kiểm tra hàng việc/lease.
+        self.assertEqual((bat.exception.ma, bat.exception.http_status), ('TAI_LIEU_PHIEN', 403))
 
     def test_module_khac_va_phap_nhan_khac_bi_bac(self):
         for module, pn in (('m2',self.pn), ('crm',self.pn_khac)):
@@ -561,6 +563,8 @@ class SDKPostgresTest(unittest.TestCase):
                 LATERAL aclexplode(coalesce(p.proacl,acldefault('f',p.proowner))) a
                 WHERE p.oid=%s::regproc AND a.grantee=0 AND a.privilege_type='EXECUTE')''', (ten,)).fetchone()[0])
         for ten in ('loi.ghi_kiem_toan_v2', 'loi_tai_lieu.ghi_ket_qua_v2'):
+            chu_ky = self.conn.execute('SELECT oid::regprocedure::text FROM pg_proc '
+                'WHERE oid=%s::regproc', (ten,)).fetchone()[0]
             # Kiểm ACL trực tiếp: login module thừa kế EXECUTE từ vai_chay_mod_*.
             acl = self.conn.execute('''SELECT a.grantee,pg_get_userbyid(a.grantee)
                 FROM pg_proc p, LATERAL aclexplode(coalesce(p.proacl,acldefault('f',p.proowner))) a
@@ -576,14 +580,14 @@ class SDKPostgresTest(unittest.TestCase):
                 with self.subTest(ham=ten, vai=vai):
                     if vai.startswith(self.tien_to+'vai_chay_mod_'):
                         self.assertTrue(self.conn.execute("SELECT has_function_privilege(%s,%s,'EXECUTE')",
-                            (oid,ten)).fetchone()[0])
+                            (oid,chu_ky)).fetchone()[0])
                     elif (vai in (self.tien_to+'dang_nhap_loi', self.tien_to+'dang_nhap_cai_dat')
                           or vai.startswith(self.tien_to+'vai_doi_cau_truc_')
                           or vai.startswith(self.tien_to+'dang_nhap_mod_')):
                         self.assertNotIn(vai, duoc_cap)
                         if not vai.startswith(self.tien_to+'dang_nhap_mod_'):
                             self.assertFalse(self.conn.execute("SELECT has_function_privilege(%s,%s,'EXECUTE')",
-                                (oid,ten)).fetchone()[0])
+                                (oid,chu_ky)).fetchone()[0])
         self.assertFalse(self.conn.execute("SELECT has_schema_privilege(%s,'loi_tai_lieu','USAGE')",
             (self.tien_to+'vai_doi_cau_truc_loi',)).fetchone()[0])
         for bang in ('loi_tai_lieu.ket_qua_xu_ly','loi.nhat_ky_kiem_toan'):
