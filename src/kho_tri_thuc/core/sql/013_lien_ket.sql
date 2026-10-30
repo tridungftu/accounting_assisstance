@@ -3,9 +3,14 @@
 -- -> {ket_luan: DAT|CHO, module_nghia_vu, loai_nghia_vu, nghia_vu_id,
 --     phien_ban_can_cu_id, ma_bam_phien_ban_can_cu, tien_te, thang_tien}.
 -- yeu_cau.giai_doan = KHOA|KIEM. KHOA phai khoa nghia vu va xac minh
--- ca bo ba + can cu; KIEM dung tong_nghia_vu_noi_bo de kiem suc chua.
+-- ca bo ba + can cu moi; KIEM dung kiem_nghia_vu_noi_bo de kiem suc chua.
 -- Khong tra tong/suc chua ra runtime. Module Manager chi cap hai ham
--- tong_nghia_vu_noi_bo/khoa_lien_ket_noi_bo cho role kiem module da duyet.
+-- kiem_nghia_vu_noi_bo/khoa_lien_ket_noi_bo cho role kiem module da duyet.
+-- Ham kiem nghia vu la INVOKER de rang current_user voi module. Module Manager
+-- tao danh_muc.kiem_nghia_vu_mod_<module>(uuid,text,uuid,numeric) DEFINER,
+-- owner la vai_kiem_toan_ven_danh_muc, chi goi kiem_nghia_vu_toan_ven_noi_bo
+-- voi module CO DINH. REVOKE PUBLIC, chi GRANT wrapper cho role kiem module do.
+-- Khong GRANT bang/ham tong hop Core cho role module, ke ca role kiem.
 -- Giam suc chua: khoa_lien_ket_noi_bo(pn) -> khoa nghia vu -> doi/kiem tong.
 -- Khoa dieu phoi PN co y tuan tu hoa ghi tien, tranh bo sot chung tu moi
 -- trong luc giam suc chua. Moi duong ghi phai di qua cung giao thuc nay.
@@ -61,7 +66,7 @@ $do$;
                 (d.module,d.phien_ban_module,d.ma_bam_goi)
             JOIN loi.dang_ky_contract c ON (c.ma,c.phien_ban)=(d.ma_contract,d.phien_ban_contract)
             WHERE d.module=p_dich->>'module_nghia_vu' AND d.loai_ham='resolver_nghia_vu'
-              AND d.phien_ban_contract=p_contract AND m.trang_thai='da_cai' AND c.trang_thai='dang_dung';
+              AND m.trang_thai='da_cai' AND c.trang_thai='dang_dung';
         IF NOT FOUND OR to_regprocedure(h.chu_ky) IS NULL THEN
             RETURN jsonb_build_object('ket_luan','CHO','ly_do','THIEU_MODULE_RESOLVER');
         END IF;
@@ -140,15 +145,50 @@ $do$;
         END IF;
         PERFORM pg_advisory_xact_lock(hashtextextended(jsonb_build_array('lien_ket_pn',p_pn)::text,13));
         -- Advisory thay FOR UPDATE: role kiem chi co SELECT, khong DML.
-        FOR ct IN SELECT id FROM danh_muc.chung_tu WHERE phap_nhan_id=p_pn
-            UNION SELECT id FROM unnest(p_ids) id WHERE id IS NOT NULL ORDER BY id LOOP
+        FOR ct IN SELECT DISTINCT id FROM unnest(p_ids) id WHERE id IS NOT NULL ORDER BY id LOOP
             PERFORM pg_advisory_xact_lock(hashtextextended(jsonb_build_array('lien_ket_ct',ct)::text,13));
         END LOOP;
     END;
     $ham$;
-    CREATE OR REPLACE FUNCTION danh_muc.tong_nghia_vu_noi_bo(p_pn uuid,p_module text,p_loai text,p_id uuid)
-    RETURNS numeric LANGUAGE sql VOLATILE SECURITY DEFINER SET search_path=pg_catalog,pg_temp AS $ham$
-        SELECT coalesce(sum(tien),0) FROM (
+    CREATE OR REPLACE FUNCTION danh_muc.kiem_nghia_vu_noi_bo(p_pn uuid,p_module text,p_loai text,p_id uuid,p_gioi_han numeric)
+    RETURNS boolean LANGUAGE plpgsql VOLATILE SECURITY INVOKER SET search_path=pg_catalog,pg_temp AS $ham$
+    DECLARE vai text; ck regprocedure; kq boolean;
+    BEGIN
+        IF NOT EXISTS(SELECT FROM loi.mtq_phien_rls() x WHERE x.phap_nhan_id=p_pn) THEN
+            RAISE EXCEPTION 'TAI_LIEU_PHIEN' USING ERRCODE='42501';
+        END IF;
+        SELECT regexp_replace(pg_get_userbyid(nspowner),'vai_doi_cau_truc_danh_muc$',
+            'vai_kiem_toan_ven_mod_')||p_module INTO vai FROM pg_namespace WHERE nspname='danh_muc';
+        IF current_user::text IS DISTINCT FROM vai OR NOT EXISTS(SELECT FROM pg_roles
+            WHERE rolname=vai AND NOT (rolcanlogin OR rolsuper OR rolbypassrls OR rolcreaterole OR rolcreatedb OR rolreplication)) THEN
+            RAISE EXCEPTION 'LIEN_KET_MODULE_KIEM' USING ERRCODE='42501';
+        END IF;
+        ck := to_regprocedure(format('danh_muc.%I(uuid,text,uuid,numeric)','kiem_nghia_vu_mod_'||p_module));
+        IF ck IS NULL OR NOT EXISTS(SELECT FROM pg_proc f JOIN pg_namespace n ON n.nspname='danh_muc'
+            WHERE f.oid=ck AND f.prosecdef AND f.prorettype='boolean'::regtype AND NOT f.proretset
+              AND pg_get_userbyid(f.proowner)=regexp_replace(pg_get_userbyid(n.nspowner),
+                  'vai_doi_cau_truc_danh_muc$','vai_kiem_toan_ven_danh_muc')
+              AND f.proconfig @> ARRAY['search_path=pg_catalog, pg_temp']) THEN
+            RAISE EXCEPTION 'LIEN_KET_MODULE_KIEM' USING ERRCODE='42501';
+        END IF;
+        EXECUTE format('SELECT danh_muc.%I($1,$2,$3,$4)','kiem_nghia_vu_mod_'||p_module)
+            INTO kq USING p_pn,p_loai,p_id,p_gioi_han;
+        RETURN coalesce(kq,false);
+    END;
+    $ham$;
+    -- Chi wrapper CO DINH cua Module Manager co quyen goi ham nay.
+    CREATE OR REPLACE FUNCTION danh_muc.kiem_nghia_vu_toan_ven_noi_bo(
+        p_pn uuid,p_module text,p_loai text,p_id uuid,p_gioi_han numeric) RETURNS boolean
+    LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path=pg_catalog,pg_temp AS $ham$
+    BEGIN
+        IF NOT EXISTS(SELECT FROM loi.mtq_phien_rls() x WHERE x.phap_nhan_id=p_pn) THEN
+            RAISE EXCEPTION 'TAI_LIEU_PHIEN' USING ERRCODE='42501';
+        END IF;
+        IF EXISTS(SELECT FROM pg_policy WHERE polrelid IN
+            ('danh_muc.lien_ket_chung_tu'::regclass,'danh_muc.lien_ket_phan_bo'::regclass) AND NOT polpermissive) THEN
+            RAISE EXCEPTION 'LIEN_KET_POLICY_KIEM' USING ERRCODE='42501';
+        END IF;
+        RETURN p_gioi_han IS NOT NULL AND p_gioi_han>=0 AND p_gioi_han >= (SELECT coalesce(sum(tien),0) FROM (
             SELECT k.so_tien_khop_minor AS tien FROM danh_muc.lien_ket_chung_tu k
               WHERE k.phap_nhan_id=p_pn AND k.trang_thai<>'HUY' AND k.muc_dich_lien_ket='MONEY'
                 AND k.mo_hinh_phan_bo='DIRECT'
@@ -159,11 +199,20 @@ $do$;
               WHERE c.phap_nhan_id=p_pn AND k.trang_thai<>'HUY' AND c.trang_thai='HIEU_LUC'
                 AND k.muc_dich_lien_ket='MONEY' AND k.mo_hinh_phan_bo='CHILD'
                 AND (c.module_nghia_vu,c.loai_nghia_vu,c.nghia_vu_id)=(p_module,p_loai,p_id)
-        ) t
+        ) t);
+    END;
     $ham$;
     CREATE OR REPLACE FUNCTION danh_muc.kiem_tien_chung_tu_noi_bo(p_pn uuid,p_ids uuid[]) RETURNS boolean
-    LANGUAGE sql VOLATILE SECURITY DEFINER SET search_path=pg_catalog,pg_temp AS $ham$
-        SELECT NOT EXISTS(SELECT FROM danh_muc.chung_tu d WHERE d.phap_nhan_id=p_pn AND d.id=ANY(p_ids)
+    LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path=pg_catalog,pg_temp AS $ham$
+    BEGIN
+        IF NOT EXISTS(SELECT FROM loi.mtq_phien_rls() x WHERE x.phap_nhan_id=p_pn) THEN
+            RAISE EXCEPTION 'TAI_LIEU_PHIEN' USING ERRCODE='42501';
+        END IF;
+        IF EXISTS(SELECT FROM pg_policy WHERE polrelid IN ('danh_muc.chung_tu'::regclass,
+            'danh_muc.lien_ket_chung_tu'::regclass,'danh_muc.lien_ket_phan_bo'::regclass) AND NOT polpermissive) THEN
+            RAISE EXCEPTION 'LIEN_KET_POLICY_KIEM' USING ERRCODE='42501';
+        END IF;
+        RETURN NOT EXISTS(SELECT FROM danh_muc.chung_tu d WHERE d.phap_nhan_id=p_pn AND d.id=ANY(p_ids)
             AND EXISTS(SELECT FROM danh_muc.lien_ket_chung_tu k WHERE k.phap_nhan_id=p_pn
                 AND k.chung_tu_a_id=d.id AND k.trang_thai<>'HUY' AND k.muc_dich_lien_ket='MONEY')
             AND (d.so_tien_minor IS NULL OR d.hieu_luc_den IS NOT NULL OR d.so_tien_minor < (
@@ -178,7 +227,8 @@ $do$;
                       WHERE k.phap_nhan_id=p_pn AND d.id=k.chung_tu_a_id
                         AND k.trang_thai<>'HUY' AND c.trang_thai='HIEU_LUC'
                         AND k.muc_dich_lien_ket='MONEY' AND k.mo_hinh_phan_bo='CHILD'
-                ) t)))
+                ) t)));
+    END;
     $ham$;
 DO $do$
 DECLARE
@@ -190,7 +240,8 @@ DECLARE
     ham record;
 BEGIN
     FOR ham IN SELECT oid::regprocedure AS ck FROM pg_proc WHERE pronamespace='danh_muc'::regnamespace
-        AND proname IN ('khoa_lien_ket_noi_bo','tong_nghia_vu_noi_bo','kiem_tien_chung_tu_noi_bo') LOOP
+        AND proname IN ('khoa_lien_ket_noi_bo','kiem_nghia_vu_noi_bo',
+                       'kiem_nghia_vu_toan_ven_noi_bo','kiem_tien_chung_tu_noi_bo') LOOP
         EXECUTE format('REVOKE ALL ON FUNCTION %s FROM PUBLIC,%I,%I',ham.ck,login,chay);
         EXECUTE format('GRANT EXECUTE ON FUNCTION %s TO %I',ham.ck,chu);
     END LOOP;
@@ -199,6 +250,112 @@ BEGIN
     EXECUTE format('REVOKE CREATE ON SCHEMA danh_muc FROM %I',kiem);
 END;
 $do$;
+
+    CREATE OR REPLACE FUNCTION danh_muc.ghi_v2(p_ma text,p_module text,p_pn uuid,p_hd text,
+        p_loai text,p_id uuid,p_khoa text,p_data jsonb,p_contract text DEFAULT '1',
+        p_viec uuid DEFAULT NULL,p_the_he bigint DEFAULT NULL) RETURNS jsonb
+    LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path=pg_catalog,pg_temp AS $ham$
+    DECLARE ai uuid; doi jsonb; than jsonb; quyen jsonb; cu jsonb; kq jsonb; op text; hd_doc text;
+        khoa text[]; ngay date; ky_ghi text; het boolean; n integer; ky_cu text; ban bigint;
+    BEGIN
+        ai := loi_tai_lieu.ngu_canh(p_ma,p_module,p_pn,p_hd,p_viec,p_the_he);
+        IF p_id IS NULL OR p_pn IS NULL OR jsonb_typeof(p_data) IS DISTINCT FROM 'object'
+           OR coalesce(p_contract,'')='' THEN RAISE EXCEPTION 'DANH_MUC_DAU_VAO' USING ERRCODE='22023'; END IF;
+        het := p_data ? 'row_version';
+        CASE p_loai
+          WHEN 'doi_tac' THEN khoa := ARRAY['ten_phap_ly','ten_chuan_hoa','mst','loai','vai_tro'];
+          WHEN 'du_an' THEN khoa := ARRAY['ma_junsky','ten','cha_id','giai_doan','trang_thai','ngay_chuyen_van_hanh'];
+          WHEN 'hop_dong' THEN khoa := ARRAY['loai','ma_noi_bo','so_hop_dong','doi_tac_id','du_an_id','ngay_ky'];
+          WHEN 'chung_tu' THEN khoa := ARRAY['loai','khoa_nguon','ngay_nghiep_vu','so_tien_minor','tien_te','thang_tien','chieu','doi_tac_id','du_an_id','ma_bam'];
+          WHEN 'hoa_don_danh_tinh' THEN khoa := ARRAY['chieu','mst_ban','mau_so','ky_hieu','so_chuan','nguon_cai_dat_id'];
+          WHEN 'khoa_ky' THEN khoa := ARRAY['ky'];
+          ELSE RAISE EXCEPTION 'DANH_MUC_DAU_VAO' USING ERRCODE='22023';
+        END CASE;
+        IF het THEN khoa := ARRAY['row_version']; END IF;
+        IF EXISTS(SELECT FROM jsonb_object_keys(p_data) k WHERE NOT k=ANY(khoa))
+           OR (het AND (p_loai='khoa_ky' OR coalesce(p_data->>'row_version','') !~ '^[1-9][0-9]{0,18}$'))
+           OR split_part(p_hd,':',3) IS DISTINCT FROM (CASE WHEN het THEN 'SUA' WHEN p_loai='khoa_ky' THEN 'DUYET' ELSE 'LAP' END) THEN
+            RAISE EXCEPTION 'DANH_MUC_DAU_VAO' USING ERRCODE='22023';
+        END IF;
+        doi := jsonb_build_object('bang','danh_muc.'||p_loai,'id',p_id);
+        hd_doc := split_part(p_hd,':',1)||':'||split_part(p_hd,':',2)||':XEM';
+        PERFORM loi_tai_lieu.kiem_quyen(p_ma,p_module,p_pn,p_hd,doi,p_contract,'cho_ghi',p_viec,p_the_he);
+        IF p_loai='chung_tu' AND NOT het THEN
+            PERFORM danh_muc.kiem_chu_chung_tu(p_data->>'loai',p_module);
+        END IF;
+        op := 'danh_muc.'||p_loai||CASE WHEN het THEN '.het_hieu_luc' ELSE '.lap' END;
+        than := jsonb_build_object('phap_nhan_id',p_pn,'doi_tuong',doi,'phien_ban_contract',p_contract,'noi_dung',p_data);
+        quyen := jsonb_build_object('hanh_dong',hd_doc,'doi_tuong',doi,'phien_ban_contract',p_contract);
+        -- Bien nhan Core 24h chi cho login Core; module dung bien nhan vinh vien.
+        IF session_user::text=regexp_replace(current_user::text,'vai_doi_cau_truc_danh_muc$','dang_nhap_loi') THEN
+            cu := loi_tai_lieu.bien_nhan_core_v2(p_ma,p_module,p_pn,p_hd,op,p_khoa,than,false,NULL,NULL,'HOAN_TAT',p_viec,p_the_he);
+        ELSE
+            cu := loi_tai_lieu.tra_bien_nhan_thao_tac_v2(p_ma,p_module,p_pn,p_hd,op,p_khoa,than,p_viec,p_the_he);
+        END IF;
+        IF cu IS NOT NULL THEN RETURN cu; END IF;
+        IF het THEN
+            ban := (p_data->>'row_version')::bigint;
+            IF p_loai='hop_dong' AND NOT EXISTS(SELECT FROM danh_muc.hop_dong
+                WHERE id=p_id AND phap_nhan_id=p_pn AND module_chu=p_module) THEN
+                RAISE EXCEPTION 'DANH_MUC_KHONG_THAY' USING ERRCODE='P0002';
+            END IF;
+            IF p_loai='chung_tu' THEN
+                -- Cung thu tu PN -> chung tu voi lien_ket_v2, giu den commit ngoai.
+                PERFORM danh_muc.khoa_lien_ket_noi_bo(p_pn,ARRAY[p_id]);
+                SELECT ky INTO ky_cu FROM danh_muc.chung_tu WHERE id=p_id AND phap_nhan_id=p_pn AND module_nghiep_vu=p_module;
+                IF ky_cu IS NULL THEN RAISE EXCEPTION 'DANH_MUC_KHONG_THAY' USING ERRCODE='P0002'; END IF;
+                PERFORM danh_muc.kiem_khoa_ky(p_pn,ky_cu);
+            END IF;
+            EXECUTE format('UPDATE danh_muc.%I SET hieu_luc_den=clock_timestamp(),phien_ban_dong=phien_ban_dong+1
+                WHERE id=$1 AND phap_nhan_id=$2 AND phien_ban_dong=$3 AND hieu_luc_den IS NULL',p_loai) USING p_id,p_pn,ban;
+            GET DIAGNOSTICS n=ROW_COUNT;
+            IF n<>1 THEN RAISE EXCEPTION 'DANH_MUC_XUNG_DOT' USING ERRCODE='P0001'; END IF;
+        ELSIF p_loai='doi_tac' THEN
+            -- Nhom A do G2-23 cap cong ma hoa; khong nhan CCCD/STK/MST ca nhan ban ro.
+            IF p_data->>'loai'='CN' AND p_data->>'mst' IS NOT NULL THEN
+                RAISE EXCEPTION 'DANH_MUC_DAU_VAO' USING ERRCODE='22023';
+            END IF;
+            INSERT INTO danh_muc.doi_tac(id,phap_nhan_id,ten_phap_ly,ten_chuan_hoa,mst,loai,vai_tro,tao_boi)
+                VALUES(p_id,p_pn,p_data->>'ten_phap_ly',p_data->>'ten_chuan_hoa',p_data->>'mst',p_data->>'loai',
+                    ARRAY(SELECT jsonb_array_elements_text(coalesce(p_data->'vai_tro','[]'::jsonb))),ai);
+        ELSIF p_loai='du_an' THEN
+            INSERT INTO danh_muc.du_an(id,phap_nhan_id,ma_junsky,ten,cha_id,giai_doan,trang_thai,ngay_chuyen_van_hanh,tao_boi)
+                VALUES(p_id,p_pn,p_data->>'ma_junsky',p_data->>'ten',(p_data->>'cha_id')::uuid,p_data->>'giai_doan',
+                    coalesce(p_data->>'trang_thai','DAU_TU'),(p_data->>'ngay_chuyen_van_hanh')::date,ai);
+        ELSIF p_loai='hop_dong' THEN
+            INSERT INTO danh_muc.hop_dong(id,phap_nhan_id,module_chu,loai,ma_noi_bo,so_hop_dong,doi_tac_id,du_an_id,ngay_ky,tao_boi)
+                VALUES(p_id,p_pn,p_module,p_data->>'loai',p_data->>'ma_noi_bo',p_data->>'so_hop_dong',
+                    (p_data->>'doi_tac_id')::uuid,(p_data->>'du_an_id')::uuid,(p_data->>'ngay_ky')::date,ai);
+        ELSIF p_loai='chung_tu' THEN
+            ngay := (p_data->>'ngay_nghiep_vu')::date; ky_ghi := to_char(ngay,'YYYY-MM');
+            PERFORM danh_muc.kiem_khoa_ky(p_pn,ky_ghi);
+            IF p_data ? 'so_tien_minor' AND (jsonb_typeof(p_data->'so_tien_minor') IS DISTINCT FROM 'string'
+               OR (p_data->>'so_tien_minor') !~ '^(0|[1-9][0-9]{0,37})$') THEN
+                RAISE EXCEPTION 'DANH_MUC_DAU_VAO' USING ERRCODE='22023';
+            END IF;
+            INSERT INTO danh_muc.chung_tu(id,phap_nhan_id,module_nghiep_vu,loai,khoa_nguon,ngay_nghiep_vu,ky,
+                so_tien_minor,tien_te,thang_tien,chieu,doi_tac_id,du_an_id,ma_bam,tao_boi)
+                VALUES(p_id,p_pn,p_module,p_data->>'loai',p_data->>'khoa_nguon',ngay,ky_ghi,
+                    (p_data->>'so_tien_minor')::numeric,p_data->>'tien_te',(p_data->>'thang_tien')::smallint,p_data->>'chieu',
+                    (p_data->>'doi_tac_id')::uuid,(p_data->>'du_an_id')::uuid,p_data->>'ma_bam',ai);
+        ELSIF p_loai='hoa_don_danh_tinh' THEN
+            INSERT INTO danh_muc.hoa_don_danh_tinh(id,phap_nhan_id,chieu,mst_ban,mau_so,ky_hieu,so_chuan,nguon_cai_dat_id,tao_boi)
+                VALUES(p_id,p_pn,p_data->>'chieu',p_data->>'mst_ban',p_data->>'mau_so',p_data->>'ky_hieu',
+                    p_data->>'so_chuan',p_data->>'nguon_cai_dat_id',ai);
+        ELSE
+            ky_ghi := p_data->>'ky';
+            -- Lay doc quyen truoc: khong nang shared->exclusive giua hai yeu cau khoa.
+            PERFORM pg_advisory_xact_lock(hashtextextended(jsonb_build_array('khoa_ky',p_pn,ky_ghi)::text,12));
+            PERFORM danh_muc.kiem_khoa_ky(p_pn,ky_ghi);
+            INSERT INTO danh_muc.khoa_ky(phap_nhan_id,ky,nguoi_dung_id) VALUES(p_pn,ky_ghi,ai);
+        END IF;
+        kq := jsonb_build_object('id',p_id,'phap_nhan_id',p_pn,'row_version',CASE WHEN het THEN (ban+1)::text ELSE '1' END);
+        IF session_user::text=regexp_replace(current_user::text,'vai_doi_cau_truc_danh_muc$','dang_nhap_loi') THEN
+            RETURN loi_tai_lieu.bien_nhan_core_v2(p_ma,p_module,p_pn,p_hd,op,p_khoa,than,true,kq,quyen,'HOAN_TAT',p_viec,p_the_he);
+        END IF;
+        RETURN loi_tai_lieu.ghi_bien_nhan_thao_tac_v2(p_ma,p_module,p_pn,p_hd,op,p_khoa,than,kq,quyen,p_viec,p_the_he);
+    END;
+    $ham$;
 
     -- Thay trigger 012 bang guard hep: SUA = HUY cu + INSERT moi.
     -- CREATE OR REPLACE TRIGGER khong xoa doi tuong/lich su.
@@ -235,8 +392,8 @@ $do$;
         END IF;
         PERFORM loi_tai_lieu.kiem_quyen(p_ma,p_module,p_pn,p_hd,
             jsonb_build_object('bang','danh_muc.lien_ket_chung_tu','id',p_id),p_contract,'cho_ghi',p_viec,p_the_he);
-        PERFORM danh_muc.khoa_lien_ket_noi_bo(p_pn,ARRAY[
-            (p_data->>'chung_tu_a_id')::uuid,(p_data->>'chung_tu_b_id')::uuid]);
+        -- Lay PN truoc khi doc cu: tranh HUY/SUA cung lien ket sau snapshot cu.
+        PERFORM danh_muc.khoa_lien_ket_noi_bo(p_pn);
         IF p_lenh<>'LAP' THEN
             SELECT * INTO cu FROM danh_muc.lien_ket_chung_tu WHERE id=p_id AND phap_nhan_id=p_pn;
             IF NOT FOUND OR cu.trang_thai='HUY' THEN
@@ -246,13 +403,11 @@ $do$;
                 RAISE EXCEPTION 'LIEN_KET_DAU_VAO' USING ERRCODE='22023';
             END IF;
             ids := ARRAY[cu.chung_tu_a_id,cu.chung_tu_b_id];
-            IF cu.mo_hinh_phan_bo='DIRECT' THEN
-                tap := jsonb_build_array(to_jsonb(cu));
-            ELSE
-                SELECT coalesce(jsonb_agg(to_jsonb(c)),'[]') INTO tap FROM danh_muc.lien_ket_phan_bo c
-                    WHERE c.lien_ket_id=p_id AND c.phap_nhan_id=p_pn AND c.trang_thai='HIEU_LUC';
-            END IF;
         END IF;
+        ids := coalesce(ids,'{}')||ARRAY[
+            (p_data->>'chung_tu_a_id')::uuid,(p_data->>'chung_tu_b_id')::uuid];
+        -- Ham khoa loai NULL/trung va sap ID tren hop chung tu cu + moi.
+        PERFORM danh_muc.khoa_lien_ket_noi_bo(p_pn,ids);
         IF p_lenh='HUY' THEN
             IF EXISTS(SELECT FROM jsonb_object_keys(p_data) k WHERE k<>'ly_do_huy') THEN
                 RAISE EXCEPTION 'LIEN_KET_DAU_VAO' USING ERRCODE='22023';
@@ -271,7 +426,6 @@ $do$;
             END IF;
             a := (p_data->>'chung_tu_a_id')::uuid; b := (p_data->>'chung_tu_b_id')::uuid;
             IF a IS NULL OR a=b THEN RAISE EXCEPTION 'LIEN_KET_DAU_VAO' USING ERRCODE='22023'; END IF;
-            ids := coalesce(ids,'{}')||ARRAY[a,b];
             tt := p_data->>'tien_te'; thang := (p_data->>'thang_tien')::smallint;
             SELECT count(*) INTO n FROM danh_muc.chung_tu WHERE id=ANY(ARRAY[a,b]) AND phap_nhan_id=p_pn
                 AND hieu_luc_den IS NULL AND ((id=a AND so_tien_minor IS NOT NULL AND tien_te=tt AND thang_tien=thang)
@@ -321,7 +475,8 @@ $do$;
         FOR ky_ct IN SELECT DISTINCT ky FROM danh_muc.chung_tu WHERE id=ANY(ids) AND phap_nhan_id=p_pn ORDER BY ky LOOP
             PERFORM danh_muc.kiem_khoa_ky(p_pn,ky_ct);
         END LOOP;
-        -- Cung thu tu cho ca dich cu va moi. Khong tin bo ba caller truoc resolver.
+        -- Chi resolver/kiem can cu dich moi. Dich cu chi khoa chung tu o tren;
+        -- PN da tuan tu hoa ca duong giam suc chua, khong can resolver cu.
         FOR x IN SELECT value FROM jsonb_array_elements(tap)
             ORDER BY value->>'module_nghia_vu',value->>'loai_nghia_vu',value->>'nghia_vu_id' LOOP
             kq := loi.goi_nghia_vu_noi_bo(p_ma,p_module,p_pn,p_hd,x||'{"giai_doan":"KHOA"}',p_contract,p_viec,p_the_he);
@@ -354,7 +509,7 @@ $do$;
                     END LOOP;
                 END IF;
             END IF;
-            IF NOT danh_muc.kiem_tien_chung_tu_noi_bo(p_pn,ids) THEN
+            IF p_lenh<>'HUY' AND NOT danh_muc.kiem_tien_chung_tu_noi_bo(p_pn,ARRAY[a,b]) THEN
                 RAISE EXCEPTION 'LIEN_KET_VUOT_CHUNG_TU' USING ERRCODE='P0001';
             END IF;
             FOR x IN SELECT value FROM jsonb_array_elements(tap)

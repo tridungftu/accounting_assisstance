@@ -17,14 +17,16 @@ class LoiLienKet(RuntimeError):
     def __init__(self, ma):
         self.ma = ma
         self.http_status = (403 if ma in {'TAI_LIEU_PHIEN', 'TAI_LIEU_MTQ', 'TAI_LIEU_CONG_TAC',
-                                          'LIEN_KET_PHAM_VI', 'LIEN_KET_RESOLVER'} else
+                                          'LIEN_KET_PHAM_VI', 'LIEN_KET_RESOLVER',
+                                          'LIEN_KET_MODULE_KIEM', 'LIEN_KET_POLICY_KIEM'} else
                             409 if ma in {'LIEN_KET_XUNG_DOT', 'LIEN_KET_VUOT_CHUNG_TU',
                                           'LIEN_KET_VUOT_NGHIA_VU', 'KY_DA_KHOA'} else 400)
         super().__init__('Thao tác liên kết thất bại (' + ma + ')')
 
 
 _LOI = {'TAI_LIEU_PHIEN', 'TAI_LIEU_MTQ', 'TAI_LIEU_CONG_TAC', 'LIEN_KET_PHAM_VI',
-        'LIEN_KET_RESOLVER', 'LIEN_KET_CAN_CU', 'LIEN_KET_XUNG_DOT', 'LIEN_KET_DAU_VAO',
+        'LIEN_KET_RESOLVER', 'LIEN_KET_MODULE_KIEM', 'LIEN_KET_POLICY_KIEM',
+        'LIEN_KET_CAN_CU', 'LIEN_KET_XUNG_DOT', 'LIEN_KET_DAU_VAO',
         'LIEN_KET_BAT_BIEN', 'LIEN_KET_VUOT_CHUNG_TU', 'LIEN_KET_VUOT_NGHIA_VU',
         'LIEN_KET_CAN_READ_COMMITTED', 'KY_DA_KHOA'}
 _DICH = {'module_nghia_vu', 'loai_nghia_vu', 'nghia_vu_id', 'phien_ban_can_cu_id',
