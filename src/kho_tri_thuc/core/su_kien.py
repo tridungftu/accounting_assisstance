@@ -5,6 +5,8 @@ ghi kết quả và ACK trên chính kết nối đó. Exception phải thoát t
 ``xu_ly`` ghép nhận/handler/ACK theo quy tắc này; không tự mở/commit/rollback.
 Giao ít nhất một lần, không bảo đảm exactly-once cho tác động ngoài PostgreSQL.
 Contract chỉ tham chiếu UUID; schema chưa hỗ trợ bị từ chối ở SQL.
+Nhận/ACK cần ủy nhiệm riêng ``<MODULE>:SU_KIEN:SUA``; SQL cố định và kiểm
+hành động này, kể cả caller gọi thẳng SQL hoặc khai quyền ghi nghiệp vụ khác.
 """
 
 from collections.abc import Mapping
@@ -20,11 +22,11 @@ class LoiSuKien(RuntimeError):
     def __init__(self, ma):
         self.ma = ma
         self.http_status = 409 if ma in {'BUS_DEDUPE_XUNG_DOT', 'BUS_CHUA_NHAN'} else (
-            403 if ma in {'BUS_PHIEN', 'BUS_DANG_KY', 'BUS_CONG_TAC'} else 400)
+            403 if ma in {'BUS_PHIEN', 'BUS_DANG_KY', 'BUS_CONG_TAC', 'BUS_HANH_DONG'} else 400)
         super().__init__('Thao tác sự kiện thất bại (' + ma + ')')
 
 
-_LOI = {'BUS_PHIEN', 'BUS_DANG_KY', 'BUS_CONG_TAC', 'BUS_CONTRACT', 'BUS_PAYLOAD',
+_LOI = {'BUS_PHIEN', 'BUS_DANG_KY', 'BUS_CONG_TAC', 'BUS_HANH_DONG', 'BUS_CONTRACT', 'BUS_PAYLOAD',
         'BUS_DAU_VAO', 'BUS_DEDUPE_XUNG_DOT', 'BUS_CHUA_NHAN', 'BUS_CAN_READ_COMMITTED'}
 
 
