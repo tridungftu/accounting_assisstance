@@ -872,3 +872,30 @@ Chi tiết có tệp:dòng: `BANG-DIEU-KIEN-GO-LIVE.md`; quy trình: `CHECKLIST-
 - **G2-04 (audit + sổ migration):** review Codex Đạt; PG 25.
 - **G2-05 (registry + sổ contract):** PG 25 ok; review Codex đang chạy.
 - **G2-02b bị chặn:** RLS runtime của bảng danh tính đóng; cần policy theo phiên → gộp vào G2-06 (MTQ + RLS theo phiên, Opus bắt buộc), đang chạy.
+### 30/10 ~20:00 — G2 tiến độ + kế hoạch đêm (CD-008)
+- **Đã gộp vào hop-nhat:** G2-00, 01, 02, 03, 04, 05, 17, 24, 33 (xem trước).
+- **Đang làm:**
+  - **G2-06** (MTQ + RLS theo phiên):
+    - Opus vòng 1: Chặn C1 (hạn mức nhiều pháp nhân phải cùng số tiền); Codex sửa vòng 3. Sau đó Opus vòng 2, chỉ C1.
+    - Worktree `lat-g2-06`.
+  - **G2-07** (validator NGUON + HOP_DONG/DU_AN):
+    - PG 21 ok; review Codex đang chạy (`rv.sh`, kết quả `scratchpad/g2/rv-07.out.md`).
+    - Dựng trên G2-06 vòng 2 → khi G2-06 vòng 3 xong, merge `lat/g2-06` vào `lat/g2-07` rồi chạy lại test.
+- **Quyết định mới:** QD-20261030-01 (Core: pháp nhân tắt MTQ → `CHO`).
+- **Cách làm mỗi lát:**
+  - worktree `lat/g2-xx` dựng trên lát trước;
+  - Codex `workspace-write`; lead chạy `tools/chay_test_theo_module.py --pg-demo`;
+  - review chéo Codex (`scratchpad/g2/rv.sh`), Opus cho lát rủi ro cao (01, 03, 06, 13, 19, 21, 25);
+  - gộp `--no-ff` vào hop-nhat;
+  - mỗi lượt `/loop` chạm `var\lead-nhip.txt`.
+- **Hàng tiếp:** G2-08 (công tắc) → 09 → 10 → 11 → 12 → 13 (Opus) → 14 → 15 → 16 → 18 → 19 (Opus) → 20 → 21 (Opus).
+  - Song song được: G2-26 sau 25; G2-31a sau 18 + 20.
+  - G3 engine chờ mốc G2-21.
+- **Đêm 30→31/10 (CD-008):**
+  - tiếp chuỗi G2-06 → G2-12 theo nhịp trên;
+  - không gộp `chinh`, không push, không xóa, không đụng kho thật;
+  - 05:45 viết `bao-cao-ngay\BAO-CAO-DEM-20261031.md`.
+- **Còn chờ Anh:**
+  - bật `crossSessionInbound`;
+  - cài `tools\CAI-TU-KHOI-DONG-LEAD.cmd`;
+  - danh sách nhân sự đăng nhập.

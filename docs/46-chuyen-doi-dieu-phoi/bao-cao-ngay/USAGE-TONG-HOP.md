@@ -38,3 +38,4 @@ Công cụ chỉ trả **% hạn mức**, không trả số token theo model.
 |---|---:|---:|
 | 27/10 (16:00) | 1.444.979 | 100% |
 | 30/10 (đầu ngày 10:20) | — (28–29/10 không chạy) | 1% (khung 5 giờ 6%) |
+| 30/10 (tối 20:00) | (chưa tổng hợp log Codex) | 7% (khung 5 giờ 4%) |
