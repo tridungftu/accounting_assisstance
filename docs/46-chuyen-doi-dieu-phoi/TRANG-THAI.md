@@ -773,3 +773,13 @@ Chi tiết có tệp:dòng: `BANG-DIEU-KIEN-GO-LIVE.md`; quy trình: `CHECKLIST-
   - phiếu CSDL câu 1 (lead đã giải thích, khuyến nghị A);
   - phiếu SDK (Codex đang sửa vòng 2).
 - G2 chưa bắt đầu.
+### 30/10 ~12:15 — **Cần Anh duyệt: PHIEU-DUYET-SDK** (phiếu 3/3); G1 hoàn tất phần tài liệu
+- **Phiếu SDK:** `docs\47-core\PHIEU-DUYET-SDK.md`, 3 câu chọn.
+  - Đặc tả `g1\DAC-TA-SDK.md`, `g1\CONTRACT-DU-LIEU.md` (vòng 2 + 3 bổ sung lead).
+  - Opus vòng 2: không còn Chặn. 12/12 JSON Schema hợp lệ.
+- **Tình trạng 3 phiếu:**
+  - API **đã duyệt**;
+  - CSDL: câu 2 A, câu 3 A, **câu 1 chờ** (đã giải thích);
+  - SDK: chờ.
+- **G2 cần:** đủ 3 phiếu + CD mới mở lập trình.
+- **Codex rảnh, có lý do:** G0–G1 xong; còn chờ Anh.

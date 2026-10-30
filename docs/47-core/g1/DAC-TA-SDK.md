@@ -123,6 +123,10 @@ Core còn đánh thức module **đang được phép hoạt động** khi có v
 
 Core process/handle phải chặn con mở/đọc/ghi bộ nhớ, duplicate handle/token hoặc sửa ACL để lấy lại quyền Core; không truyền handle process đặc quyền. Cùng SID người dùng hoặc chỉ đặt `headless` không chứng minh cách ly. G2 thử restricted token, ACL thư mục/process, DPAPI, socket và Job cùng CD-028 mục 6 bằng bí mật DEMO; mọi đường đọc bí mật/nhớ Core phải thất bại. Nếu môi trường không chứng minh được mô hình token hạn chế hoặc cần đặc quyền mới thì **không kích hoạt**, trình lead phương án tài khoản riêng với ACL tương ứng theo câu 2 §8; không tự hạ xuống chạy chung token. Đây là yêu cầu thiết kế cần chứng minh tại G2, chưa phải khả năng Windows host đã được xác nhận.
 
+**Bổ sung lead sau Opus vòng 2:**
+- Khóa và mật khẩu trong `bi-mat` bọc DPAPI **phạm vi người dùng** của tài khoản dịch vụ Core, không dùng phạm vi máy (`CRYPTPROTECT_LOCAL_MACHINE`).
+- G2 phải kiểm được rằng token con không giải được các bí mật này.
+
 ## 5. SDK giao diện JavaScript
 
 | Thành phần/chữ ký đề xuất | Hành vi bắt buộc |
@@ -389,6 +393,8 @@ Công tắc `TAT/THU/VAN_HANH` tách khỏi trạng thái tiến trình và chí
 | **1. Module thử Core ở G2?** | **A. Tra cứu tài liệu DEMO:** nhỏ, đủ tệp/OCR/việc/công bố/cài/tắt, ít nghiệp vụ kế toán. **B. M9 theo đúng CD-015:** bao phủ nghiệp vụ hơn, nhiều phụ thuộc; không thêm logic khoản vay. **C. Không có, thử thẳng M4 ở G4:** bớt gói thử, phát hiện lỗi Core muộn | **A**, chỉ dữ liệu DEMO; khác M4 mẫu G4 đã chốt (CD-026 mục 3, TL 55 §6, CD-027) |
 | **2. Tài khoản Windows của module/engine?** | **A. Token hạn chế/tài khoản riêng, không đọc được `bi-mat` hoặc nhớ Core:** tốn công ACL/kiểm G2, có ranh giới an ninh. **B. Cùng token đầy đủ của Core:** dễ vận hành nhưng login tách chỉ chống nhầm lẫn, phải chấp nhận module đọc bí mật/nhớ Core | **A**, thử token hạn chế tại §4.4 trước; nếu cần tài khoản riêng trình lead chốt. B thay đổi mô hình đe dọa, chưa được cho phép triển khai |
 | **3. Có việc/sự kiện chờ cho module đang tự đóng?** | **A. Core khởi động ngay:** độ trễ thấp, thêm lần bật. **B. Gom theo lịch 15 phút:** ít lần bật, chậm xử lý. **C. Chỉ mở màn mới bật:** tiết kiệm lúc nghỉ nhưng việc có thể chờ vô hạn | **A** mặc định cho module được phép hoạt động; Admin đổi sau số đo theo CD-028 mục 3b, không tự bật công tắc `TAT` |
+
+**Câu 2 là tài khoản Windows chạy tiến trình**, khác câu 3 phiếu CSDL (tài khoản người dùng do Core quản). §3 `danh_tinh`/`ma_hoa` và §4.2 dựa trên mã phiên bí mật/mã ủy nhiệm; nếu Anh chọn khác ở câu 1 phiếu CSDL thì hai mục này phải sửa theo.
 
 **Thông báo, không hỏi lại:** M4 là module mẫu đầu tiên G4. Retention/snapshot OCR giữ trong phiếu CSDL, không hỏi trùng tại đây.
 
