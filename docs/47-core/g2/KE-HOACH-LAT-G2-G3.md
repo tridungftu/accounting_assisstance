@@ -210,3 +210,8 @@ Tối đa **bốn Codex đang làm**, tính cả reviewer; hàng dưới là cá
   - cấp `USAGE loi` + EXECUTE `mtq_phien_rls()` cho role kiểm module.
   - Test kiểm cả ba.
 - **Rủi ro chấp nhận (G2-13):** hàm kiểm boolean theo ngưỡng dò được tổng bằng chia đôi, chỉ với role kiểm của chính module.
+- **G2-11c (chờ nhu cầu):** biên nhận operation Core phạm vi hệ thống theo API §3.6. Gồm sửa `tiep_nhan.py` + SQL mới, không dùng UUID pháp nhân giả. Giao khi có route ghi hệ thống thật (G2-25 / G2-31b). Đến lúc đó, G2-18 chặn đăng ký route ghi hệ thống.
+- **G2-17b:** schema manifest engine cho `headless=false` chỉ với ngoại lệ đã duyệt CD-038 2A / 3A.
+- **Engine chưa có capability đã kiểm thì chưa có `engine.json`:**
+  - AI-1a gộp phần DTO, manifest chuyển sang AI-1b (chờ Anh duyệt `ai.hoi@1`);
+  - OCR-1 và MASK-1 làm lại manifest sau G2-17b.
