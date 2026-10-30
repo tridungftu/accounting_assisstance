@@ -980,3 +980,4 @@ Chi tiết có tệp:dòng: `BANG-DIEU-KIEN-GO-LIVE.md`; quy trình: `CHECKLIST-
   - G2-CR3 `moc_da_xay_ra.v1`: 4 điểm chờ chốt;
   - AI-1b: schema đầu vào `ai.hoi@1` / cờ chỉ Local.
 - **Việc kỹ thuật ghi nhớ:** thêm `__init__.py` cho `engines/` và các `e_*` (đóng gói wheel).
+- **Hồi quy hợp nhất 03:35** (29 module G2 + G3, PG DEMO): **740 ok / 0 lỗi / 2 skip**, 0 treo.
