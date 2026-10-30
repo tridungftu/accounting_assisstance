@@ -846,3 +846,11 @@ Chi tiết có tệp:dòng: `BANG-DIEU-KIEN-GO-LIVE.md`; quy trình: `CHECKLIST-
   - áp CD-038 vào contract nghiệp vụ, giao việc engine, KK-UI-DA-BG.
 - **`crossSessionInbound`:** lead ghi `.claude/settings.local.json` bị chặn (công cụ không cho lead tự sửa cài đặt của chính mình) → **Anh tự bật** (cách làm trong chat).
 - **Mở lại lập trình (G2 + G3):** ngay khi chuẩn SDK v1.0 xong + Opus review.
+### 30/10 17:52 — **MỞ LẠI LẬP TRÌNH (CD-038)**; giao G2 đợt A
+- **Chuẩn SDK v1.0:** Opus Đạt, 5 sửa nhỏ đã làm. Ba chuẩn Core v1.0 ở `docs\47-core\chuan\` và `D:\Claude\QUY-TRINH-CHUNG\CHUAN-CORE\`.
+- **`CLAUDE.md`:** dòng DỪNG LẬP TRÌNH đổi thành "đã mở lại 17:52 theo CD-038".
+- **Kế hoạch lát:** `docs\47-core\g2\KE-HOACH-LAT-G2-G3.md` (34 lát G2 + lát G3 năm engine).
+- **Đợt A** (`docs\47-core\g2\GIAO-G2-DOT-A.md`), 3 Codex:
+  - G2-00: dựng Core DEMO rỗng;
+  - G2-01: role/login/schema, Opus review bắt buộc;
+  - G2-33: script tài khoản Windows (xem trước mặc định).
