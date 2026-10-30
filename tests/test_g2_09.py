@@ -389,6 +389,11 @@ class TaiLieuPostgresTest(unittest.TestCase):
                     self._lay()
                 self.assertEqual(bat.exception.ma, 'TAI_LIEU_NOI_DUNG')
                 self.assertEqual(self._lay('da_che')['tep'], [])
+                with self.assertRaises(tl.LoiTaiLieu) as bat:
+                    self._cong_bo(kq)
+                self.assertEqual(bat.exception.ma, 'TAI_LIEU_NOI_DUNG')
+                self.assertEqual(self.conn.execute('SELECT count(*) FROM loi_tai_lieu.ket_qua_cong_bo WHERE ket_qua_id=%s', (kq,)).fetchone()[0], 0)
+        self._cong_bo(kq)
         tl.duyet(self.core, tai_lieu_id=self.tai_lieu_id, ket_qua_id=kq, row_version='1',
             trang_thai_duyet='da_duyet', request_id=uuid4(), **self._ctx(DUYET))
         with self.assertRaises(tl.LoiTaiLieu) as bat:
@@ -419,10 +424,44 @@ class TaiLieuPostgresTest(unittest.TestCase):
         self.tai_lieu_id = id_cu
         self.assertEqual(self._lay()['tep'][0]['tham_chieu']['sha256'], BAM)
 
+    def test_thu_hoi_quyen_nguon_chan_doc_va_cong_bo_ket_qua(self):
+        for loai in ('tep', 'ket_qua', 'chuoi_ket_qua'):
+            with self.subTest(loai=loai):
+                self.tai_lieu_id = uuid4()
+                self._tao()
+                nguon_tep = self._tep('goc')
+                tep = self._tep()
+                nguon = [dict(tep_id=str(nguon_tep), sha256=BAM)]
+                if loai != 'tep':
+                    nguon_kq = self._ket_qua(nguon_tep, bien_the='goc')
+                    if loai == 'chuoi_ket_qua':
+                        nguon_kq = self._ket_qua(tep, bien_the='da_che',
+                            nguon=[dict(ket_qua_id=str(nguon_kq), revision=1, sha256=BAM)])
+                    nguon = [dict(ket_qua_id=str(nguon_kq), revision=1, sha256=BAM)]
+                da_cong_bo = self._ket_qua(tep, nguon=nguon)
+                self._cong_bo(da_cong_bo)
+                kq = self._ket_qua(tep, nguon=nguon)
+                self.assertEqual(len(self._lay()['ket_qua']), 2)
+                for cho_phep, ban in ((False, 0), (True, 1)):
+                    tl.cap_quyen(self.core, tai_lieu_id=self.tai_lieu_id,
+                        du_lieu=dict(nguoi_dung_id=str(self.nd), bien_the='goc',
+                            cho_phep=cho_phep, revision_truoc=ban), request_id=uuid4(), **self._ctx(DUYET))
+                    if not cho_phep:
+                        for thao_tac in (self._lay, lambda: self._cong_bo(kq)):
+                            with self.assertRaises(tl.LoiTaiLieu) as bat:
+                                thao_tac()
+                            self.assertEqual(bat.exception.ma, 'TAI_LIEU_NOI_DUNG')
+                        self.assertEqual(self.conn.execute('SELECT count(*) FROM loi_tai_lieu.ket_qua_cong_bo WHERE ket_qua_id=%s', (kq,)).fetchone()[0], 0)
+                    else:
+                        self.assertEqual(len(self._lay()['ket_qua']), 2)
+                        self._cong_bo(kq)
+
     def test_tep_het_han_khong_cong_bo_duoc(self):
+        nguon_tep = self._tep('goc')
+        self._cong_bo(self._ket_qua(nguon_tep, bien_the='goc'))
         tep = self._tep(het_han_luc=(datetime.now(timezone.utc)-timedelta(seconds=1)).isoformat())
-        # Metadata cho luu de phuc hoi, cong bo van phai tu choi.
-        kq = self._ket_qua(tep, nguon=[])
+        # Nguon van hop le; chi tep dau ra het han de co lap dieu kien bi chan.
+        kq = self._ket_qua(tep, nguon=[dict(tep_id=str(nguon_tep), sha256=BAM)])
         with self.assertRaises(tl.LoiTaiLieu) as bat:
             self._cong_bo(kq)
         self.assertEqual(bat.exception.ma, 'TAI_LIEU_THIEU_TEP_HASH')

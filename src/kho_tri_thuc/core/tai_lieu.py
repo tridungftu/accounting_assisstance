@@ -177,10 +177,12 @@ def duyet(conn, *, tai_lieu_id, ket_qua_id, row_version, trang_thai_duyet, reque
 
 
 def cong_bo(conn, *, tai_lieu_id, ket_qua_id, request_id, **ctx):
+    """SQL kiểm lại quyền nội dung hiện hành của kết quả và các nguồn trước công bố."""
     return _ghi(conn, 'cong_bo', tai_lieu_id, {'ket_qua_id': str(UUID(str(ket_qua_id)))}, request_id, ctx)
 
 
 def lay(conn, *, tai_lieu_id, bien_the, **ctx):
+    """Mỗi lần đọc đều kiểm lại quyền hiện hành, kể cả nguồn của kết quả đã công bố."""
     ma, module, pn, hd, viec, the_he = _ngu_canh(**ctx)
     if hd.split(':')[2] != 'XEM':
         raise ValueError('Cần hành động xem')

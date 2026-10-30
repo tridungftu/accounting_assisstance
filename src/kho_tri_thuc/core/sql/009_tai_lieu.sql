@@ -216,6 +216,24 @@ BEGIN
             ORDER BY (q.bien_the=p_bien_the) DESC,q.so_phien_ban DESC LIMIT 1),false)
     $ham$;
 
+    -- Kiem quyen hien hanh ca ket qua va chuoi nguon, khong dung quyen luc tao.
+    CREATE OR REPLACE FUNCTION loi_tai_lieu.duoc_xem_ket_qua(p_ket_qua uuid,p_ai uuid)
+    RETURNS boolean LANGUAGE sql STABLE SECURITY DEFINER SET search_path=pg_catalog,pg_temp AS $ham$
+        WITH RECURSIVE tap AS (
+            SELECT k.id,k.tai_lieu_id,k.bien_the FROM loi_tai_lieu.ket_qua_xu_ly k WHERE k.id=p_ket_qua
+            UNION
+            SELECT s.id,s.tai_lieu_id,s.bien_the FROM tap k
+                JOIN loi_tai_lieu.nguon_ket_qua n ON n.ket_qua_id=k.id
+                JOIN loi_tai_lieu.ket_qua_xu_ly s ON s.id=n.ket_qua_nguon_id
+        )
+        SELECT EXISTS(SELECT FROM tap WHERE id=p_ket_qua) AND NOT EXISTS(
+            SELECT FROM tap k WHERE NOT loi_tai_lieu.duoc_xem_noi_dung(k.tai_lieu_id,p_ai,k.bien_the)
+                OR EXISTS(SELECT FROM loi_tai_lieu.nguon_ket_qua n WHERE n.ket_qua_id=k.id
+                    AND n.tep_id IS NOT NULL AND NOT EXISTS(
+                        SELECT FROM loi_tai_lieu.tai_lieu_tep b WHERE b.tep_id=n.tep_id
+                            AND loi_tai_lieu.duoc_xem_noi_dung(b.tai_lieu_id,p_ai,b.bien_the))))
+    $ham$;
+
     -- Nguon/ham/engine chi den tu Core da xac minh; khong GRANT cua nay cho module.
     -- G2-10/14/16 noi doi chieu bytes va instance/lease truoc khi goi.
     CREATE OR REPLACE FUNCTION loi_tai_lieu.ghi_metadata(p_ma text,p_module text,p_pn uuid,p_hd text,
@@ -359,6 +377,9 @@ BEGIN
                 SELECT * INTO kq FROM loi_tai_lieu.ket_qua_xu_ly WHERE id=(p_du_lieu->>'ket_qua_id')::uuid
                     AND tai_lieu_id=p_tai_lieu AND phap_nhan_id=p_pn;
                 IF kq.id IS NULL THEN RAISE EXCEPTION 'TAI_LIEU_KHONG_THAY' USING ERRCODE='42501'; END IF;
+                IF p_loai='cong_bo' AND NOT loi_tai_lieu.duoc_xem_ket_qua(kq.id,ai) THEN
+                    RAISE EXCEPTION 'TAI_LIEU_NOI_DUNG' USING ERRCODE='42501';
+                END IF;
                 IF kq.trang_thai<>'thanh_cong' OR NOT EXISTS(SELECT FROM loi_tai_lieu.tep_goc
                     WHERE id=kq.tep_id AND ma_bam ~ '^[0-9a-f]{64}$'
                         AND (het_han_luc IS NULL OR het_han_luc>clock_timestamp()))
@@ -406,6 +427,11 @@ BEGIN
         IF NOT loi_tai_lieu.duoc_xem_noi_dung(p_tai_lieu,ai,p_bien_the) THEN
             RAISE EXCEPTION 'TAI_LIEU_NOI_DUNG' USING ERRCODE='42501';
         END IF;
+        IF EXISTS(SELECT FROM loi_tai_lieu.ket_qua_xu_ly k
+            WHERE k.tai_lieu_id=p_tai_lieu AND k.bien_the=p_bien_the
+                AND NOT loi_tai_lieu.duoc_xem_ket_qua(k.id,ai)) THEN
+            RAISE EXCEPTION 'TAI_LIEU_NOI_DUNG' USING ERRCODE='42501';
+        END IF;
         RETURN jsonb_build_object('id',tl.id,'phap_nhan_id',tl.phap_nhan_id,'module',tl.module,
             'loai',tl.loai,'ten',tl.ten,'row_version',tl.phien_ban_dong::text,
             'tep',coalesce((SELECT jsonb_agg(jsonb_build_object('bien_the',b.bien_the,
@@ -426,7 +452,7 @@ BEGIN
     $ham$;
     FOR ham IN SELECT oid::regprocedure AS ck,proname FROM pg_proc
         WHERE pronamespace='loi_tai_lieu'::regnamespace AND proname IN
-        ('ngu_canh','kiem_quyen','duoc_xem_noi_dung','ghi_metadata','doc_metadata') LOOP
+        ('ngu_canh','kiem_quyen','duoc_xem_noi_dung','duoc_xem_ket_qua','ghi_metadata','doc_metadata') LOOP
         EXECUTE format('REVOKE ALL ON FUNCTION %s FROM PUBLIC, %I, %I',ham.ck,chay,login);
         IF ham.proname IN ('ghi_metadata','doc_metadata') THEN
             EXECUTE format('GRANT EXECUTE ON FUNCTION %s TO %I',ham.ck,login);
