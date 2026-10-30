@@ -51,7 +51,8 @@ def ghi_dang_ky(ket_noi, *, loai: str, du_lieu: dict) -> UUID:
     """Chỉ gọi từ cổng cài đặt đã kiểm; CSDL kiểm LOGIN và mọi ràng buộc.
 
     Không nhận ``actor``/SQL; danh tính audit do CSDL lấy từ session_user.
-    Binding chỉ được gỡ sau khi bên cài đặt kiểm hết module/việc ghim bản cũ.
+    ``thoi_dung_contract`` chỉ ghi thời điểm hết hiệu lực và audit, giữ nguyên
+    dòng binding; bên cài đặt phải kiểm hết module/việc ghim bản cũ trước đó.
     """
     if not isinstance(loai, str) or loai not in CAC_LOAI_GHI:
         raise ValueError('Loại đăng ký không hợp lệ')

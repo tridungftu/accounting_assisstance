@@ -96,10 +96,13 @@ BEGIN
         phien_ban_contract text NOT NULL,
         module text NOT NULL,
         phien_ban_module text NOT NULL,
+        ket_thuc_luc timestamptz,
         PRIMARY KEY (ma_contract, phien_ban_contract, module, phien_ban_module),
         FOREIGN KEY (ma_contract, phien_ban_contract) REFERENCES loi.dang_ky_contract(ma, phien_ban),
         FOREIGN KEY (module, phien_ban_module) REFERENCES loi.phien_ban_module(module, so_phien_ban)
     );
+    -- Bo sung khi ap lai tren registry vong 1; giu nguyen moi binding cu.
+    ALTER TABLE loi.module_dung_contract ADD COLUMN IF NOT EXISTS ket_thuc_luc timestamptz;
     CREATE TABLE IF NOT EXISTS loi.dang_ky_ham_module (
         id uuid NOT NULL UNIQUE DEFAULT gen_random_uuid(),
         module text NOT NULL REFERENCES loi.module_danh_muc(ma),
@@ -172,7 +175,7 @@ BEGIN
         IF TG_OP = 'TRUNCATE' THEN
             RAISE EXCEPTION 'Khong duoc thu hoi lich su registry' USING ERRCODE = '55000';
         END IF;
-        IF TG_OP = 'DELETE' AND TG_TABLE_NAME <> 'module_dung_contract' THEN
+        IF TG_OP = 'DELETE' THEN
             RAISE EXCEPTION 'Khong duoc xoa phien ban registry' USING ERRCODE = '55000';
         END IF;
         IF TG_TABLE_NAME = 'dang_ky_contract' THEN
@@ -193,7 +196,8 @@ BEGIN
                     RAISE EXCEPTION 'Chuyen trang thai contract khong hop le' USING ERRCODE = '23514';
                 END IF;
                 IF NEW.trang_thai = 'ngung' AND EXISTS (SELECT FROM loi.module_dung_contract b
-                    WHERE b.ma_contract = OLD.ma AND b.phien_ban_contract = OLD.phien_ban) THEN
+                    WHERE b.ma_contract = OLD.ma AND b.phien_ban_contract = OLD.phien_ban
+                      AND b.ket_thuc_luc IS NULL) THEN
                     RAISE EXCEPTION 'Contract con module/viec dang dung' USING ERRCODE = '23503';
                 END IF;
             END IF;
@@ -201,7 +205,15 @@ BEGIN
                 OR btrim(NEW.bang_chung_duyet) = '' OR NEW.duyet_luc IS NULL) THEN
                 RAISE EXCEPTION 'Thieu bang chung Anh duyet' USING ERRCODE = '23514';
             END IF;
-        ELSIF TG_TABLE_NAME = 'module_dung_contract' AND TG_OP <> 'DELETE' THEN
+        ELSIF TG_TABLE_NAME = 'module_dung_contract' THEN
+            IF TG_OP = 'INSERT' AND NEW.ket_thuc_luc IS NOT NULL THEN
+                RAISE EXCEPTION 'Binding phai bat dau con hieu luc' USING ERRCODE = '23514';
+            END IF;
+            IF TG_OP = 'UPDATE' AND (
+                (to_jsonb(NEW) - 'ket_thuc_luc') IS DISTINCT FROM (to_jsonb(OLD) - 'ket_thuc_luc')
+                OR OLD.ket_thuc_luc IS NOT NULL OR NEW.ket_thuc_luc IS NULL) THEN
+                RAISE EXCEPTION 'Chi duoc ket thuc binding, giu nguyen lich su' USING ERRCODE = '23514';
+            END IF;
             -- Khoa cung dong voi chuyen ngung: tranh binding va ngung cung commit.
             SELECT * INTO c FROM loi.dang_ky_contract
                 WHERE ma = NEW.ma_contract AND phien_ban = NEW.phien_ban_contract FOR UPDATE;
@@ -241,7 +253,6 @@ BEGIN
                 RAISE EXCEPTION 'Phien ban goi bat bien' USING ERRCODE = '23514';
             END IF;
         END IF;
-        IF TG_OP = 'DELETE' THEN RETURN OLD; END IF;
         RETURN NEW;
     END;
     $ham$;
@@ -252,7 +263,7 @@ BEGIN
     BEGIN
         INSERT INTO loi.nhat_ky_kiem_toan(hanh_dong, doi_tuong, doi_tuong_id, ket_luan)
             VALUES ('DANG_KY_' || TG_OP, TG_TABLE_NAME,
-                CASE WHEN TG_OP = 'DELETE' THEN OLD.id ELSE NEW.id END, 'DAT');
+                NEW.id, 'DAT');
         RETURN NULL;
     END;
     $ham$;
@@ -265,6 +276,12 @@ BEGIN
                 ON loi.%I FOR EACH STATEMENT EXECUTE FUNCTION loi.kiem_dang_ky()', ten_bang);
             EXECUTE format('CREATE TRIGGER kiem_toan_dang_ky AFTER INSERT OR UPDATE OR DELETE
                 ON loi.%I FOR EACH ROW EXECUTE FUNCTION loi.kiem_toan_dang_ky()', ten_bang);
+        END IF;
+        IF NOT EXISTS (SELECT FROM pg_trigger WHERE tgrelid = format('loi.%I', ten_bang)::regclass
+                       AND tgname = 'chan_delete_dang_ky') THEN
+            -- Chan ca DELETE khong trung dong nao, ke ca owner goi truc tiep.
+            EXECUTE format('CREATE TRIGGER chan_delete_dang_ky BEFORE DELETE
+                ON loi.%I FOR EACH STATEMENT EXECUTE FUNCTION loi.kiem_dang_ky()', ten_bang);
         END IF;
     END LOOP;
 
@@ -331,9 +348,11 @@ BEGIN
                 RETURNING id INTO ket_qua;
         ELSIF p_loai = 'thoi_dung_contract' THEN
             -- G2-25 chi goi sau khi kiem khong con module/viec ghim; khong tu thay ban.
-            DELETE FROM loi.module_dung_contract WHERE ma_contract = p->>'ma_contract'
+            UPDATE loi.module_dung_contract SET ket_thuc_luc = statement_timestamp()
+                WHERE ma_contract = p->>'ma_contract'
                 AND phien_ban_contract = p->>'phien_ban_contract' AND module = p->>'module'
-                AND phien_ban_module = p->>'phien_ban_module' RETURNING id INTO ket_qua;
+                AND phien_ban_module = p->>'phien_ban_module' AND ket_thuc_luc IS NULL
+                RETURNING id INTO ket_qua;
         ELSIF p_loai = 'ham_module' THEN
             INSERT INTO loi.dang_ky_ham_module(module, loai_ham, phien_ban_contract,
                 ma_contract, phien_ban_module, ten_schema, ten_ham, chu_ky, vai_so_huu, ma_bam_goi)
@@ -368,7 +387,8 @@ BEGIN
         WHEN 'contract' THEN SELECT jsonb_agg(to_jsonb(c) || jsonb_build_object('module_dang_dung',
             coalesce((SELECT jsonb_agg(jsonb_build_object('module', b.module, 'phien_ban_module', b.phien_ban_module)
                 ORDER BY b.module, b.phien_ban_module) FROM loi.module_dung_contract b
-                WHERE b.ma_contract = c.ma AND b.phien_ban_contract = c.phien_ban), '[]'::jsonb))
+                WHERE b.ma_contract = c.ma AND b.phien_ban_contract = c.phien_ban
+                  AND b.ket_thuc_luc IS NULL), '[]'::jsonb))
             ORDER BY c.ma, c.phien_ban) INTO ket_qua
             FROM loi.dang_ky_contract c WHERE p_ma IS NULL OR c.ma = p_ma;
         WHEN 'ham_module' THEN SELECT jsonb_agg(to_jsonb(h) ORDER BY h.module, h.loai_ham, h.phien_ban_contract) INTO ket_qua

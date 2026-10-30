@@ -137,6 +137,7 @@ class DangKyThuanTest(unittest.TestCase):
         self.assertIn('DO $$', SQL_DANG_KY)
         self.assertIn('AS $ham$', SQL_DANG_KY)
         self.assertNotRegex(SQL_DANG_KY, r'(?i)\bDROP\s+(TABLE|FUNCTION|ROLE|DATABASE)\b')
+        self.assertNotRegex(SQL_DANG_KY, r'(?i)\bDELETE\s+FROM\b|\bTRUNCATE\s+(?:TABLE\s+)?loi\.')
         self.assertNotRegex(SQL_DANG_KY, r'(?i)REFERENCES\s+(mod_|crm\.|master\.)')
         self.assertNotIn('current_user', SQL_DANG_KY)
 
@@ -381,14 +382,88 @@ class DangKyPostgresTest(unittest.TestCase):
         module = self._module()
         ma = self._contract(module, kich_hoat=True)
         du_lieu = dict(ma_contract=ma, phien_ban_contract='1', module=module, phien_ban_module='1.0.0')
-        self._ghi('dung_contract', **du_lieu)
-        self._ghi('thoi_dung_contract', **du_lieu)
+        id_binding = self._ghi('dung_contract', **du_lieu)
+        def doc_binding():
+            return self.conn.execute('SELECT to_jsonb(b) FROM loi.module_dung_contract b WHERE id=%s',
+                                     (id_binding,)).fetchone()[0]
+        truoc = doc_binding()
+        self.assertIsNone(truoc['ket_thuc_luc'])
+        with self.assertRaises(psycopg.errors.ForeignKeyViolation):
+            self._trang_thai(ma, '1', 'ngung')
+        self.assertEqual(self._ghi('thoi_dung_contract', **du_lieu), id_binding)
+        sau = doc_binding()
+        self.assertIsNotNone(sau['ket_thuc_luc'])
+        self.assertEqual({k: v for k, v in sau.items() if k != 'ket_thuc_luc'},
+                         {k: v for k, v in truoc.items() if k != 'ket_thuc_luc'})
+        self.assertEqual(dk.doc_dang_ky(self.core, loai='contract', ma=ma)[0]['module_dang_dung'], [])
+        audit = self.conn.execute('''SELECT hanh_dong,dang_nhap_csdl FROM loi.nhat_ky_kiem_toan
+            WHERE doi_tuong='module_dung_contract' AND doi_tuong_id=%s''', (id_binding,)).fetchall()
+        self.assertCountEqual(audit, [('DANG_KY_' + hd, self.cac_thong_tin['cai_dat']['user'])
+                                      for hd in ('INSERT', 'UPDATE')])
+        with self.assertRaises(psycopg.errors.InvalidParameterValue):
+            self._ghi('thoi_dung_contract', **du_lieu)
+        self.assertEqual(doc_binding(), sau)
         self._trang_thai(ma, '1', 'ngung')
         dong = dk.doc_dang_ky(self.core, loai='contract', ma=ma)[0]
         self.assertEqual(dong['trang_thai'], 'ngung')
         self.assertEqual(dong['module_dang_dung'], [])
         with self.assertRaises(psycopg.errors.CheckViolation):
             self._ghi('dung_contract', **du_lieu)
+
+    def test_chi_ngung_khi_binding_cuoi_cung_het_hieu_luc(self):
+        module = self._module()
+        ma = self._contract(module, kich_hoat=True)
+        self._ghi('phien_ban_module', module=module, so_phien_ban='2.0.0', ma_bam_goi=BAM,
+                  tuong_thich={'core': '>=1.0.0 <2.0.0'})
+        du_lieu = dict(ma_contract=ma, phien_ban_contract='1', module=module)
+        for ban in ('1.0.0', '2.0.0'):
+            self._ghi('dung_contract', **du_lieu, phien_ban_module=ban)
+        self._ghi('thoi_dung_contract', **du_lieu, phien_ban_module='1.0.0')
+        self.assertEqual(dk.doc_dang_ky(self.core, loai='contract', ma=ma)[0]['module_dang_dung'],
+                         [{'module': module, 'phien_ban_module': '2.0.0'}])
+        with self.assertRaises(psycopg.errors.ForeignKeyViolation):
+            self._trang_thai(ma, '1', 'ngung')
+        self._ghi('thoi_dung_contract', **du_lieu, phien_ban_module='2.0.0')
+        self._trang_thai(ma, '1', 'ngung')
+        self.assertEqual(self.conn.execute('''SELECT count(*),count(ket_thuc_luc)
+            FROM loi.module_dung_contract WHERE ma_contract=%s''', (ma,)).fetchone(), (2, 2))
+
+    def test_owner_khong_delete_truncate_ke_ca_khong_trung_dong(self):
+        module = self._module()
+        ma = self._contract(module, kich_hoat=True)
+        id_binding = self._ghi('dung_contract', ma_contract=ma, phien_ban_contract='1',
+                               module=module, phien_ban_module='1.0.0')
+        chu = self.tien_to + 'vai_doi_cau_truc_loi'
+        for bang in CAC_BANG:
+            for lenh in (f'DELETE FROM loi.{bang} WHERE false', f'DELETE FROM loi.{bang}',
+                         f'TRUNCATE loi.{bang} CASCADE'):
+                with self.subTest(lenh=lenh), self.assertRaises(psycopg.errors.ObjectNotInPrerequisiteState):
+                    with self.conn.transaction():
+                        self.conn.execute(sql.SQL('SET LOCAL ROLE {}').format(sql.Identifier(chu)))
+                        self.conn.execute(lenh)
+        self.assertEqual(self.conn.execute('SELECT id FROM loi.module_dung_contract WHERE id=%s',
+                                           (id_binding,)).fetchone(), (id_binding,))
+
+    def test_ket_thuc_binding_rollback_va_khong_sua_lich_su(self):
+        module = self._module()
+        ma = self._contract(module, kich_hoat=True)
+        du_lieu = dict(ma_contract=ma, phien_ban_contract='1', module=module, phien_ban_module='1.0.0')
+        id_binding = self._ghi('dung_contract', **du_lieu)
+        with self.cai_dat.transaction(force_rollback=True):
+            self._ghi('thoi_dung_contract', **du_lieu)
+        self.assertIsNone(self.conn.execute('SELECT ket_thuc_luc FROM loi.module_dung_contract WHERE id=%s',
+                                            (id_binding,)).fetchone()[0])
+        self.assertEqual(self.conn.execute('''SELECT count(*) FROM loi.nhat_ky_kiem_toan
+            WHERE doi_tuong_id=%s AND hanh_dong='DANG_KY_UPDATE' ''', (id_binding,)).fetchone()[0], 0)
+        self._ghi('thoi_dung_contract', **du_lieu)
+        for thay in ('ket_thuc_luc=NULL', "ket_thuc_luc=ket_thuc_luc + interval '1 second'",
+                     "phien_ban_module='khac'"):
+            with self.subTest(thay=thay), self.assertRaises(psycopg.errors.CheckViolation):
+                with self.conn.transaction():
+                    self.conn.execute(sql.SQL('SET LOCAL ROLE {}').format(
+                        sql.Identifier(self.tien_to + 'vai_doi_cau_truc_loi')))
+                    self.conn.execute('UPDATE loi.module_dung_contract SET ' + thay + ' WHERE id=%s',
+                                      (id_binding,))
 
     def test_audit_cung_transaction_va_login_cai_dat_that(self):
         ten = 'demo_' + uuid4().hex[:8]
