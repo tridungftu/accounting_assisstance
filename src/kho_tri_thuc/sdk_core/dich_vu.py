@@ -68,16 +68,20 @@ def _goi(tx, ham, **tham_so):
 def _sql(tx, cau, ts):
     _ctx(tx)
     status = 500
+    loi = 'SDK_DICH_VU'
     try:
         return tx.execute(cau, ts).fetchone()[0]
     except Exception as exc:
+        chinh = getattr(getattr(exc, 'diag', None), 'message_primary', None)
+        if isinstance(chinh, str) and (chinh in _tl._LOI or chinh in _viec._LOI):
+            loi = chinh
         state = getattr(exc, 'sqlstate', None)
         status = 403 if state == '42501' else 409 if state in {'40001', '55000'} else 400 if (
             isinstance(state, str) and state.startswith(('22', '23'))) else 500
         _xoa_loi(exc)
     finally:
-        cau = ts = state = None
-    raise LoiDichVu('SDK_DICH_VU', status) from None
+        cau = ts = state = chinh = None
+    raise LoiDichVu(loi, status) from None
 
 
 class _KetQua(_DichVu):

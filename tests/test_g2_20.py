@@ -192,16 +192,42 @@ class DichVuThuanTest(unittest.TestCase):
         else:
             self.fail('Phải từ chối')
 
+    def test_sql_giu_ma_tu_choi_da_biet_va_an_diagnostic_la(self):
+        for chinh, state, ma, status in (
+                ('TAI_LIEU_MTQ', '42501', 'TAI_LIEU_MTQ', 403),
+                # GiaoDich chi giu ma trong allowlist cua transport hien hanh.
+                ('TAI_LIEU_REVISION', '40001', 'SDK_DICH_VU', 409),
+                ('VIEC_MAT_LEASE', '40001', 'VIEC_MAT_LEASE', 409),
+                ('CANARY_DIAGNOSTIC', '42501', 'SDK_DICH_VU', 403)):
+            exc = RuntimeError('CANARY_DRIVER')
+            exc.diag = SimpleNamespace(message_primary=chinh)
+            exc.sqlstate = state
+            self.conn.execute.side_effect = exc
+            with self.subTest(ma=ma), self.assertRaises(dv.LoiDichVu) as bat:
+                self.sdk.ket_qua.ghi(self.tx, tai_lieu_id=self.tid, du_lieu=_data())
+            self.assertEqual((bat.exception.ma, bat.exception.http_status), (ma, status))
+            self.assertNotIn('CANARY', ''.join(traceback.format_exception(bat.exception)))
+            self.assertIsNone(bat.exception.__context__)
+
     def test_sql_quote_owner_va_acl(self):
         moc = re.findall(r'\$(?:[A-Za-z_][A-Za-z_0-9]*)?\$', SQL)
         self.assertEqual((moc[0], moc[-1]), ('$$', '$$'))
-        self.assertTrue(all(a == b for a, b in zip(moc[1:-1:2], moc[2:-1:2])))
+        self.assertEqual(len(moc) % 2, 0)
+        self.assertTrue(all(a == b for a, b in zip(moc[::2], moc[1::2])))
         self.assertFalse(SQL_PATH.read_bytes().startswith(b'\xef\xbb\xbf'))
         self.assertNotRegex(SQL, r'(?i)\bDROP\s+(TABLE|FUNCTION|ROLE|DATABASE)')
         self.assertIn("trang_thai='da_cai' FOR SHARE", SQL)
         self.assertIn('REVOKE ALL ON FUNCTION loi_tai_lieu.ghi_ket_qua_v2', SQL)
         self.assertIn('REVOKE ALL ON FUNCTION loi.ghi_kiem_toan_v2', SQL)
         self.assertIn("tt||'vai_chay_mod_'", SQL)
+        # Moi ham o ngoai DO va nam sau khoi chon owner cua schema tuong ung.
+        cac_khoi = re.findall(r'DO \$\$.*?\$\$;|CREATE OR REPLACE FUNCTION\s+([\w.]+)',
+                             SQL, re.DOTALL)
+        self.assertEqual([ten for ten in cac_khoi if ten], [
+            'loi.sdk_nguon_module', 'loi.ghi_kiem_toan_v2',
+            'loi_tai_lieu.ghi_metadata', 'loi_tai_lieu.ghi_ket_qua_v2'])
+        self.assertIn("GRANT USAGE ON SCHEMA loi_tai_lieu TO %I',chu)", SQL)
+        self.assertNotRegex(SQL, r'GRANT USAGE ON SCHEMA [^\n]+vai\.rolname')
 
     def test_core_giu_nguyen_logic_cu_ngoai_nhanh_module(self):
         original = (SQL_PATH.parent / '009_tai_lieu.sql').read_text(encoding='utf-8')
@@ -444,23 +470,46 @@ class SDKPostgresTest(unittest.TestCase):
         self.assertEqual(bat.exception.ma,'TAI_LIEU_THIEU_TEP_HASH')
 
     def test_mtq_bac_va_uy_nhiem_het_han_khong_ghi(self):
-        self.conn.execute('UPDATE loi.mtq_o SET cho_phep=false WHERE dong_id IN '
-            '(SELECT id FROM loi.mtq_dong WHERE phap_nhan_id=%s)', (self.pn,))
-        with self.assertRaises(gd.LoiGiaoDich):
+        # Ban cong bo bat bien: thu hoi gan vai, khong sua o da cong bo.
+        self.conn.execute('''UPDATE loi.mtq_gan_vai SET thu_hoi_luc=clock_timestamp(),
+            thu_hoi_boi=%s,phien_ban_dong=phien_ban_dong+1
+            WHERE phap_nhan_id=%s AND nguoi_dung_id=%s AND thu_hoi_luc IS NULL''',
+            (self.nd, self.pn, self.nd))
+        # Doi MTQ thu hoi phien cu; cap lai de test MTQ, khong chi test phien cu.
+        self.ma = self._cap()
+        self.uy = phien.cap_phien(self.core, nguoi_dung_id=self.nd, module='crm',
+            phap_nhan_id=self.pn, dang_nhap_csdl=self.module_login,
+            pham_vi_hanh_dong=[LAP], loai='UY_NHIEM_PHIEN', ma_goc=self.ma,
+            hieu_luc_den=datetime.now(timezone.utc)+timedelta(minutes=4)).ma
+        self.bo = g219.BoTheDemo(nguoi=self.nd, pn=self.pn, ma=self.uy)
+        before = self.conn.execute('SELECT count(*) FROM loi_tai_lieu.ket_qua_xu_ly '
+            'WHERE tai_lieu_id=%s', (self.tai_lieu_id,)).fetchone()[0]
+        with self.assertRaises(gd.LoiGiaoDich) as bat:
             with self.cua.giao_dich(self._ngu_canh()) as tx:
                 self._ghi_kq(tx)
+        self.assertEqual((bat.exception.ma, bat.exception.http_status), ('TAI_LIEU_MTQ', 403))
         self.conn.execute('UPDATE loi.phien_xac_thuc SET tao_luc=clock_timestamp()-interval \'1 hour\', '
                           'hieu_luc_den=clock_timestamp()-interval \'1 second\' '
-                          'WHERE phap_nhan_id=%s', (self.pn,))
-        with self.assertRaises(gd.LoiGiaoDich):
+                          "WHERE phap_nhan_id=%s AND loai='UY_NHIEM_PHIEN'", (self.pn,))
+        with self.assertRaises(gd.LoiGiaoDich) as bat:
             with self.cua.giao_dich(self._ngu_canh()):
                 self.fail('Phiên hết hạn phải bị từ chối')
+        self.assertEqual((bat.exception.ma, bat.exception.http_status), ('SDK_UY_NHIEM', 401))
+        self.assertEqual(before, self.conn.execute('SELECT count(*) FROM loi_tai_lieu.ket_qua_xu_ly '
+            'WHERE tai_lieu_id=%s', (self.tai_lieu_id,)).fetchone()[0])
 
     def test_acl_definer_va_runtime_khong_dml_bang_chung(self):
-        for ten in ('loi_tai_lieu.ghi_ket_qua_v2','loi.ghi_kiem_toan_v2'):
-            r = self.conn.execute('SELECT prosecdef,proconfig FROM pg_proc WHERE oid=%s::regproc',(ten,)).fetchone()
+        for ten, chu in (('loi.sdk_nguon_module', 'loi'), ('loi.ghi_kiem_toan_v2', 'loi'),
+                ('loi_tai_lieu.ghi_metadata', 'loi_tai_lieu'),
+                ('loi_tai_lieu.ghi_ket_qua_v2', 'loi_tai_lieu')):
+            r = self.conn.execute('SELECT prosecdef,proconfig,pg_get_userbyid(proowner) '
+                'FROM pg_proc WHERE oid=%s::regproc',(ten,)).fetchone()
             self.assertTrue(r[0])
             self.assertIn('search_path=pg_catalog, pg_temp',r[1])
+            self.assertEqual(r[2], self.tien_to + 'vai_doi_cau_truc_' + chu)
+            for schema in ('loi', 'loi_tai_lieu'):
+                self.assertTrue(self.conn.execute('SELECT has_schema_privilege(%s,%s,\'USAGE\')',
+                    (r[2], schema)).fetchone()[0])
             self.assertFalse(self.conn.execute('''SELECT EXISTS(SELECT FROM pg_proc p,
                 LATERAL aclexplode(coalesce(p.proacl,acldefault('f',p.proowner))) a
                 WHERE p.oid=%s::regproc AND a.grantee=0 AND a.privilege_type='EXECUTE')''', (ten,)).fetchone()[0])

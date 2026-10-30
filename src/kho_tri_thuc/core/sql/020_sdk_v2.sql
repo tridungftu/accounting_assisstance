@@ -5,9 +5,6 @@ DECLARE
     tt text := coalesce(current_setting('kho_tri_thuc.tien_to_vai',true),'');
     chu text := tt || 'vai_doi_cau_truc_loi';
     chu_tl text := tt || 'vai_doi_cau_truc_loi_tai_lieu';
-    vai_cu text := current_setting('role');
-    duong_cu text := current_setting('search_path');
-    vai record;
 BEGIN
     IF (tt <> '' AND tt !~ '^[a-z][a-z0-9_]*_$')
        OR octet_length(chu_tl)>63 OR (tt<>'' AND current_database() !~ '^kho_test_')
@@ -20,12 +17,19 @@ BEGIN
        OR to_regprocedure('loi.viec_giu(text,text,uuid,text,uuid,uuid,bigint)') IS NULL THEN
         RAISE EXCEPTION 'G2-20: Can lead, ap G2-01..19 dung owner truoc';
     END IF;
+    PERFORM set_config('kho_tri_thuc.g2_20_vai_cu',current_setting('role'),true);
+    PERFORM set_config('kho_tri_thuc.g2_20_duong_cu',current_setting('search_path'),true);
     EXECUTE format('SET LOCAL ROLE %I',chu_tl);
+    -- Chi owner Core goi hai validator DEFINER; khong mo quyen cho runtime/module.
+    EXECUTE format('GRANT USAGE ON SCHEMA loi_tai_lieu TO %I',chu);
     EXECUTE format('GRANT EXECUTE ON FUNCTION loi_tai_lieu.ngu_canh(text,text,uuid,text,uuid,bigint),
         loi_tai_lieu.kiem_quyen(text,text,uuid,text,jsonb,text,text,uuid,bigint) TO %I',chu);
     EXECUTE format('SET LOCAL ROLE %I',chu);
     PERFORM set_config('search_path','pg_catalog,pg_temp',true);
+END;
+$$;
 
+    -- DDL ngoai DO: tao ham duoi role da chon, nhu 013/017.
     -- Ham noi bo, khong cap cho runtime. Fail closed neu chua cai/nhieu ban da_cai.
     CREATE OR REPLACE FUNCTION loi.sdk_nguon_module(p_ma text,p_module text,p_pn uuid,p_hd text,
         p_viec uuid DEFAULT NULL,p_the_he bigint DEFAULT NULL) RETURNS jsonb
@@ -58,7 +62,14 @@ BEGIN
     END;
     $ham$;
     REVOKE ALL ON FUNCTION loi.sdk_nguon_module(text,text,uuid,text,uuid,bigint) FROM PUBLIC;
+DO $$
+DECLARE
+    tt text := coalesce(current_setting('kho_tri_thuc.tien_to_vai',true),'');
+    chu_tl text := tt || 'vai_doi_cau_truc_loi_tai_lieu';
+BEGIN
     EXECUTE format('GRANT EXECUTE ON FUNCTION loi.sdk_nguon_module(text,text,uuid,text,uuid,bigint) TO %I',chu_tl);
+END;
+$$;
 
     CREATE OR REPLACE FUNCTION loi.ghi_kiem_toan_v2(p_ma text,p_module text,p_pn uuid,p_hd text,
         p_doi_tuong text,p_doi_tuong_id uuid,p_ket_luan text,p_request uuid,
@@ -81,7 +92,14 @@ BEGIN
     END;
     $ham$;
     REVOKE ALL ON FUNCTION loi.ghi_kiem_toan_v2(text,text,uuid,text,text,uuid,text,uuid,text,uuid,bigint) FROM PUBLIC;
+DO $$
+DECLARE
+    tt text := coalesce(current_setting('kho_tri_thuc.tien_to_vai',true),'');
+    chu_tl text := tt || 'vai_doi_cau_truc_loi_tai_lieu';
+BEGIN
     EXECUTE format('SET LOCAL ROLE %I',chu_tl);
+END;
+$$;
 
     CREATE OR REPLACE FUNCTION loi_tai_lieu.ghi_metadata(p_ma text,p_module text,p_pn uuid,p_hd text,
         p_loai text,p_tai_lieu uuid,p_du_lieu jsonb,p_request uuid,
@@ -279,21 +297,26 @@ BEGIN
     END;
     $ham$;
     REVOKE ALL ON FUNCTION loi_tai_lieu.ghi_ket_qua_v2(text,text,uuid,text,uuid,jsonb,uuid,uuid,bigint) FROM PUBLIC;
+DO $$
+DECLARE
+    tt text := coalesce(current_setting('kho_tri_thuc.tien_to_vai',true),'');
+    chu text := tt || 'vai_doi_cau_truc_loi';
+    chu_tl text := tt || 'vai_doi_cau_truc_loi_tai_lieu';
+    vai record;
+BEGIN
     -- Giu ACL cua ghi_metadata: module KHONG duoc goi cua noi bo G2-09.
     -- Chi cap cho cac vai chay module da provisioning. Module Manager cap cung
     -- hai chu ky V2 nay khi cai module moi; khong cap cho owner/login bang chung.
     FOR vai IN SELECT rolname FROM pg_roles
         WHERE left(rolname,length(tt||'vai_chay_mod_'))=tt||'vai_chay_mod_'
           AND NOT rolcanlogin AND NOT rolsuper AND NOT rolbypassrls LOOP
-        EXECUTE format('GRANT USAGE ON SCHEMA loi_tai_lieu TO %I',vai.rolname);
         EXECUTE format('GRANT EXECUTE ON FUNCTION loi_tai_lieu.ghi_ket_qua_v2(text,text,uuid,text,uuid,jsonb,uuid,uuid,bigint) TO %I',vai.rolname);
         EXECUTE format('SET LOCAL ROLE %I',chu);
-        EXECUTE format('GRANT USAGE ON SCHEMA loi TO %I',vai.rolname);
         EXECUTE format('GRANT EXECUTE ON FUNCTION loi.ghi_kiem_toan_v2(text,text,uuid,text,text,uuid,text,uuid,text,uuid,bigint) TO %I',vai.rolname);
         EXECUTE format('SET LOCAL ROLE %I',chu_tl);
     END LOOP;
-    PERFORM set_config('search_path',duong_cu,true);
-    PERFORM set_config('role',vai_cu,true);
+    PERFORM set_config('search_path',current_setting('kho_tri_thuc.g2_20_duong_cu'),true);
+    PERFORM set_config('role',current_setting('kho_tri_thuc.g2_20_vai_cu'),true);
 END;
 $$;
 
