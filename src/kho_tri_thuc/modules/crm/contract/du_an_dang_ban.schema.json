@@ -91,11 +91,14 @@
       },
       "allOf": [
         {"if": {"properties": {"loai": {"const": "NGAY"}}, "required": ["loai"]}, "then": {"required": ["ngay"]}},
-        {"if": {"properties": {"loai": {"const": "SU_KIEN"}}, "required": ["loai"]}, "then": {"required": ["su_kien", "so_ngay_sau_moc"]}}
+        {"if": {"properties": {"loai": {"const": "SU_KIEN"}}, "required": ["loai"]}, "then": {"required": ["su_kien", "so_ngay_sau_moc"]}},
+        {"if": {"properties": {"su_kien": {"type": "string", "pattern": "^DAM-"}}, "required": ["su_kien"]}, "then": {"required": ["moc_du_an_id", "lan_moc", "ngay_du_kien", "ngay_thuc_te"]}}
       ],
       "dependentRequired": {
         "moc_du_an_id": ["lan_moc", "ngay_du_kien", "ngay_thuc_te"],
-        "lan_moc": ["moc_du_an_id", "ngay_du_kien", "ngay_thuc_te"]
+        "lan_moc": ["moc_du_an_id", "ngay_du_kien", "ngay_thuc_te"],
+        "ngay_du_kien": ["moc_du_an_id", "lan_moc", "ngay_thuc_te"],
+        "ngay_thuc_te": ["moc_du_an_id", "lan_moc", "ngay_du_kien"]
       }
     },
     "tien_do": {
