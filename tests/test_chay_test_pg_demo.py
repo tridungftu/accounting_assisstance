@@ -1056,5 +1056,79 @@ class PgDemoThuanTests(unittest.TestCase):
         self.assertIn("DA_AN", sach)
 
 
+class BoChayTienTrinhConTests(unittest.TestCase):
+    def setUp(self):
+        self.root = Path(tempfile.mkdtemp(prefix="runner-fix-"))
+        self.repo = self.root / "repo"
+        (self.repo / "tests").mkdir(parents=True)
+        (self.repo / "src").mkdir()
+
+    def _chay(self, ma, ten="test_gia"):
+        (self.repo / "tests" / (ten + ".py")).write_text(ma, encoding="utf-8")
+        ra = self.root / (ten + ".json")
+        console = io.StringIO()
+        with contextlib.redirect_stdout(console):
+            rc = R.main([str(self.repo), "--module", ten, "--gioi-han", "15",
+                         "--nhat-ky", str(self.root), "--ra", str(ra)])
+        return rc, json.loads(ra.read_text(encoding="utf-8"))[ten], console.getvalue()
+
+    def test_id_bi_de_khong_lam_sap_bo_chay(self):
+        rc, r, console = self._chay(
+            "import unittest\n"
+            "class Gia(unittest.TestCase):\n"
+            "    id = 23\n"
+            "    def test_01(self): pass\n"
+            "    def test_02(self):\n"
+            "        self.id = 42\n"
+            "        self.assertEqual(self.id, 42)\n")
+        self.assertEqual(rc, 0, console)
+        self.assertEqual((r["tong"], r["ok"], r["error"], r["fail"]), (2, 2, 0, 0))
+        self.assertEqual(r["loi_dau"], "")
+        sk = [json.loads(d) for d in (self.root / "test_gia.tiendo.jsonl").read_text(encoding="utf-8").splitlines()]
+        self.assertEqual([d["id"] for d in sk if d["e"] == "ok"],
+                         ["test_gia.Gia.test_01", "test_gia.Gia.test_02"])
+
+    def test_thoat_giua_chung_thanh_loi_ke_ca_da_ghi_het(self):
+        for i, lenh in enumerate(("raise KeyboardInterrupt('sap gia')", "os._exit(7)",
+                                  "os._exit(0)", "self._outcome.result.stop()")):
+            with self.subTest(lenh=lenh):
+                rc, r, console = self._chay(
+                    "import os, unittest\n"
+                    "class Gia(unittest.TestCase):\n"
+                    "    def test_01(self): pass\n"
+                    "    def test_02(self): " + lenh + "\n"
+                    "    def test_03(self): pass\n"
+                    "    def test_04(self): pass\n", ten=f"test_thoat_{i}")
+                self.assertEqual(rc, 1, console)
+                self.assertIn("LOI", console)
+                da_xong = 2 if "stop()" in lenh else 1
+                self.assertEqual((r["tong"], r["ok"], r["error"]), (4, da_xong, 4 - da_xong))
+                self.assertIn(f"{da_xong}/4", r["loi_dau"])
+                self.assertTrue(r["ids_loi"])
+
+    def test_ma_thoat_loi_sau_khi_da_ghi_du_ca_van_la_loi(self):
+        rc, r, console = self._chay(
+            "import unittest\n"
+            "def tearDownModule(): raise KeyboardInterrupt('sap sau test')\n"
+            "class Gia(unittest.TestCase):\n"
+            "    def test_01(self): pass\n")
+        self.assertEqual(rc, 1, console)
+        self.assertIn("LOI", console)
+        self.assertEqual((r["tong"], r["ok"], r["error"]), (1, 1, 1))
+        self.assertIn("thoat ma", r["loi_dau"])
+
+    def test_traceback_trong_log_du_ma_thoat_0_va_du_ca_van_la_loi(self):
+        rc, r, console = self._chay(
+            "import unittest, traceback\n"
+            "class Gia(unittest.TestCase):\n"
+            "    def test_01(self):\n"
+            "        try: raise RuntimeError('loi da bi nuot')\n"
+            "        except RuntimeError: traceback.print_exc()\n")
+        self.assertEqual(rc, 1, console)
+        self.assertIn("LOI", console)
+        self.assertEqual((r["tong"], r["ok"], r["error"]), (1, 1, 1))
+        self.assertIn("traceback", r["loi_dau"].lower())
+
+
 if __name__ == "__main__":
     unittest.main()
