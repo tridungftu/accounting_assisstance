@@ -928,3 +928,10 @@ Chi tiết có tệp:dòng: `BANG-DIEU-KIEN-GO-LIVE.md`; quy trình: `CHECKLIST-
   - PostgreSQL toàn bộ G2: 411 ok / 1 ERROR (chính ca G2-11 trên) / 2 skip.
   - Đang review chéo Codex.
 - **CD-039 (tự cài tác vụ tự khởi động lại):** chờ Anh xác nhận trong chat — cấu hình lâu dài chạy Claude 30 phút/lần.
+
+### 30/10 ~22:35 — gộp G2-11; G2-12 vòng 3; mở nhánh CRM thử (CR1, CR2)
+- **G2-11 đã gộp** (`46bbdbc`): vòng 5 sửa fixture; PG 25/25 + G2-04 25/25; lead kiểm lại 2 điểm review.
+- **G2-12 vòng 3:** giữ guard chủ đầu chứng từ qua bảng phân chủ (điểm Chặn của review). Đang chạy PG toàn bộ G2.
+- **G2-CR1** (contract `du_an_dang_ban.v1`): runtime 17/17; đang review chéo Codex.
+- **G2-CR2** (contract `bao_gia.v1`, CD-038 1A/2B): Codex đang làm, nền `lat/g2-cr1`.
+- **G2-CR3** (`moc_da_xay_ra.v1`) **chưa giao — chờ Anh:** đặc tả ghi chặn kích hoạt. Cần Anh chốt tham chiếu lần lịch sử của mốc, điều kiện xác nhận, bên nhận, xử lý sửa/xóa ngày thực tế. Em sẽ đưa vào báo cáo sáng.
