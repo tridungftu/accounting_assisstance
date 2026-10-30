@@ -151,10 +151,19 @@ Các bảng bổ sung dưới đây là cấu trúc cố định; mỗi phiên b
 | `lich_su_doi_cau_truc` | PK `(ma_goi, so_phien_ban)` | Hash, thời điểm, người áp dụng, nguồn lịch sử |
 | `tuong_thich_doi_cau_truc` | Khóa gói/phiên bản/hash cũ/hash mới | Chỉ ghi trường hợp tương thích được xác định chính xác |
 | `dang_ky_ham_module` | PK `(module, loai_ham, phien_ban_contract)`; FK registry module | Tên schema/hàm, chữ ký, owner và hash gói đã duyệt; chỉ cài đặt ghi. Resolver MTQ/kiểm nghĩa vụ gọi động theo registry, không nhận tên hàm từ client (`O:57`, `O:58`) |
+| `dang_ky_contract` | PK `(ma, phien_ban)`; `module_so_huu` tham chiếu registry chủ sở hữu Core/module; `module_dang_dung` là danh sách binding module + phiên bản module đã xác minh | Sổ contract cố định trong `loi` theo CD-032/QD-09: mã, phiên bản, module sở hữu, module đang dùng; `trang_thai` chỉ `nhap` / `anh_duyet` / `dang_dung` / `ngung`. Lưu lớp kỹ thuật/nghiệp vụ, mục đích, metadata trường/nguồn, schema/hash gói, bằng chứng Anh duyệt và mốc sắp ngừng; không chứa bí mật |
 
 Nguồn tái sử dụng: danh tính/thành viên `P:59`, `P:65`; MTQ `K/sql_ma_tran_tham_quyen.py:61`, `:87`, `:97`, `:106`, `:113`, `:122`, `:132`, `:138`; công tắc `K/sql_module.py:8`, `:15`, `:26`.
 
 Không xây một bảng “ma trận thẩm quyền” thứ hai. Quyền thành viên, quyền module và MTQ là các lớp kiểm khác nhau, không phải ba nguồn cho cùng một quyết định.
+
+**Bổ sung CD-031/032 — sổ contract:** chỉ thêm **một bảng cố định** `loi.dang_ky_contract`; mỗi mã/phiên bản mới là thêm dòng, không tạo bảng theo module, contract hoặc lần cài (QD-09). Core sở hữu các contract kỹ thuật; module sở hữu định nghĩa contract nghiệp vụ theo `CONTRACT-DU-LIEU.md` §1, §15. Danh tính chủ Core phải được đăng ký trong registry, không giả một module nghiệp vụ. Định nghĩa/schema/hash của bản đã phát hành bất biến; trạng thái và binding được Core cập nhật có audit trong nền kiểm toán đã có, không xóa dòng cũ. `module_dang_dung` được Core đối chiếu từ bản ghim khi cài/nâng cấp, gồm cả module tạm tắt và việc còn dùng bản cũ; không nhận danh sách tự khai làm quyền đọc.
+
+Cài/nâng cấp module: Core kiểm `contract/`, manifest, JSON Schema/ví dụ, tính duy nhất về nghĩa và quyền yêu cầu; đăng ký thêm bản hợp lệ vào sổ qua cơ chế chung, **không sửa code Core** theo module mới. Module không được ghi trực tiếp sổ. Ghi sổ nhất quán với trạng thái cài/kích hoạt theo §7; thất bại không để contract kích hoạt một phần. Đăng ký/cài không tự cấp quyền đọc: truy cập chéo chỉ qua contract đúng bản đã đăng ký **và** quyền thực tế đã cấp tại `cap_quyen_module`, cùng ACL/RLS/MTQ hiện có. Contract mới trùng nghĩa hoặc đọc ngoài hai điều kiện này → bộ kiểm đỏ.
+
+Contract nghiệp vụ mới hoặc phiên bản mới của contract đang dùng phải được **Anh duyệt trước kích hoạt**. Bản mới ở `nhap` cho tới khi có bằng chứng Anh duyệt; chuyển `anh_duyet`, rồi chỉ `dang_dung` khi kích hoạt hợp lệ. Đây là trạng thái contract, không thay `TAT/THU/VAN_HANH` hoặc trạng thái tiến trình đã duyệt. Core xuất danh mục dạng bảng để Anh duyệt: mã, phiên bản, mục đích, sở hữu, module được đọc/đang dùng, thay đổi so bản trước, nguồn trường và trạng thái/bằng chứng duyệt. Cấp quyền Admin không thay Anh duyệt contract.
+
+Giữ schema và mặt đọc của bản cũ cho mọi module/việc còn ghim; không ép nâng cấp hoặc chuyển ngầm sang bản mới. Mốc sắp ngừng kèm cảnh báo và danh sách module còn dùng trên sổ; chưa hết binding thì chưa chuyển `ngung` và chưa thu hồi mặt đọc. Ngừng vẫn giữ dòng định nghĩa/lịch sử. Màn quản trị có chức năng xem sổ, lọc trạng thái/phiên bản/module và cảnh báo; ghi chú route đọc: **bổ sung route quản trị sổ contract khi mở G2**. Bổ sung này không sửa `DAC-TA-API.md` hoặc quyết định của phiếu CSDL/API đã được Anh duyệt.
 
 ### 3.2. Engine, sổ cổng và số đo — schema `loi`
 
@@ -478,3 +487,12 @@ Theo ưu tiên review Opus, chỉ còn ba câu quyết định; cơ chế phiên
 | Codex tên còn thiếu — `R:15` | §2: con trỏ M2, nguồn, tài khoản, Nợ/Có; phụ lục dùng cùng tên |
 | Codex tiến trình riêng — `R:16` | §3.2: một module/một tiến trình, một phiên hoạt động trên máy triển khai |
 | Codex validator M0065/M0067 — `R:48` | §7: một định nghĩa hợp nhất giữ cả B3 và NGUON; test âm hai nhánh |
+
+## Vòng 3 — CD-031/032/033
+
+| Việc | Chỗ sửa |
+|---|---|
+| CD-031/032: chủ contract kỹ thuật/nghiệp vụ và sổ cố định theo QD-09 | §3.1: thêm duy nhất `loi.dang_ky_contract`, mã/phiên bản/sở hữu/binding/trạng thái |
+| CD-032: cài/nâng cấp đăng ký, quyền đọc và bộ kiểm | §3.1: Core kiểm/ghi sổ không sửa code Core; trùng nghĩa hoặc đọc ngoài contract + quyền → đỏ |
+| CD-032: Anh duyệt, giữ bản cũ, cảnh báo và màn quản trị | §3.1: xuất bảng duyệt trước kích hoạt, giữ bản đang dùng, ghi chú route đọc khi mở G2 |
+| CD-033: tài khoản Windows và ba câu SDK đã chốt | Dẫn chiếu `DAC-TA-SDK.md` §4.4, §8; không đổi quyết định CSDL/API đã duyệt |

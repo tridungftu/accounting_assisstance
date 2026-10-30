@@ -3,6 +3,8 @@
 **Trạng thái:** Nháp G1c-2 để duyệt; chỉ tài liệu, chưa triển khai.  
 **Phạm vi:** Bảy contract dữ liệu, hai contract API, hai schema manifest chính thức (§15), ví dụ DEMO và bộ kiểm tuân thủ; JSON Schema draft 2020-12. Đây là thiết kế đích, không khẳng định đã triển khai.
 
+**CD-031 — JSON hai lớp:** dữ liệu trao đổi là **JSON**; JSON Schema là bản mô tả gói JSON phải có những thông tin gì để Core kiểm tự động. **Lớp kỹ thuật** do Core định nghĩa, gồm các contract hiện có tại §4–12: tệp, văn bản tài liệu, bảng, tham số, nội dung đã che, trả lời AI, hóa đơn đọc từ XML, lỗi và việc. **Lớp nghiệp vụ** do module sở hữu dữ liệu định nghĩa, Anh duyệt trước kích hoạt; danh mục, nguồn trường và ví dụ đầy đủ tại `docs/47-core/g1/CONTRACT-NGHIEP-VU.md` (**đang soạn**). Hai lớp cùng trao đổi JSON và được kiểm bằng JSON Schema; bộ contract kỹ thuật không thay thế mô tả đầy đủ nghiệp vụ.
+
 ## 1. Căn cứ và nguyên tắc
 
 Danh sách bảy contract theo `../55-ke-hoach-chuan-hoa-core-va-dung-lai-module-engine.md:33`. Yêu cầu JSON Schema thực, nguồn tạo kết quả, phiên bản và trạng thái duyệt theo `../54-ke-hoach-core-database-api-v1.md:140`.
@@ -1399,6 +1401,14 @@ Trước khi công bố các contract:
 
 Hai tài nguyên thuộc phiếu SDK, nằm ngay trong tài liệu để không tạo tệp ngoài handoff. Registry nạp cả hai cùng các contract §2, không truy cập mạng. Ví dụ hợp lệ là hai manifest DEMO tại `DAC-TA-SDK.md` §6.1–6.2. Sau phát hành, mọi thay đổi có ID/phiên bản mới theo §2.
 
+**CD-032 — nội dung gói bắt buộc:** mỗi module có `contract/`; `module.json.contract` liệt kê bốn nhóm `cong_bo`, `su_kien_phat`, `su_kien_nhan`, `dau_vao_nguon`. Nhóm không sử dụng là mảng rỗng; vẫn phải có thư mục và đủ bốn nhóm. Mỗi mục ghim `ma`, `phien_ban`, `module_so_huu`, đường dẫn `tep_mo_ta`, `schema` và `vi_du` trong `contract/`, có trong kiểm kê/hash gói. Thiếu thư mục, thiếu mục hoặc nội dung không hợp lệ → **không cài**.
+
+Mỗi `tep_mo_ta` là JSON có đủ `ma`, `phien_ban`, `muc_dich`, `module_so_huu`, `module_duoc_doc` (danh sách mã module cụ thể, không wildcard), `truong`, `schema`, `vi_du`. Mỗi phần tử `truong` có `ten` tiếng Việt không dấu, `nghia`, `bat_buoc` kiểu boolean, `don_vi` (ghi rõ `khong_ap_dung` khi không có đơn vị), `nguon` (tài liệu/quyết định đã chốt hoặc trường nguồn cụ thể). Liệt kê cả trường con của cấu trúc lồng nhau. `schema` trỏ JSON Schema draft 2020-12, `vi_du` trỏ JSON DEMO đầy đủ và phải qua schema đó. Mã/phiên bản/sở hữu và đường dẫn phải khớp mục manifest; phiên bản tuân §2 và các binding sự kiện/công bố đã chốt. Module được đọc trong mô tả chỉ là đối tượng dự kiến; quyền thực tế vẫn cần Core cấp riêng.
+
+Contract nhận hoặc đầu vào nguồn dùng lại bản chủ sở hữu đã đăng ký: mô tả, schema, ví dụ trong gói phải đối chiếu đúng bản ghim, không đổi chủ hay tạo contract mới cùng nghĩa. Schema nguồn có thể tham chiếu `$id` đã ghim trong registry offline. Sự kiện giữ payload chỉ gồm tham chiếu theo bus hiện có. M4, CRM, M2 ở G4 phải có `contract/` trước khi làm màn hình.
+
+Khi cài/nâng cấp, Core kiểm và đăng ký vào **một bảng cố định** `loi.dang_ky_contract` (CSDL §3.1), thêm dòng theo QD-09; thêm module/contract không sửa code Core. Sổ lưu mã, phiên bản, module sở hữu, module đang dùng và trạng thái `nhap` / `anh_duyet` / `dang_dung` / `ngung`. Contract nghiệp vụ mới hoặc phiên bản mới của contract đang dùng phải được Anh duyệt trước kích hoạt. Core xuất danh mục dạng bảng để duyệt, gồm mã/phiên bản, mục đích, sở hữu, module được đọc/đang dùng, thay đổi, nguồn trường và trạng thái duyệt. Giữ bản cũ khi còn module đang dùng, cảnh báo bản sắp ngừng; không chuyển ngầm consumer sang bản mới hoặc ngừng bản còn người dùng. Màn quản trị đọc sổ: **bổ sung route quản trị sổ contract khi mở G2**; không sửa `DAC-TA-API.md` đã duyệt.
+
 ### 15.1. Module — `urn:ktt:manifest:module.v1`
 
 V1 là `bang`/`ham` trong khối riêng Core suy ra; V2/V3/V4 tách thành ba danh sách. Mã V2 thuộc registry cửa ghi Core; không gộp lời gọi đọc SDK vào V2. Tất cả trường cấp cao bắt buộc; mảng rỗng diễn đạt không dùng tính năng đó.
@@ -1418,6 +1428,7 @@ V1 là `bang`/`ham` trong khối riêng Core suy ra; V2/V3/V4 tách thành ba da
     "phien_ban",
     "tuong_thich",
     "goi",
+    "contract",
     "backend",
     "giao_dien",
     "thao_tac",
@@ -1467,6 +1478,17 @@ V1 là `bang`/`ham` trong khối riêng Core suy ra; V2/V3/V4 tách thành ba da
           },
           "uniqueItems": true
         }
+      }
+    },
+    "contract": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["cong_bo","su_kien_phat","su_kien_nhan","dau_vao_nguon"],
+      "properties": {
+        "cong_bo": {"$ref":"#/$defs/ds_contract_goi"},
+        "su_kien_phat": {"$ref":"#/$defs/ds_contract_goi"},
+        "su_kien_nhan": {"$ref":"#/$defs/ds_contract_goi"},
+        "dau_vao_nguon": {"$ref":"#/$defs/ds_contract_goi"}
       }
     },
     "backend": {"type":"object","additionalProperties":false,"required":["diem_vao"],"properties":{"diem_vao":{"$ref":"#/$defs/diem_vao"}}},
@@ -1761,7 +1783,25 @@ V1 là `bang`/`ham` trong khối riêng Core suy ra; V2/V3/V4 tách thành ba da
       "type": "string",
       "pattern": "^(urn:ktt:contract:)?[a-z][a-z0-9_]*\\.v[1-9][0-9]*(:[0-9]+\\.[0-9]+\\.[0-9]+)?(#/\\$defs/[a-z][a-z0-9_]*)?$"
     },
-    "schema_ref": {"oneOf":[{"$ref":"#/$defs/contract"},{"allOf":[{"$ref":"#/$defs/tep"},{"pattern":"^schema/.+\\.json$"}]}]},
+    "schema_ref": {"oneOf":[{"$ref":"#/$defs/contract"},{"allOf":[{"$ref":"#/$defs/tep"},{"pattern":"^schema/.+\\.json$"}]},{"$ref":"#/$defs/tep_contract"}]},
+    "tep_contract": {"allOf":[{"$ref":"#/$defs/tep"},{"pattern":"^contract/.+\\.json$"}]},
+    "ds_contract_goi": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["ma","phien_ban","module_so_huu","tep_mo_ta","schema","vi_du"],
+        "properties": {
+          "ma": {"type":"string","minLength":1},
+          "phien_ban": {"type":"string","minLength":1},
+          "module_so_huu": {"$ref":"#/$defs/ma"},
+          "tep_mo_ta": {"$ref":"#/$defs/tep_contract"},
+          "schema": {"$ref":"#/$defs/tep_contract"},
+          "vi_du": {"$ref":"#/$defs/tep_contract"}
+        }
+      }
+    },
     "ds_ma": {"type":"array","items":{"$ref":"#/$defs/ma"},"uniqueItems":true},
     "ds_chuoi": {"type":"array","items":{"type":"string","minLength":1},"uniqueItems":true},
     "cong": {"const":{"nguon":"core_cap","pham_vi":"loopback"}}
@@ -1900,6 +1940,8 @@ Tham chiếu kiểu dùng chung từ schema module không cấp dịch vụ CSDL
 
 JSON Schema kiểm hình dạng. Không dùng tính năng ngoài draft 2020-12 như `$data` để so hai trường động; Core kiểm thêm trước cài:
 
+- `contract/` tồn tại và đủ nội dung §15. Đối chiếu từng công bố, sự kiện phát/nhận và đầu vào nguồn với đúng mục `contract`, mã/phiên bản/chủ và schema đã ghim; không có mục thiếu, thừa không có mục đích hoặc trùng mã/phiên bản trong cùng nhóm. Kiểm cấu trúc từng `tep_mo_ta`, đủ metadata/trường/nguồn/đơn vị, ví dụ JSON hợp lệ theo schema và mọi `$ref` giải được offline. Contract nguồn phải khớp bản đã đăng ký; không khai lại thành sở hữu của module nhận. Kiểm trùng nghĩa với sổ, kể cả khác mã/tên trường; chưa có kết luận đối chiếu thì chưa đủ điều kiện cài. Contract trùng nghĩa → đỏ, phải dùng lại/mở rộng contract chung và duyệt thay đổi theo CD-032.
+- Ghi sổ `loi.dang_ky_contract` qua Core sau kiểm gói, đồng bộ trạng thái cài/kích hoạt; không kích hoạt contract nghiệp vụ mới hoặc bản mới của contract đang dùng khi thiếu Anh duyệt. Consumer chỉ đọc bản đã đăng ký và đã cấp quyền; giữ binding cũ cho module/việc đang dùng, cảnh báo bản sắp ngừng. Không sửa code Core theo từng contract mới.
 - Mã module không trùng, độ dài tên schema/role dẫn xuất hợp PostgreSQL; `goi_migration.ma` bằng `ma`. Core suy `mod_<ma>`, `cong_bo_<ma>`, owner/runtime; không nhận trường role/schema/đối tượng công bố từ gói.
 - `ham_core_goi[].ham` thuộc hàm riêng V1, chữ ký khớp schema gói; cài DEFINER đúng owner/hash/ACL/policy rồi ghi `loi.dang_ky_ham_module`. Loại + phiên bản không trùng; chỉ cổng Core nội bộ EXECUTE.
 - Tiền tố quyền operation/menu/công bố/cột nhóm A bằng chính `<ma>.`; yêu cầu quyền Core được kiểm/cấp riêng. Cột nhóm A thuộc bảng V1; cột bản mã/phiên bản khóa/HMAC, miền/chuẩn hóa phải có trong migration, không lưu bản rõ/khóa.
@@ -1909,6 +1951,8 @@ JSON Schema kiểm hình dạng. Không dùng tính năng ngoài draft 2020-12 n
 - Mã lỗi + HTTP/tên trường phải thuộc contract operation; danh mục mã lỗi trường (gồm `BAT_BUOC`) phải đăng ký, không chứa input. Kết nối ngoài chỉ mã dịch vụ Core đã duyệt, mặc định rỗng; không mở cổng AI riêng.
 
 Ca âm KT07 phủ **cả module lẫn engine**: thiếu trường/sai version/sai enum/trường lạ; thêm mật khẩu/role migration; tự chọn schema/đối tượng công bố/số cổng; sai tiền tố quyền; đường dẫn `../`/absolute/symlink thoát; thiếu `$ref`/fragment/schema gói, trùng operation/route/capability, workflow/handler không có, version không tương thích; V2 trỏ hàm đọc, V3 trỏ bảng module, V4 ngoài contract; cột nhóm A thiếu HMAC/phiên bản khóa; hàm registry sai owner/chữ ký; việc lâu dùng schema polling; engine `login_csdl:true`, thiếu kiểm model, RAM/CPU vượt miền, dịch vụ ngoài chưa duyệt hoặc AI trực tiếp. Phân biệt lỗi schema và lỗi ngữ nghĩa; schema không tự chứng minh ACL/tiến trình.
+
+Ca âm CD-032 thuộc KT06/KT07/KT15: thiếu `contract/`, thiếu một nhóm manifest, thiếu mục mô tả/schema/ví dụ/phiên bản/nguồn trường; ví dụ sai schema; bản nguồn khác sổ; contract mới trùng nghĩa; kích hoạt thiếu Anh duyệt; nâng cấp làm mất phiên bản cũ còn dùng. Mọi ca phải đỏ và chặn cài hoặc kích hoạt ở đúng bước tương ứng.
 
 
 ---
@@ -1991,11 +2035,20 @@ Mức chặn gắn với từng capability. Capability chưa đạt có thể kh
 | KT05 | Gọi thẳng cổng loopback module thiếu token; sai chữ ký/instance; TTL >30 giây/hết hạn; hash method/path/body lệch; nonce lặp kể cả cạnh tranh đều 401 trước handler. Retry bằng token/nonce mới giữ khóa chống trùng cũ. | C0 |
 | KT06/KT07 | Nạp offline **cả hai** schema manifest §15, kiểm meta-schema, hai mẫu SDK §6 và ca âm §15.3; mã lỗi/HTTP/trường lỗi phải đăng ký. `kieu:viec` bắt buộc `urn:ktt:contract:viec.v1#/$defs/da_nhan`, không dùng schema polling. | C1; vượt quyền/bí mật là C0 |
 | KT08 | Core bind với `SO_EXCLUSIVEADDRUSE`, thử tiến trình khác dùng `SO_REUSEADDR` bind lại phải thất bại; nhánh engine cũ vẫn ghi khoảng hở. Module chỉ ready khi login/role và phiên bản dữ liệu/checksum khớp `loi.lich_su_doi_cau_truc`; lệch không phục vụ. Trạng thái đúng `stopped/starting/ready/busy/dang_dung/failed` (API §5). | C1; chiếm cổng/gọi nhầm là C0 |
-| KT08/KT10 | Con chạy token hạn chế/tài khoản riêng: mở `bi-mat`, dùng DPAPI lấy khóa, mở/đọc/ghi nhớ Core, duplicate handle/token, sửa ACL lấy lại quyền đều phải thất bại. Chỉ kế thừa handle allowlist; engine không login DB; không đạt thì không kích hoạt (SDK §4.4). | C0 |
+| KT08/KT10 | Theo CD-033 câu 2 đã chốt A: kiểm SID/tài khoản thực, Core tài khoản riêng (ví dụ `ktt_core`), module/engine tài khoản máy hạn chế khác Core (ví dụ `ktt_module`), áp ngay khi thử trên máy Anh. Từ chính tiến trình module/engine, liệt kê/mở/đọc `D:\DU-LIEU-KE-TOAN\bi-mat\`, dùng DPAPI lấy khóa, mở/đọc/ghi nhớ Core, duplicate handle/token, sửa ACL lấy lại quyền đều phải thất bại. Chỉ kế thừa handle allowlist; engine không login DB; không đạt thì không kích hoạt (SDK §4.4). Dùng bí mật DEMO trong môi trường thử, không đọc kho thật. | C0 |
 | KT09 | Quét thêm log PostgreSQL trong môi trường DEMO, xác minh `log_parameter_max_length=0` và `log_parameter_max_length_on_error=0` (`log_parameter_max_length*=0`); lỗi SQL/rollback không rò mã ủy nhiệm hoặc khóa. Mật khẩu truyền `password=` riêng, không DSN chứa bí mật; khóa mã hóa không vào SQL/GUC. | C0 |
 | KT12/KT16 | Đang tự đóng có việc `queued`/sự kiện chờ thì Core đánh thức đúng một instance; `TAT` giữ hàng chờ, không tự bật. Hộp nhận chưa rỗng/lease/request/lượt Mask đang dùng thì chưa rảnh. Job `KILL_ON_JOB_CLOSE`, cây con và RAM/CPU được Core xác minh từ Job accounting, không lấy tự khai làm số đo chính. | C1; vượt quyền/mất tác động là C0 |
 | KT14 | Module không giả nguồn OCR/engine/version/việc được; Core tự gắn provenance từ instance/lease và kiểm nguồn tham chiếu. | C0 |
 | KT03/KT09 | Cổng `ma_hoa`: cột nhóm A đăng ký, bản mã + phiên bản khóa, HMAC miền/khóa độc lập; xem rút gọn tối đa bốn số, xem đủ cần quyền + audit. Thử sai pháp nhân/cột, đổi khóa/khôi phục và canary log; module không nhận khóa/bản rõ ngoài quyền. | C0 |
+
+Các ca bắt buộc vòng 3 (CD-032/033):
+
+| Mã kiểm | Điều kiện và ca âm phải đỏ | Mức chặn |
+|---|---|---|
+| KT06/KT07 | Contract mới trùng nghĩa contract đã có → đỏ, kể cả đổi tên/mã; đối chiếu mục đích, chủ dữ liệu, nguồn và nghĩa trường với sổ. Phải dùng lại hoặc mở rộng contract chung theo quy tắc phiên bản/duyệt, không tạo bản sao nghĩa. Chưa xác định được nghĩa thì `CHUA_KIEM`, không tự cho qua. | C1 — chặn cài |
+| KT02/KT03 | Module đọc dữ liệu module khác ngoài contract đã đăng ký **và** cấp quyền → đỏ. Thử cả chưa đăng ký nhưng có GRANT, đã đăng ký nhưng chưa cấp quyền, sai bản ghim và SQL/HTTP trực tiếp bỏ qua SDK; quyền SQL thủ công không thay contract. | C0 |
+| KT07/KT15 | Thiếu/không hợp lệ `contract/` → không cài. Cài/nâng cấp đăng ký thêm qua Core, không vá Core; contract nghiệp vụ mới/bản mới đang dùng thiếu Anh duyệt → không kích hoạt. Xuất danh mục dạng bảng; giữ bản cũ còn dùng, hiển thị module ghim bản sắp ngừng. | C1; mất dữ liệu/quyền là C0 |
+| KT08/KT10/KT15 | Script tạo tài khoản/cấp quyền thư mục chạy lại không mở rộng quyền, tái lập được khi chuyển máy chủ; Anh chỉ đồng ý quyền quản trị. Engine cũ cần tài khoản riêng như ABBYY Hot Folder phải có ngoại lệ Anh duyệt; thiếu duyệt hoặc tự nới quyền → đỏ. | C0 |
 
 ### 4.1. Quyền và SQL chéo: thứ tự kiểm
 
@@ -2147,3 +2200,13 @@ Mã phát hiện theo quy ước SDK §1: `O` = review Opus (Chặn1–3, CS1–
 | O-CS9; O-R6; C5 | SDK §8 ba câu mới, M4 G4 là thông báo; không hỏi trùng retention hoặc thêm logic khoản vay |
 | C3 | §12 phân biệt polling/202; §15.1 ràng buộc `dau_ra` việc lâu; KT07 |
 | C4 | §11 schema/ví dụ `chi_tiet` an toàn/đăng ký lỗi; §15 `ma_loi`; bộ kiểm §5 |
+
+## Vòng 3 — CD-031/032/033
+
+| Việc | Chỗ sửa |
+|---|---|
+| CD-031: JSON hai lớp, module sở hữu và Anh duyệt nghiệp vụ | Đầu tài liệu, dẫn danh mục `CONTRACT-NGHIEP-VU.md` đang soạn |
+| CD-032: bắt buộc `contract/`, mô tả trường/nguồn/schema/ví dụ | §15, §15.1 schema `module.v1` thêm bốn nhóm và đường dẫn `contract/`; §15.3 kiểm ngữ nghĩa/ca âm |
+| CD-032: sổ, duyệt, giữ bản cũ và màn quản trị | §15 dẫn `loi.dang_ky_contract` tại CSDL §3.1; ghi chú route đọc khi mở G2 |
+| CD-032: trùng nghĩa và đọc ngoài contract + cấp quyền → đỏ | Bộ kiểm §4: KT02/KT03, KT06/KT07, KT15; §15.3 chặn cài/kích hoạt |
+| CD-033: tài khoản riêng từ thử máy Anh, script và ngoại lệ | Bộ kiểm §4: KT08/KT10/KT15, không đọc được `D:\DU-LIEU-KE-TOAN\bi-mat\`; SDK §4.4, §8 |

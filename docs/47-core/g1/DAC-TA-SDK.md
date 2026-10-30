@@ -115,13 +115,15 @@ Core ghi từng lần khởi động: giờ yêu cầu, bắt đầu, sẵn sàn
 
 Core gắn toàn bộ cây con vào Windows Job với `KILL_ON_JOB_CLOSE`; RAM/CPU và giới hạn lấy từ Job accounting do Core đo, báo cáo tự khai chỉ bổ trợ. Cờ này xử lý Core crash/đóng Job, không thay drain thông thường. Trạng thái tiến trình đúng API §5: `stopped/starting/ready/busy/dang_dung/failed`, độc lập công tắc và trạng thái việc. `dang_dung` không nhận request mới: 503 `TIEN_TRINH_DANG_DUNG`, `Retry-After: 2`; quá 300 giây vẫn drain, giữ cổng cho Admin xử lý, không tự hủy việc.
 
-Core còn đánh thức module **đang được phép hoạt động** khi có việc `queued` hoặc sự kiện trong hộp nhận chờ, không chỉ khi có HTTP; cùng khóa phối hợp để không tạo instance thứ hai. Module đang `TAT`/chưa kích hoạt không bị tự bật; giữ hàng chờ. “Rảnh” = không request/luồng tải/kết quả hoặc lượt Mask đang dùng, không lease, hộp nhận rỗng và không việc chờ được phép nhận; quyết định đóng cùng khóa dispatch. Chính sách đề xuất mặc định khởi động ngay; Admin đổi sau số đo và câu 3 §8.
+Core còn đánh thức module **đang được phép hoạt động** khi có việc `queued` hoặc sự kiện trong hộp nhận chờ, không chỉ khi có HTTP; cùng khóa phối hợp để không tạo instance thứ hai. Module đang `TAT`/chưa kích hoạt không bị tự bật; giữ hàng chờ. “Rảnh” = không request/luồng tải/kết quả hoặc lượt Mask đang dùng, không lease, hộp nhận rỗng và không việc chờ được phép nhận; quyết định đóng cùng khóa dispatch. Theo CD-033 câu 3 đã chốt A, mặc định Core khởi động ngay; Admin đổi sau số đo theo CD-028 mục 3b.
 
 ### 4.4. Danh tính hệ điều hành
 
-**Đề xuất an ninh bắt buộc trước kích hoạt:** tiến trình module/engine không chạy với token đầy đủ của Core. Core tạo token hạn chế suy từ token của mình và khởi động bằng `CreateProcessAsUser`; thiết kế không xin thêm đặc quyền cho runtime. Chỉ kế thừa allowlist handle bootstrap/listener, không handle kho bí mật/process Core; bỏ quyền debug/impersonate và khả năng thoát Job. ACL `D:\DU-LIEU-KE-TOAN\bi-mat\` chỉ tài khoản dịch vụ Core được đọc; cấu hình restricted SID/ACL phải thực sự ngăn token con đọc cả credential lẫn khóa DPAPI, không chỉ kiểm tên tài khoản. Mỗi module chỉ nhận credential của chính mình, engine không nhận login CSDL.
+**CD-033 câu 2 — đã chốt A, áp ngay từ giai đoạn thử trên máy Anh:** Core chạy dưới tài khoản Windows riêng, ví dụ `ktt_core`; module/engine chạy dưới tài khoản máy có quyền hạn chế, ví dụ `ktt_module`, khác tài khoản Core. Không chạy chung tài khoản rồi chỉ hạn chế token của Core. Bộ khởi chạy dùng danh tính hạn chế đã cấp, chỉ kế thừa allowlist handle bootstrap/listener, không handle kho bí mật/process Core; bỏ quyền debug/impersonate và khả năng thoát Job. ACL `D:\DU-LIEU-KE-TOAN\bi-mat\` chỉ cho tài khoản dịch vụ Core đọc ở lớp runtime; module/engine không đọc được credential hoặc khóa DPAPI. Mỗi module chỉ nhận credential của chính mình, engine không nhận login CSDL.
 
-Core process/handle phải chặn con mở/đọc/ghi bộ nhớ, duplicate handle/token hoặc sửa ACL để lấy lại quyền Core; không truyền handle process đặc quyền. Cùng SID người dùng hoặc chỉ đặt `headless` không chứng minh cách ly. G2 thử restricted token, ACL thư mục/process, DPAPI, socket và Job cùng CD-028 mục 6 bằng bí mật DEMO; mọi đường đọc bí mật/nhớ Core phải thất bại. Nếu môi trường không chứng minh được mô hình token hạn chế hoặc cần đặc quyền mới thì **không kích hoạt**, trình lead phương án tài khoản riêng với ACL tương ứng theo câu 2 §8; không tự hạ xuống chạy chung token. Đây là yêu cầu thiết kế cần chứng minh tại G2, chưa phải khả năng Windows host đã được xác nhận.
+Core process/handle phải chặn con mở/đọc/ghi bộ nhớ, duplicate handle/token hoặc sửa ACL để lấy lại quyền Core; không truyền handle process đặc quyền. Cùng SID người dùng hoặc chỉ đặt `headless` không chứng minh cách ly. G2 kiểm tài khoản thực của tiến trình, ACL thư mục/process, DPAPI, socket và Job cùng CD-028 mục 6 bằng bí mật DEMO; mọi đường đọc bí mật/nhớ Core phải thất bại. Nếu chưa chứng minh được cách ly thì **không kích hoạt**. Đây là yêu cầu thiết kế cần chứng minh tại G2, chưa phải khả năng Windows host đã được xác nhận.
+
+Phải có script tạo tài khoản và cấp quyền thư mục, chạy lại được trên máy Anh và khi chuyển máy chủ; kiểm trạng thái hiện có, không cấp rộng thêm khi chạy lại. Anh chỉ bấm đồng ý quyền quản trị; runtime không giữ quyền quản trị. Engine cũ cần tài khoản riêng, ví dụ ABBYY Hot Folder, phải ghi rõ tài khoản/quyền/lý do ngoại lệ và hỏi Anh duyệt trước; không tự nới quyền. Bộ kiểm chạy bằng chính tiến trình module/engine phải chứng minh không liệt kê/đọc được `D:\DU-LIEU-KE-TOAN\bi-mat\` (môi trường thử dùng bí mật DEMO).
 
 **Bổ sung lead sau Opus vòng 2:**
 - Khóa và mật khẩu trong `bi-mat` bọc DPAPI **phạm vi người dùng** của tài khoản dịch vụ Core, không dùng phạm vi máy (`CRYPTPROTECT_LOCAL_MACHINE`).
@@ -165,9 +167,11 @@ Chưa coi các asset trên là SDK v1 đã có; wrapper hiện vẫn dùng route
 
 ## 6. Mẫu `module.json` và engine manifest
 
+**CD-032 — lớp dữ liệu giao tiếp bắt buộc:** mọi gói module có thư mục `contract/` gồm dữ liệu công bố, sự kiện phát/nhận và đầu vào nguồn. `module.json.contract` liệt kê đủ bốn nhóm; nhóm không dùng ghi mảng rỗng, không bỏ thư mục hoặc bỏ nhóm. Mỗi contract có mục đích, module sở hữu, module được đọc, danh sách trường (tên tiếng Việt không dấu, nghĩa, bắt buộc/tùy chọn, đơn vị, nguồn), ví dụ JSON DEMO đầy đủ, JSON Schema và phiên bản. Contract nhận từ nguồn khác phải ghim bản đã đăng ký, không tự nhận sở hữu hoặc định nghĩa lại. Chi tiết kiểm tại `CONTRACT-DU-LIEU.md` §15; thiếu hoặc không hợp lệ thì **không cài**. M4, CRM, M2 ở G4 phải làm `contract/` trước màn hình.
+
 ### 6.1. Mẫu module nhỏ
 
-Ví dụ minh họa gói **Tra cứu tài liệu DEMO**, ứng viên thử Core G2; **M4 là module mẫu G4 đã chốt** (TL 55 §6, CD-027). Các đường dẫn là thành phần gói dự kiến, chưa được tạo. `thao_tac` tương ứng operation. Schema chính thức draft 2020-12: `urn:ktt:manifest:module.v1` và `urn:ktt:manifest:engine.v1`, phiên bản 1.0.0, tại `CONTRACT-DU-LIEU.md` §15; Core đăng ký offline, kiểm cả schema lẫn ràng buộc ngữ nghĩa §15.3 trước cài.
+Ví dụ minh họa cấu trúc gói **Tra cứu tài liệu DEMO**; module thử Core G2 đã chốt là **CRM (DEMO)** theo CD-033, **M4 là module mẫu G4 đã chốt** (TL 55 §6, CD-027). Các đường dẫn là thành phần gói dự kiến, chưa được tạo. `thao_tac` tương ứng operation. Schema chính thức draft 2020-12: `urn:ktt:manifest:module.v1` và `urn:ktt:manifest:engine.v1`, phiên bản 1.0.0, tại `CONTRACT-DU-LIEU.md` §15; Core đăng ký offline, kiểm cả schema lẫn ràng buộc ngữ nghĩa §15.3 trước cài.
 
 ```json
 {
@@ -187,6 +191,32 @@ Ví dụ minh họa gói **Tra cứu tài liệu DEMO**, ứng viên thử Core 
     "tep_kiem_ke": "goi/kiem_ke.json",
     "thuat_toan_ma_bam": "sha256",
     "phu_thuoc_module": []
+  },
+  "contract": {
+    "cong_bo": [
+      {"ma": "ghi_chu", "phien_ban": "1", "module_so_huu": "mau_tai_lieu_demo",
+       "tep_mo_ta": "contract/cong_bo_ghi_chu.v1.json",
+       "schema": "contract/cong_bo_ghi_chu.v1.schema.json",
+       "vi_du": "contract/cong_bo_ghi_chu.v1.vi_du.json"}
+    ],
+    "su_kien_phat": [
+      {"ma": "mau_tai_lieu_demo.ghi_chu_doi", "phien_ban": "1", "module_so_huu": "mau_tai_lieu_demo",
+       "tep_mo_ta": "contract/ghi_chu_doi.v1.json",
+       "schema": "contract/ghi_chu_doi.v1.schema.json", "vi_du": "contract/ghi_chu_doi.v1.vi_du.json"}
+    ],
+    "su_kien_nhan": [
+      {"ma": "tai_lieu.cap_nhat", "phien_ban": "1", "module_so_huu": "loi",
+       "tep_mo_ta": "contract/tai_lieu_cap_nhat.v1.json",
+       "schema": "contract/tai_lieu_cap_nhat.v1.schema.json", "vi_du": "contract/tai_lieu_cap_nhat.v1.vi_du.json"}
+    ],
+    "dau_vao_nguon": [
+      {"ma": "tham_chieu_tep.v1", "phien_ban": "1.0.0", "module_so_huu": "loi",
+       "tep_mo_ta": "contract/tham_chieu_tep.v1.json",
+       "schema": "contract/tham_chieu_tep.v1.schema.json", "vi_du": "contract/tham_chieu_tep.v1.vi_du.json"},
+      {"ma": "van_ban_tai_lieu.v1", "phien_ban": "1.0.0", "module_so_huu": "loi",
+       "tep_mo_ta": "contract/van_ban_tai_lieu.v1.json",
+       "schema": "contract/van_ban_tai_lieu.v1.schema.json", "vi_du": "contract/van_ban_tai_lieu.v1.vi_du.json"}
+    ]
   },
   "backend": {"diem_vao": "mau_tai_lieu_demo.chay"},
   "giao_dien": {
@@ -281,7 +311,7 @@ Ví dụ minh họa gói **Tra cứu tài liệu DEMO**, ứng viên thử Core 
   "cong_bo": [
     {"ma": "ghi_chu", "phien_ban": "1",
       "ham": "ghi_chu_v1",
-     "schema": "schema/cong_bo_ghi_chu.v1.json",
+     "schema": "contract/cong_bo_ghi_chu.v1.schema.json",
      "truong": ["tai_lieu_id", "row_version"],
      "quyen_doc": "mau_tai_lieu_demo.ghi_chu.doc"}
   ],
@@ -307,6 +337,8 @@ Ví dụ minh họa gói **Tra cứu tài liệu DEMO**, ứng viên thử Core 
 Core ghép route operation dưới `/api/v1/module/mau_tai_lieu_demo/`; không nhận wildcard. `tong_quan` trả dữ liệu đã lọc quyền; `danh_sach` nhận cùng bộ lọc để số/thẻ khớp chi tiết.
 
 Các tệp kiểm kê phải chứa đường dẫn, phiên bản và SHA-256 thực do bước đóng gói tạo; Core đối chiếu bytes trước cài. `v2_ghi_chung` là mã cửa ghi Core trong registry, ánh xạ tới chữ ký SQL được duyệt, không phải tên SDK đọc hoặc quyền SQL tự tạo. Core tự suy schema `mod_<ma>`, owner `vai_doi_cau_truc_mod_<ma>`, runtime `vai_chay_mod_<ma>` và đối tượng công bố `cong_bo_<ma>.<ham>`; gói không được khai `du_lieu_rieng.schema`, `goi_migration.vai` hoặc `cong_bo[].doi_tuong`. `tien_trinh.cong`/`ho_so_chay_mau.cong` chỉ nhận hằng `{nguon: core_cap, pham_vi: loopback}`, không nhận số cổng.
+
+Khi cài/nâng cấp, Core kiểm `contract/` và ghi sổ `loi.dang_ky_contract` theo CSDL §3.1, không sửa code Core khi thêm module. Đăng ký không đồng nghĩa được đọc: vẫn phải cấp quyền thực tế. Contract nghiệp vụ mới hoặc phiên bản mới của contract đang dùng phải xuất danh mục dạng bảng và được Anh duyệt trước kích hoạt. Giữ phiên bản cũ cho module đang dùng, cảnh báo module còn ghim bản sắp ngừng. Màn quản trị đọc sổ: **bổ sung route quản trị sổ contract khi mở G2**; không thay phiếu API đã duyệt.
 
 `ham_core_goi` đăng ký vào `loi.dang_ky_ham_module` khi cài, gồm loại/phiên bản/chữ ký, owner và hash gói do Core suy và kiểm. Resolver MTQ/kiểm nghĩa vụ là DEFINER đúng owner module và policy FORCE RLS, chỉ cổng Core nội bộ EXECUTE; không cho Core SELECT bảng riêng, không nhận tên hàm từ client. Chưa cài/chưa có contract trả `CHO`, không commit ghi liên quan dở (CSDL §4.2). Module có thể khai mảng rỗng nếu không có nghiệp vụ tương ứng; M4 khai resolver/kiểm nghĩa vụ qua gói, không vá Core.
 
@@ -386,15 +418,15 @@ Giữ cơ chế checksum/transaction và chặn hạ phiên bản của `ha_tang
 
 Công tắc `TAT/THU/VAN_HANH` tách khỏi trạng thái tiến trình và chính sách tự đóng. Giữ cổng kiểm trong transaction, quyền xem lịch sử và quy tắc công bố hiện hữu (`k2/module.py:62`, `:99`). Tắt hoặc nâng cấp không xóa dữ liệu, tệp nguồn, lịch sử và biên nhận chống trùng.
 
-## 8. Điểm cần Anh chọn và điều kiện chuyển tiếp
+## 8. Quyết định Anh đã chốt và điều kiện chuyển tiếp
 
-| Câu cần Anh chọn | Phương án và đánh đổi | Khuyến nghị |
+| Câu đã chốt theo CD-033 | Quyết định | Yêu cầu áp dụng |
 |---|---|---|
-| **1. Module thử Core ở G2?** | **A. Tra cứu tài liệu DEMO:** nhỏ, đủ tệp/OCR/việc/công bố/cài/tắt, ít nghiệp vụ kế toán. **B. M9 theo đúng CD-015:** bao phủ nghiệp vụ hơn, nhiều phụ thuộc; không thêm logic khoản vay. **C. Không có, thử thẳng M4 ở G4:** bớt gói thử, phát hiện lỗi Core muộn | **A**, chỉ dữ liệu DEMO; khác M4 mẫu G4 đã chốt (CD-026 mục 3, TL 55 §6, CD-027) |
-| **2. Tài khoản Windows của module/engine?** | **A. Token hạn chế/tài khoản riêng, không đọc được `bi-mat` hoặc nhớ Core:** tốn công ACL/kiểm G2, có ranh giới an ninh. **B. Cùng token đầy đủ của Core:** dễ vận hành nhưng login tách chỉ chống nhầm lẫn, phải chấp nhận module đọc bí mật/nhớ Core | **A**, thử token hạn chế tại §4.4 trước; nếu cần tài khoản riêng trình lead chốt. B thay đổi mô hình đe dọa, chưa được cho phép triển khai |
-| **3. Có việc/sự kiện chờ cho module đang tự đóng?** | **A. Core khởi động ngay:** độ trễ thấp, thêm lần bật. **B. Gom theo lịch 15 phút:** ít lần bật, chậm xử lý. **C. Chỉ mở màn mới bật:** tiết kiệm lúc nghỉ nhưng việc có thể chờ vô hạn | **A** mặc định cho module được phép hoạt động; Admin đổi sau số đo theo CD-028 mục 3b, không tự bật công tắc `TAT` |
+| **1. Module thử Core ở G2 — đã chốt CRM (DEMO)** | Dùng dữ liệu DEMO; lead đề xuất phạm vi CRM tối thiểu trong phiếu SDK bản 2 | Bao phủ tệp, engine trích xuất/OCR, việc lâu, công bố + sự kiện, `contract/`, cài/tắt qua giao diện, MTQ và cổng Core giữ/nhả theo CD-028; G4 vẫn M4 → CRM → M2, dùng tiếp phần CRM đã thử |
+| **2. Tài khoản Windows — đã chốt A** | Core tài khoản riêng, module/engine tài khoản máy hạn chế, áp ngay khi thử trên máy Anh | Script tạo tài khoản/cấp quyền thư mục chạy lại được khi chuyển máy chủ; Anh chỉ đồng ý quyền quản trị. Ngoại lệ engine cũ phải hỏi Anh; không tự nới quyền. Bộ kiểm §4.4 phải chặn đọc `D:\DU-LIEU-KE-TOAN\bi-mat\` |
+| **3. Việc/sự kiện chờ khi module tự đóng — đã chốt A** | Core khởi động ngay module được phép hoạt động | Admin đổi sau số đo theo CD-028 mục 3b; không tự bật module Anh đã tắt |
 
-**Câu 2 là tài khoản Windows chạy tiến trình**, khác câu 3 phiếu CSDL (tài khoản người dùng do Core quản). §3 `danh_tinh`/`ma_hoa` và §4.2 dựa trên mã phiên bí mật/mã ủy nhiệm; nếu Anh chọn khác ở câu 1 phiếu CSDL thì hai mục này phải sửa theo.
+**Câu 2 là tài khoản Windows chạy tiến trình**, khác câu 3 phiếu CSDL (tài khoản người dùng do Core quản). §3 `danh_tinh`/`ma_hoa` và §4.2 dựa trên mã phiên bí mật/mã ủy nhiệm theo phiếu CSDL/API đã được Anh duyệt; vòng 3 chỉ bổ sung yêu cầu CD-031/032/033.
 
 **Thông báo, không hỏi lại:** M4 là module mẫu đầu tiên G4. Retention/snapshot OCR giữ trong phiếu CSDL, không hỏi trùng tại đây.
 
@@ -424,3 +456,14 @@ Mã `O`/`C` được gán theo quy ước §1 để bao phủ từng dòng của
 | O-CS9; O-R6; C5 | §8 đúng ba câu; thông báo M4 G4, bỏ retention trùng và logic khoản vay |
 | C3 | §2, §6.1 `dau_ra` việc lâu trỏ `$defs/da_nhan`; schema manifest cưỡng chế |
 | C4 | §2, §5, §6.1 `ma_loi`; contract §11 `chi_tiet` an toàn/đăng ký mã lỗi |
+
+## Vòng 3 — CD-031/032/033
+
+Kiểm tĩnh vòng 3: 24/24 khối JSON parse, 12 tài nguyên schema không trùng `$id`, 145/145 `$ref` giải được offline; 2/2 manifest ví dụ và 19/19 ca âm của phần manifest đạt kiểm các keyword đang dùng. Cả ba tệp UTF-8 không BOM; `git diff --check` đạt. Chưa kiểm bằng validator meta-schema draft 2020-12 chính thức (môi trường không có); không chạy test ứng dụng, tài khoản Windows hoặc runtime G2.
+
+| Việc | Chỗ sửa |
+|---|---|
+| CD-031/032: lớp dữ liệu giao tiếp, gói `contract/` và manifest | §6, §6.1; dẫn chiếu JSON hai lớp và schema tại `CONTRACT-DU-LIEU.md` §1, §15 |
+| CD-032: sổ contract, duyệt, giữ bản cũ và màn quản trị | §6.1; sổ `loi.dang_ky_contract` theo CSDL §3.1, ghi chú route đọc khi mở G2 |
+| CD-033 câu 2: tài khoản Windows riêng ngay từ thử máy Anh | §4.4, §8: script chạy lại, ngoại lệ engine cũ, kiểm bí mật/DPAPI/bộ nhớ |
+| CD-033 câu 1, 3: CRM DEMO và khởi động ngay | §4.3, §6.1, §8: ba câu đã chốt |
