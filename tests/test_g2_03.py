@@ -11,6 +11,7 @@ from datetime import datetime, timedelta, timezone
 import hashlib
 import os
 from pathlib import Path
+import pickle
 import secrets
 import sys
 import traceback
@@ -67,6 +68,13 @@ class PhienThuanTest(unittest.TestCase):
         for doi_tuong in (a, a.ma, {'ma': a.ma}, [a]):
             self.assertNotIn(a.ma.lay_de_truyen(), repr(doi_tuong))
             self.assertNotIn(a.ma.lay_de_truyen(), str(doi_tuong))
+
+    def test_ma_bi_mat_chan_pickle_moi_protocol(self):
+        ma = phien.MaBiMat('CANARY_PICKLE_' + secrets.token_urlsafe(32))
+        for protocol in range(pickle.HIGHEST_PROTOCOL + 1):
+            with self.subTest(protocol=protocol), self.assertRaises(TypeError) as bat:
+                pickle.dumps(ma, protocol=protocol)
+            self.assertNotIn(ma.lay_de_truyen(), str(bat.exception))
 
     def test_cap_uy_nhiem_bind_ma_goc_va_the_he(self):
         ma_goc, viec = phien.MaBiMat('G' * 43), uuid4()
@@ -134,6 +142,28 @@ class PhienThuanTest(unittest.TestCase):
             with self.subTest(loi=loi), self.assertRaises(ValueError):
                 phien.cap_phien(self.conn, **{**self.tham_so, **loi})
         self.conn.execute.assert_not_called()
+
+    def test_loi_khong_giu_tham_so_ma_tho_trong_traceback(self):
+        for buoc in ('execute', 'fetchone'):
+            with self.subTest(buoc=buoc):
+                self.conn.reset_mock(side_effect=True)
+                if buoc == 'execute':
+                    self.conn.execute.side_effect = RuntimeError('loi driver')
+                else:
+                    self.conn.execute.return_value.fetchone.side_effect = RuntimeError('loi driver')
+                try:
+                    phien.cap_phien(self.conn, **self.tham_so)
+                except phien.LoiPhien as loi:
+                    khung = []
+                    tb = loi.__traceback__
+                    while tb is not None:
+                        if tb.tb_frame.f_code.co_name == '_goi':
+                            khung.append(tb.tb_frame)
+                        tb = tb.tb_next
+                    self.assertEqual(len(khung), 1)
+                    self.assertIsNone(khung[0].f_locals.get('tham_so'))
+                else:
+                    self.fail('Can LoiPhien khi driver loi')
 
     def test_khong_nhan_actor_hoac_ma_thuan(self):
         with self.assertRaises(TypeError):
@@ -262,6 +292,23 @@ class PhienPostgresTest(unittest.TestCase):
 
     def test_sai_phap_nhan(self):
         self.assertIsNone(self._xac_minh(self._cap().ma, phap_nhan_id=self.pn_khac))
+
+    def test_khong_cap_khi_thieu_thanh_vien_hoac_module(self):
+        for doi in ({'phap_nhan_id': self.pn_khac}, {'module': 'M4'}):
+            with self.subTest(doi=doi), self.assertRaises(phien.LoiPhien):
+                self._cap(**doi)
+
+    def test_bo_module_khong_xac_minh_ke_ca_chua_thu_hoi(self):
+        p = self._cap()
+        # Tach kiem quyen trong WHERE khoi co che thu hoi cua trigger.
+        with self.conn.transaction():
+            self.conn.execute('ALTER TABLE loi.phan_quyen DISABLE TRIGGER phien_doi_quyen')
+            self.conn.execute('UPDATE loi.phan_quyen SET module=%s WHERE nguoi_dung_id=%s',
+                              (['M4'], self.nd))
+            self.conn.execute('ALTER TABLE loi.phan_quyen ENABLE TRIGGER phien_doi_quyen')
+        self.assertIsNone(self.conn.execute(
+            'SELECT thu_hoi_luc FROM loi.phien_xac_thuc WHERE id=%s', (p.id,)).fetchone()[0])
+        self.assertIsNone(self._xac_minh(p.ma))
 
     def test_sai_hanh_dong(self):
         self.assertIsNone(self._xac_minh(self._cap().ma, hanh_dong='XOA'))
@@ -405,12 +452,67 @@ class PhienPostgresTest(unittest.TestCase):
         self.assertEqual(self.conn.execute("SELECT relrowsecurity,relforcerowsecurity FROM pg_class WHERE oid='loi.phien_xac_thuc'::regclass").fetchone(), (True, True))
         self.assertTrue(self.conn.execute("SELECT EXISTS (SELECT FROM pg_indexes WHERE schemaname='loi' AND tablename='phien_xac_thuc' AND indexdef LIKE 'CREATE UNIQUE INDEX%%(ma_bam)')").fetchone()[0])
 
+    def test_policy_owner_definer_chi_doc_bang_danh_tinh(self):
+        rows = self.conn.execute('''SELECT c.relname,p.polcmd,
+            pg_get_expr(p.polqual,p.polrelid),pg_get_expr(p.polwithcheck,p.polrelid)
+            FROM pg_policy p JOIN pg_class c ON c.oid=p.polrelid
+            WHERE c.relnamespace='loi'::regnamespace AND p.polname='phien_chu_xac_thuc'
+            ORDER BY c.relname''').fetchall()
+        self.assertEqual(rows, [('nguoi_dung', 'r', 'true', None),
+                                ('phan_quyen', 'r', 'true', None),
+                                ('phap_nhan', 'r', 'true', None),
+                                ('phien_xac_thuc', '*', 'true', 'true')])
+        cac_bang = (
+            ('nguoi_dung', "INSERT INTO loi.nguoi_dung(dang_nhap,ten,vai_tro) VALUES ('demo_cam_ghi','DEMO','XEM')",
+             sql.SQL('id={}').format(sql.Literal(self.nd)), "ten='DOI'"),
+            ('phap_nhan', "INSERT INTO loi.phap_nhan(ma,ten) VALUES ('demo_cam_ghi','DEMO')",
+             sql.SQL('id={}').format(sql.Literal(self.pn)), "ten='DOI'"),
+            ('phan_quyen', sql.SQL('INSERT INTO loi.phan_quyen(nguoi_dung_id,phap_nhan_id,module) VALUES ({},{},ARRAY[\'CRM\'])').format(
+                sql.Literal(self.nd), sql.Literal(self.pn_khac)),
+             sql.SQL('nguoi_dung_id={}').format(sql.Literal(self.nd)), "module=ARRAY['M4']"),
+        )
+        with self.conn.transaction():
+            for bang, them, dieu_kien, gan in cac_bang:
+                for lenh, cau_sql in (
+                    ('INSERT', them),
+                    ('UPDATE', sql.SQL('UPDATE loi.{} SET {} WHERE {}').format(
+                        sql.Identifier(bang), sql.SQL(gan), dieu_kien)),
+                    ('DELETE', sql.SQL('DELETE FROM loi.{} WHERE {}').format(sql.Identifier(bang), dieu_kien)),
+                ):
+                    with self.subTest(bang=bang, lenh=lenh):
+                        # Ham thuc thi duoi dung owner nhu cac ham SECURITY DEFINER.
+                        than = sql.SQL('BEGIN {}; GET DIAGNOSTICS n = ROW_COUNT; RETURN n; END;').format(
+                            sql.SQL(cau_sql) if isinstance(cau_sql, str) else cau_sql)
+                        self.conn.execute(sql.SQL('''CREATE OR REPLACE FUNCTION loi.g203_thu_ghi()
+                            RETURNS bigint LANGUAGE plpgsql SECURITY DEFINER
+                            SET search_path=pg_catalog,pg_temp AS {}''').format(
+                                sql.Literal('DECLARE n bigint; ' + than.as_string(self.conn))))
+                        self.conn.execute(sql.SQL('ALTER FUNCTION loi.g203_thu_ghi() OWNER TO {}').format(
+                            sql.Identifier(self.chu)))
+                        if lenh == 'INSERT':
+                            with self.assertRaises(psycopg.errors.InsufficientPrivilege):
+                                with self.conn.transaction():
+                                    self.conn.execute('SELECT loi.g203_thu_ghi()')
+                        else:
+                            self.assertEqual(self.conn.execute('SELECT loi.g203_thu_ghi()').fetchone(), (0,))
+            # Ham kiem thu chi ton tai trong transaction nay.
+            raise psycopg.Rollback()
+
     def test_chay_lai_giu_ma_va_khong_noi_quyen(self):
         p = self._cap()
-        self.conn.execute(SQL_PHIEN)
+        with self.conn.transaction():
+            # Mo phong policy FOR ALL cua vong 1 de kiem duong nang cap.
+            for bang in ('nguoi_dung', 'phap_nhan', 'phan_quyen'):
+                self.conn.execute(sql.SQL('DROP POLICY phien_chu_xac_thuc ON loi.{}').format(
+                    sql.Identifier(bang)))
+                self.conn.execute(sql.SQL('''CREATE POLICY phien_chu_xac_thuc ON loi.{}
+                    TO {} USING (true) WITH CHECK (true)''').format(
+                        sql.Identifier(bang), sql.Identifier(self.chu)))
+            self.conn.execute(SQL_PHIEN)
         self.assertIsNotNone(self._xac_minh(p.ma))
         self.test_runtime_khong_select_dml_bang_phien()
         self.test_module_khong_cap_hoac_thu_hoi_ke_ca_gia_guc()
+        self.test_policy_owner_definer_chi_doc_bang_danh_tinh()
 
 
 if __name__ == '__main__':

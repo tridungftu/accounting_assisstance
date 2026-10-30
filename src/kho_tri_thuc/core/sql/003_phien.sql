@@ -76,7 +76,12 @@ BEGIN
     ALTER TABLE loi.phien_xac_thuc ENABLE ROW LEVEL SECURITY;
     ALTER TABLE loi.phien_xac_thuc FORCE ROW LEVEL SECURITY;
     FOREACH ten_bang IN ARRAY ARRAY['phien_xac_thuc', 'nguoi_dung', 'phap_nhan', 'phan_quyen'] LOOP
-        IF NOT EXISTS (SELECT FROM pg_catalog.pg_policy
+        IF ten_bang <> 'phien_xac_thuc' THEN
+            -- Doi ca policy FOR ALL da ap o vong 1; ALTER POLICY khong doi duoc lenh.
+            EXECUTE format('DROP POLICY IF EXISTS phien_chu_xac_thuc ON loi.%I', ten_bang);
+            EXECUTE format('CREATE POLICY phien_chu_xac_thuc ON loi.%I
+                FOR SELECT TO %I USING (true)', ten_bang, vai_chu);
+        ELSIF NOT EXISTS (SELECT FROM pg_catalog.pg_policy
                        WHERE polrelid = format('loi.%I', ten_bang)::regclass
                          AND polname = 'phien_chu_xac_thuc') THEN
             -- Chi owner ham xac thuc, khong cap policy nay cho runtime.
@@ -113,7 +118,11 @@ BEGIN
            OR NOT EXISTS (SELECT FROM loi.nguoi_dung
                           WHERE id = p_nguoi_dung_id AND trang_thai = 'HOAT_DONG' AND NOT mo_phong)
            OR NOT EXISTS (SELECT FROM loi.phap_nhan
-                          WHERE id = p_phap_nhan_id AND trang_thai = 'HOAT_DONG') THEN
+                          WHERE id = p_phap_nhan_id AND trang_thai = 'HOAT_DONG')
+           OR NOT EXISTS (SELECT FROM loi.phan_quyen q
+                          WHERE q.nguoi_dung_id = p_nguoi_dung_id
+                            AND q.phap_nhan_id = p_phap_nhan_id
+                            AND p_module = ANY(q.module)) THEN
             RAISE EXCEPTION 'Khong the cap phien' USING ERRCODE = '22023';
         END IF;
         IF p_loai = 'NGUOI_DUNG' AND (p_ma_goc IS NOT NULL OR p_dang_nhap_csdl <> session_user) THEN
@@ -175,6 +184,10 @@ BEGIN
           AND p_hanh_dong = ANY(p.pham_vi_hanh_dong)
           AND p.thu_hoi_luc IS NULL AND p.hieu_luc_den > statement_timestamp()
           AND n.trang_thai = 'HOAT_DONG' AND NOT n.mo_phong AND pn.trang_thai = 'HOAT_DONG'
+          AND EXISTS (SELECT FROM loi.phan_quyen q
+                      WHERE q.nguoi_dung_id = p.nguoi_dung_id
+                        AND q.phap_nhan_id = p.phap_nhan_id
+                        AND p.module = ANY(q.module))
           AND ((p.loai <> 'UY_NHIEM_VIEC' AND p_viec_id IS NULL AND p_the_he IS NULL)
             OR (p.loai = 'UY_NHIEM_VIEC' AND p.viec_id = p_viec_id AND p.the_he = p_the_he
                 AND NOT EXISTS (SELECT FROM loi.phien_xac_thuc moi
