@@ -29,6 +29,9 @@ class MaBiMat:
     def __str__(self):
         return '<ma bi mat>'
 
+    def __reduce__(self):
+        raise TypeError('Không cho phép pickle mã bí mật')
+
     def lay_de_truyen(self) -> str:
         """Chỉ dùng cho bind/kênh bootstrap được bảo vệ; không log kết quả."""
         return self.__gia_tri
@@ -58,6 +61,8 @@ def _goi(ket_noi, cau_sql, tham_so, *, lay_dong=True):
         return con_tro.fetchone() if lay_dong else None
     except Exception:
         pass
+    # Khong giu tuple chua ma tho trong locals cua traceback.
+    tham_so = None
     # Raise ngoài except: không lưu exception driver trong __context__/__cause__.
     raise LoiPhien('Thao tác phiên thất bại')
 
