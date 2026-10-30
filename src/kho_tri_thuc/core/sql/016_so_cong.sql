@@ -355,22 +355,29 @@ BEGIN
     $ham$;
     CREATE OR REPLACE FUNCTION loi.so_cong_san_sang(p_id uuid,p_instance uuid,p_the_he bigint,p_bang_chung uuid)
     RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,pg_temp AS $ham$
-    DECLARE s loi.so_cong;
+    DECLARE s loi.so_cong; moc timestamptz;
     BEGIN
         s:=loi.so_cong_giu(p_id,p_instance,p_the_he);
         IF p_bang_chung IS NULL THEN RAISE EXCEPTION 'CONG_CAN_DOI_CHIEU' USING ERRCODE='22023'; END IF;
         -- Core chi goi sau kiem readiness/PID/lan tao/version/nonce/socket tai G2-21.
-        UPDATE loi.module_phien_chay SET san_sang_luc=coalesce(san_sang_luc,clock_timestamp()),
-            bang_chung_san_sang_id=coalesce(bang_chung_san_sang_id,p_bang_chung)
-            WHERE id=s.giu_boi AND so_cong_id=s.id AND the_he=s.the_he;
-        UPDATE loi.engine_phien_chay SET san_sang_luc=coalesce(san_sang_luc,clock_timestamp()),
-            bang_chung_san_sang_id=coalesce(bang_chung_san_sang_id,p_bang_chung)
-            WHERE id=s.giu_boi AND so_cong_id=s.id AND the_he=s.the_he;
+        -- Moi lan khoi dong chi ghi mot moc, dung cung timestamp cho phien va so do.
+        IF s.module IS NOT NULL THEN
+            UPDATE loi.module_phien_chay SET san_sang_luc=clock_timestamp(),
+                bang_chung_san_sang_id=p_bang_chung
+                WHERE id=s.giu_boi AND so_cong_id=s.id AND the_he=s.the_he AND san_sang_luc IS NULL
+                RETURNING san_sang_luc INTO moc;
+        ELSE
+            UPDATE loi.engine_phien_chay SET san_sang_luc=clock_timestamp(),
+                bang_chung_san_sang_id=p_bang_chung
+                WHERE id=s.giu_boi AND so_cong_id=s.id AND the_he=s.the_he AND san_sang_luc IS NULL
+                RETURNING san_sang_luc INTO moc;
+        END IF;
+        IF moc IS NULL THEN RETURN to_jsonb(s); END IF;
         UPDATE loi.so_cong SET trang_thai='CON_GIU',phien_ban_dong=phien_ban_dong+1
             WHERE id=s.id RETURNING * INTO s;
         INSERT INTO loi.so_do_phien_chay(engine_phien_id,module_phien_id,san_sang_luc)
             VALUES (CASE WHEN s.module IS NULL THEN s.giu_boi END,
-                CASE WHEN s.module IS NOT NULL THEN s.giu_boi END,clock_timestamp());
+                CASE WHEN s.module IS NOT NULL THEN s.giu_boi END,moc);
         RETURN to_jsonb(s);
     END;
     $ham$;

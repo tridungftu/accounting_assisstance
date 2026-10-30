@@ -244,6 +244,36 @@ class SoCongPostgresTest(unittest.TestCase):
             sc.loi_khoi_dong(self.core, self.id, self.instance, 1, ma_loi='CONG_BI_CHIEM')
         return self._doc()
 
+    def _kiem_san_sang_goi_lai(self, bang):
+        cot_phien = 'module_phien_id' if bang == 'module_phien_chay' else 'engine_phien_id'
+        cac_instance = (self.instance, uuid4())
+        for the_he, instance in enumerate(cac_instance, 1):
+            with self.subTest(bang=bang, the_he=the_he):
+                self._nhan(instance_id=instance, the_he_cu=the_he-1)
+                bang_chung = uuid4()
+                with self.core.transaction():
+                    dau = sc.san_sang(self.core, self.id, instance, the_he, bang_chung_id=bang_chung)
+                phien = self.conn.execute(sql.SQL(
+                    'SELECT san_sang_luc,bang_chung_san_sang_id FROM loi.{} WHERE id=%s AND the_he=%s'
+                ).format(sql.Identifier(bang)), (instance, the_he)).fetchone()
+                self.assertIsNotNone(phien[0])
+                self.assertEqual(phien[1], bang_chung)
+                for bang_chung_lai in (bang_chung, uuid4()):
+                    with self.core.transaction():
+                        lai = sc.san_sang(self.core, self.id, instance, the_he, bang_chung_id=bang_chung_lai)
+                    self.assertEqual(lai, dau)
+                self.assertEqual(self.conn.execute(sql.SQL(
+                    'SELECT san_sang_luc,bang_chung_san_sang_id FROM loi.{} WHERE id=%s'
+                ).format(sql.Identifier(bang)), (instance,)).fetchone(), phien)
+                self.assertEqual(self.conn.execute(sql.SQL(
+                    'SELECT san_sang_luc FROM loi.so_do_phien_chay WHERE {}=%s AND san_sang_luc IS NOT NULL'
+                ).format(sql.Identifier(cot_phien)), (instance,)).fetchall(), [(phien[0],)])
+                with self.core.transaction():
+                    sc.tra(self.core, self.id, instance, the_he)
+        self.assertEqual(self.conn.execute(sql.SQL(
+            'SELECT count(*) FROM loi.so_do_phien_chay WHERE {}=ANY(%s) AND san_sang_luc IS NOT NULL'
+        ).format(sql.Identifier(cot_phien)), (list(cac_instance),)).fetchone()[0], 2)
+
     def test_login_that_chuoi_theo_so_ap_lai_khong_doi(self):
         self.assertEqual(dc.ap_doi_cau_truc(self.conn, self.tep_sql), max(dc._doc_chuoi(self.tep_sql)))
         for conn in (self.core, self.module, self.cai_dat):
@@ -258,14 +288,18 @@ class SoCongPostgresTest(unittest.TestCase):
             sc.cap(self.core, self.may, 19017, module=self.ma_module)
         self.assertEqual(bat.exception.ma, 'CONG_CO_DINH')
         for dia_chi, cong in (('127.0.0.1', 19017), ('::1', 19016)):
-            with self.assertRaises(psycopg.errors.UniqueViolation):
-                self.conn.execute('INSERT INTO loi.so_cong(may_chu_id,dia_chi_nghe,cong,module) VALUES (%s,%s,%s,%s)',
-                                  (self.may, dia_chi, cong, self.ma_module))
+            with self.subTest(dia_chi=dia_chi, cong=cong), self.assertRaises(psycopg.errors.SerializationFailure) as bat, self.core.transaction():
+                self.core.execute('SELECT loi.so_cong_cap(%s,%s,%s,%s,%s)',
+                                  (self.may, dia_chi, cong, self.ma_module, None))
+            self.assertEqual(bat.exception.sqlstate, '40001')
+            self.assertEqual(bat.exception.diag.message_primary, 'CONG_CO_DINH')
         khac = 'demo_' + uuid4().hex[:12]
         self._ghi('module', ma=khac, ten='DEMO')
-        with self.assertRaises(psycopg.errors.UniqueViolation):
-            self.conn.execute('INSERT INTO loi.so_cong(may_chu_id,dia_chi_nghe,cong,module) VALUES (%s,%s,%s,%s)',
-                              (self.may, '127.0.0.1', 19016, khac))
+        with self.assertRaises(psycopg.errors.UniqueViolation) as bat, self.core.transaction():
+            self.core.execute('SELECT loi.so_cong_cap(%s,%s,%s,%s,%s)',
+                              (self.may, '127.0.0.1', 19016, khac, None))
+        self.assertEqual(bat.exception.sqlstate, '23505')
+        self.assertEqual(self._doc(), self.s)
 
     def test_hai_ket_noi_cas_chi_mot_nhan(self):
         rao = Barrier(2)
@@ -387,8 +421,13 @@ class SoCongPostgresTest(unittest.TestCase):
                                  executable='DEMO/engine.exe', doi_so=['--demo'])
         with self.core.transaction():
             so = sc.cap(self.core, self.may, 19017, engine_ho_so_id=ho_so)
+        with self.assertRaises(psycopg.errors.SerializationFailure) as bat, self.core.transaction():
+            self.core.execute('SELECT loi.so_cong_cap(%s,%s,%s,%s,%s)',
+                              (self.may, '127.0.0.1', 19018, None, ho_so))
+        self.assertEqual(bat.exception.sqlstate, '40001')
+        self.assertEqual(bat.exception.diag.message_primary, 'CONG_CO_DINH')
         self.id = UUID(so['id'])
-        self._nhan()
+        self._kiem_san_sang_goi_lai('engine_phien_chay')
         self.assertEqual(self.conn.execute('SELECT oid FROM pg_roles WHERE rolcanlogin ORDER BY oid').fetchall(), truoc)
         self.assertEqual(self.conn.execute('SELECT engine_ho_so_id FROM loi.engine_phien_chay WHERE id=%s', (self.instance,)).fetchone()[0], ho_so)
         with self.assertRaises(sc.LoiSoCong), self.core.transaction():
@@ -428,6 +467,9 @@ class SoCongPostgresTest(unittest.TestCase):
         self.assertEqual(self.conn.execute('SELECT count(*) FROM loi.so_do_phien_chay WHERE module_phien_id=%s', (self.instance,)).fetchone()[0], 4)
         with self.assertRaises(psycopg.Error):
             self.conn.execute('UPDATE loi.so_do_phien_chay SET cpu_ms=0 WHERE id=%s', (so_do,))
+
+    def test_san_sang_goi_lai_chi_ghi_moc_dau_moi_lan_khoi_dong(self):
+        self._kiem_san_sang_goi_lai('module_phien_chay')
 
     def test_het_hieu_luc_va_khong_xoa_lich_su(self):
         with self.core.transaction():

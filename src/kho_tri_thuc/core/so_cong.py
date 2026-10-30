@@ -108,6 +108,7 @@ def gia_han(conn, so_cong_id, instance_id, the_he, *, lease_giay=120):
 
 
 def san_sang(conn, so_cong_id, instance_id, the_he, *, bang_chung_id):
+    """Chỉ ghi mốc và bằng chứng sẵn sàng lần đầu cho mỗi instance/thế hệ."""
     return _goi(conn, 'so_cong_san_sang', (*_giu(so_cong_id, instance_id, the_he), UUID(str(bang_chung_id))))
 
 
