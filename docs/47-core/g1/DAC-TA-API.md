@@ -107,6 +107,7 @@ Header **`Idempotency-Key`** bắt buộc cho POST/PATCH/PUT nghiệp vụ và q
 
 - Operation do Core sở hữu: Core ghi biên nhận cùng transaction thay đổi dữ liệu hoặc tạo việc. Phạm vi người dùng × pháp nhân/phạm vi hệ thống × module × operation × khóa. Chỉ biên nhận Core có thời hạn đề xuất 24 giờ từ kết quả cuối; giữ tiếp khi việc còn hoạt động hoặc kết quả chưa xác định.
 - Operation nghiệp vụ `/module/*`: Core chỉ khóa request đang chạy, chuyển nguyên `Idempotency-Key` trong token ký. Module qua SDK giữ biên nhận **vĩnh viễn, bất biến**, cùng transaction nghiệp vụ/tạo việc qua hàm CSDL Core V2 trên chính kết nối đó (không commit việc riêng bằng HTTP); Core không ghi bản biên nhận hoàn tất thứ hai. Namespace metadata `/module` do Core sở hữu không thuộc quy tắc ghi nghiệp vụ này.
+- **Chỗ lưu (bổ sung lead sau Opus vòng 2):** biên nhận nghiệp vụ của module ghi qua hàm V2 vào `loi_tai_lieu.bien_nhan_thao_tac` trên chính kết nối và transaction của module; bảng bất biến, giữ vĩnh viễn (khớp DAC-TA-CSDL §3.5). Biên nhận 24 giờ của operation Core lưu tách khỏi bảng này (theo phiếu CSDL). Không dọn dòng nào của `bien_nhan_thao_tac`.
 - Module giữ UNIQUE `(phap_nhan_id, module, operation, client_key)` theo K2, lưu người tạo; kiểm quyền hành động **trước** tra biên nhận và quyền đọc kết quả của người gọi **trước** phát lại, kể cả người tạo khác. Không có quyền thấy kết quả thì 404 (`src/kho_tri_thuc/k2/crm_mau.py:5`, `src/kho_tri_thuc/k2/crm_mau.py:160`, `O:35`).
 - Fingerprint = mã operation ổn định + body chuẩn hóa; body logic bao gồm ID tài nguyên đích/pháp nhân và hash bytes tệp nếu có. Không gồm đường dẫn, method hay chính khóa; alias và v1 chuẩn hóa về cùng operation/body/khóa. Ràng buộc method/path trong chữ ký vận chuyển ở §4.2 độc lập với fingerprint chống trùng (`O:34`, `src/kho_tri_thuc/k2/crm_mau.py:7`).
 - Cùng khóa/cùng fingerprint: trả lại kết quả hoặc cùng `viec_id`; vẫn kiểm phiên/quyền hiện tại. Sau 504/crash, biên nhận **module** là nguồn đối chiếu duy nhất cho operation module; mất khóa đang chạy tại Core không cho phép bỏ kiểm biên nhận (`O:33`).
@@ -211,7 +212,7 @@ Engine dùng cùng nền vòng đời nhưng lời gọi capability đi qua adap
 
 ### 4.2. Ngữ cảnh liên tiến trình
 
-**Báo kỹ thuật:** dùng token ngữ cảnh ký; không coi loopback là danh tính; không cần Anh chọn lại cơ chế này (`O:22`).
+**Báo kỹ thuật:** dùng token ngữ cảnh ký; không coi loopback là danh tính; không cần Anh chọn lại cơ chế này (`O:22`). Cơ chế §4.2 theo phương án A của câu 1 phiếu CSDL; nếu Anh chọn B phải sửa §4.2 trước G2. Mã ủy nhiệm theo phiên không dài hơn phiên người dùng; bị thu hồi khi đăng xuất, khi phiên bị thu hồi hoặc khi quyền thay đổi.
 
 Core loại header nội bộ do client tự gửi, tạo token TTL tối đa 30 giây chứa: bên phát hành, module nhận/instance, người dùng, **mã ủy nhiệm bí mật (không phải SID)**, pháp nhân hoặc phạm vi hệ thống, module nguồn, operation, `Idempotency-Key` nếu ghi, `request_id`, thời điểm phát hành/hết hạn, nonce và hash method/đường dẫn/body. Mã ủy nhiệm ràng buộc login nhận + module + pháp nhân + hạn + phạm vi hành động (`O:19`, `O:33`, `D:135`, `D:301`).
 

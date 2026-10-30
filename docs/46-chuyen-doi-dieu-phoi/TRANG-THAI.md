@@ -761,3 +761,9 @@ Chi tiết có tệp:dòng: `BANG-DIEU-KIEN-GO-LIVE.md`; quy trình: `CHECKLIST-
 - **API (phiếu 2):** Codex đang sửa vòng 2 theo review Opus (1 Chặn: biên nhận chống trùng route module) + Codex.
 - **SDK (phiếu 3):** nháp xong; Codex đang review chéo.
 - **Tài liệu sửa** chạy trong worktree `lat/dac-ta-core`: sandbox Codex không ghi được vào thư mục chính. Lead chép về và commit.
+### 30/10 ~11:50 — **Cần Anh duyệt: PHIEU-DUYET-API** (phiếu 2/3)
+- **Phiếu API:** `docs\47-core\PHIEU-DUYET-API.md`, 2 câu chọn.
+  - Đặc tả `g1\DAC-TA-API.md` (vòng 2 + 3 câu bổ sung lead) và `g1\ANH-XA-ROUTE.md`.
+  - Opus vòng 2: không còn Chặn. OpenAPI 3.1 parse được, 33 path.
+- **Phiếu CSDL:** vẫn chờ Anh.
+- **SDK (phiếu 3):** Codex review 1 Chặn / 4 Cần sửa; Opus đang review, sau đó giao Codex sửa một vòng.

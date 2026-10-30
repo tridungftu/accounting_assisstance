@@ -45,7 +45,7 @@
 | # | Câu hỏi | A | B | Khuyến nghị |
 |---|---|---|---|---|
 | 1 | Module chạy tiến trình riêng (CD-028). CSDL có chặn cả trường hợp **một module tự nhận là người dùng khác** không? | **Có:** Core cấp mã phiên, CSDL kiểm; bước dựng Core tốn thêm ít công | **Không:** coi module nội bộ là tin cậy, CSDL chỉ chặn sai pháp nhân | **A** |
-| 2 | **Hạn giữ dữ liệu tạm và tài nguyên test** | Tệp tạm: thành công 24 giờ / lỗi 7 ngày. Dấu chống trùng 30 ngày. Số đo vận hành: chi tiết 90 ngày, tổng hợp 1 năm. CSDL/role test: thành công 7 ngày / lỗi 14 ngày | Admin quyết từng đợt | **A**. Bản gốc, kết quả đã duyệt, nhật ký nghiệp vụ **không** bị dọn. 303 CSDL + 651 role test tồn đọng hiện nay: chỉ dọn khi Anh giao lát bảo trì riêng, có xem trước |
+| 2 | **Hạn giữ dữ liệu tạm** (gồm kết quả OCR/Mask tạm) **và tài nguyên test** | Tệp tạm: thành công 24 giờ / lỗi 7 ngày. Dấu chống trùng 30 ngày. Số đo vận hành: chi tiết 90 ngày, tổng hợp 1 năm. CSDL/role test: thành công 7 ngày / lỗi 14 ngày | Admin quyết từng đợt | **A**. Bản gốc, kết quả đã duyệt, nhật ký nghiệp vụ **không** bị dọn. 303 CSDL + 651 role test tồn đọng hiện nay: chỉ dọn khi Anh giao lát bảo trì riêng, có xem trước |
 | 3 | **Tài khoản đăng nhập thật** | Core tự quản tài khoản người dùng | Nối hệ tài khoản sẵn có (Anh cho biết hệ nào); Core giữ ánh xạ | **A**, trừ khi công ty đã có hệ tài khoản tập trung |
 
 **Báo, không cần chọn** (đã có căn cứ Anh chốt trước):
