@@ -155,6 +155,37 @@ class TepThuanTest(unittest.TestCase):
         self.assertEqual(self.kho.phuc_hoi(self.kn, request_id=self.request_id, **self.ctx), ref)
         self.ghi.assert_not_called()
 
+    def test_han_utc_z_khi_tai_len_doc_va_replay_sau_commit(self):
+        for han in ('2099-01-01T07:00:00+07:00', '2099-01-01T00:00:00Z'):
+            with self.subTest(han=han):
+                rid = uuid4()
+                ref = self.upload(het_han_luc=han, request_id=rid)
+                self.assertEqual(ref['het_han_luc'], '2099-01-01T00:00:00Z')
+                self.assertEqual(self.ghi.call_args.kwargs['thong_tin']['het_han_luc'],
+                                 ref['het_han_luc'])
+                self.lay.return_value = self.view(ref)
+                self.assertEqual(self.kho.tham_chieu(self.kn, tai_lieu_id=self.tai_lieu_id,
+                    tep_id=ref['tep_id'], bien_the='goc',
+                    **{**self.ctx, 'hanh_dong': g209.XEM}), ref)
+                self.ghi.reset_mock()
+                self.assertEqual(self.kho.phuc_hoi(self.kn, request_id=rid, **self.ctx), ref)
+                self.ghi.assert_not_called()
+
+    def test_phuc_hoi_y_dinh_cu_chuan_hoa_han_utc_z(self):
+        for han in ('2099-01-01T07:00:00+07:00', '2099-01-01T00:00:00Z'):
+            with self.subTest(han=han):
+                rid = uuid4()
+                with patch.object(self.kho, '_ghi_metadata', side_effect=RuntimeError('CRASH')):
+                    with self.assertRaisesRegex(RuntimeError, 'CRASH'):
+                        self.upload(het_han_luc=han, request_id=rid)
+                # Ý định đã ghi bởi phiên bản cũ trước khi chuẩn hóa UTC/Z.
+                path = self.kho.root / 'staging' / str(rid) / 'y_dinh.json'
+                intent = json.loads(path.read_text(encoding='utf-8'))
+                intent['thong_tin']['het_han_luc'] = han
+                path.write_text(json.dumps(intent), encoding='utf-8')
+                ref = tep.KhoTep(self.kho.root).phuc_hoi(self.kn, request_id=rid, **self.ctx)
+                self.assertEqual(ref['het_han_luc'], '2099-01-01T00:00:00Z')
+
     def test_crash_sau_kich_hoat_truoc_commit_phuc_hoi_tu_y_dinh(self):
         kich_hoat = self.kho._kich_hoat
 
@@ -310,13 +341,25 @@ class KetQuaThuanTest(unittest.TestCase):
             self.svc.xac_nhan_da_commit(self.kn, tai_lieu_id=self.tid, ket_qua_id=kid,
                 bien_the='ocr', **{**self.ctx, 'hanh_dong': g209.XEM})
 
-    def test_ack_khong_thay_hoac_thu_hoi_khong_giai_phong_ram(self):
+    def test_ack_khong_thay_khong_giai_phong_ram(self):
         self.kn.autocommit = True
         self.kn.info.transaction_status = 0
         with patch.object(tai_lieu, 'lay', return_value={'ket_qua': []}), self.assertRaises(tep.LoiTep):
             self.svc.xac_nhan_da_commit(self.kn, tai_lieu_id=self.tid, ket_qua_id=uuid4(),
                 bien_the='ocr', **{**self.ctx, 'hanh_dong': g209.XEM})
         self.kho.mo_doc.assert_not_called()
+
+    def test_ack_quyen_bi_thu_hoi_tai_mo_doc_khong_giai_phong_ram(self):
+        kid, fid = str(uuid4()), str(uuid4())
+        self.kn.autocommit = True
+        self.kn.info.transaction_status = 0
+        self.kho.mo_doc.side_effect = tai_lieu.LoiTaiLieu('TAI_LIEU_NOI_DUNG')
+        with patch.object(tai_lieu, 'lay', return_value={'ket_qua': [dict(id=kid, tep_id=fid)]}):
+            with self.assertRaises(tai_lieu.LoiTaiLieu):
+                self.svc.xac_nhan_da_commit(self.kn, tai_lieu_id=self.tid, ket_qua_id=kid,
+                    bien_the='ocr', **{**self.ctx, 'hanh_dong': g209.XEM})
+        self.kho.mo_doc.assert_called_once_with(self.kn, tai_lieu_id=self.tid, tep_id=fid,
+            bien_the='ocr', **{**self.ctx, 'hanh_dong': g209.XEM})
 
 
 @unittest.skipUnless(g209.psycopg is not None and os.environ.get('KHO_PG_DSN_TEST'),
@@ -377,6 +420,19 @@ class TepPostgresTest(unittest.TestCase):
             self.upload(b'x' * (tep.TOI_DA + 1))
         view = tai_lieu.lay(self.core, tai_lieu_id=self.tai_lieu_id, bien_the='goc', **self._ctx(g209.XEM))
         self.assertEqual(view['tep'], [])
+
+    def test_han_utc_z_va_replay_sau_commit(self):
+        for revision, han in enumerate(('2099-01-01T07:00:00+07:00', '2099-01-01T00:00:00Z')):
+            with self.subTest(han=han):
+                rid = uuid4()
+                ref = self.upload(het_han_luc=han, request_id=rid, revision_truoc=revision)
+                self.assertEqual(ref['het_han_luc'], '2099-01-01T00:00:00Z')
+                doc = self.kho.tham_chieu(self.core, tai_lieu_id=self.tai_lieu_id,
+                    tep_id=ref['tep_id'], bien_the='goc', **self._ctx(g209.XEM))
+                self.assertEqual(doc, ref)
+                with self.core.transaction():
+                    replay = self.kho.phuc_hoi(self.core, request_id=rid, **self._ctx())
+                self.assertEqual(replay, ref)
 
     def test_doc_sai_phien_phap_nhan_hoac_id_bi_chan(self):
         ref = self.upload()

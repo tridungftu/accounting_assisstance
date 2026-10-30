@@ -165,9 +165,13 @@ class KhoTep:
 
     @staticmethod
     def _tham_chieu(tep_id, meta):
+        han = meta.get('het_han_luc')
+        if han is not None:
+            han = datetime.fromisoformat(han.replace('Z', '+00:00'))
+            han = han.astimezone(timezone.utc).isoformat().replace('+00:00', 'Z')
         return dict(contract='tham_chieu_tep.v1', phien_ban='1.0.0', tep_id=str(tep_id),
             **{k: meta[k] for k in ('ten_tep', 'mime', 'kich_thuoc', 'sha256')},
-            het_han_luc=meta.get('het_han_luc'))
+            het_han_luc=han)
 
     def tai_len(self, conn, *, luong, ten, tai_lieu_id, bien_the, revision_truoc,
                 request_id, het_han_luc=None, gioi_han=TOI_DA, **ctx):
@@ -188,7 +192,7 @@ class KhoTep:
             han = datetime.fromisoformat(het_han_luc.replace('Z', '+00:00'))
             if han.tzinfo is None or han <= datetime.now(timezone.utc):
                 raise ValueError('Thời hạn tạm phải ở tương lai và có múi giờ')
-            het_han_luc = han.isoformat()
+            het_han_luc = han.astimezone(timezone.utc).isoformat().replace('+00:00', 'Z')
         content = _doc_luong(luong, gioi_han)
         bam = hashlib.sha256(content).hexdigest()
         intent = dict(request_id=rid, tai_lieu_id=tid, bien_the=bien_the,
