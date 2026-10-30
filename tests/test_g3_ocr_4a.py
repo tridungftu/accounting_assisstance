@@ -11,6 +11,8 @@ from pathlib import Path
 import socket
 import subprocess
 import sys
+import threading
+import time
 import unittest
 from unittest.mock import MagicMock, patch
 from uuid import uuid4
@@ -132,11 +134,58 @@ class OCRThuanTest(unittest.TestCase):
         conn.__enter__.return_value = conn
         b.accept.return_value = (conn, ('127.0.0.1', 1))
         loi = RuntimeError('OCR4A_CANARY')
-        nhan = MagicMock(side_effect=loi)
+        kenh = KenhGia()
+        goi = kenh.goi
+        da_goi = threading.Event()
+        def ghi_loi(operation, *args, **kwargs):
+            if operation == 'ghi_ket_qua':
+                kenh.da_goi.append(operation)
+                da_goi.set()
+                raise loi
+            return goi(operation, *args, **kwargs)
+        kenh.goi = ghi_loi
+        nhan = MagicMock(return_value=SDKEngine(_lease(), kenh_core=kenh))
         vong = ocr._VongNhan(b, nhan, ocr.BackendOCRGia())
-        vong.bat_dau()
-        self.assertFalse(vong.drain())
-        conn.__exit__.assert_called_once()
+        da_drain = threading.Event()
+        ket_qua_drain, loi_chay = [], []
+        def thu_hoi(*, ngung_accept, drain):
+            ngung_accept()
+            da_drain.set()
+            ket_qua_drain.append(drain())
+            raise bs.LoiBootstrap('DRAIN_CHUA_XONG')
+        b.cho_thu_hoi.side_effect = thu_hoi
+        def chay():
+            try:
+                ocr.chay(kiem_chu_ky=lambda *_: None, nhan_viec=nhan)
+            except bs.LoiBootstrap as exc:
+                loi_chay.append(exc.ma)
+        # Bắt đầu thu hồi khi SDK đã tới đúng operation bàn giao.
+        b.bao_san_sang.side_effect = lambda **_: None
+        bat_dau = vong.bat_dau
+        def khoi_dong():
+            bat_dau()
+            self.assertTrue(da_goi.wait(2))
+        luong = threading.Thread(target=chay)
+        with patch.object(ocr.Bootstrap, 'nhan', return_value=b), \
+                patch.object(ocr, '_VongNhan', return_value=vong), \
+                patch.object(vong, 'bat_dau', side_effect=khoi_dong):
+            luong.start()
+            try:
+                self.assertTrue(da_drain.wait(2))
+                luong.join(0.1)
+                self.assertTrue(luong.is_alive())
+                self.assertEqual(ket_qua_drain, [])
+                self.assertEqual(kenh.da_goi, ['doc_dau_vao', 'ghi_ket_qua'])
+                nhan.assert_called_once_with(conn, b.bo_doc)
+                conn.__exit__.assert_not_called()
+                b.socket.close.assert_not_called()
+            finally:
+                # Chỉ tháo chốt nội bộ để dọn thread test; runtime không tự tháo.
+                vong._giu_khi_loi.set()
+                luong.join(2)
+        self.assertFalse(luong.is_alive())
+        self.assertEqual(ket_qua_drain, [False])
+        self.assertEqual(loi_chay, ['DRAIN_CHUA_XONG'])
         b.socket.close.assert_not_called()
         self.assertNotIn('OCR4A_CANARY', repr(loi))
 
@@ -214,6 +263,8 @@ class OCRTienTrinhTest(unittest.TestCase):
         self.assertEqual(reader.readline(), b'cho_core\n')
         with self.assertRaisesRegex(tt.LoiTienTrinh, 'DUNG_CHUA_XAC_NHAN'):
             c.thu_hoi(timeout=0.05)
+        # ACK chậm hơn timeout 5 giây cũ: entrypoint vẫn giữ kết nối/Job.
+        time.sleep(6)
         self.assertIsNone(proc.poll())
         self.assertGreaterEqual(job.so_tien_trinh(), 1)
         self.assertEqual((c.trang_thai, c.chu_accept), ('dang_dung', 'con'))

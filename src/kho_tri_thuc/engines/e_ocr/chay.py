@@ -58,6 +58,8 @@ class _VongNhan:
         self.khoa = threading.Lock()
         self.dung = False
         self.loi = False
+        # Không tự giải phóng việc chưa bàn giao; giữ để Core/Admin xử lý.
+        self._giu_khi_loi = threading.Event()
         self.worker = threading.Thread(target=self._chay, name='ocr-demo')
 
     def bat_dau(self):
@@ -84,9 +86,17 @@ class _VongNhan:
                         if self.dung:
                             return
                         # Việc đã được đăng ký trước ngừng nhận: drain phải chờ.
-                    conn.settimeout(5)
-                    sdk = self.nhan_viec(conn, self.bootstrap.bo_doc)
-                    xu_ly_viec(sdk, backend=self.backend)
+                    # Timeout listener chỉ đánh thức accept, không được cắt ACK.
+                    conn.settimeout(None)
+                    try:
+                        sdk = self.nhan_viec(conn, self.bootstrap.bo_doc)
+                        xu_ly_viec(sdk, backend=self.backend)
+                    except Exception as exc:
+                        _xoa_loi(exc)
+                        self.loi = True
+                        self.ngung_accept()
+                        self._giu_khi_loi.wait()
+                        return
         except Exception as exc:
             _xoa_loi(exc)
             self.loi = True
@@ -121,5 +131,7 @@ def chay(*, kiem_chu_ky, nhan_viec, backend=None):
     finally:
         if bat_dau:
             vong.ngung_accept()
-            vong.drain()
-        bootstrap.socket.close()
+            if vong.drain():
+                bootstrap.socket.close()
+        else:
+            bootstrap.socket.close()
