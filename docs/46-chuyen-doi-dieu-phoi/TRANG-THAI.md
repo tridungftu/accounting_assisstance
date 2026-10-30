@@ -935,3 +935,9 @@ Chi tiết có tệp:dòng: `BANG-DIEU-KIEN-GO-LIVE.md`; quy trình: `CHECKLIST-
 - **G2-CR1** (contract `du_an_dang_ban.v1`): runtime 17/17; đang review chéo Codex.
 - **G2-CR2** (contract `bao_gia.v1`, CD-038 1A/2B): Codex đang làm, nền `lat/g2-cr1`.
 - **G2-CR3** (`moc_da_xay_ra.v1`) **chưa giao — chờ Anh:** đặc tả ghi chặn kích hoạt. Cần Anh chốt tham chiếu lần lịch sử của mốc, điều kiện xác nhận, bên nhận, xử lý sửa/xóa ngày thực tế. Em sẽ đưa vào báo cáo sáng.
+
+### 30/10 ~22:58 — gộp G2-12; giao G2-13
+- **G2-12 đã gộp** (`0e1923d`): review vòng 2 Đạt; PG toàn bộ G2 415 ok / 0 lỗi.
+- **G2-CR1:** review Chặn (mốc riêng thiếu cả bộ tham chiếu vẫn qua schema) → vòng 2 đang sửa.
+- **G2-CR2:** runtime 23/23; đang review chéo.
+- **G2-13** (toàn vẹn tiền liên kết, FORCE RLS): đã giao Codex; review Opus bắt buộc trước khi gộp.
