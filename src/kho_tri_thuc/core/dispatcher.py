@@ -204,6 +204,7 @@ class Registry:
         self._routes = []
 
     def dang_ky(self, route):
+        """Route ghi phạm vi hệ thống chưa được hỗ trợ, chờ G2-11c."""
         if (not isinstance(route, Route) or route.method not in {'GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD'}
                 or not route.duong_dan.startswith('/api/v1/') or route.chu_so_huu not in {'core', 'module'}
                 or any(c in route.duong_dan for c in ('?', '#', '%', '\\', '*'))
@@ -211,6 +212,8 @@ class Registry:
                 or route.pham_vi not in {'phap_nhan', 'he_thong'}
                 or not re.fullmatch(r'[a-z][a-z0-9_]{0,30}', route.module)):
             raise ValueError('Route không hợp lệ')
+        if route.ghi and route.pham_vi == 'he_thong':
+            raise LoiDangKyRoute('ROUTE_GHI_HE_THONG_CHUA_HO_TRO')
         if route.phien != 'bat_buoc' and (route.chu_so_huu != 'core' or route.pham_vi != 'he_thong'):
             raise ValueError('Route tiền phiên chỉ thuộc Core, phạm vi hệ thống')
         if route.chu_so_huu == 'module' and route.pham_vi != 'phap_nhan':
@@ -277,6 +280,14 @@ class Registry:
         if allowed:
             raise LoiHTTP(405, headers={'Allow': ', '.join(sorted(allowed))})
         raise LoiHTTP(404)
+
+
+class LoiDangKyRoute(ValueError):
+    """Lỗi cấu hình route có mã ổn định để bên đăng ký xử lý."""
+
+    def __init__(self, ma):
+        self.ma = ma
+        super().__init__(ma)
 
 
 def _kiem_phan_hoi(route, result, kiem, request_id=None):
@@ -552,7 +563,10 @@ class Dispatcher:
         return result
 
     def dispatch(self, request):
+        """Chặn cả route ghi hệ thống lọt đăng ký; chờ G2-11c."""
         route, path = self.registry.tra(request.method, request.path)
+        if route.ghi and route.pham_vi == 'he_thong':
+            raise LoiHTTP(503, headers={'Retry-After': '2'})
         context = self._context(request, route, path)
         lock_key = (context.nguoi_dung_id, context.phap_nhan_id, route.module, route.operation, context.khoa)
         held = False
