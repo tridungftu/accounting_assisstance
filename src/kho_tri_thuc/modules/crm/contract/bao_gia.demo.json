@@ -1,0 +1,75 @@
+{
+  "contract": "bao_gia.v1",
+  "phien_ban": "1.0.0",
+  "revision": 1,
+  "nguon_tep_ids": ["20000000-0000-4000-8000-000000000008"],
+  "bao_gia_id": "20000000-0000-4000-8000-000000000001",
+  "so_bao_gia": "DEMO/BG/001",
+  "phap_nhan_id": "10000000-0000-4000-8000-000000000002",
+  "ngay_lap": "2026-10-30",
+  "nguoi_lap": "DEMO_BAN_HANG",
+  "doi_tuong_id": "10000000-0000-4000-8000-000000000003",
+  "du_an_id": "10000000-0000-4000-8000-000000000004",
+  "lo_can_id": "10000000-0000-4000-8000-000000000005",
+  "loai_hinh_id": "10000000-0000-4000-8000-000000000006",
+  "trang_thai": "NHAP",
+  "nguon_lich": "DU_AN",
+  "phien_ban_du_an_id": "30000000-0000-4000-8000-000000000002",
+  "ma_bam_du_an": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+  "gia_thue": {
+    "don_gia": {"gia_tri": "10000000", "don_vi_tien": "VND"},
+    "dien_tich": "100",
+    "co_so_thue": "NET",
+    "thue_suat": "10",
+    "gia_dat_tru_m2": {"gia_tri": "0", "don_vi_tien": "VND"},
+    "tong_truoc_vat": {"gia_tri": "1000000000", "don_vi_tien": "VND"},
+    "tong_vat": {"gia_tri": "100000000", "don_vi_tien": "VND"},
+    "tong_gom_vat": {"gia_tri": "1100000000", "don_vi_tien": "VND"}
+  },
+  "phi": [{
+    "ten": "DEMO phí sử dụng", "loai": "SU_DUNG",
+    "muc": {"gia_tri": "5000", "don_vi_tien": "VND"},
+    "don_vi_tinh": "M2_THANG", "co_so_tinh": "DEMO diện tích sử dụng theo thỏa thuận",
+    "co_so_gia_tri": "CHUA_RO"
+  }],
+  "lich_thanh_toan": [
+    {
+      "nghia_vu_id": "20000000-0000-4000-8000-000000000011", "loai_khoan": "GIA_BAN", "lan": 1,
+      "gia_tri_nhap": {"kieu": "so", "gia_tri": "10", "don_vi": "%"}, "ty_le": "10", "la_dat_coc": true,
+      "gia_tri_gom_vat": {"gia_tri": "100000000", "don_vi_tien": "VND"},
+      "trong_do_vat": {"gia_tri": "0", "don_vi_tien": "VND"},
+      "moc": {"loai": "NGAY", "ngay": "2026-10-30", "han": "2026-10-30"},
+      "ghi_chu": "DEMO cọc thứ nhất, VAT 10 triệu sang lần 3"
+    },
+    {
+      "nghia_vu_id": "20000000-0000-4000-8000-000000000012", "loai_khoan": "GIA_BAN", "lan": 2,
+      "gia_tri_nhap": {"kieu": "so", "gia_tri": "20", "don_vi": "%"}, "ty_le": "20", "la_dat_coc": true,
+      "gia_tri_gom_vat": {"gia_tri": "200000000", "don_vi_tien": "VND"},
+      "trong_do_vat": {"gia_tri": "0", "don_vi_tien": "VND"},
+      "moc": {"loai": "NGAY", "ngay": "2026-11-15", "han": "2026-11-15"},
+      "ghi_chu": "DEMO cọc liền nhau, VAT 20 triệu sang lần 3"
+    },
+    {
+      "nghia_vu_id": "20000000-0000-4000-8000-000000000013", "loai_khoan": "GIA_BAN", "lan": 3,
+      "gia_tri_nhap": {"kieu": "tien", "gia_tri": "600000000", "don_vi_tien": "VND"}, "ty_le": "50", "la_dat_coc": false,
+      "gia_tri_gom_vat": {"gia_tri": "600000000", "don_vi_tien": "VND"},
+      "trong_do_vat": {"gia_tri": "100000000", "don_vi_tien": "VND"},
+      "moc": {
+        "loai": "SU_KIEN", "su_kien": "DAM-10000000-0000-4000-8000-000000000031", "so_ngay_sau_moc": 0,
+        "moc_du_an_id": "10000000-0000-4000-8000-000000000031", "lan_moc": 1,
+        "ngay_du_kien": "2026-12-01", "ngay_thuc_te": null, "han": null
+      },
+      "ghi_chu": "DEMO VAT 50 triệu của đợt + 10 + 20 + 20 triệu cọc; tiền gốc nhập được giữ nguyên"
+    },
+    {
+      "nghia_vu_id": "20000000-0000-4000-8000-000000000014", "loai_khoan": "GIA_BAN", "lan": 4,
+      "gia_tri_nhap": {"kieu": "so", "gia_tri": "20", "don_vi": "%"}, "ty_le": "20", "la_dat_coc": true,
+      "gia_tri_gom_vat": {"gia_tri": "200000000", "don_vi_tien": "VND"},
+      "trong_do_vat": {"gia_tri": "0", "don_vi_tien": "VND"},
+      "moc": {"loai": "NGAY", "ngay": "2027-03-01", "han": "2027-03-01"},
+      "ghi_chu": "DEMO cọc cuối, VAT 20 triệu dồn ngược về lần 3"
+    }
+  ],
+  "het_han": "2026-11-15",
+  "ghi_chu": "DEMO CD-038 1A/2B: hai cọc liền và cọc cuối; phí riêng không vào tổng giá bán"
+}

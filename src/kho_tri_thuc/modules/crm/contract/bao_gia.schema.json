@@ -1,0 +1,104 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:ktt:contract:bao_gia.v1",
+  "title": "bao_gia.v1 — 1.0.0",
+  "description": "CRM sở hữu: báo giá tại một revision, giá/thuế, phí riêng và lịch dự kiến để in/chuyển Soạn. Grain: (bao_gia_id, revision); dòng dự kiến nghia_vu_id, chưa là nghĩa vụ hiệu lực. Bên đọc: CRM; module ngoài CRM chờ Anh xác định.",
+  "$comment": "Căn cứ CONTRACT-NGHIEP-VU.md NV-CHUNG, NV-CRM §1–§3, dòng 526–546, 706–716, 879–1000; TL45 §9 BG-27; CD-038 1A/2B. Trạng thái nhap; không kích hoạt/cấp quyền. Cần lead: mã catalog trang_thai và chi tiết suy ngược ngoài quy tắc đã chốt vẫn chờ Anh; không tự chốt enum/trạng thái in. so_bao_gia bắt buộc trước in; lo_can_id khi báo giá theo lô/căn; tỷ giá khi có quy đổi. Dữ liệu nháp lưu nội bộ có thể chưa đủ; dữ liệu công bố vẫn có vỏ và các khóa B, ID khách/dự án và tổng tiền được null như đặc tả. Lịch rỗng có thể lưu nháp; trước in/chuyển Soạn phải đủ căn cứ và lịch, Σ%=100, N+V=G, ΣT=V, ΣA=G, Σ(A−T)=N. Phân bổ B,V theo tỷ lệ, half-up VND scale 0/USD scale 2; đợt cuối nhận dư trước dồn VAT. Cọc có T=0; chuyển V cọc tới không cọc gần nhất sau, hết thì gần nhất trước theo lan. Kiểm số học, cùng đơn vị, T≤A, grain/lan duy nhất bằng Decimal ngoài schema; hàm minh chứng chỉ nằm trong test. Phí giữ riêng, không vào tổng/lịch giá bán. Nguồn Core xác minh; nhập tay lưu ảnh chụp NHAP_TAY không vòng băm; ID DEMO chỉ mô phỏng nguồn đã lưu. Ghim phiên bản + hash, không lấy latest. Resolver tiền từ chối ID dự kiến chưa có bộ ba nghĩa vụ hợp đồng hiệu lực.",
+  "type": "object",
+  "allOf": [{"$ref": "urn:ktt:contract:chung.v1#/$defs/vo_noi_dung"}],
+  "unevaluatedProperties": false,
+  "required": ["bao_gia_id", "phap_nhan_id", "ngay_lap", "nguoi_lap", "doi_tuong_id", "du_an_id", "loai_hinh_id", "trang_thai", "nguon_lich", "gia_thue", "phi", "lich_thanh_toan"],
+  "properties": {
+    "contract": {"const": "bao_gia.v1", "description": "Mã cấu trúc; CD-031, dòng 889."},
+    "phien_ban": {"const": "1.0.0", "description": "Phiên bản cấu trúc, không phải revision; DL §2, dòng 890."},
+    "revision": {"$ref": "urn:ktt:contract:chung.v1#/$defs/vo_noi_dung/properties/revision", "description": "Revision báo giá; lần; GK:1080, dòng 891."},
+    "nguon_tep_ids": {"$ref": "urn:ktt:contract:chung.v1#/$defs/vo_noi_dung/properties/nguon_tep_ids", "description": "Ít nhất một tệp/ảnh chụp nhập tay Core, không trùng; NV-CHUNG, dòng 892."},
+    "bao_gia_id": {"$ref": "urn:ktt:contract:chung.v1#/$defs/id", "description": "Định danh báo giá; GK:789, dòng 893."},
+    "so_bao_gia": {"$ref": "urn:ktt:contract:chung.v1#/$defs/chuoi", "description": "Số giao khách, bắt buộc trước in; TL42 §6, dòng 894; catalog trạng thái chờ Anh."},
+    "phap_nhan_id": {"$ref": "urn:ktt:contract:chung.v1#/$defs/id", "description": "Pháp nhân Core xác minh; TL42 §6, dòng 895."},
+    "ngay_lap": {"$ref": "urn:ktt:contract:chung.v1#/$defs/ngay", "description": "Ngày lập YYYY-MM-DD; TL42 §6, dòng 896."},
+    "nguoi_lap": {"$ref": "urn:ktt:contract:chung.v1#/$defs/chuoi", "description": "Người lập; TL42 §6, dòng 897."},
+    "doi_tuong_id": {"anyOf": [{"$ref": "urn:ktt:contract:chung.v1#/$defs/id"}, {"type": "null"}], "description": "Khách hàng qua doi_tuong.v1, null khi chưa xác định; GK:326, dòng 898."},
+    "du_an_id": {"anyOf": [{"$ref": "urn:ktt:contract:chung.v1#/$defs/id"}, {"type": "null"}], "description": "Dự án qua du_an.v1, null khi chưa xác định; GK:321, dòng 899."},
+    "lo_can_id": {"$ref": "urn:ktt:contract:chung.v1#/$defs/id", "description": "Bắt buộc khi báo giá theo lô/căn; GK:339, dòng 900."},
+    "loai_hinh_id": {"$ref": "urn:ktt:contract:chung.v1#/$defs/id", "description": "Profile báo giá; GK:320, dòng 901."},
+    "trang_thai": {"$ref": "urn:ktt:contract:chung.v1#/$defs/chuoi", "description": "Chuỗi catalog CRM, mã hóa chờ Anh; TL42 §6, dòng 902. Không suy enum từ DEMO NHAP."},
+    "nguon_lich": {"enum": ["DU_AN", "KHACH"], "description": "Theo dự án/theo khách; GK:323, dòng 903."},
+    "phien_ban_du_an_id": {"$ref": "urn:ktt:contract:chung.v1#/$defs/id", "description": "Phiên bản cấu hình ghim khi lấy chuẩn dự án; GK:926, dòng 904."},
+    "ma_bam_du_an": {"$ref": "urn:ktt:contract:chung.v1#/$defs/sha256", "description": "Hash đi cùng phiên bản dự án; CSDL §6.1, dòng 905."},
+    "gia_thue": {"$ref": "#/$defs/gia_thue", "description": "GiaCrm tại §1; VND/USD; CD-024, dòng 906."},
+    "phi": {"type": "array", "items": {"$ref": "urn:ktt:contract:du_an_dang_ban.v1#/$defs/phi"}, "description": "PhiCrm tại §3, được rỗng; giữ riêng, không cộng vào tổng giá bán; CD-038 1A, dòng 907."},
+    "lich_thanh_toan": {
+      "type": "array", "items": {"$ref": "#/$defs/dong_lich"},
+      "anyOf": [{"maxItems": 0}, {"contains": {"type": "object", "required": ["la_dat_coc"], "properties": {"la_dat_coc": {"const": false}}}}],
+      "description": "Lịch dự kiến theo lan; rỗng khi chưa đủ nháp, lịch không rỗng phải có đợt không cọc; CD-038 1A/2B, dòng 908. Không có bộ ba nghĩa vụ hiệu lực."
+    },
+    "het_han": {"$ref": "urn:ktt:contract:chung.v1#/$defs/ngay", "description": "Ngày hết hạn tùy chọn; GK:335, dòng 911."},
+    "ghi_chu": {"$ref": "urn:ktt:contract:chung.v1#/$defs/chuoi", "description": "Ghi chú tùy chọn; GK:336, dòng 912."}
+  },
+  "dependentRequired": {"phien_ban_du_an_id": ["ma_bam_du_an"], "ma_bam_du_an": ["phien_ban_du_an_id"]},
+  "if": {"properties": {"nguon_lich": {"const": "DU_AN"}}, "required": ["nguon_lich"]},
+  "then": {"required": ["phien_ban_du_an_id", "ma_bam_du_an"]},
+  "$defs": {
+    "tien_crm": {"$ref": "urn:ktt:contract:du_an_dang_ban.v1#/$defs/tien_crm"},
+    "tien_ket_qua": {
+      "$ref": "#/$defs/tien_crm",
+      "properties": {"gia_tri": {"pattern": "^(0|[1-9][0-9]*)(\\.[0-9]+)?$"}},
+      "allOf": [
+        {"if": {"properties": {"don_vi_tien": {"const": "VND"}}, "required": ["don_vi_tien"]}, "then": {"properties": {"gia_tri": {"pattern": "^(0|[1-9][0-9]*)$"}}}},
+        {"if": {"properties": {"don_vi_tien": {"const": "USD"}}, "required": ["don_vi_tien"]}, "then": {"properties": {"gia_tri": {"pattern": "^(0|[1-9][0-9]*)(\\.[0-9]{1,2})?$"}}}}
+      ],
+      "description": "Tiền kết quả không âm, tối đa 18 chữ số nguyên; VND scale 0/USD scale 2, khác tiền nguồn giữ tối đa 6 số lẻ. Half-up và quan hệ tiền kiểm Decimal trong test."
+    },
+    "gia_thue": {
+      "type": "object", "additionalProperties": false,
+      "required": ["co_so_thue", "thue_suat", "tong_truoc_vat", "tong_vat", "tong_gom_vat"],
+      "properties": {
+        "don_gia": {"$ref": "#/$defs/tien_crm", "description": "Đơn giá tùy chọn, cơ sở theo co_so_thue; VND/USD trên m²; dòng 651."},
+        "dien_tich": {"$ref": "urn:ktt:contract:chung.v1#/$defs/thap_phan", "description": "Diện tích khi tính theo diện tích; m²; dòng 652."},
+        "co_so_thue": {"enum": ["NET", "GROSS"], "description": "Cơ sở đơn giá đầu vào trước/gồm VAT; dòng 653."},
+        "thue_suat": {"enum": ["10", "8", "5", "0", "KCT", "KKKNT"], "description": "Catalog %/chế độ, giữ phân biệt KCT/KKKNT; dòng 654."},
+        "gia_dat_tru_m2": {"$ref": "#/$defs/tien_crm", "description": "Đất trừ trước VAT theo căn cứ; VND/USD trên m²; dòng 655."},
+        "tong_truoc_vat": {"anyOf": [{"$ref": "#/$defs/tien_ket_qua"}, {"type": "null"}], "description": "N giá bán trước VAT, chưa xác định là null; VND/USD; dòng 656."},
+        "tong_vat": {"anyOf": [{"$ref": "#/$defs/tien_ket_qua"}, {"type": "null"}], "description": "V từ căn cứ thuế, chưa xác định là null; VND/USD; dòng 657."},
+        "tong_gom_vat": {"anyOf": [{"$ref": "#/$defs/tien_ket_qua"}, {"type": "null"}], "description": "G=N+V, không phí; chưa xác định là null; VND/USD; dòng 658."},
+        "ty_gia": {"$ref": "#/$defs/ty_gia", "description": "Bắt buộc khi có quy đổi ngoại tệ, không tự áp tỷ giá mới; dòng 659."}
+      }
+    },
+    "ty_gia": {
+      "type": "object", "additionalProperties": false,
+      "required": ["cap", "gia_tri", "ngay", "nguoi_nhap"],
+      "properties": {
+        "cap": {"$ref": "urn:ktt:contract:chung.v1#/$defs/chuoi", "description": "Cặp tỷ giá; TL45 BG-12, dòng 659."},
+        "gia_tri": {"$ref": "urn:ktt:contract:chung.v1#/$defs/thap_phan", "description": "Tỷ giá decimal nguyên trạng; dòng 659."},
+        "ngay": {"$ref": "urn:ktt:contract:chung.v1#/$defs/ngay", "description": "Ngày ghim tỷ giá; dòng 659."},
+        "nguoi_nhap": {"$ref": "urn:ktt:contract:chung.v1#/$defs/chuoi", "description": "Người nhập tỷ giá; dòng 659."}
+      }
+    },
+    "gia_tri_nhap": {
+      "$ref": "urn:ktt:contract:chung.v1#/$defs/gia_tri",
+      "properties": {"gia_tri": {"pattern": "^(0|[1-9][0-9]*)(\\.[0-9]+)?$"}},
+      "anyOf": [
+        {"properties": {"kieu": {"const": "so"}, "don_vi": {"const": "%"}}, "required": ["kieu", "don_vi"]},
+        {"properties": {"kieu": {"const": "tien"}, "don_vi_tien": {"enum": ["VND", "USD"]}}, "required": ["kieu", "don_vi_tien"]}
+      ],
+      "description": "Giữ ô gốc % hoặc tiền trả tại đợt; không suy ty_le bằng tiền chia G; dòng 676. Chi tiết suy ngược ngoài CD-038 chờ Anh."
+    },
+    "dong_lich": {
+      "type": "object", "additionalProperties": false,
+      "required": ["nghia_vu_id", "loai_khoan", "lan", "gia_tri_nhap", "ty_le", "la_dat_coc", "gia_tri_gom_vat", "trong_do_vat", "moc"],
+      "properties": {
+        "nghia_vu_id": {"$ref": "urn:ktt:contract:chung.v1#/$defs/id", "description": "ID dự kiến duy nhất trong revision, không alias hay bộ ba hiệu lực; dòng 670."},
+        "loai_khoan": {"const": "GIA_BAN", "description": "Bản đầu chỉ giá bán; CD-038 1A, dòng 674."},
+        "lan": {"type": "integer", "minimum": 1, "description": "Thứ tự thanh toán, không cố định cọc ở lần 1; dòng 675."},
+        "gia_tri_nhap": {"$ref": "#/$defs/gia_tri_nhap", "description": "Ô % hoặc tiền gốc, khác ty_le máy suy; dòng 676."},
+        "ty_le": {"$ref": "urn:ktt:contract:chung.v1#/$defs/thap_phan", "pattern": "^(0|[1-9][0-9]*)(\\.[0-9]+)?$", "description": "% của N, không âm; Σ%=100 kiểm Decimal; dòng 677, 709, 716."},
+        "la_dat_coc": {"type": "boolean", "description": "Cho phép nhiều cọc và cọc cuối; CD-038 2B, dòng 678."},
+        "gia_tri_gom_vat": {"$ref": "#/$defs/tien_ket_qua", "description": "A=B+T đã dồn VAT cọc; VND/USD; dòng 679."},
+        "trong_do_vat": {"$ref": "#/$defs/tien_ket_qua", "description": "T thực thu, cọc bằng 0; VND/USD; dòng 680."},
+        "moc": {"$ref": "urn:ktt:contract:du_an_dang_ban.v1#/$defs/moc", "description": "Dùng lại nhóm mốc §1, ngày hoặc sự kiện có độ lệch; dòng 681, 688–696."},
+        "ghi_chu": {"$ref": "urn:ktt:contract:chung.v1#/$defs/chuoi", "description": "Ghi chú tùy chọn; dòng 682."}
+      }
+    }
+  }
+}

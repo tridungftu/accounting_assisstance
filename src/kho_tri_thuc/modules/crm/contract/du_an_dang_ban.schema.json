@@ -1,0 +1,127 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:ktt:contract:du_an_dang_ban.v1",
+  "title": "du_an_dang_ban.v1 — 1.0.0",
+  "description": "CRM sở hữu: cấu hình bán hàng của một dự án tại phiên bản xác định, gồm thông tin, giá & thuế, phí, mốc, tiến độ chuẩn và lô/căn. Bên đọc: CRM; module ngoài CRM chờ Anh xác định. Grain: (du_an_dang_ban_id, phien_ban_du_an_id).",
+  "$comment": "Căn cứ CONTRACT-NGHIEP-VU.md:49,487–569,1002–1169; CD-032, CD-038. Trạng thái nhap, cấu trúc 1.0.0; không cấp quyền/kích hoạt. Cần lead: cách biểu diễn và ghim phien_ban_du_an_id, so_phien_ban, ma_bam tổng hợp và nguồn sao chép/mẫu vẫn chờ Anh (§3:1163). Không tự tính hash hoặc coi revision là phiên bản tổng hợp. Trước công bố: Core xác minh tệp nguồn; nhập tay lưu ảnh chụp đầu vào NHAP_TAY không vòng băm. CRM kiểm Decimal tổng ty_le=100 khi tien_do đã khai, không dùng float; kiểm khóa mốc (id,lan), tiến độ lan, lô (id,lan) duy nhất và tham chiếu mốc đúng dự án/phiên bản. JSON Schema không kiểm tổng, khóa theo thuộc tính, hash hoặc quyền/nguồn thực. Lệnh ghi sáu khối cần ghi chú thay đổi và audit; đọc công bố không thêm các trường lệnh ghi. Sao chép bỏ lô, tên/mã nguồn, ngày thực tế và remap ID mốc mới (§3:1077–1079).",
+  "type": "object",
+  "allOf": [{"$ref": "urn:ktt:contract:chung.v1#/$defs/vo_noi_dung"}],
+  "unevaluatedProperties": false,
+  "required": ["du_an_dang_ban_id", "du_an_id", "phap_nhan_id", "phien_ban_du_an_id", "so_phien_ban", "ma_bam", "dang_ban", "loai_hinh_id", "thong_tin", "gia_thue", "phi", "moc", "tien_do", "lo_can"],
+  "properties": {
+    "contract": {"const": "du_an_dang_ban.v1", "description": "Mã cấu trúc; không đơn vị; CD-031, dòng 1012."},
+    "phien_ban": {"const": "1.0.0", "description": "Phiên bản cấu trúc; không đơn vị; DL §2, dòng 1013."},
+    "revision": {"$ref": "urn:ktt:contract:chung.v1#/$defs/vo_noi_dung/properties/revision", "description": "Lần sửa nội dung công bố, khác phiên bản nghiệp vụ; lần; DL §3, dòng 1014."},
+    "nguon_tep_ids": {"$ref": "urn:ktt:contract:chung.v1#/$defs/vo_noi_dung/properties/nguon_tep_ids", "description": "Tệp nguồn hoặc ảnh chụp nhập tay đã lưu Core, ít nhất một ID và không trùng; không đơn vị; DL §3, NV-CHUNG, dòng 49,1015. ID trong DEMO chỉ mô phỏng tệp DEMO đã lưu."},
+    "du_an_dang_ban_id": {"$ref": "urn:ktt:contract:chung.v1#/$defs/id", "description": "ID hồ sơ bán hàng; không đơn vị; SQL-DA:61, dòng 1016."},
+    "du_an_id": {"$ref": "urn:ktt:contract:chung.v1#/$defs/id", "description": "Tham chiếu du_an.v1 của Core, phải khác null tại cấu hình dự án; không đơn vị; SQL-DA:64, dòng 1017."},
+    "phap_nhan_id": {"$ref": "urn:ktt:contract:chung.v1#/$defs/id", "description": "Pháp nhân Core xác minh; không đơn vị; SQL-DA:63, dòng 1018."},
+    "phien_ban_du_an_id": {"$ref": "urn:ktt:contract:chung.v1#/$defs/id", "description": "ID phiên bản tổng hợp sáu khối, bắt buộc trong thiết kế đích; cách tổng hợp chờ Anh; không đơn vị; CD-023, KK §3, dòng 1019."},
+    "so_phien_ban": {"type": "integer", "minimum": 1, "description": "Số phiên bản nghiệp vụ tổng hợp; đơn vị phiên bản; CD-023, dòng 1020."},
+    "ma_bam": {"$ref": "urn:ktt:contract:chung.v1#/$defs/sha256", "description": "Hash snapshot cấu hình; cách ghim tổng hợp chờ Anh; không đơn vị; GK:926, KK §3, dòng 1021."},
+    "dang_ban": {"type": "boolean", "description": "Mở/ngừng bán; không đơn vị; SQL-DA:100, dòng 1022."},
+    "loai_hinh_id": {"$ref": "urn:ktt:contract:chung.v1#/$defs/id", "description": "Loại hình/profile bán hàng; không đơn vị; SQL-DA:105, dòng 1023."},
+    "thong_tin": {"$ref": "#/$defs/thong_tin", "description": "Thông tin bổ sung, được rỗng; không đơn vị; DA:121–122, CD-023, dòng 1024."},
+    "gia_thue": {"$ref": "#/$defs/gia_thue", "description": "Giá niêm yết và thuế mặc định; theo trường con; CD-023, dòng 1025."},
+    "phi": {"type": "array", "items": {"$ref": "#/$defs/phi"}, "description": "Phí riêng, được rỗng; khóa vị trí snapshot, không sinh nghĩa vụ; theo dòng; CD-023, SQL-DA:123, dòng 1026."},
+    "moc": {"type": "array", "items": {"$ref": "#/$defs/moc_du_an"}, "description": "Mốc riêng dự án, được rỗng; không đơn vị; CD-006/007, dòng 1027."},
+    "tien_do": {"type": "array", "items": {"$ref": "#/$defs/tien_do"}, "description": "Một tiến độ chuẩn: chỉ % + mốc + ghi chú, không tiền/giai_doan_g7. Đã khai thì tổng Decimal bằng 100; đơn vị %; CD-022, dòng 1028,1077."},
+    "lo_can": {"type": "array", "items": {"$ref": "#/$defs/lo_can"}, "description": "Lô/căn và trạng thái, được rỗng khi chưa khai; không đơn vị; CD-023, SQL-DA:137, dòng 1029."}
+  },
+  "$defs": {
+    "tien_crm": {
+      "$ref": "urn:ktt:contract:chung.v1#/$defs/tien",
+      "properties": {"don_vi_tien": {"enum": ["VND", "USD"]}},
+      "$comment": "Chỉ thu hẹp đơn vị theo bảng CRM, giữ nguyên kiểu/scale tiền chung tối đa 6 số lẻ. Nguồn không tự làm tròn; kết quả VND scale 0, USD scale 2, half-up (dòng 528–535)."
+    },
+    "thong_tin": {
+      "type": "object", "additionalProperties": false,
+      "properties": {
+        "vi_tri": {"$ref": "urn:ktt:contract:chung.v1#/$defs/chuoi", "description": "Vị trí tùy chọn; không đơn vị; DA:121, dòng 1024."},
+        "mo_ta": {"$ref": "urn:ktt:contract:chung.v1#/$defs/chuoi", "description": "Mô tả tùy chọn; không đơn vị; DA:122, dòng 1024."}
+      }
+    },
+    "gia_thue": {
+      "type": "object", "additionalProperties": false,
+      "required": ["don_gia_niem_yet", "thue_suat", "gia_dat_tru_m2"],
+      "properties": {
+        "don_gia_niem_yet": {"anyOf": [{"$ref": "#/$defs/tien_crm"}, {"type": "null"}], "description": "Đơn giá chưa VAT, chưa khai được null; VND/USD trên m²; DA:123,273, dòng 1035."},
+        "thue_suat": {"enum": ["10", "8", "5", "0", "KCT", "KKKNT"], "description": "% hoặc mã chế độ, không ép KCT/KKKNT thành 0; DA:33–34, SQL-DA:106, dòng 1036."},
+        "gia_dat_tru_m2": {"$ref": "#/$defs/tien_crm", "description": "Giá đất được trừ trước VAT; VND/USD trên m²; DA:127–134, dòng 1037."}
+      }
+    },
+    "phi": {
+      "type": "object", "additionalProperties": false,
+      "required": ["ten", "loai", "muc", "don_vi_tinh", "co_so_gia_tri"],
+      "properties": {
+        "ten": {"$ref": "urn:ktt:contract:chung.v1#/$defs/chuoi", "description": "Tên phí có dấu/khoảng trắng; không đơn vị; CD-022, DA:153, dòng 1043."},
+        "loai": {"enum": ["BAO_TRI", "SU_DUNG", "KHAC"], "description": "Loại phí; không đơn vị; DA:35, dòng 1044."},
+        "muc": {"$ref": "#/$defs/tien_crm", "description": "Mức phí, chưa là tiền đến hạn; VND/USD; DA:155–157, dòng 1045."},
+        "don_vi_tinh": {"enum": ["M2_THANG", "M2_NAM", "LAN"], "description": "m²/tháng, m²/năm, lần; DA:36, dòng 1046."},
+        "co_so_tinh": {"$ref": "urn:ktt:contract:chung.v1#/$defs/chuoi", "description": "Diễn giải tùy chọn; không đơn vị; DA:158, dòng 1047."},
+        "co_so_gia_tri": {"enum": ["TRUOC_VAT", "GOM_VAT", "CHUA_RO"], "description": "Cơ sở VAT, thiếu căn cứ giữ CHUA_RO và không dùng tính nghĩa vụ; không đơn vị; T §2.2, dòng 1048."}
+      }
+    },
+    "moc_du_an": {
+      "type": "object", "additionalProperties": false,
+      "required": ["id", "lan", "ten", "ngay_du_kien", "ngay_thuc_te", "dang_dung"],
+      "properties": {
+        "id": {"$ref": "urn:ktt:contract:chung.v1#/$defs/id", "description": "ID mốc riêng; không đơn vị; SQL-MOC:19, dòng 1054."},
+        "lan": {"type": "integer", "minimum": 1, "description": "Phiên bản mốc; lần; SQL-MOC:32, dòng 1055."},
+        "ten": {"$ref": "urn:ktt:contract:chung.v1#/$defs/chuoi", "description": "Tên mốc; không đơn vị; CD-006, SQL-MOC:35, dòng 1056."},
+        "ten_tat": {"$ref": "urn:ktt:contract:chung.v1#/$defs/chuoi", "description": "Tên tắt tùy chọn; không đơn vị; SQL-MOC:36, dòng 1057."},
+        "ngay_du_kien": {"$ref": "urn:ktt:contract:chung.v1#/$defs/ngay", "description": "Ngày dự kiến; ngày; CD-007, dòng 1058."},
+        "ngay_thuc_te": {"anyOf": [{"$ref": "urn:ktt:contract:chung.v1#/$defs/ngay"}, {"type": "null"}], "description": "Ngày xảy ra, chưa có là null; ngày; CD-007, dòng 1059."},
+        "dang_dung": {"type": "boolean", "description": "Còn dùng cho cấu hình mới; không đơn vị; SQL-MOC:39, dòng 1060."}
+      }
+    },
+    "moc": {
+      "type": "object", "additionalProperties": false,
+      "required": ["loai", "han"],
+      "properties": {
+        "loai": {"enum": ["NGAY", "SU_KIEN"], "description": "Loại mốc; không đơn vị; GK:278, dòng 688."},
+        "ngay": {"$ref": "urn:ktt:contract:chung.v1#/$defs/ngay", "description": "Ngày cố định khi NGAY; ngày; GK:283, dòng 689."},
+        "su_kien": {"$ref": "urn:ktt:contract:chung.v1#/$defs/chuoi", "description": "Mã catalog CRM đã resolve, không nhét số ngày; không đơn vị; GK:78–106, dòng 690."},
+        "so_ngay_sau_moc": {"type": "integer", "minimum": 0, "description": "Độ lệch sau ngày thực tế, 0 là ngay ngày mốc; ngày; CD-007, GK:78–106, dòng 691."},
+        "moc_du_an_id": {"$ref": "urn:ktt:contract:chung.v1#/$defs/id", "description": "Mốc riêng đúng dự án; không đơn vị; SQL-MOC:18–25, dòng 692."},
+        "lan_moc": {"type": "integer", "minimum": 1, "description": "Phiên bản mốc căn cứ; lần; SQL-MOC:29–43, KK §3, dòng 693."},
+        "ngay_du_kien": {"$ref": "urn:ktt:contract:chung.v1#/$defs/ngay", "description": "Ngày dự kiến mốc riêng; ngày; CD-007, dòng 694."},
+        "ngay_thuc_te": {"anyOf": [{"$ref": "urn:ktt:contract:chung.v1#/$defs/ngay"}, {"type": "null"}], "description": "Ngày thực tế mốc riêng, chưa xảy ra là null; ngày; CD-007, dòng 695."},
+        "han": {"anyOf": [{"$ref": "urn:ktt:contract:chung.v1#/$defs/ngay"}, {"type": "null"}], "description": "Ngày đến hạn đã xác định hoặc null; ngày; CD-007, TK §6, dòng 696."}
+      },
+      "allOf": [
+        {"if": {"properties": {"loai": {"const": "NGAY"}}, "required": ["loai"]}, "then": {"required": ["ngay"]}},
+        {"if": {"properties": {"loai": {"const": "SU_KIEN"}}, "required": ["loai"]}, "then": {"required": ["su_kien", "so_ngay_sau_moc"]}},
+        {"if": {"properties": {"su_kien": {"type": "string", "pattern": "^DAM-"}}, "required": ["su_kien"]}, "then": {"required": ["moc_du_an_id", "lan_moc", "ngay_du_kien", "ngay_thuc_te"]}}
+      ],
+      "dependentRequired": {
+        "moc_du_an_id": ["lan_moc", "ngay_du_kien", "ngay_thuc_te"],
+        "lan_moc": ["moc_du_an_id", "ngay_du_kien", "ngay_thuc_te"],
+        "ngay_du_kien": ["moc_du_an_id", "lan_moc", "ngay_thuc_te"],
+        "ngay_thuc_te": ["moc_du_an_id", "lan_moc", "ngay_du_kien"]
+      }
+    },
+    "tien_do": {
+      "type": "object", "additionalProperties": false,
+      "required": ["lan", "ty_le", "moc"],
+      "properties": {
+        "lan": {"type": "integer", "minimum": 1, "description": "Thứ tự thanh toán chuẩn; lần; CD-022, dòng 1066."},
+        "ty_le": {"$ref": "urn:ktt:contract:chung.v1#/$defs/thap_phan", "description": "Tỷ lệ đợt trên giá bán trước VAT; %; CD-022, dòng 1067, từ điển dòng 499."},
+        "moc": {"$ref": "#/$defs/moc", "description": "Mốc cơ bản/riêng dự án, dùng lại nhóm §1; ngày/sự kiện; CD-006/007/022, dòng 1068."},
+        "ghi_chu": {"$ref": "urn:ktt:contract:chung.v1#/$defs/chuoi", "description": "Ghi chú tùy chọn; không đơn vị; CD-022, dòng 1069."}
+      }
+    },
+    "lo_can": {
+      "type": "object", "additionalProperties": false,
+      "required": ["id", "lan", "ma", "dien_tich", "trang_thai"],
+      "properties": {
+        "id": {"$ref": "urn:ktt:contract:chung.v1#/$defs/id", "description": "ID ổn định; không đơn vị; SQL-DA:138, dòng 1070."},
+        "lan": {"type": "integer", "minimum": 1, "description": "Phiên bản lô/căn; lần; SQL-DA:151, dòng 1071."},
+        "ma": {"$ref": "urn:ktt:contract:chung.v1#/$defs/chuoi", "description": "Mã nghiệp vụ giữ nguyên chuỗi nguồn; không đơn vị; SQL-DA:141, dòng 1072."},
+        "dien_tich": {"$ref": "urn:ktt:contract:chung.v1#/$defs/thap_phan", "pattern": "^(0\\.[0-9]*[1-9][0-9]*|[1-9][0-9]*(\\.[0-9]+)?)$", "description": "Diện tích lớn hơn 0; m²; DA:179, dòng 1073."},
+        "trang_thai": {"enum": ["CON_TRONG", "GIU_CHO", "DA_BAN", "KHONG_BAN"], "description": "Trạng thái lô/căn; không đơn vị; DA:37, dòng 1074."},
+        "ghi_chu": {"$ref": "urn:ktt:contract:chung.v1#/$defs/chuoi", "description": "Ghi chú tùy chọn; không đơn vị; DA:181, dòng 1075."}
+      }
+    }
+  }
+}
