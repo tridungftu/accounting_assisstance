@@ -818,3 +818,9 @@ Chi tiết có tệp:dòng: `BANG-DIEU-KIEN-GO-LIVE.md`; quy trình: `CHECKLIST-
   - **2 câu mới:** phí trong lịch nghĩa vụ; VAT cọc khi cọc ở đợt cuối / nhiều đợt cọc.
 - **Chuẩn CSDL/API v1.0:** đang review (Codex + Opus).
 - **Giao việc engine:** bản 1 xong (`docs\47-core\engine\`), bản 2 Codex đang viết.
+### 30/10 ~14:55 — **Cần Anh xem: 2/3 chuẩn Core v1.0** (CSDL, API)
+- **Chuẩn CSDL/API v1.0:** `docs\47-core\chuan\CHUAN-CORE-CSDL-v1.0.md`, `CHUAN-CORE-API-v1.0.md`.
+  - Bản sao ở `D:\Claude\QUY-TRINH-CHUNG\CHUAN-CORE\`.
+  - Review: Opus Đạt (không quyết định mới); Codex 91,7%; đã sửa một lượt.
+- **Chuẩn SDK:** soạn sau khi Anh duyệt phiếu SDK bản 2.
+- **Giao việc 5 engine:** `docs\47-core\engine\GIAO-ENGINE-1.md`, `-2.md`. Codex đang review chéo; sau đó Opus kiểm bảng dùng lại (CD-036).
