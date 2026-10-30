@@ -13,6 +13,8 @@ from pathlib import Path
 import socket
 import subprocess
 import sys
+import threading
+import time
 import unittest
 from unittest.mock import MagicMock, patch
 from uuid import uuid4
@@ -152,25 +154,42 @@ class AIThuanTest(unittest.TestCase):
         self.assertEqual(b._ra.getvalue(), b'')
 
     def test_loi_ban_giao_khong_bao_drain_thanh_cong_khong_ro_noi_dung(self):
-        b, conn = MagicMock(), MagicMock()
+        b, conn = bs.Bootstrap(), MagicMock()
+        b.socket, b.bo_doc = MagicMock(), MagicMock()
+        b._duoc_accept = True
+        b._vao = io.BytesIO(b'{"protocol":"ktt.bootstrap.v1","kieu":"thu_hoi"}\n')
+        b._ra = io.BytesIO()
         conn.__enter__.return_value = conn
-        b.accept.return_value = (conn, ('127.0.0.1', 1))
+        b.socket.accept.return_value = (conn, ('127.0.0.1', 1))
         kenh = KenhGia()
         goi = kenh.goi
         loi = RuntimeError('AI4A_CANARY')
+        da_ban_giao = threading.Event()
 
         def ban_giao(operation, giu, **payload):
             if operation == 'ghi_ket_qua':
+                kenh.da_goi.append(operation)
+                da_ban_giao.set()
                 raise loi
             return goi(operation, giu, **payload)
 
         kenh.goi = ban_giao
-        vong = ai._VongNhan(b, lambda *_: SDKEngine(_lease(), kenh_core=kenh),
-                           ai.ProviderAIGia())
-        vong.bat_dau()
-        self.assertFalse(vong.drain())
+        cho_thu_hoi = b.cho_thu_hoi
+
+        def thu_hoi(**callbacks):
+            self.assertTrue(da_ban_giao.wait(2))
+            return cho_thu_hoi(**callbacks)
+
+        with patch.object(ai.Bootstrap, 'nhan', return_value=b), \
+                patch.object(b, 'bao_san_sang'), \
+                patch.object(b, 'cho_thu_hoi', side_effect=thu_hoi):
+            with self.assertRaisesRegex(bs.LoiBootstrap, 'DRAIN_CHUA_XONG'):
+                ai.chay(kiem_chu_ky=lambda *_: None,
+                        nhan_viec=lambda *_: SDKEngine(_lease(), kenh_core=kenh))
+        self.assertEqual(kenh.da_goi, ['doc_dau_vao', 'ghi_ket_qua'])
         conn.__exit__.assert_called_once()
         b.socket.close.assert_not_called()
+        self.assertEqual(b._ra.getvalue(), b'')
         self.assertNotIn('AI4A_CANARY', repr(loi))
 
     def test_import_khong_khoi_dong_local_hay_mang(self):
@@ -254,7 +273,7 @@ class AITienTrinhTest(unittest.TestCase):
             accepted, _ = c.accept(timeout=3)
             accepted.close()
 
-    def test_drain_cho_core_xac_nhan_khong_kill_khong_nhan_viec_moi(self):
+    def test_drain_cho_core_ack_sau_6_giay_khong_kill_khong_nhan_viec_moi(self):
         c, so = self._tao()
         c.khoi_dong()
         proc, job = c._proc, c._job
@@ -263,6 +282,7 @@ class AITienTrinhTest(unittest.TestCase):
         reader = conn.makefile('rb')
         self.addCleanup(reader.close)
         self.assertEqual(reader.readline(), b'cho_core\n')
+        bat_dau_cho = time.monotonic()
         with self.assertRaisesRegex(tt.LoiTienTrinh, 'DUNG_CHUA_XAC_NHAN'):
             c.thu_hoi(timeout=0.05)
         self.assertIsNone(proc.poll())
@@ -274,6 +294,11 @@ class AITienTrinhTest(unittest.TestCase):
         moi.settimeout(0.1)
         with self.assertRaises(socket.timeout):
             moi.recv(1024)
+        time.sleep(max(0, 6 - (time.monotonic() - bat_dau_cho)))
+        self.assertIsNone(proc.poll())
+        self.assertGreaterEqual(job.so_tien_trinh(), 1)
+        self.assertEqual((c.trang_thai, c.chu_accept), ('dang_dung', 'con'))
+        self.assertNotIn('tra', [ten for ten, _ in so.go])
         conn.sendall(b'core_da_nhan\n')
         self._kiem_ket_qua(reader)
         proc.wait(5)

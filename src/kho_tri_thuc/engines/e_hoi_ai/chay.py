@@ -101,6 +101,8 @@ class _VongNhan:
                         # Đã đăng ký việc trước ngừng nhận: drain phải chờ.
                     conn.settimeout(5)
                     sdk = self.nhan_viec(conn, self.bootstrap.bo_doc)
+                    # Việc đã nhận phải chờ Core ACK, kể cả khi đang drain.
+                    conn.settimeout(None)
                     xu_ly_viec(sdk, provider=self.provider)
         except Exception as exc:
             _xoa_loi(exc)
@@ -132,5 +134,5 @@ def chay(*, kiem_chu_ky, nhan_viec, provider=None):
     finally:
         if bat_dau:
             vong.ngung_accept()
-            vong.drain()
-        bootstrap.socket.close()
+        if not bat_dau or vong.drain():
+            bootstrap.socket.close()
