@@ -809,3 +809,12 @@ Chi tiết có tệp:dòng: `BANG-DIEU-KIEN-GO-LIVE.md`; quy trình: `CHECKLIST-
   - **Cần Anh:** bấm đúp `tools\CAI-TU-KHOI-DONG-LEAD.cmd` để cài tác vụ; xác nhận bật `crossSessionInbound`; gõ `/remote-control` khi mở phiên lead.
 - **Contract nghiệp vụ vòng 2:** Codex đang sửa.
 - **Phiếu SDK bản 2:** đã có nháp, gửi Anh sau khi sửa xong.
+### 30/10 ~14:50 — **Cần Anh duyệt: PHIEU-DUYET-SDK bản 2**
+- **Phiếu SDK bản 2** (`docs\47-core\PHIEU-DUYET-SDK.md`):
+  - ba câu CD-033 đã chốt;
+  - JSON hai lớp + lớp nghiệp vụ (`g1\CONTRACT-NGHIEP-VU.md`, Opus 2 vòng, hết Chặn);
+  - `contract/` và sổ contract;
+  - phạm vi CRM thử G2;
+  - **2 câu mới:** phí trong lịch nghĩa vụ; VAT cọc khi cọc ở đợt cuối / nhiều đợt cọc.
+- **Chuẩn CSDL/API v1.0:** đang review (Codex + Opus).
+- **Giao việc engine:** bản 1 xong (`docs\47-core\engine\`), bản 2 Codex đang viết.

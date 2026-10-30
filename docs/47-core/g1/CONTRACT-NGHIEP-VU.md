@@ -626,7 +626,7 @@ Chưa tìm thấy tài liệu tên bắt đầu bằng “50” trong các tệp
 | `duyet_boi` | Người duyệt phiên bản | `chung.chuoi` | T | — | `CRM:723` |
 | `duyet_luc` | Thời điểm duyệt | `chung.thoi_diem` | ĐK: đã duyệt | — | `CRM:724` |
 
-**Đầu vào `ban.ma_bam`:** SHA-256 của UTF-8 không BOM của JSON canonical: sắp khóa object theo thứ tự mã Unicode, không khoảng trắng thừa, giữ thứ tự mảng; chuỗi Unicode ghi trực tiếp, không chuẩn hóa Unicode hay escape `/`, chỉ escape ký tự JSON bắt buộc (ký tự điều khiển dùng `\u00xx` chữ thường, dấu nháy/backslash dùng escape JSON tương ứng). Trường decimal theo schema giữ dạng chuỗi chuẩn (bỏ 0 lẻ tận cùng, không số mũ, `-0` thành `0`), không chuẩn hóa chuỗi mã/ID. Object đầu vào gồm `contract`, `phien_ban`, `hop_dong_id`, `phap_nhan_id`, `ma_noi_bo`, `so_hop_dong`, `doi_tuong_id`, `du_an_id`, `lo_can_id`/`loai_hinh_id` nếu có, `ngay_ky`, `ban.{id,so,loai,so_phu_luc,thay_cho_id,ngay_hieu_luc}` (khóa tùy chọn chỉ có khi được khai), `tham_so`, `gia_thue`, `phi`, `lich_thanh_toan` và mảng object `{tep_id,sha256}` của tệp trong `nguon_tep_ids` đã giải qua Core, đặt dưới khóa `nguon_tep`, sắp theo `tep_id`. Không băm chính `ban.ma_bam`, revision công bố, trạng thái xử lý, thông tin kiểm/duyệt, URL tải/hạn tải; chúng không làm đổi nội dung nghĩa vụ. Thay nội dung đầu vào phải có phiên bản `ban.id` mới và hash mới. M3/M1 ghim `ban.id` + `ban.ma_bam`; `ma_bam_phien_ban_can_cu` của liên kết Core nhận đúng hash này. Hash chữ lặp trong JSON là placeholder DEMO, không phải kết quả băm được chứng nhận.
+**Đầu vào `ban.ma_bam`:** SHA-256 của UTF-8 không BOM của JSON canonical: sắp khóa object theo thứ tự mã Unicode, không khoảng trắng thừa, giữ thứ tự mảng; chuỗi Unicode ghi trực tiếp, không chuẩn hóa Unicode hay escape `/`, chỉ escape ký tự JSON bắt buộc (ký tự điều khiển dùng `\u00xx` chữ thường, dấu nháy/backslash dùng escape JSON tương ứng). Trường decimal theo schema giữ dạng chuỗi chuẩn (bỏ 0 lẻ tận cùng, không số mũ, `-0` thành `0`), không chuẩn hóa chuỗi mã/ID. Object đầu vào gồm `contract`, `phien_ban`, `hop_dong_id`, `phap_nhan_id`, `ma_noi_bo`, `so_hop_dong`, `doi_tuong_id`, `du_an_id`, `lo_can_id`/`loai_hinh_id` nếu có, `ngay_ky`, `ban.{id,so,loai,so_phu_luc,thay_cho_id,ngay_hieu_luc}` (khóa tùy chọn chỉ có khi được khai), `tham_so`, `gia_thue`, `phi`, `lich_thanh_toan` và mảng object `{tep_id,sha256}` của tệp trong `nguon_tep_ids` đã giải qua Core, đặt dưới khóa `nguon_tep`, sắp theo `tep_id`. Không băm chính `ban.ma_bam`, revision công bố, trạng thái xử lý, thông tin kiểm/duyệt, URL tải/hạn tải; chúng không làm đổi nội dung nghĩa vụ. Thay nội dung đầu vào phải có phiên bản `ban.id` mới và hash mới. M3/M1 ghim `ban.id` + `ban.ma_bam`; `ma_bam_phien_ban_can_cu` của liên kết Core nhận đúng hash này. Hash chữ lặp trong JSON là placeholder DEMO, không phải kết quả băm được chứng nhận. Trong `lich_thanh_toan[].moc` chỉ băm `loai`, `ngay`, `su_kien`, `so_ngay_sau_moc`, `moc_du_an_id`; không băm `lan_moc`, `ngay_du_kien`, `ngay_thuc_te`, `han` vì đó là trạng thái mốc theo thời gian, được ghim riêng qua `(moc_du_an_id, lan_moc)` và sự kiện `moc_da_xay_ra`, không làm đổi phiên bản hợp đồng (bổ sung lead sau Opus vòng 2).
 
 **Các trường trong mỗi phần tử `tham_so`:**
 
@@ -670,6 +670,7 @@ Chưa tìm thấy tài liệu tên bắt đầu bằng “50” trong các tệp
 | `nghia_vu_id` | Tên duy nhất của ID dòng đợt cụ thể trong phiên bản; tại báo giá là ID dự kiến, chưa có hiệu lực | `chung.id` | B | — | Ánh xạ `GK:279`; khi đã hình thành dùng ID `master.lich_thu` tương ứng; TK §6; CSDL §6.2 |
 | `module_nghia_vu` | Chủ đợt nghĩa vụ | Hằng `CRM` | B trong hợp đồng; bỏ ở báo giá dự kiến | — | CSDL §3.6, §6.2 |
 | `loai_nghia_vu` | Loại đợt bán dùng khi nối tiền | Hằng `lich_thu` | B trong hợp đồng; bỏ ở báo giá dự kiến | — | CSDL §3.6, §6.2; tên lịch nguồn |
+| `khoa_nghia_vu` | Khóa đợt ổn định qua các phiên bản, chỉ để theo dõi/đối chiếu; không dùng làm đích liên kết tiền (đích luôn là bộ ba với `nghia_vu_id` của đúng phiên bản) | `chung.chuoi` | B trong hợp đồng; bỏ ở báo giá | — | CRM:419–422; CSDL §6.2 |
 | `loai_khoan` | Phân biệt giá bán với loại khoản khác theo catalog ghim | `chung.chuoi`, bản nháp minh họa `GIA_BAN` | B; catalog phí chờ Anh | — | TK §6; review Opus S3 |
 | `lan` | Thứ tự đợt thanh toán | Integer dương | B | lần | TL45 §2 BG-01 |
 | `gia_tri_nhap` | Giá trị gốc người dùng nhập: % hoặc tiền | `chung.gia_tri` | B | % hoặc VND/USD | TL45 §8 BG-20 |
@@ -766,6 +767,7 @@ Chưa tìm thấy tài liệu tên bắt đầu bằng “50” trong các tệp
       "nghia_vu_id": "10000000-0000-4000-8000-000000000021",
       "module_nghia_vu": "CRM",
       "loai_nghia_vu": "lich_thu",
+      "khoa_nghia_vu": "DEMO_THU_1",
       "loai_khoan": "GIA_BAN",
       "lan": 1,
       "gia_tri_nhap": {"kieu": "so", "gia_tri": "10", "don_vi": "%"},
@@ -780,6 +782,7 @@ Chưa tìm thấy tài liệu tên bắt đầu bằng “50” trong các tệp
       "nghia_vu_id": "10000000-0000-4000-8000-000000000022",
       "module_nghia_vu": "CRM",
       "loai_nghia_vu": "lich_thu",
+      "khoa_nghia_vu": "DEMO_THU_2",
       "loai_khoan": "GIA_BAN",
       "lan": 2,
       "gia_tri_nhap": {"kieu": "so", "gia_tri": "30", "don_vi": "%"},
@@ -803,6 +806,7 @@ Chưa tìm thấy tài liệu tên bắt đầu bằng “50” trong các tệp
       "nghia_vu_id": "10000000-0000-4000-8000-000000000023",
       "module_nghia_vu": "CRM",
       "loai_nghia_vu": "lich_thu",
+      "khoa_nghia_vu": "DEMO_THU_3",
       "loai_khoan": "GIA_BAN",
       "lan": 3,
       "gia_tri_nhap": {"kieu": "so", "gia_tri": "60", "don_vi": "%"},
@@ -859,6 +863,8 @@ Chưa tìm thấy tài liệu tên bắt đầu bằng “50” trong các tệp
 | `gia_thue` | Giá, thuế và tỷ giá | `GiaCrm` tại §1 | B | VND/USD | CD-024 |
 | `phi` | Các phí áp dụng, giữ cơ sở tính riêng | Mảng `PhiCrm` tại §3 | B; có thể rỗng | Theo dòng | `GK:341`–`343`; TL42 §6 |
 | `lich_thanh_toan` | Lịch dự kiến | Mảng `DongLichCrm` tại §1; có `nghia_vu_id` dự kiến, chưa có bộ ba đích nối hiệu lực | B; có thể chưa đủ khi nháp | — | TL45 §8–§9 |
+
+Resolver liên kết tiền từ chối mọi `nghia_vu_id` không đi kèm bộ ba của hợp đồng hiệu lực; ID báo giá chỉ được dùng lại khi chuyển Soạn hợp đồng.
 | `het_han` | Ngày hết hạn báo giá nếu có | `chung.ngay` | T | ngày | `GK:335` |
 | `ghi_chu` | Ghi chú chung | `chung.chuoi` | T | — | `GK:336` |
 

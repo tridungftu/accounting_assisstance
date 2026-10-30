@@ -4,7 +4,7 @@
 **Đây là tài liệu, chưa lập trình.**
 **Đã kiểm:**
 - Đặc tả SDK: Codex soạn và review chéo; Opus 2 vòng, hết Chặn. 12/12 JSON Schema kỹ thuật hợp lệ.
-- Contract nghiệp vụ: Codex soạn và review chéo (kiểm mẫu đúng 95%); Opus review quy tắc chung + 3 contract cốt lõi; đã sửa vòng 2.
+- Contract nghiệp vụ: Codex soạn và review chéo (kiểm mẫu đúng 95%); Opus review quy tắc chung + 3 contract cốt lõi, 2 vòng, hết Chặn. 20/20 ví dụ JSON đọc được, tổng tiền khớp.
 
 **Bản 2 khác bản 1:**
 - ba câu cũ Anh đã chốt (CD-033);
