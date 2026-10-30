@@ -982,3 +982,4 @@ Chi tiết có tệp:dòng: `BANG-DIEU-KIEN-GO-LIVE.md`; quy trình: `CHECKLIST-
 - **Việc kỹ thuật ghi nhớ:** thêm `__init__.py` cho `engines/` và các `e_*` (đóng gói wheel).
 - **Hồi quy hợp nhất 03:35** (29 module G2 + G3, PG DEMO): **740 ok / 0 lỗi / 2 skip**, 0 treo.
 - **31/10 ~05:45 — đạt mốc N:** đã gộp G2-20 (`7cd3e4d`) và G2-21. Test PG: G2-20 32/32, G2-21 29/29 (tiến trình Windows thật).
+- **Hồi quy sau mốc N** (32 module G2 + G3, PG DEMO): **814 ok / 0 lỗi / 2 skip**, 0 treo.
