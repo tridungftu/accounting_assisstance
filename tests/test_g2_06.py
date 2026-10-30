@@ -87,6 +87,14 @@ class MTQThuanTest(unittest.TestCase):
         mtq.quyet_dinh_phien(self.conn, **self.ts, cac_ma=[phien.MaBiMat('CANARY_B')])
         self.assertEqual(self.conn.execute.call_args.args[1][6], ['CANARY_B'])
 
+    def test_tu_choi_resolver_giu_ma_va_ly_do_module(self):
+        kq = {'ket_luan': 'TU_CHOI', 'cho_phep': False, 'ma': 'MTQ_DOI_TUONG',
+              'ly_do': 'DEMO: hồ sơ không hợp lệ'}
+        self.conn.execute.return_value.fetchone.return_value = (kq,)
+        self.assertEqual(mtq.quyet_dinh_phien(self.conn, **self.ts), kq)
+        mtq.ghi_tu_choi_phien(self.conn, request_id=uuid4(), **self.ts)
+        self.assertIn('loi.mtq_ghi_tu_choi_phien', self.conn.execute.call_args.args[0])
+
     def test_ngu_canh_xac_minh_truoc_set_local_va_xoa_viec_cu(self):
         mtq.dat_ngu_canh(self.conn, **{k: v for k, v in self.ts.items() if k != 'doi_tuong'})
         self.assertEqual(self.conn.execute.call_count, 2)
@@ -234,8 +242,9 @@ class MTQPostgresTest(unittest.TestCase):
         self._doi_tuong(self.pn)
         self._cap_lai()
 
-    def _doi_tuong(self, pns, *, tien='50', loai='TIEP_NHAN'):
-        tap = [{'pn':str(pn),'hop_le':True,'loai':loai,'so_tien_vnd':tien} for pn in pns]
+    def _doi_tuong(self, pns, *, tien='50', loai='TIEP_NHAN', tap=None):
+        if tap is None:
+            tap = [{'pn':str(pn),'hop_le':True,'loai':loai,'so_tien_vnd':tien} for pn in pns]
         self.conn.execute('INSERT INTO mod_crm.doi_tuong(id,tap) VALUES (%s,%s::jsonb) ON CONFLICT(id) DO UPDATE SET tap=EXCLUDED.tap',
                           (self.obj,json.dumps(tap)))
 
@@ -265,7 +274,20 @@ class MTQPostgresTest(unittest.TestCase):
             with self.subTest(bang=bang),self.assertRaises(psycopg.errors.InsufficientPrivilege):
                 self.core.execute(sql.SQL('SELECT * FROM loi.{}').format(sql.Identifier(bang)))
         self.assertEqual(self.conn.execute('''SELECT count(*) FROM pg_class WHERE relnamespace='loi'::regnamespace
-            AND relname=ANY(%s) AND relrowsecurity AND relforcerowsecurity''',(list(CAC_BANG)+['nguoi_dung','phap_nhan','phan_quyen'],)).fetchone()[0],14)
+            AND relname=ANY(%s) AND relrowsecurity AND relforcerowsecurity''',(list(CAC_BANG)+['nguoi_dung','phap_nhan','phan_quyen','phap_nhan_boi_canh'],)).fetchone()[0],15)
+
+    def test_rls_phap_nhan_boi_canh(self):
+        for pn in self.pn:
+            self.conn.execute('''INSERT INTO loi.phap_nhan_boi_canh(phap_nhan_id,phien_ban,muc,noi_dung)
+                VALUES (%s,1,0,'DEMO')''',(pn,))
+        self.assertEqual(self.core.execute('SELECT phap_nhan_id FROM loi.phap_nhan_boi_canh').fetchall(),[])
+        with self.core.transaction():
+            for pn,ma in zip(self.pn,self.mas):
+                self._context(pn=pn,ma=ma)
+                self.assertEqual(self.core.execute('SELECT phap_nhan_id FROM loi.phap_nhan_boi_canh').fetchall(),[(pn,)])
+            self.core.execute("SELECT set_config('ktt.phap_nhan_id',%s,true)",(str(self.pn[0]),))
+            self.assertEqual(self.core.execute('SELECT phap_nhan_id FROM loi.phap_nhan_boi_canh').fetchall(),[])
+        self.assertEqual(self.core.execute('SELECT phap_nhan_id FROM loi.phap_nhan_boi_canh').fetchall(),[])
 
     def test_dung_pn_thay_sai_pn_chan_gia_guc_vo_hieu(self):
         with self.core.transaction():
@@ -290,6 +312,36 @@ class MTQPostgresTest(unittest.TestCase):
     def test_thieu_phien_mot_pn_tu_choi(self):
         self.assertEqual(self._quyet(cac_ma=[])['ma'],'MTQ_PHAP_NHAN')
 
+    def test_doi_tuong_chi_thuoc_pn_b_khi_phien_pn_a_tu_choi(self):
+        self._doi_tuong([self.pn[1]])
+        kq=self._quyet()
+        self.assertEqual((kq['ket_luan'],kq['ma']),('TU_CHOI','MTQ_DOI_TUONG'))
+        self.assertFalse(mtq.duoc_doc(self.core,**self._ts()))
+
+    def test_tap_phap_nhan_trung_tu_choi(self):
+        self._doi_tuong([self.pn[0],self.pn[0],self.pn[1]])
+        kq=self._quyet()
+        self.assertEqual((kq['ket_luan'],kq['ma']),('TU_CHOI','MTQ_DOI_TUONG'))
+
+    def test_nhieu_phap_nhan_kem_phong_id_tu_choi(self):
+        phong=self.conn.execute('SELECT phong_id FROM loi.mtq_gan_vai WHERE id=%s',(self.gan[0],)).fetchone()[0]
+        kq=self._quyet(doi_tuong={'bang':'doi_tuong','id':self.obj,'phong_id':phong})
+        self.assertEqual((kq['ket_luan'],kq['ma']),('TU_CHOI','MTQ_PHONG_MO_HO'))
+
+    def test_resolver_khong_hop_le_tu_choi_va_ghi_nhat_ky(self):
+        ly_do='DEMO: hồ sơ không hợp lệ'
+        self._doi_tuong([self.pn[0]],tap=[{'pn':str(self.pn[0]),'hop_le':False,'ly_do':ly_do}])
+        kq=self._quyet()
+        self.assertEqual((kq['ket_luan'],kq['ma'],kq['ly_do']),('TU_CHOI','MTQ_DOI_TUONG',ly_do))
+        self.assertFalse(kq['cho_phep'])
+        self.assertFalse(mtq.duoc_doc(self.core,**self._ts()))
+        req=uuid4()
+        with self.core.transaction():
+            ket=mtq.ghi_tu_choi_phien(self.core,request_id=req,**self._ts())
+        self.assertEqual(self.conn.execute('SELECT ma,ly_do FROM loi.mtq_tu_choi WHERE id=%s',(ket,)).fetchone(),
+                         ('MTQ_DOI_TUONG',ly_do))
+        self.assertEqual(self.conn.execute("SELECT count(*) FROM loi.nhat_ky_kiem_toan WHERE request_id=%s AND ket_luan='TU_CHOI'",(req,)).fetchone()[0],1)
+
     def test_ma_cua_nguoi_khac_khong_ghep_quyen_hai_pn(self):
         nguoi=uuid4()
         self.conn.execute("INSERT INTO loi.nguoi_dung(id,dang_nhap,ten,vai_tro) VALUES (%s,%s,'DEMO','XEM')",
@@ -311,6 +363,14 @@ class MTQPostgresTest(unittest.TestCase):
         self._cap_lai()
         self.assertEqual(self._quyet()['ma'],'MTQ_PN_HON_HOP')
 
+    def test_moi_phap_nhan_tat_tra_cho_va_khong_duoc_doc(self):
+        self.conn.execute('UPDATE loi.mtq_kich_hoat SET bat=false,phien_ban_dong=phien_ban_dong+1 WHERE phap_nhan_id=ANY(%s)',(self.pn,))
+        self._cap_lai()
+        kq=self._quyet()
+        self.assertEqual((kq['ket_luan'],kq['ma']),('CHO','MTQ_TAT'))
+        self.assertFalse(kq['cho_phep'])
+        self.assertFalse(mtq.duoc_doc(self.core,**self._ts()))
+
     def test_thieu_resolver_ke_ca_mtq_tat_tra_cho(self):
         self.assertEqual(self._quyet(phien_ban_contract='999')['ket_luan'],'CHO')
         self.conn.execute('UPDATE loi.mtq_kich_hoat SET bat=false,phien_ban_dong=phien_ban_dong+1 WHERE phap_nhan_id=ANY(%s)',(self.pn,))
@@ -324,6 +384,23 @@ class MTQPostgresTest(unittest.TestCase):
         self.assertEqual(self._quyet(hanh_dong=DUYET)['ma'],'MTQ_VUOT_HAN_MUC')
         self._doi_tuong(self.pn,tien=None)
         self.assertEqual(self._quyet(hanh_dong=DUYET)['ma'],'MTQ_THIEU_TIEN')
+
+    def test_nhieu_phap_nhan_phai_dung_cung_so_tien(self):
+        for tien_a,tien_b in (('50','150'),('50','75'),('50',None),(None,'50')):
+            with self.subTest(tien_a=tien_a,tien_b=tien_b):
+                tap=[{'pn':str(pn),'hop_le':True,'loai':'TIEP_NHAN','so_tien_vnd':tien}
+                     for pn,tien in zip(self.pn,(tien_a,tien_b))]
+                self._doi_tuong(self.pn,tap=tap)
+                kq=self._quyet(hanh_dong=DUYET)
+                self.assertEqual((kq['ket_luan'],kq['ma']),('TU_CHOI','MTQ_DOI_TUONG'))
+                self.assertEqual(kq['ly_do'],'Các pháp nhân phải dùng cùng số tiền')
+                self.assertFalse(kq['cho_phep'])
+
+    def test_so_tien_so_sanh_sau_ep_numeric(self):
+        tap=[{'pn':str(pn),'hop_le':True,'loai':'TIEP_NHAN','so_tien_vnd':tien}
+             for pn,tien in zip(self.pn,(50,'50.00'))]
+        self._doi_tuong(self.pn,tap=tap)
+        self.assertTrue(self._quyet(hanh_dong=DUYET)['cho_phep'])
 
     def test_phien_thu_hoi_guc_cu_khong_con_quyen(self):
         with self.core.transaction():
