@@ -25,6 +25,34 @@ BEGIN
     END IF;
     EXECUTE format('SET LOCAL ROLE %I',chu_loi);
     PERFORM set_config('search_path','pg_catalog,pg_temp',true);
+    -- Nang cap trigger cua 004 da phat hanh; giu nguyen checksum lich su.
+    -- Ham duoc thay truoc khi runner ghi so 011, ke ca nen dung o 009.
+    CREATE OR REPLACE FUNCTION loi.kiem_lich_su_doi_cau_truc()
+    RETURNS trigger LANGUAGE plpgsql
+    SET search_path = pg_catalog, pg_temp AS $ham$
+    DECLARE
+        bam_cu text;
+        ban_cu integer;
+    BEGIN
+        PERFORM pg_advisory_xact_lock(hashtextextended('kho_core_migration:' || NEW.ma_goi, 4));
+        SELECT ma_bam INTO bam_cu FROM loi.lich_su_doi_cau_truc
+            WHERE ma_goi = NEW.ma_goi AND so_phien_ban = NEW.so_phien_ban;
+        IF FOUND AND bam_cu <> NEW.ma_bam THEN
+            RAISE EXCEPTION 'MIGRATION_CHANGED' USING ERRCODE = '23514';
+        END IF;
+        SELECT coalesce(max(so_phien_ban), 0) INTO ban_cu FROM loi.lich_su_doi_cau_truc
+            WHERE ma_goi = NEW.ma_goi;
+        IF NEW.so_phien_ban < ban_cu THEN
+            RAISE EXCEPTION 'FUTURE_SCHEMA' USING ERRCODE = '23514';
+        END IF;
+        IF NEW.so_phien_ban <= ban_cu THEN
+            RAISE EXCEPTION 'MIGRATION_ORDER' USING ERRCODE = '23514';
+        END IF;
+        NEW.nguoi_ap_dung := session_user;
+        NEW.ap_dung_luc := statement_timestamp();
+        RETURN NEW;
+    END;
+    $ham$;
     -- Ten dich theo DAC-TA-CSDL 3.5; giu khoa text/ref/hash cua K2.
     CREATE TABLE IF NOT EXISTS loi.nguon_cai_dat (
         id text PRIMARY KEY CHECK(id ~ '^[A-Za-z0-9_.:-]{1,120}$'),
@@ -288,8 +316,8 @@ BEGIN
                     AND operation=p_operation AND khoa_chong_trung=p_khoa;
         END IF;
         IF id_cu IS NOT NULL THEN
-            IF bam_cu<>bam THEN RAISE EXCEPTION 'KHOA_CHONG_TRUNG_KHAC_NOI_DUNG' USING ERRCODE='P0001'; END IF;
             PERFORM loi_tai_lieu.bien_nhan_kiem_doc(p_ma,p_module,p_pn,quyen,p_viec,p_the_he);
+            IF bam_cu<>bam THEN RAISE EXCEPTION 'KHOA_CHONG_TRUNG_KHAC_NOI_DUNG' USING ERRCODE='P0001'; END IF;
             IF p_core AND NOT loi_tai_lieu.bien_nhan_core_con_hieu_luc(trang_thai,cuoi,clock_timestamp()) THEN
                 -- G2-29 don payload khi du dieu kien; dau vet nay chan retry mu sau TTL.
                 RAISE EXCEPTION 'BIEN_NHAN_CORE_HET_HAN' USING ERRCODE='P0001';

@@ -37,7 +37,8 @@ def _doc_chuoi(cac_tep):
     chuoi = {}
     for tep in duong_dan:
         khop = re.fullmatch(r'([0-9]{3})_[a-z0-9_]+\.sql', tep.name)
-        if not khop or int(khop[1]) <= max(chuoi, default=0):
+        if (not khop or int(khop[1]) <= max(chuoi, default=0)
+                or (not chuoi and int(khop[1]) != 1)):
             raise LoiDoiCauTruc('MIGRATION_ORDER')
         so = int(khop[1])
         noi_dung = tep.read_bytes()

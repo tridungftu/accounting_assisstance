@@ -5,6 +5,7 @@ KHO_PG_DSN_TEST. Admin dựng fixture và mốc thời gian; không làm nghiệ
 """
 
 from datetime import datetime, timedelta, timezone
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -12,15 +13,17 @@ import re
 import sys
 import traceback
 import unittest
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 from uuid import uuid4
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'src'))
 from kho_tri_thuc.core import tiep_nhan as tn, doi_cau_truc as dc, phien
 
 try:
+    from . import test_g2_04 as g204
     from . import test_g2_09 as g209
 except ImportError:
+    import test_g2_04 as g204
     import test_g2_09 as g209
 
 psycopg = g209.psycopg
@@ -151,6 +154,93 @@ class TiepNhanThuanTest(unittest.TestCase):
         self.assertFalse(SQL_PATH.read_bytes().startswith(b'\xef\xbb\xbf'))
 
 
+class DoiCauTrucKhoangTrongTest(unittest.TestCase):
+    setUp = g204.DoiCauTrucThuanTest.setUp
+    _ap = g204.DoiCauTrucThuanTest._ap
+
+    def test_khoang_trong_dung_so_thuc_va_chay_lai(self):
+        self.tep = [Path(f'{n:03d}_demo.sql') for n in (1, 3, 11)]
+        noi_dung = (b'SELECT 1', b'SELECT 3', b'SELECT 11')
+        self.cur.fetchall.return_value = [(n, hashlib.sha256(nd).hexdigest())
+                                         for n, nd in zip((1, 3), noi_dung)]
+        self.assertEqual(self._ap(noi_dung), 11)
+        them = [c.args[1][1] for c in self.cur.execute.call_args_list
+                if c.args[0].startswith('INSERT INTO')]
+        self.assertEqual(them, [11])
+        self.assertNotIn('SELECT 3', [c.args[0] for c in self.cur.execute.call_args_list])
+        self.cur.reset_mock()
+        self.cur.fetchone.side_effect = [('kho_test_demo',), ('loi.lich_su_doi_cau_truc',)]
+        self.cur.fetchall.return_value.append((11, hashlib.sha256(noi_dung[2]).hexdigest()))
+        self.assertEqual(self._ap(noi_dung), 11)
+        self.assertFalse(any(c.args[0].startswith('INSERT INTO') for c in self.cur.execute.call_args_list))
+
+    def test_khoang_trong_dich_la_so_phien_ban_khong_phai_so_tep(self):
+        self.tep = [Path('001_demo.sql'), Path('011_demo.sql')]
+        self.assertEqual(self._ap(so_phien_ban=11), 11)
+        self.cur.reset_mock()
+        with self.assertRaises(dc.LoiDoiCauTruc) as bat:
+            self._ap(so_phien_ban=2)
+        self.assertEqual(bat.exception.ma, 'SCHEMA_VERSION')
+        self.conn.transaction.assert_called_once_with()
+        self.cur.execute.assert_not_called()
+
+    def test_khoang_trong_van_chan_checksum_lech_truoc_ddl(self):
+        self.tep = [Path('001_demo.sql'), Path('011_demo.sql')]
+        self.cur.fetchall.return_value = [(1, hashlib.sha256(b'SELECT 1').hexdigest()),
+                                         (11, '0' * 64)]
+        with self.assertRaises(dc.LoiDoiCauTruc) as bat:
+            self._ap()
+        self.assertEqual(bat.exception.ma, 'MIGRATION_CHANGED')
+        self.assertNotIn('SELECT 2', [c.args[0] for c in self.cur.execute.call_args_list])
+
+    def test_chan_chen_bu_so_nho_hon_ban_da_ap_truoc_ddl(self):
+        self.tep.append(Path('003_demo.sql'))
+        self.cur.fetchall.return_value = [(1, hashlib.sha256(b'SELECT 1').hexdigest()),
+                                         (3, hashlib.sha256(b'SELECT 3').hexdigest())]
+        with self.assertRaises(dc.LoiDoiCauTruc) as bat:
+            self._ap((b'SELECT 1', b'SELECT 2', b'SELECT 3'))
+        self.assertEqual(bat.exception.ma, 'MIGRATION_ORDER')
+        self.assertNotIn('SELECT 2', [c.args[0] for c in self.cur.execute.call_args_list])
+
+
+@unittest.skipUnless(psycopg is not None and os.environ.get('KHO_PG_DSN_TEST'),
+                     'CHUA_KIEM PG: thiếu psycopg hoặc KHO_PG_DSN_TEST')
+class NangCap004CuPostgresTest(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        g204.KiemToanPostgresTest.setUpClass.__func__(cls)
+
+    def test_nen_004_cu_qua_009_010_len_011_giu_checksum(self):
+        nen = sorted(dc.THU_MUC_SQL.glob('00[1-9]_*.sql'))
+        tep_010 = Path('010_demo.sql')
+        doc_goc = Path.read_bytes
+        for co_010 in (False, True):
+            with self.subTest(co_010=co_010), self.conn.transaction(force_rollback=True):
+                lich_su_cu = self.conn.execute(
+                    'SELECT * FROM loi.lich_su_doi_cau_truc ORDER BY so_phien_ban').fetchall()
+                self.assertEqual([dong[1] for dong in lich_su_cu], [1, 2, 3, 4])
+                self.assertEqual(lich_su_cu[3][2], hashlib.sha256(nen[3].read_bytes()).hexdigest())
+                ham_cu = self.conn.execute(
+                    "SELECT prosrc FROM pg_proc WHERE oid='loi.kiem_lich_su_doi_cau_truc()'::regprocedure").fetchone()[0]
+                self.assertIn('NEW.so_phien_ban <> ban_cu + 1', ham_cu)
+                # 010 là no-op DEMO trong bộ nhớ; dự án hiện chưa phát hành SQL 010.
+                cac_tep = [*nen, *([tep_010] if co_010 else [])]
+                with patch.object(Path, 'read_bytes', autospec=True,
+                                  side_effect=lambda tep: b'SELECT 1' if tep == tep_010 else doc_goc(tep)):
+                    self.assertEqual(dc.ap_doi_cau_truc(self.conn, cac_tep), 10 if co_010 else 9)
+                    self.assertEqual(dc.ap_doi_cau_truc(self.conn, [*cac_tep, SQL_PATH]), 11)
+                    self.assertEqual(dc.ap_doi_cau_truc(self.conn, [*cac_tep, SQL_PATH]), 11)
+                self.assertEqual(self.conn.execute(
+                    'SELECT * FROM loi.lich_su_doi_cau_truc WHERE so_phien_ban<=4 ORDER BY so_phien_ban'
+                ).fetchall(), lich_su_cu)
+                self.assertEqual(self.conn.execute(
+                    "SELECT so_phien_ban FROM loi.lich_su_doi_cau_truc WHERE ma_goi='core' ORDER BY so_phien_ban"
+                ).fetchall(), [(n,) for n in range(1, 11 if co_010 else 10)] + [(11,)])
+                ham_moi = self.conn.execute(
+                    "SELECT prosrc FROM pg_proc WHERE oid='loi.kiem_lich_su_doi_cau_truc()'::regprocedure").fetchone()[0]
+                self.assertIn('NEW.so_phien_ban <= ban_cu', ham_moi)
+
+
 @unittest.skipUnless(psycopg is not None and os.environ.get('KHO_PG_DSN_TEST'),
                      'CHUA_KIEM PG: thiếu psycopg hoặc KHO_PG_DSN_TEST')
 class TiepNhanPostgresTest(unittest.TestCase):
@@ -209,6 +299,25 @@ class TiepNhanPostgresTest(unittest.TestCase):
 
     def _core_ts(self):
         return {**self.ts, 'ma': self.ma}
+
+    def test_runner_va_trigger_cho_khoang_trong_chan_so_nho_hon(self):
+        goi = 'demo_' + uuid4().hex
+        cac_tep = [Path(f'{n:03d}_demo.sql') for n in (1, 3, 11)]
+        with self.conn.transaction(force_rollback=True), patch.object(Path, 'read_bytes', return_value=b'SELECT 1'):
+            self.assertEqual(dc.ap_doi_cau_truc(self.conn, cac_tep, ma_goi=goi), 11)
+            self.assertEqual(self.conn.execute('''SELECT so_phien_ban FROM loi.lich_su_doi_cau_truc
+                WHERE ma_goi=%s ORDER BY so_phien_ban''', (goi,)).fetchall(), [(1,), (3,), (11,)])
+            self.assertEqual(dc.ap_doi_cau_truc(self.conn, cac_tep, ma_goi=goi), 11)
+            with self.assertRaises(dc.LoiDoiCauTruc) as bat:
+                dc.ap_doi_cau_truc(self.conn, cac_tep, ma_goi=goi, so_phien_ban=3)
+            self.assertEqual(bat.exception.ma, 'FUTURE_SCHEMA')
+            with self.assertRaises(dc.LoiDoiCauTruc) as bat:
+                dc.ap_doi_cau_truc(self.conn, [*cac_tep, Path('002_demo.sql')], ma_goi=goi)
+            self.assertEqual(bat.exception.ma, 'MIGRATION_ORDER')
+            with self.assertRaises(psycopg.errors.CheckViolation) as bat, self.conn.transaction():
+                self.conn.execute('''INSERT INTO loi.lich_su_doi_cau_truc
+                    (ma_goi,so_phien_ban,ma_bam,nguon_lich_su) VALUES (%s,2,%s,'{}')''', (goi, '0' * 64))
+            self.assertIn('FUTURE_SCHEMA', str(bat.exception))
 
     def test_cung_khoa_cung_noi_dung_replay_va_khac_noi_dung_409(self):
         self.assertEqual(self.module.execute('SELECT current_user,session_user').fetchone(), (self.module_login,)*2)
@@ -296,23 +405,45 @@ class TiepNhanPostgresTest(unittest.TestCase):
         ma2 = phien.cap_phien(self.core, nguoi_dung_id=nd2, module='crm', phap_nhan_id=self.pn,
             dang_nhap_csdl=self.cac_thong_tin['core']['user'], pham_vi_hanh_dong=[LAP,XEM],
             hieu_luc_den=datetime.now(timezone.utc)+timedelta(minutes=4)).ma
-        with self.assertRaises(tn.LoiTiepNhan) as bat, self.core.transaction():
-            tn.tra_thao_tac(self.core, **{**self.ts, 'ma': ma2})
-        self.assertEqual((bat.exception.ma, bat.exception.http_status), ('BIEN_NHAN_KHONG_THAY', 404))
+        for noi_dung in ({'demo': True}, {'demo': False}):
+            with self.subTest(noi_dung=noi_dung), self.assertRaises(tn.LoiTiepNhan) as bat, self.core.transaction():
+                tn.tra_thao_tac(self.core, **{**self.ts, 'ma': ma2, 'noi_dung': noi_dung})
+            self.assertEqual((bat.exception.ma, bat.exception.http_status), ('BIEN_NHAN_KHONG_THAY', 404))
         # Chính người tạo bị thu hồi quyền nội dung cũng không được phát lại.
+        with self.core.transaction():
+            tn.ghi_core(self.core, ket_qua={'id': 'DEMO'}, quyen_doc=self.quyen, **self._core_ts())
         g209.tl.cap_quyen(self.core, tai_lieu_id=self.tai_lieu_id, du_lieu=dict(nguoi_dung_id=str(self.nd),
             bien_the='goc', cho_phep=False, revision_truoc=0), request_id=uuid4(), **self._ctx(g209.DUYET))
-        with self.assertRaises(tn.LoiTiepNhan) as bat, self.module.transaction():
-            tn.tra_thao_tac(self.module, **self.ts)
-        self.assertEqual(bat.exception.http_status, 404)
+        for kn, ts, tra, ghi in ((self.module, self.ts, tn.tra_thao_tac, tn.ghi_thao_tac),
+                                 (self.core, self._core_ts(), tn.tra_core, tn.ghi_core)):
+            for noi_dung in ({'demo': True}, {'demo': False}):
+                for goi, them in ((tra, {}), (ghi, dict(ket_qua={'id': 'DEMO'}, quyen_doc=self.quyen))):
+                    with self.subTest(core=kn is self.core, noi_dung=noi_dung, goi=goi.__name__):
+                        with self.assertRaises(tn.LoiTiepNhan) as bat, kn.transaction():
+                            goi(kn, **{**ts, 'noi_dung': noi_dung}, **them)
+                        self.assertEqual((bat.exception.ma, bat.exception.http_status), ('BIEN_NHAN_KHONG_THAY', 404))
 
     def test_thieu_quyen_hanh_dong_chan_truoc_tra_bien_nhan(self):
         with self.module.transaction():
             self._thuc_hien()
-        for khoa in (KHOA, 'demo-khoa-chua-co'):
-            with self.assertRaises(tn.LoiTiepNhan) as bat, self.module.transaction():
-                tn.tra_thao_tac(self.module, **{**self.ts, 'khoa': khoa, 'ma': phien.MaBiMat('GIA'*24)})
-            self.assertEqual(bat.exception.ma, 'TAI_LIEU_PHIEN')
+        with self.core.transaction():
+            tn.ghi_core(self.core, ket_qua={'id': 'DEMO'}, quyen_doc=self.quyen, **self._core_ts())
+        self.conn.execute('''UPDATE loi.mtq_gan_vai SET thu_hoi_luc=now(),thu_hoi_boi=%s,
+            phien_ban_dong=phien_ban_dong+1 WHERE nguoi_dung_id=%s AND phap_nhan_id=%s''',
+            (self.nd, self.nd, self.pn))
+        self._cap_lai_phien()
+        self.ts['ma'] = self.uy
+        for kn, ts, tra in ((self.module, self.ts, tn.tra_thao_tac),
+                            (self.core, self._core_ts(), tn.tra_core)):
+            # Phiên thật vẫn hợp lệ; lỗi phải đến từ MTQ trước khi tra key.
+            self.assertIsNotNone(phien.xac_minh_phien(kn, ma=ts['ma'], module='crm',
+                phap_nhan_id=self.pn, hanh_dong=LAP))
+            for khoa in (KHOA, 'demo-khoa-chua-co'):
+                for noi_dung in ({'demo': True}, {'demo': False}):
+                    with self.subTest(core=kn is self.core, khoa=khoa, noi_dung=noi_dung):
+                        with self.assertRaises(tn.LoiTiepNhan) as bat, kn.transaction():
+                            tra(kn, **{**ts, 'khoa': khoa, 'noi_dung': noi_dung})
+                        self.assertEqual(bat.exception.ma, 'TAI_LIEU_MTQ')
 
     def test_tiep_nhan_prePN_kiem_nguon_va_lan_khong_tin_guc(self):
         nguon = 'demo_'+uuid4().hex

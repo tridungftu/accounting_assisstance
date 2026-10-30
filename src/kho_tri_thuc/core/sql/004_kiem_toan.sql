@@ -116,7 +116,7 @@ BEGIN
         IF NEW.so_phien_ban < ban_cu THEN
             RAISE EXCEPTION 'FUTURE_SCHEMA' USING ERRCODE = '23514';
         END IF;
-        IF NEW.so_phien_ban <= ban_cu THEN
+        IF NEW.so_phien_ban <> ban_cu + 1 THEN
             RAISE EXCEPTION 'MIGRATION_ORDER' USING ERRCODE = '23514';
         END IF;
         NEW.nguoi_ap_dung := session_user;
