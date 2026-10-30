@@ -834,3 +834,15 @@ Chi tiết có tệp:dòng: `BANG-DIEU-KIEN-GO-LIVE.md`; quy trình: `CHECKLIST-
   - phiếu SDK bản 2;
   - câu hỏi `crossSessionInbound`;
   - cài tác vụ tự khởi động.
+### 30/10 ~17:40 — nhận CD-038
+- **Anh duyệt:**
+  - phiếu SDK bản 2 (1A; 2B: VAT cọc dồn đợt không cọc gần nhất phía sau, hết thì dồn ngược);
+  - câu hỏi engine (1C: đổi câu hỏi trích xuất sang mẫu cổng AI, đo lại độ chính xác; 2A; 3A).
+- **Đã làm:**
+  - ghi kết quả vào hai phiếu;
+  - sửa TL 45 BG-27 (thư mục cha) theo 2B.
+- **Đang chạy (Codex):**
+  - soạn `CHUAN-CORE-SDK-v1.0.md`;
+  - áp CD-038 vào contract nghiệp vụ, giao việc engine, KK-UI-DA-BG.
+- **`crossSessionInbound`:** lead ghi `.claude/settings.local.json` bị chặn (công cụ không cho lead tự sửa cài đặt của chính mình) → **Anh tự bật** (cách làm trong chat).
+- **Mở lại lập trình (G2 + G3):** ngay khi chuẩn SDK v1.0 xong + Opus review.
