@@ -1,0 +1,23 @@
+**Biên bản review chéo G0 — KS-E: CẦN SỬA.**
+
+Anh, kiểm tra mẫu **18 khẳng định: 18 Đúng (100%), 0 Sai, 0 Lệch dòng**. Hai phần còn thiếu cần bổ sung trước khi dùng KS-E làm đầu vào đặc tả G1. Không phát hiện nội dung thuộc mức **Chặn** trong tài liệu.
+
+Quy ước: `O` = `D:\GPT\OCR`; `R` = `D:\GPT\Local AI\ocr-dual-release`; `S` = `D:\GPT\Local AI\engine-console`; `K` = repo kế toán. Dòng KS-E dưới đây thuộc `docs\47-core\g0\KS-E.md`.
+
+| Phát hiện / kết quả kiểm mẫu | Mức | Căn cứ tệp:dòng |
+|---|---|---|
+| **Thiếu danh sách API giao diện và hướng xử lý khi đưa dưới Core.** Bảng §4.1 chỉ liệt kê API tích hợp; chưa kê nhóm `/ui/` gồm session, upload/list, result, review, edits, preview, download và delete. Nhóm này dùng cookie/session cùng CSRF, khác Bearer của `/v1/`. Cần ghi rõ giữ, thay hay ngừng công bố nhóm này để tránh bỏ sót đường truy cập ngoài cơ chế quyền Core. Nhánh ABBYY cũng chưa liệt kê DELETE job. | **Cần sửa** | Yêu cầu endpoint: `K\docs\47-core\g0\GIAO-G0.md:135–144`. Chỗ thiếu: `KS-E.md:74–86,105`. Route và xác thực thực tế: `O\mask_ocr\web.py:128–150,174–222,249–273`; `O\mask_ocr\api.py:103–130`; ABBYY DELETE: `O\abbyy-hotfolder\abbyy_hotfolder\server.py:284–292`. |
+| **Thiếu yêu cầu đo vận hành của CD-028 mục 3b trong danh sách hiệu chỉnh.** KS-E đã đề cập lifecycle, heartbeat và drain nhưng chưa đưa vào danh sách: ghi thời gian tới readiness, thời gian chạy/rảnh, số lần khởi động, RAM/CPU; đề xuất chế độ chạy hằng tuần và chỉ Admin áp dụng. Cần bổ sung thành một dòng hiệu chỉnh; đây là yêu cầu đã có, không phải tự mở rộng phạm vi. | **Cần sửa** | Phạm vi đối chiếu CD-028: `K\docs\47-core\g0\GIAO-G0.md:145`. Yêu cầu cụ thể: `K\docs\46-chuyen-doi-dieu-phoi\CHI-DAO-TU-ANH.md:332`. Danh sách hiện tại: `KS-E.md:115–128`; gợi ý G1: `KS-E.md:149–155`. |
+| **Mẫu 1–2 — Đúng:** `O` khai báo 2.1.0; `R` khai báo 2.0.0. | Gợi ý — xác nhận | `KS-E.md:3`; `O\pyproject.toml:7`; `R\pyproject.toml:7`. |
+| **Mẫu 3–4 — Đúng:** installer release hướng vào thư mục OCR cũ; package chính chỉ thu nhận `mask_ocr*`. | Gợi ý — xác nhận | `KS-E.md:28,61`; `R\install_release.py:5–11`; `O\pyproject.toml:15–19`. |
+| **Mẫu 5–6 — Đúng:** example chờ 960 giây, ghi JSON rồi DELETE; `start-api.bat` đi qua launcher `run_ocr.py`. | Gợi ý — xác nhận | `KS-E.md:35,39`; `O\examples\api_client.py:37–55`; `O\start-api.bat:8`; `O\start-ocr.bat:8`. |
+| **Mẫu 7–8 — Đúng:** phiên bản dependency API khớp lock file; `setup_dual.py` sao chép tệp hash, không xác minh model theo hash trong script này. | Gợi ý — xác nhận | `KS-E.md:48,53`; `O\requirements-api-lock.txt:6–15`; `O\setup_dual.py:29–50`. |
+| **Mẫu 9–10 — Đúng:** release xử lý detector/VietOCR theo từng trang; nguồn `O` xử lý theo lượt toàn tài liệu. Studio chỉ chấp nhận JSON hoặc multipart trong cấu hình function. | Gợi ý — xác nhận | `KS-E.md:62,64`; `R\mask_ocr\structured.py:42–72`; `O\mask_ocr\structured.py:244–311`; `S\server.py:185–186`. |
+| **Mẫu 11–12 — Đúng:** `EngineOCR` hiện trả DOCX bytes qua lời gọi Python; POST `/v1/jobs` nhận raw binary và trả 202. | Gợi ý — xác nhận | `KS-E.md:65,79`; `K\src\kho_tri_thuc\ha_tang\engine_cong.py:127–143`; `O\mask_ocr\api.py:181–202`. |
+| **Mẫu 13–14 — Đúng:** Bearer ánh xạ owner, owner khác bị từ chối lấy job; idempotency xét owner/key và fingerprint, xung đột trả 409. | Gợi ý — xác nhận | `KS-E.md:86,88`; `O\mask_ocr\api.py:118–130`; `O\mask_ocr\jobs.py:91–112`. |
+| **Mẫu 15–16 — Đúng:** TTL mặc định 600 giây từ khi kết thúc, review không gia hạn; `/result` chỉ kiểm tra `succeeded`, còn `final` được suy từ hết pending. | Gợi ý — xác nhận | `KS-E.md:81,93,95`; `O\mask_ocr\jobs.py:83–85,146–165`; `O\mask_ocr\api.py:208–226`; `O\mask_ocr\review.py:56–81`. |
+| **Mẫu 17–18 — Đúng:** readiness chủ yếu kiểm tra tệp, chưa inference; cổng fallback là 8016, launcher có thể dò 10 cổng tiếp theo khi gặp bản 2.0 cùng installation. | Gợi ý — xác nhận | `KS-E.md:99,101`; `O\mask_ocr\runtime.py:66–91`; `O\mask_ocr\installation.py:16–24`; `O\run_ocr.py:36–59`. |
+
+Không phát hiện kết luận sai hoặc quá tay trong mẫu đã kiểm. Tài liệu phân biệt hợp lý giữa xử lý thành công, hết mục cần soát và phê duyệt nghiệp vụ; cũng giới hạn rõ các kết quả chưa kiểm chứng bằng chạy thực tế.
+
+**Kết luận: Cần sửa**, do thiếu nhóm endpoint giao diện và yêu cầu đo vận hành CD-028. Tỷ lệ 100% chỉ phản ánh **18 khẳng định được lấy mẫu**, không chứng nhận toàn bộ tài liệu. Review chỉ đọc; không sửa tệp, chạy dịch vụ/test, mở `data\` hoặc các đường dẫn bị cấm.

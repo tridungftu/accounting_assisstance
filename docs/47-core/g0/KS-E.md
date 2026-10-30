@@ -87,6 +87,23 @@ Bearer được ánh xạ thành **owner/client**; client khác không lấy đ�
 
 Idempotency hiện có phạm vi **owner + key trong RAM của một tiến trình**; fingerprint gồm bytes, tên tệp, `force_ocr`, engine. Cùng key nhưng khác fingerprint trả 409 (`O\mask_ocr\jobs.py:91–105`).
 
+**API giao diện hiện có:** GET `/` tạo session và đặt cookie HttpOnly, SameSite Strict; GET `/assets/{name}` phục vụ tài nguyên giao diện. Nhóm `/ui/` dùng cookie/session, yêu cầu `x-csrf-token` với method khác GET/HEAD và chịu kiểm tra Origin; không dùng Bearer như `/v1/` (`O\mask_ocr\web.py:128–148`; `O\mask_ocr\api.py:103–130`).
+
+| Endpoint giao diện | Hành vi và căn cứ |
+|---|---|
+| GET `/ui/session` | Trả CSRF token, TTL, giới hạn, phiên bản UI và readiness engine (`O\mask_ocr\web.py:141–148`). |
+| POST `/ui/jobs` | Upload raw binary, HTTP 202; tạo job với owner `ui:` + session ID và giữ bytes gốc trong session (`O\mask_ocr\web.py:150–172`). |
+| GET `/ui/jobs` | Đồng bộ và liệt kê các tệp/job của session (`O\mask_ocr\web.py:174–180`). |
+| GET `/ui/jobs/{file_id}/result` | Trả kết quả, edits, review, manifest và thông tin đối chiếu khi đã `succeeded` (`O\mask_ocr\web.py:182–198`). |
+| PUT `/ui/jobs/{file_id}/review` | Áp dụng quyết định duyệt cho schema 2, cập nhật pages/edits (`O\mask_ocr\web.py:200–208`). |
+| PUT `/ui/jobs/{file_id}/edits` | Sửa text theo trang; từ chối schema 2 để chuyển sang sửa từng vùng (`O\mask_ocr\web.py:210–220`). |
+| GET `/ui/jobs/{file_id}/pages/{number}` | Preview PNG từ PDF gốc; có thể chọn vùng bằng `unit_id` (`O\mask_ocr\web.py:222–247`). |
+| GET `/ui/jobs/{file_id}/download/{kind}` | Schema 2 đi qua `export_result`; nhánh còn lại xuất TXT/DOCX từ edits (`O\mask_ocr\web.py:249–260`). |
+| DELETE `/ui/jobs/{file_id}` | Xóa tệp/job khỏi session, trả HTTP 204 (`O\mask_ocr\web.py:262–266`). |
+| DELETE `/ui/session` | Xóa toàn bộ tệp/job trong session, trả HTTP 204 (`O\mask_ocr\web.py:268–273`). |
+
+**Đề xuất khi đưa dưới Core:** ngừng công bố trực tiếp `/`, `/assets/` và toàn bộ `/ui/` của engine; thay đường truy cập giao diện bằng địa chỉ Core, nơi kiểm danh tính, quyền và pháp nhân trước khi backend gọi engine. Không chuyển tiếp nguyên trạng `/ui/` chỉ dựa vào cookie/session OCR, vì nhánh xác thực này độc lập với Bearer của `/v1/`. Chức năng review, edits, preview và download cần được đưa vào giao diện/adapter chịu quyền Core; đây là đề xuất hiệu chỉnh, chưa phải thay đổi đã triển khai (`O\mask_ocr\api.py:103–130`; `O\mask_ocr\web.py:128–273`; `CD:334`; `K\docs\47-core\g0\RV-E.md:9`).
+
 ### 4.2. Kết quả, duyệt và giới hạn
 
 - Schema 1 trả text/pages tương thích cũ; schema 2 bổ sung units/blocks/issues, manifest, comparison và review. Các trường cấu trúc trong response model vẫn dùng nhiều `dict`, chưa phải contract Core chặt chẽ (`O\mask_ocr\api.py:47–62`; `O\mask_ocr\structured.py:138–148`).
@@ -104,6 +121,8 @@ Cổng mặc định khi thiếu cấu hình là **8016**; tài liệu bản cà
 
 Cầu nối ABBYY dùng Bearer chung, raw body, `/v1/health`, `/v1/usage`, `/v1/diagnose`, `/v1/convert`, `/v1/jobs` và tải `/files/{fmt}`. Trạng thái là `queued/running/done/failed/cancelled`; kết quả giữ RAM mặc định một giờ, nhưng Hot Folder bắt buộc trao đổi qua tệp trên đĩa (`O\abbyy-hotfolder\abbyy_hotfolder\server.py:61`; `:212–310`; `O\abbyy-hotfolder\abbyy_hotfolder\config.py:78`; `O\abbyy-hotfolder\README.md:23–26`).
 
+Nhánh này còn có DELETE `/v1/jobs/{job_id}`: qua `_guard()`, gọi `service.delete`, trả HTTP 200 với `job_id` và `deleted: true`; job không tồn tại trả 404 (`O\abbyy-hotfolder\abbyy_hotfolder\server.py:284–292`).
+
 Mặc định bridge nghe cổng 8020, giới hạn 100 MiB và một worker; không thấy owner theo từng client trong `Record`/`Service.get`. Không được áp dụng nguyên các bảo đảm RAM-only, owner isolation và giới hạn của dual API cho nhánh ABBYY (`O\abbyy-hotfolder\abbyy_hotfolder\config.py:70–78`; `O\abbyy-hotfolder\abbyy_hotfolder\server.py:55–67`; `:134–136`).
 
 ## 5. Danh sách hiệu chỉnh thành `e_ocr`
@@ -117,6 +136,7 @@ Mặc định bridge nghe cổng 8020, giới hạn 100 MiB và một worker; kh
 | Output gồm nhiều dict; `document_id` là SHA-256 bytes (`O\mask_ocr\api.py:47–62`; `O\mask_ocr\structured.py:386`). | JSON Schema `van_ban_tai_lieu.v1`/`du_lieu_bang.v1`; ánh xạ ID Core riêng với hash nguồn, giữ provenance/revision. | Vừa |
 | Health luôn trả `ok`; readiness kiểm tệp (`O\mask_ocr\api.py:152–170`; `O\mask_ocr\runtime.py:66–91`). | Phân biệt liveness/readiness; kiểm đúng danh tính/phiên bản/năng lực, bổ sung kiểm nạp model thích hợp. | Vừa |
 | Chưa có trạng thái instance; job chỉ có bốn trạng thái (`O\mask_ocr\api.py:36–44`). | Engine Manager quản lý `stopped/starting/ready/busy/failed`, heartbeat và process identity, tách khỏi job. | Vừa |
+| CD-028 mục 3b đã yêu cầu đo vận hành và đề xuất chế độ chạy; đây là yêu cầu phải đưa vào hiệu chỉnh (`CD:332`; `K\docs\47-core\g0\GIAO-G0.md:145`). | Core ghi mỗi lần khởi động: giờ yêu cầu, thời gian tới readiness, thời gian chạy việc, thời gian rảnh trước khi đóng, số lần khởi động/ngày, RAM/CPU. Hằng tuần đề xuất tự kích hoạt + tự đóng (mặc định), giữ lâu hơn hoặc luôn chạy, kèm số liệu căn cứ; chỉ Admin bấm áp dụng, Core không tự đổi (`CD:332`). | Vừa |
 | Có `--port`, Uvicorn tự bind; launcher tự dò cổng (`O\mask_ocr\service.py:12–18`; `O\run_ocr.py:36–48`). | Ưu tiên nhận `socket.fromshare`; phương án chuyển tiếp dùng `--port` do Core cấp. Không tự chọn cổng khác; xung đột phải báo lỗi. | Vừa |
 | Launcher mở browser, theo dõi process rồi terminate; shutdown xóa RAM (`O\run_ocr.py:82–98`; `O\mask_ocr\jobs.py:197–201`). | Core khởi động headless; drain việc đang chạy, xác nhận bàn giao kết quả trước khi đóng; Core giữ lại cổng. | Vừa |
 | Service nhận đường dẫn registry Bearer; không thấy kết nối PostgreSQL trong luồng service/API/job đã khảo sát (`O\mask_ocr\service.py:10–18`; `O\mask_ocr\api.py:65–92`). | Giữ engine không có mật khẩu CSDL; Core giữ tham chiếu khóa dịch vụ và thực hiện lưu kết quả. | Nhỏ |
@@ -153,3 +173,5 @@ Mặc định bridge nghe cổng 8020, giới hạn 100 MiB và một worker; kh
 5. Đặc tả cổng cố định, socket chuyển giao, nhận diện instance, readiness và drain.
 6. Chốt một chủ điều phối ABBYY cùng sổ hạn mức; AI hiệu đính đi qua cổng AI.
 7. Tiêu chí nghiệm thu dùng dữ liệu giả: đa người dùng, retry, revision xung đột, hết TTL và khởi động lại.
+
+Vòng 2: đã sửa theo RV-E (2 mục)
