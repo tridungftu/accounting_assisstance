@@ -227,3 +227,8 @@ Tối đa **bốn Codex đang làm**, tính cả reviewer; hàng dưới là cá
   - lỗi khởi động giãn 2 giây / 4 giây, lần 3 mới khóa (§3.10b);
   - `bang_chung_id` gắn hash thông điệp sẵn sàng;
   - chặn accept phía con bằng mã, không bằng quy ước.
+- **Tách G2-22 (31/10 06:10):**
+  - **G2-22a** — trả nợ G2-21:
+    - tệp: `core/sql/022_vong_doi.sql` (mới; không sửa 016), `core/tien_trinh.py`, `tests/test_g2_21.py`;
+    - nội dung: lỗi khởi động giãn 2 giây / 4 giây, lần 3 mới khóa (retry lưu bền), không giữ khóa suốt drain, đối chiếu `doi_chieu_id` / dòng `CON_GIU` mồ côi.
+  - **G2-22b** — `vong_doi.py`, `so_do.py`, `test_g2_22.py`: rảnh 300 giây, đánh thức một instance, `TAT` không bật, Admin CAS chế độ chạy. Giao sau G2-22a.
