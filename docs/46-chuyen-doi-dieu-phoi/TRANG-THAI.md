@@ -941,3 +941,10 @@ Chi tiết có tệp:dòng: `BANG-DIEU-KIEN-GO-LIVE.md`; quy trình: `CHECKLIST-
 - **G2-CR1:** review Chặn (mốc riêng thiếu cả bộ tham chiếu vẫn qua schema) → vòng 2 đang sửa.
 - **G2-CR2:** runtime 23/23; đang review chéo.
 - **G2-13** (toàn vẹn tiền liên kết, FORCE RLS): đã giao Codex; review Opus bắt buộc trước khi gộp.
+
+### 30/10 ~23:50 — G2-13 review Opus Cần sửa; G2-14 Cần sửa; G2-15, G2-00b chờ PG
+- **Đã gộp thêm:** G2-CR1 + G2-CR2 (`4de3bab`).
+- **G2-13:** PG 24/24 (toàn bộ G2 439 ok). Review Opus `RV-G2-13-OPUS.md` ghi Cần sửa — 1 Chặn: khóa mọi chứng từ của pháp nhân → cạn bộ nhớ khóa; kèm 3 Cần sửa (trả tổng, mở cửa khi mất ngữ cảnh, hủy liên kết cũ bị chặn). Vòng 3 đang sửa.
+- **G2-14:** PG 28/28. Review chéo Cần sửa — Chặn: module không tạo được việc cùng transaction (trái SDK §3.4); heartbeat rút ngắn lease. Vòng 2 đang sửa.
+- **G2-15** (bus) và **G2-00b** (chẩn đoán lỗi đổi cấu trúc): xong code, đang chạy PG.
+- **CD-040:** ĐÃ NHẬN; chưa cài tác vụ — chờ Anh bấm xác nhận trong phiên lead.
