@@ -152,8 +152,8 @@ class ViecMoi:
 @dataclass(frozen=True, repr=False)
 class NguCanh:
     request_id: str
-    nguoi_dung_id: UUID
-    phap_nhan_id: UUID
+    nguoi_dung_id: UUID | None
+    phap_nhan_id: UUID | None
     module: str
     operation: str
     hanh_dong: str
@@ -187,6 +187,8 @@ class Route:
     ma_loi: dict = field(default_factory=dict)  # (status, ma) -> thông điệp đã duyệt
     phien_ban_goi: str | None = None
     ma_bam_goi: str | None = None
+    phien: str = 'bat_buoc'  # bat_buoc / tien_phien / khong
+    pham_vi: str = 'phap_nhan'  # phap_nhan / he_thong
 
     @property
     def ghi(self):
@@ -205,8 +207,14 @@ class Registry:
         if (not isinstance(route, Route) or route.method not in {'GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD'}
                 or not route.duong_dan.startswith('/api/v1/') or route.chu_so_huu not in {'core', 'module'}
                 or any(c in route.duong_dan for c in ('?', '#', '%', '\\', '*'))
+                or route.phien not in {'bat_buoc', 'tien_phien', 'khong'}
+                or route.pham_vi not in {'phap_nhan', 'he_thong'}
                 or not re.fullmatch(r'[a-z][a-z0-9_]{0,30}', route.module)):
             raise ValueError('Route không hợp lệ')
+        if route.phien != 'bat_buoc' and (route.chu_so_huu != 'core' or route.pham_vi != 'he_thong'):
+            raise ValueError('Route tiền phiên chỉ thuộc Core, phạm vi hệ thống')
+        if route.chu_so_huu == 'module' and route.pham_vi != 'phap_nhan':
+            raise ValueError('Module phải có ngữ cảnh pháp nhân')
         if route.chu_so_huu == 'module' and not route.duong_dan.startswith('/api/v1/module/' + route.module + '/'):
             raise ValueError('Sai namespace module')
         if route.method in {'GET', 'HEAD'} and route.viec_lau:
@@ -340,6 +348,23 @@ def khoa_viec(context):
     return 'http:' + hashlib.sha256(_json([str(context.nguoi_dung_id), context.operation, context.khoa])).hexdigest()
 
 
+def _kiem_dau_vao(route, body, path, query, kiem):
+    """Core và module cùng kiểm, trước transaction/handler/biên nhận."""
+    if (not kiem.kiem(route.dau_vao, body)
+            or (route.path_schema is not None and not kiem.kiem(route.path_schema, path))
+            or not kiem.kiem(route.query_schema, query)):
+        raise LoiHTTP(422)
+    for name in route.truong_cas:
+        value = body.get(name) if isinstance(body, dict) else None
+        if name == 'row_version':
+            try:
+                viec._cas(value)
+            except ValueError:
+                raise LoiHTTP(422) from None
+        elif value is None:
+            raise LoiHTTP(422)
+
+
 def _thuc_hien(conn, route, context, ma, *, kiem, cursor, core):
     """Được gọi trong transaction đang mở; mọi exception phải rollback toàn tx."""
     tiep_nhan._tx(conn)
@@ -363,7 +388,8 @@ def _thuc_hien(conn, route, context, ma, *, kiem, cursor, core):
             phien_ban_contract=route.phien_ban_contract, **result.tuy_chon, **ctx)
         result = PhanHoi(202, {'viec_id': str(id_), 'trang_thai': 'queued',
                              'request_id': context.request_id})
-    elif route.viec_lau:
+    elif route.viec_lau and not (isinstance(result, PhanHoi)
+                                and type(result.status) is int and result.status >= 400):
         raise LoiHTTP(502)  # Không nhận 202 tự khai mà chưa tạo việc trên tx.
     elif isinstance(result, DuLieuTrang):
         if context.trang is None or route.ghi:
@@ -399,6 +425,7 @@ def thuc_hien_module(conn, route, context, ma_uy_nhiem, *, kiem, cursor=None):
     """
     if route.chu_so_huu != 'module' or conn.info.transaction_status != 0:
         raise LoiHTTP(500)
+    _kiem_dau_vao(route, context.body, context.path, context.query, kiem)
     with conn.transaction():
         if (context.module != route.module or context.operation != route.operation
                 or context.hanh_dong != route.hanh_dong):
@@ -414,35 +441,32 @@ def thuc_hien_module(conn, route, context, ma_uy_nhiem, *, kiem, cursor=None):
 
 
 class Dispatcher:
-    def __init__(self, registry, *, ket_noi, kiem=None, cursor=None, kenh_module=None):
+    def __init__(self, registry, *, ket_noi, kiem=None, cursor=None, kenh_module=None,
+                 quyen_he_thong=None):
         self.registry, self.ket_noi = registry, ket_noi
         self.kiem = kiem if kiem is not None else KiemSchema()
         self.cursor, self.kenh_module = cursor, kenh_module
+        # (conn, NguCanh) -> True chỉ khi tài khoản backend có quyền Admin
+        # cho operation/đối tượng. Không dùng cửa G2-03/MTQ yêu cầu UUID pháp nhân.
+        self.quyen_he_thong = quyen_he_thong
         self._khoa = threading.Lock()
         self._dang_chay = set()
 
     def _context(self, request, route, path):
-        if request.phien is None or request.phien.tien_phien or request.phien.nguoi_dung_id is None:
+        if route.phien == 'bat_buoc' and (request.phien is None or request.phien.tien_phien
+                                        or request.phien.nguoi_dung_id is None):
             raise LoiHTTP(401)
-        pn = request.headers.get('x-phap-nhan-id')
-        try:
-            if not pn or not re.fullmatch(r'[0-9a-fA-F]{8}(?:-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}', pn):
-                raise ValueError()
-            pn = UUID(pn)
-        except ValueError:
-            raise LoiHTTP(400) from None
-        if (not self.kiem.kiem(route.dau_vao, request.body)
-                or (route.path_schema is not None and not self.kiem.kiem(route.path_schema, path))):
-            raise LoiHTTP(422)
-        for name in route.truong_cas:
-            value = request.body.get(name) if isinstance(request.body, dict) else None
-            if name == 'row_version':
-                try:
-                    viec._cas(value)
-                except ValueError:
-                    raise LoiHTTP(422) from None
-            elif value is None:
-                raise LoiHTTP(422)
+        if route.phien == 'tien_phien' and request.phien is None:
+            raise LoiHTTP(401)
+        pn = None
+        if route.pham_vi == 'phap_nhan':
+            pn = request.headers.get('x-phap-nhan-id')
+            try:
+                if not pn or not re.fullmatch(r'[0-9a-fA-F]{8}(?:-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}', pn):
+                    raise ValueError()
+                pn = UUID(pn)
+            except ValueError:
+                raise LoiHTTP(400) from None
         key = request.headers.get('idempotency-key')
         if route.chong_trung:
             try:
@@ -456,9 +480,8 @@ class Dispatcher:
             if not re.fullmatch('[1-9][0-9]{0,2}', text) or int(text) > 100:
                 raise LoiHTTP(400)
             size = int(text)
-        if not self.kiem.kiem(route.query_schema, query):
-            raise LoiHTTP(400)
-        context = NguCanh(request.request_id, request.phien.nguoi_dung_id, pn, route.module,
+        _kiem_dau_vao(route, request.body, path, query, self.kiem)
+        context = NguCanh(request.request_id, request.phien.nguoi_dung_id if request.phien else None, pn, route.module,
             route.operation, route.hanh_dong, route.doi_tuong(path, request.body), request.body,
             path, query, key)
         if size is not None:
@@ -473,45 +496,59 @@ class Dispatcher:
             if conn.info.transaction_status != 0:
                 raise LoiHTTP(500)  # Không cho 202 từ savepoint chưa commit gốc.
             with conn.transaction():
-                ma = request.phien.lay_ma(route.module, context.phap_nhan_id)
-                if not isinstance(ma, phien.MaBiMat):
-                    raise LoiHTTP(404)
-                ctx = dict(ma=ma, module=route.module, phap_nhan_id=context.phap_nhan_id,
-                           hanh_dong=route.hanh_dong)
-                identity = phien.xac_minh_phien(conn, **ctx)
-                if identity is None or identity.nguoi_dung_id != context.nguoi_dung_id:
-                    raise LoiHTTP(404)
-                decision = mtq.quyet_dinh_phien(conn, doi_tuong=context.doi_tuong,
-                    phien_ban_contract=route.phien_ban_contract, **ctx)
-                if decision.get('ket_luan') != 'DAT' or decision.get('cho_phep') is not True:
-                    raise LoiHTTP(404 if decision.get('ket_luan') != 'CHO' else 503)
-                if route.chu_so_huu == 'module':
-                    versions = dang_ky.doc_dang_ky(conn, loai='phien_ban_module', ma=route.module)
-                    if not any(v['so_phien_ban'] == route.phien_ban_goi
-                               and v['ma_bam_goi'] == route.ma_bam_goi
-                               and v['trang_thai'] == 'da_cai' for v in versions):
-                        raise LoiHTTP(503)
+                if route.pham_vi == 'he_thong':
+                    if route.phien == 'bat_buoc' and (self.quyen_he_thong is None
+                            or self.quyen_he_thong(conn, context) is not True):
+                        raise LoiHTTP(404)
+                    result = _thuc_hien(conn, route, context, None,
+                                       kiem=self.kiem, cursor=self.cursor, core=True)
                 else:
-                    result = _thuc_hien(conn, route, context, ma, kiem=self.kiem, cursor=self.cursor, core=True)
+                    result = self._dispatch_phap_nhan(conn, request, route, context)
             if conn.info.transaction_status != 0:
                 raise LoiHTTP(500)
         if route.chu_so_huu == 'module':
-            if self.kenh_module is None:
+            return self._dispatch_module(route, context)
+        return result
+
+    def _dispatch_phap_nhan(self, conn, request, route, context):
+        ma = request.phien.lay_ma(route.module, context.phap_nhan_id)
+        if not isinstance(ma, phien.MaBiMat):
+            raise LoiHTTP(404)
+        ctx = dict(ma=ma, module=route.module, phap_nhan_id=context.phap_nhan_id,
+                   hanh_dong=route.hanh_dong)
+        identity = phien.xac_minh_phien(conn, **ctx)
+        if identity is None or identity.nguoi_dung_id != context.nguoi_dung_id:
+            raise LoiHTTP(404)
+        decision = mtq.quyet_dinh_phien(conn, doi_tuong=context.doi_tuong,
+            phien_ban_contract=route.phien_ban_contract, **ctx)
+        if decision.get('ket_luan') != 'DAT' or decision.get('cho_phep') is not True:
+            raise LoiHTTP(404 if decision.get('ket_luan') != 'CHO' else 503)
+        if route.chu_so_huu == 'module':
+            versions = dang_ky.doc_dang_ky(conn, loai='phien_ban_module', ma=route.module)
+            if not any(v['so_phien_ban'] == route.phien_ban_goi
+                       and v['ma_bam_goi'] == route.ma_bam_goi
+                       and v['trang_thai'] == 'da_cai' for v in versions):
                 raise LoiHTTP(503)
-            try:
-                result = self.kenh_module(route, context)
-            except TimeoutError:
-                raise LoiHTTP(504) from None
-            if route.thu_tu is not None and isinstance(result, PhanHoi) and result.status < 400:
-                if result.status != 200 or not isinstance(result.body, DuLieuTrang):
-                    raise LoiHTTP(502)
-                result = replace(_trang_phan_hoi(result.body, context, route, self.cursor),
-                                 da_commit=result.da_commit)
-            result = _kiem_phan_hoi(route, result, self.kiem, context.request_id)
-            if result.status < 400 and result.da_commit is not True:
+        else:
+            return _thuc_hien(conn, route, context, ma, kiem=self.kiem, cursor=self.cursor, core=True)
+
+    def _dispatch_module(self, route, context):
+        if self.kenh_module is None:
+            raise LoiHTTP(503)
+        try:
+            result = self.kenh_module(route, context)
+        except TimeoutError:
+            raise LoiHTTP(504) from None
+        if route.thu_tu is not None and isinstance(result, PhanHoi) and result.status < 400:
+            if result.status != 200 or not isinstance(result.body, DuLieuTrang):
                 raise LoiHTTP(502)
-            if result.status >= 400:
-                result = replace(result, body={**result.body, 'request_id': context.request_id})
+            result = replace(_trang_phan_hoi(result.body, context, route, self.cursor),
+                             da_commit=result.da_commit)
+        result = _kiem_phan_hoi(route, result, self.kiem, context.request_id)
+        if result.status < 400 and result.da_commit is not True:
+            raise LoiHTTP(502)
+        if result.status >= 400:
+            result = replace(result, body={**result.body, 'request_id': context.request_id})
         return result
 
     def dispatch(self, request):
