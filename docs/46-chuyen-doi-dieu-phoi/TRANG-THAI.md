@@ -918,3 +918,13 @@ Chi tiết có tệp:dòng: `BANG-DIEU-KIEN-GO-LIVE.md`; quy trình: `CHECKLIST-
   - worktree `.claude\worktrees\lat-g2-xx`;
   - review chéo `scratchpad\g2\rv.sh MA NHANH WT "TEP" DE "TEST" OUT`;
   - Opus review cho lát rủi ro cao bằng subagent `review-lat`.
+
+### 30/10 ~22:00 — G2-11 vòng 5, G2-12 chờ review chéo
+- **G2-11:** review chéo Codex ghi "Cần sửa". Vòng 4:
+  - 004 trả về bản gốc; quy tắc số (tăng dần, cho phép bỏ số) chuyển sang 011;
+  - không lộ biên nhận cho người không có quyền xem.
+  - PostgreSQL: 24 ok, 1 ERROR ở ca mới (phiên không xác minh được) → vòng 5 đang sửa.
+- **G2-12:** vòng 2 sửa SQL 012, test tự áp chuỗi theo số. Đã nhập `lat/g2-11` vào G2-12.
+  - PostgreSQL toàn bộ G2: 411 ok / 1 ERROR (chính ca G2-11 trên) / 2 skip.
+  - Đang review chéo Codex.
+- **CD-039 (tự cài tác vụ tự khởi động lại):** chờ Anh xác nhận trong chat — cấu hình lâu dài chạy Claude 30 phút/lần.
