@@ -1,0 +1,48 @@
+{
+  "contract": "du_an_dang_ban.v1",
+  "phien_ban": "1.0.0",
+  "revision": 1,
+  "nguon_tep_ids": ["30000000-0000-4000-8000-000000000008"],
+  "du_an_dang_ban_id": "30000000-0000-4000-8000-000000000001",
+  "du_an_id": "10000000-0000-4000-8000-000000000004",
+  "phap_nhan_id": "10000000-0000-4000-8000-000000000002",
+  "phien_ban_du_an_id": "30000000-0000-4000-8000-000000000002",
+  "so_phien_ban": 1,
+  "ma_bam": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+  "dang_ban": true,
+  "loai_hinh_id": "10000000-0000-4000-8000-000000000006",
+  "thong_tin": {"vi_tri": "DEMO khu dự án", "mo_ta": "DEMO cấu hình bán hàng minh họa"},
+  "gia_thue": {
+    "don_gia_niem_yet": {"gia_tri": "10000000", "don_vi_tien": "VND"},
+    "thue_suat": "10",
+    "gia_dat_tru_m2": {"gia_tri": "0", "don_vi_tien": "VND"}
+  },
+  "phi": [{
+    "ten": "DEMO phí sử dụng", "loai": "SU_DUNG",
+    "muc": {"gia_tri": "5000", "don_vi_tien": "VND"},
+    "don_vi_tinh": "M2_THANG", "co_so_tinh": "DEMO diện tích sử dụng theo thỏa thuận",
+    "co_so_gia_tri": "CHUA_RO"
+  }],
+  "moc": [{
+    "id": "10000000-0000-4000-8000-000000000031", "lan": 1,
+    "ten": "DEMO cấp chứng nhận đầu tư", "ten_tat": "DEMO CNĐT",
+    "ngay_du_kien": "2026-12-01", "ngay_thuc_te": null, "dang_dung": true
+  }],
+  "tien_do": [
+    {"lan": 1, "ty_le": "10", "moc": {"loai": "SU_KIEN", "su_kien": "KY_HD", "so_ngay_sau_moc": 0, "han": null}, "ghi_chu": "DEMO đợt đầu"},
+    {
+      "lan": 2, "ty_le": "30",
+      "moc": {
+        "loai": "SU_KIEN", "su_kien": "DAM-10000000-0000-4000-8000-000000000031",
+        "so_ngay_sau_moc": 0, "moc_du_an_id": "10000000-0000-4000-8000-000000000031",
+        "lan_moc": 1, "ngay_du_kien": "2026-12-01", "ngay_thuc_te": null, "han": null
+      },
+      "ghi_chu": "DEMO theo mốc riêng"
+    },
+    {"lan": 3, "ty_le": "60", "moc": {"loai": "NGAY", "ngay": "2027-03-01", "han": "2027-03-01"}, "ghi_chu": "DEMO đợt cuối"}
+  ],
+  "lo_can": [{
+    "id": "10000000-0000-4000-8000-000000000005", "lan": 1, "ma": "DEMO-LO-01",
+    "dien_tich": "100", "trang_thai": "CON_TRONG", "ghi_chu": "DEMO lô minh họa"
+  }]
+}
