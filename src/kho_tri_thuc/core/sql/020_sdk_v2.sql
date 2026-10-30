@@ -19,11 +19,6 @@ BEGIN
     END IF;
     PERFORM set_config('kho_tri_thuc.g2_20_vai_cu',current_setting('role'),true);
     PERFORM set_config('kho_tri_thuc.g2_20_duong_cu',current_setting('search_path'),true);
-    EXECUTE format('SET LOCAL ROLE %I',chu_tl);
-    -- Chi owner Core goi hai validator DEFINER; khong mo quyen cho runtime/module.
-    EXECUTE format('GRANT USAGE ON SCHEMA loi_tai_lieu TO %I',chu);
-    EXECUTE format('GRANT EXECUTE ON FUNCTION loi_tai_lieu.ngu_canh(text,text,uuid,text,uuid,bigint),
-        loi_tai_lieu.kiem_quyen(text,text,uuid,text,jsonb,text,text,uuid,bigint) TO %I',chu);
     EXECUTE format('SET LOCAL ROLE %I',chu);
     PERFORM set_config('search_path','pg_catalog,pg_temp',true);
 END;
@@ -40,7 +35,15 @@ $$;
             'vai_doi_cau_truc_loi$','dang_nhap_mod_'||p_module) THEN
             RAISE EXCEPTION 'SDK_MODULE' USING ERRCODE='42501';
         END IF;
-        ai := loi_tai_lieu.ngu_canh(p_ma,p_module,p_pn,p_hd,p_viec,p_the_he);
+        PERFORM pg_advisory_xact_lock_shared(742601,1);
+        SELECT nguoi_dung_id INTO ai FROM loi.xac_minh_phien(p_ma,p_module,p_pn,p_hd,p_viec,p_the_he);
+        IF ai IS NULL OR split_part(p_hd,':',1) IS DISTINCT FROM upper(p_module) THEN
+            RAISE EXCEPTION 'TAI_LIEU_PHIEN' USING ERRCODE='42501';
+        END IF;
+        PERFORM set_config('ktt.ma_phien',p_ma,true), set_config('ktt.module',p_module,true),
+            set_config('ktt.phap_nhan_id',p_pn::text,true), set_config('ktt.hanh_dong',p_hd,true),
+            set_config('ktt.viec_id',coalesce(p_viec::text,''),true),
+            set_config('ktt.the_he',coalesce(p_the_he::text,''),true);
         SELECT count(*),min(so_phien_ban) INTO so_ban,pb FROM (
             SELECT so_phien_ban FROM loi.phien_ban_module
             WHERE module=p_module AND trang_thai='da_cai' FOR SHARE
@@ -75,18 +78,34 @@ $$;
         p_doi_tuong text,p_doi_tuong_id uuid,p_ket_luan text,p_request uuid,
         p_contract text DEFAULT '1',p_viec uuid DEFAULT NULL,p_the_he bigint DEFAULT NULL) RETURNS bigint
     LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path=pg_catalog,pg_temp AS $ham$
+    DECLARE ai uuid; q jsonb; co jsonb; can text;
     BEGIN
         IF p_module IS NULL OR session_user::text IS DISTINCT FROM regexp_replace(current_user::text,
             'vai_doi_cau_truc_loi$','dang_nhap_mod_'||p_module) THEN
             RAISE EXCEPTION 'SDK_MODULE' USING ERRCODE='42501';
         END IF;
-        PERFORM loi_tai_lieu.ngu_canh(p_ma,p_module,p_pn,p_hd,p_viec,p_the_he);
+        PERFORM pg_advisory_xact_lock_shared(742601,1);
+        SELECT nguoi_dung_id INTO ai FROM loi.xac_minh_phien(p_ma,p_module,p_pn,p_hd,p_viec,p_the_he);
+        IF ai IS NULL OR split_part(p_hd,':',1) IS DISTINCT FROM upper(p_module) THEN
+            RAISE EXCEPTION 'TAI_LIEU_PHIEN' USING ERRCODE='42501';
+        END IF;
+        PERFORM set_config('ktt.ma_phien',p_ma,true), set_config('ktt.module',p_module,true),
+            set_config('ktt.phap_nhan_id',p_pn::text,true), set_config('ktt.hanh_dong',p_hd,true),
+            set_config('ktt.viec_id',coalesce(p_viec::text,''),true),
+            set_config('ktt.the_he',coalesce(p_the_he::text,''),true);
         IF p_request IS NULL OR p_doi_tuong_id IS NULL THEN
             RAISE EXCEPTION 'SDK_DAU_VAO' USING ERRCODE='22023';
         END IF;
-        PERFORM loi_tai_lieu.kiem_quyen(p_ma,p_module,p_pn,p_hd,
-            jsonb_build_object('bang',p_doi_tuong,'id',p_doi_tuong_id),p_contract,
-            CASE WHEN split_part(p_hd,':',3)='XEM' THEN 'cho_xem' ELSE 'cho_ghi' END,p_viec,p_the_he);
+        q := loi.mtq_quyet_dinh_phien(p_ma,p_module,p_pn,p_hd,
+            jsonb_build_object('bang',p_doi_tuong,'id',p_doi_tuong_id),p_contract,'{}',p_viec,p_the_he);
+        IF q->'cho_phep' IS DISTINCT FROM 'true'::jsonb THEN
+            RAISE EXCEPTION 'TAI_LIEU_MTQ' USING ERRCODE='42501';
+        END IF;
+        co := loi.module_trang_thai(p_ma,p_module,p_pn,p_hd,p_module,p_viec,p_the_he);
+        can := CASE WHEN split_part(p_hd,':',3)='XEM' THEN 'cho_xem' ELSE 'cho_ghi' END;
+        IF co->can IS DISTINCT FROM 'true'::jsonb THEN
+            RAISE EXCEPTION 'TAI_LIEU_CONG_TAC' USING ERRCODE='42501';
+        END IF;
         RETURN loi.ghi_kiem_toan(p_hd,p_doi_tuong,p_doi_tuong_id,p_ket_luan,
             p_ma,p_module,p_pn,p_request,p_viec,p_the_he);
     END;
@@ -305,8 +324,13 @@ DECLARE
     vai record;
 BEGIN
     -- Giu ACL cua ghi_metadata: module KHONG duoc goi cua noi bo G2-09.
-    -- Chi cap cho cac vai chay module da provisioning. Module Manager cap cung
-    -- hai chu ky V2 nay khi cai module moi; khong cap cho owner/login bang chung.
+    -- 020 chi cap hai chu ky V2 cho vai_chay_mod_* ton tai luc ap migration.
+    -- Module cai sau 020 can G2-25 cap quyen: no da ghi trong ke hoach,
+    -- Module Manager hien chua co ma cap bo sung; khong cap owner/login bang chung.
+    EXECUTE format('REVOKE ALL ON FUNCTION loi_tai_lieu.ghi_ket_qua_v2(text,text,uuid,text,uuid,jsonb,uuid,uuid,bigint) FROM %I',chu_tl);
+    EXECUTE format('SET LOCAL ROLE %I',chu);
+    EXECUTE format('REVOKE ALL ON FUNCTION loi.ghi_kiem_toan_v2(text,text,uuid,text,text,uuid,text,uuid,text,uuid,bigint) FROM %I',chu);
+    EXECUTE format('SET LOCAL ROLE %I',chu_tl);
     FOR vai IN SELECT rolname FROM pg_roles
         WHERE left(rolname,length(tt||'vai_chay_mod_'))=tt||'vai_chay_mod_'
           AND NOT rolcanlogin AND NOT rolsuper AND NOT rolbypassrls LOOP

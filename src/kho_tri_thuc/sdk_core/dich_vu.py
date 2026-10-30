@@ -88,6 +88,7 @@ class _KetQua(_DichVu):
     __slots__ = ()
 
     def ghi(self, tx, *, tai_lieu_id, du_lieu, giu_viec=None):
+        # Nợ §3.3: bổ sung khoa chống trùng ở lát tiếp nhận/Dispatcher sau.
         ctx = _ctx(tx)
         data = _tl._truong(du_lieu, {'tep_id', 'bien_the', 'ma_contract',
             'phien_ban_contract', 'trang_thai', 'ly_do', 'revision_truoc', 'nguon'}, {'goc_id'})
@@ -152,6 +153,7 @@ class _Audit(_DichVu):
     __slots__ = ()
 
     def ghi(self, tx, *, doi_tuong, doi_tuong_id, ket_luan, phien_ban_contract='1'):
+        # Nợ: doi_tuong hiện do caller chọn (Core chỉ kiểm regex và MTQ).
         ctx = _ctx(tx)
         return _sql(tx, 'SELECT loi.ghi_kiem_toan_v2(%s,%s,%s,%s,%s,%s,%s,%s,%s)',
             (ctx.ma.lay_de_truyen(), ctx.module, ctx.phap_nhan_id, ctx.hanh_dong,
