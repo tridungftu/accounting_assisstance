@@ -2,6 +2,8 @@
 
 AI-1a chỉ giữ nguyên các lớp hiện có; schema đầu vào và cờ chỉ Local
 thuộc AI-1b. Module này không tạo cổng, provider hoặc kết nối CSDL.
+Ba lớp được định nghĩa trực tiếp trong cong_ai; chuỗi import hiện tại chỉ
+dùng standard library, không nạp thư viện client mạng hoặc CSDL bên thứ ba.
 """
 
 from kho_tri_thuc.tri_thuc.cong_ai import KetQuaAI, TruongAI, YeuCauAI
