@@ -749,3 +749,15 @@ Chi tiết có tệp:dòng: `BANG-DIEU-KIEN-GO-LIVE.md`; quy trình: `CHECKLIST-
   - G1b-1 `DAC-TA-API.md` + OpenAPI;
   - review KS-E, chạy xong thì giao G1b-2 `ANH-XA-ROUTE.md`.
 - **Tiếp theo:** review chéo Codex G1a → Opus review khối dữ liệu/role/RLS → **PHIEU-DUYET-CSDL.md gửi Anh**.
+### 30/10 ~11:30 — **Cần Anh duyệt: PHIEU-DUYET-CSDL** (phiếu 1/3, CD-029)
+- **Phiếu:** `docs\47-core\PHIEU-DUYET-CSDL.md`, 3 câu chọn.
+- **Đặc tả kèm theo:**
+  - `g1\DAC-TA-CSDL.md` (vòng 2 + 2 bổ sung lead);
+  - `g1\ANH-XA-MIGRATION.md`.
+- **Review:**
+  - Codex: đạt độ đủ 67/67, kiểm mẫu 94,7%.
+  - Opus vòng 1: 3 Chặn (liên kết tiền, kiểm tiền dưới RLS, FK giữa module).
+  - Vòng 2: không còn Chặn.
+- **API (phiếu 2):** Codex đang sửa vòng 2 theo review Opus (1 Chặn: biên nhận chống trùng route module) + Codex.
+- **SDK (phiếu 3):** nháp xong; Codex đang review chéo.
+- **Tài liệu sửa** chạy trong worktree `lat/dac-ta-core`: sandbox Codex không ghi được vào thư mục chính. Lead chép về và commit.

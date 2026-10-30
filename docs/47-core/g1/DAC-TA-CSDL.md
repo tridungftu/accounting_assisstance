@@ -316,6 +316,14 @@ Dữ liệu tiếp nhận chưa xác định pháp nhân nằm trong `loi_tai_li
 
 **Download:** tra tệp từ tài liệu/kết quả được phép, kiểm biến thể và trạng thái duyệt trước trả bytes. Không có đường tắt vì biết ID, hash hoặc đường dẫn.
 
+**Bổ sung lead sau review Opus vòng 2 (a):** mọi role làm chủ hàm DEFINER (`vai_doi_cau_truc_*`, `vai_kiem_toan_ven_*`, resolver module) phải có policy tường minh theo pháp nhân đã xác minh; dưới FORCE RLS, thiếu policy thì role đó thấy 0 dòng.
+- **Khóa dòng bằng `SELECT … FOR UPDATE`:** cần quyền UPDATE (một cột kỹ thuật) và policy UPDATE USING.
+- **Nếu không cấp được:** dùng `pg_advisory_xact_lock` theo id, đúng thứ tự khóa ở §6.2.
+
+**Bổ sung lead sau review Opus vòng 2 (b):** mã phiên đặt bằng tham số bind; tắt ghi giá trị tham số trong log (`log_parameter_max_length = 0`, `log_parameter_max_length_on_error = 0`).
+- Không lưu kết quả xác minh vào GUC hay bảng tạm mà runtime ghi được.
+- Mỗi lần cần thì xác minh lại từ băm (hàm STABLE, tra có chỉ mục).
+
 **Xuất riêng một công ty — CD-021:** chỉ Admin khởi tạo với pháp nhân rõ ràng; công cụ xuất qua bản đồ sở hữu, gồm dữ liệu module, file, audit, ánh xạ và phần danh mục cần thiết. Dùng snapshot/mốc nhất quán CSDL–file; đối chiếu số dòng, tổng tiền theo đơn vị, hash và tham chiếu; thử phục hồi vào đích riêng trên DEMO. Không mang dữ liệu công ty khác, khóa hay bí mật phiên vào gói. Không dùng backup cả database rồi coi đó là bản xuất một pháp nhân.
 
 Role xuất `vai_xuat_phap_nhan` là NOLOGIN, chỉ SELECT theo bản đồ sở hữu, không BYPASSRLS/owner/DML. Core mở phiên xuất có mã ủy nhiệm riêng và pháp nhân cố định; mọi policy FORCE RLS của đường xuất xác minh mã này, không tin GUC pháp nhân tùy ý. Chỉ tác vụ xuất Core được kế thừa role trong phiên xuất do quản trị cấp hữu hạn; không cấp module. Ghi audit người yêu cầu, pháp nhân, mốc và kết quả. Đối tượng nhiều pháp nhân phải kiểm quyền **mọi** pháp nhân theo QD-10; gói một công ty chỉ chứa phần tách riêng đã xác định, giữ tham chiếu thiếu và báo chặn nếu không thể tách mà vẫn toàn vẹn, không tự mang toàn bộ đối tượng chung sang (`O:61`–`O:63`, `Q:365`).
