@@ -737,3 +737,15 @@ Chi tiết có tệp:dòng: `BANG-DIEU-KIEN-GO-LIVE.md`; quy trình: `CHECKLIST-
 - **Engine Studio, OCR đối chiếu:** tìm thấy ở `D:\GPT\Local AI\engine-console` và `D:\GPT\Local AI\ocr-dual-release`. Chờ Anh xác nhận đúng bản.
 - **Hạn mức đầu ngày 30/10:** Claude tuần 1%, khung 5 giờ 6%.
 - **Tiếp theo:** gom KS-A…D → review chéo Codex → KHAO-SAT-CORE.md → G1a CSDL (phiếu 1) → G1b API (phiếu 2) → G1c SDK (phiếu 3).
+### 30/10 ~10:45 — G0 xong; G1a (CSDL) và G1b (API) đang soạn
+- **G0** xong 5 phần:
+  - KS-A…D, cộng **KS-E**: mã OCR `D:\GPT\OCR`, Anh nhắc 10:22 phải hiệu chỉnh thành `e_ocr`.
+  - Đã review chéo Codex. Kiểm mẫu đúng 92–100%, không lỗi chặn. KS-A, KS-C, KS-D đã sửa vòng 2.
+  - Lead kiểm xác suất KS-B: 7/7 đúng.
+  - Bản ghép: `docs\47-core\g0\KHAO-SAT-CORE.md`.
+- **Đang chạy (4 Codex chỉ đọc):**
+  - G1a-1 `DAC-TA-CSDL.md`;
+  - G1a-2 `ANH-XA-MIGRATION.md`;
+  - G1b-1 `DAC-TA-API.md` + OpenAPI;
+  - review KS-E, chạy xong thì giao G1b-2 `ANH-XA-ROUTE.md`.
+- **Tiếp theo:** review chéo Codex G1a → Opus review khối dữ liệu/role/RLS → **PHIEU-DUYET-CSDL.md gửi Anh**.
