@@ -11,7 +11,7 @@
   },
   "can_lead": [
     "Duyệt bốn schema nháp trước khi đưa vào sổ contract. ID urn:ktt:du-thao không thuộc namespace contract đã công bố.",
-    "engine.json chỉ khai danh tính và capability rỗng; cố ý chưa phải manifest cài được. G2-17 bắt capability minItems=1 và hồ sơ chạy. Không sửa bundle chung hoặc khai adapter/hồ sơ chạy chưa có trong MASK-1.",
+    "Cần lead: chưa có capability Core đủ schema đã duyệt và bằng chứng chạy adapter để khai. Không tạo engine.json khi chưa đủ điều kiện; G2-17b vẫn bắt capability minItems=1, kể cả khi có ngoại lệ màn hình. engine.json rỗng từ vòng trước không đạt schema; worker không xóa tệp theo AGENTS.md, cần lead bỏ hiện vật cũ trước nghiệm thu gói.",
     "Bọc HTTP và ánh xạ contract Core thuộc MASK-2. Phát hiện độc lập/che tài liệu chưa có contract và bằng chứng endpoint; không quảng bá MASK-3/4.",
     "additionalProperties=false là đề xuất siết payload của adapter, không phải tuyên bố Pydantic nguồn từ chối trường thừa. Schema không thay kiểm ngữ nghĩa/ủy quyền."
   ],

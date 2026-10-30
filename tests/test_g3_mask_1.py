@@ -1,8 +1,9 @@
 """MASK-1: dự thảo offline, không nhập/chạy Mask, không đăng ký contract.
 
-G2-17 bắt capability không rỗng và hồ sơ chạy; MASK-1 chưa có adapter/schema
-được duyệt nên engine.json cố ý chưa cài được. Không điền năng lực giả để
-làm xanh validator. Meta-schema đầy đủ là CHUA_KIEM nếu thiếu jsonschema.
+G2-17b vẫn bắt capability không rỗng, kể cả có ngoại lệ màn hình. MASK-1
+chưa có adapter/schema Core được duyệt: không tạo manifest mới. Hiện vật
+rỗng vòng trước nếu còn phải bị validator từ chối, không coi test âm đạt
+là manifest đạt schema. Meta-schema đầy đủ là CHUA_KIEM nếu thiếu jsonschema.
 """
 
 from copy import deepcopy
@@ -21,7 +22,9 @@ SCHEMA_NAMES = {'che_van_ban_vao', 'che_van_ban_ra', 'mo_che_vao', 'mo_che_ra'}
 class Mask1Tests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        cls.manifest = contract_tests._json((ENGINE / 'engine.json').read_text('utf-8'))
+        manifest_path = ENGINE / 'engine.json'
+        cls.manifest = (contract_tests._json(manifest_path.read_text('utf-8'))
+                        if manifest_path.exists() else None)
         cls.draft = contract_tests._json((ENGINE / 'contract/du_thao.json').read_text('utf-8'))
         cls.schemas = cls.draft['schemas']
         contract_tests.BundleContractTest.setUpClass()
@@ -81,6 +84,10 @@ class Mask1Tests(unittest.TestCase):
                 self.assertNotIn('du-thao', node.get('$ref', ''))
 
     def test_manifest_khong_quang_ba_nang_luc_chua_duyet(self):
+        # Không có capability đủ điều kiện thì không tạo manifest. Vẫn cho
+        # chạy bộ kiểm dự thảo sau khi lead bỏ hiện vật rỗng của vòng trước.
+        if self.manifest is None:
+            return
         self.assertEqual(self.manifest['ma'], 'e_mask')
         self.assertEqual(self.manifest['loai'], 'engine')
         self.assertEqual(self.manifest['capability'], [])
@@ -96,6 +103,26 @@ class Mask1Tests(unittest.TestCase):
         candidate['ma'] = 'e_mask'
         candidate['capability'] = self.manifest['capability']
         self.core.reject('urn:ktt:manifest:engine.v1', candidate)
+
+    def test_g2_17b_ngoai_le_man_hinh_khong_cho_capability_rong(self):
+        # Dùng fixture schema chung, không quảng bá capability của fixture
+        # như một capability Mask đã được kiểm qua adapter.
+        key = 'urn:ktt:manifest:engine.v1'
+        for decision in (None, 'CD-038-ENGINE-2A', 'CD-038-ENGINE-3A'):
+            candidate = deepcopy(self.core.examples[key])
+            profile = candidate['ho_so_chay_mau']
+            profile['headless'] = decision is None
+            profile.pop('ngoai_le_man_hinh', None)
+            if decision is not None:
+                profile['ngoai_le_man_hinh'] = {
+                    'ma_quyet_dinh': decision, 'ly_do': 'DEMO kiểm schema G2-17b'}
+            for minimal in (True, False):
+                with self.subTest(decision=decision, minimal=minimal):
+                    # Ca dương chứng minh ca âm không đỏ vì lỗi hồ sơ chạy.
+                    self.core.validate(key, candidate, minimal=minimal)
+                    empty = deepcopy(candidate)
+                    empty['capability'] = []
+                    self.core.reject(key, empty, minimal=minimal)
 
     def test_vi_du_tong_hop_hop_le(self):
         for name in self.schemas:
