@@ -1,7 +1,8 @@
 """G2-14: cửa Core quanh hàng việc XS-2, dùng chính transaction của caller.
 
 Giữ ngữ nghĩa ha_tang.hang_viec: dedupe, lease, retry an toàn, dừng hợp tác.
-Engine gọi kênh Core; module chỉ nhận GiuViec theo login/instance đã xác thực.
+Engine gọi kênh Core; module tạo việc đã đăng ký ngay trên tx nghiệp vụ.
+Module nhận GiuViec theo login/instance đã xác thực để chạy việc.
 Core phải xác minh instance và đối chiếu bằng chứng trước ``xep_lai``.
 Không giữ mã HTTP để chạy nền. Không tự connect/commit/rollback hoặc mở tx.
 Khi lưu kết quả: ghi nghiệp vụ rồi ``ket_thuc`` trong CÙNG tx; để exception
@@ -27,13 +28,14 @@ class LoiViec(RuntimeError):
         self.ma = ma
         self.http_status = (409 if ma in {'VIEC_MAT_LEASE', 'VIEC_CAS', 'VIEC_KHOA_KHAC_NOI_DUNG'} else
                             404 if ma == 'VIEC_KHONG_THAY' else
-                            403 if ma in {'VIEC_PHIEN', 'VIEC_MTQ', 'VIEC_CONG_TAC', 'VIEC_CHI_CORE'} else 400)
+                            403 if ma in {'VIEC_PHIEN', 'VIEC_MTQ', 'VIEC_CONG_TAC', 'VIEC_CHI_CORE',
+                                          'VIEC_CHUA_DANG_KY'} else 400)
         super().__init__('Thao tác việc thất bại (' + ma + ')')
 
 
 _LOI = {'VIEC_MAT_LEASE', 'VIEC_CAS', 'VIEC_KHOA_KHAC_NOI_DUNG', 'VIEC_KHONG_THAY',
         'VIEC_PHIEN', 'VIEC_MTQ', 'VIEC_CONG_TAC', 'VIEC_CHI_CORE', 'VIEC_DAU_VAO',
-        'VIEC_CAN_DOI_CHIEU', 'VIEC_CAN_READ_COMMITTED'}
+        'VIEC_CAN_DOI_CHIEU', 'VIEC_CAN_READ_COMMITTED', 'VIEC_CHUA_DANG_KY'}
 
 
 @dataclass(frozen=True, repr=False)
@@ -86,7 +88,7 @@ def _ctx(conn, ctx):
     _tx(conn)
     ma, module, pn, hd, viec, the_he = _ngu_canh(**ctx)
     if viec is not None or the_he is not None:
-        raise ValueError('Cần ngữ cảnh Core đã xác minh, không dùng lease để tạo/nhận việc')
+        raise ValueError('Cần ngữ cảnh phiên đã xác minh, không dùng lease để tạo/nhận việc')
     return ma, module, pn, hd
 
 
@@ -101,8 +103,9 @@ def _giu(conn, giu):
 
 def tao_viec(conn, loai: str, phien_ban: int, khoa_dedupe: str, tham_chieu_id: UUID, *,
              bang_tham_chieu: str, phien_ban_contract='1', co_tac_dong_ngoai=False,
-             thu_lai_an_toan=False, toi_da_lan_thu=3, thu_lai_giay=60, giu_ngay=None, **ctx):
-    """Tạo/dedupe theo pháp nhân/module/khóa; chỉ giữ UUID tham chiếu."""
+             thu_lai_an_toan=False, toi_da_lan_thu=3, thu_lai_giay=60, giu_ngay=None,
+             engine_id: UUID | None = None, **ctx):
+    """Tạo/dedupe trên tx caller; login module chỉ dùng loại/engine đã đăng ký."""
     ts = _ctx(conn, ctx)
     if (not isinstance(loai, str) or not re.fullmatch('[A-Z][A-Z0-9_-]{0,79}', loai)
             or not isinstance(khoa_dedupe, str) or not 1 <= len(khoa_dedupe) <= 200
@@ -117,9 +120,10 @@ def tao_viec(conn, loai: str, phien_ban: int, khoa_dedupe: str, tham_chieu_id: U
     _so(thu_lai_giay, 1, 86400)
     if giu_ngay is not None:
         _so(giu_ngay, 1, 36500)
-    return _goi(conn, '''SELECT loi.viec_tao(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) AS r''',
+    return _goi(conn, '''SELECT loi.viec_tao(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) AS r''',
                 (*ts, loai, phien_ban, khoa_dedupe, bang_tham_chieu, UUID(str(tham_chieu_id)),
-                 phien_ban_contract, co_tac_dong_ngoai, thu_lai_an_toan, toi_da_lan_thu, thu_lai_giay, giu_ngay))
+                 phien_ban_contract, co_tac_dong_ngoai, thu_lai_an_toan, toi_da_lan_thu, thu_lai_giay, giu_ngay,
+                 None if engine_id is None else UUID(str(engine_id))))
 
 
 def nhan(conn, worker_id: UUID, *, dang_nhap_csdl: str, lease_giay=120, **ctx) -> GiuViec | None:

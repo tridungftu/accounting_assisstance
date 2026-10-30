@@ -19,7 +19,7 @@ from unittest.mock import MagicMock
 from uuid import UUID, uuid4
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'src'))
-from kho_tri_thuc.core import doi_cau_truc as dc, phien, viec
+from kho_tri_thuc.core import doi_cau_truc as dc, phien, tiep_nhan as tn, viec
 
 try:
     from . import test_g2_09 as g209
@@ -34,7 +34,8 @@ SQL_PATH = dc.THU_MUC_SQL / '014_viec.sql'
 SQL = SQL_PATH.read_text(encoding='utf-8')
 LAP = g209.LAP
 BANG = ('hang_viec', 'buoc_viec', 'lan_thu', 'lan_thu_trang_thai')
-CHU_KY = ('viec_gia_han(text,text,uuid,text,uuid,uuid,bigint,integer)',
+CHU_KY = ('viec_tao(text,text,uuid,text,text,integer,text,text,uuid,text,boolean,boolean,integer,integer,integer,uuid)',
+          'viec_gia_han(text,text,uuid,text,uuid,uuid,bigint,integer)',
           'viec_ket_thuc(text,text,uuid,text,uuid,uuid,bigint,text,uuid,text)',
           'viec_trang_thai_lease(text,text,uuid,text,uuid,uuid,bigint)',
           'viec_rls(uuid,text,uuid)')
@@ -51,12 +52,14 @@ class ViecThuanTest(unittest.TestCase):
                                datetime.now(timezone.utc), phien.MaBiMat('CANARY_LEASE'))
 
     def test_tao_bind_khong_quan_ly_tx(self):
-        viec.tao_viec(self.conn, **self.ts)
+        engine = uuid4()
+        viec.tao_viec(self.conn, engine_id=engine, **self.ts)
         cau, ts = self.conn.execute.call_args.args
         self.assertIn('loi.viec_tao', cau)
         self.assertNotIn('CANARY', cau)
         self.assertEqual(ts[:4], ('CANARY_MA_GOC', 'crm', self.ctx['phap_nhan_id'], LAP))
         self.assertEqual(ts[6], 'DEMO-14')
+        self.assertEqual(ts[-1], engine)
         for ten in ('connect', 'commit', 'rollback', 'transaction'):
             getattr(self.conn, ten).assert_not_called()
 
@@ -150,7 +153,8 @@ class ViecThuanTest(unittest.TestCase):
 
     def test_loi_driver_khong_ro_ma_dsn_stack(self):
         for ma, status in (('VIEC_MAT_LEASE', 409), ('VIEC_CAS', 409), ('VIEC_MTQ', 403),
-                           ('VIEC_KHONG_THAY', 404), ('VIEC_CAN_DOI_CHIEU', 400), ('KHONG_BIET', 400)):
+                           ('VIEC_KHONG_THAY', 404), ('VIEC_CAN_DOI_CHIEU', 400),
+                           ('VIEC_CHUA_DANG_KY', 403), ('KHONG_BIET', 400)):
             exc = RuntimeError('CANARY_LEASE postgresql://CANARY:BI_MAT@localhost')
             exc.diag = MagicMock(message_primary=ma)
             self.conn.execute.side_effect = exc
@@ -193,6 +197,12 @@ class ViecPostgresTest(unittest.TestCase):
                              .format(sql.Identifier(cls.module_login)))
         cls.conn.execute(sql.SQL('GRANT EXECUTE ON FUNCTION loi.xac_minh_phien(text,text,uuid,text,uuid,bigint) TO {}')
                          .format(sql.Identifier(cls.module_login)))
+        for ck in (
+            'tra_bien_nhan_thao_tac_v2(text,text,uuid,text,text,text,jsonb,uuid,bigint)',
+            'ghi_bien_nhan_thao_tac_v2(text,text,uuid,text,text,text,jsonb,jsonb,jsonb,uuid,bigint)',
+        ):
+            cls.conn.execute(sql.SQL('GRANT EXECUTE ON FUNCTION loi_tai_lieu.' + ck + ' TO {}')
+                             .format(sql.Identifier(cls.module_login)))
 
     def _resolver(self):
         g209.TaiLieuPostgresTest._resolver(self)
@@ -201,11 +211,24 @@ class ViecPostgresTest(unittest.TestCase):
         self.conn.execute(sql.SQL('GRANT USAGE ON SCHEMA mod_crm TO {}').format(sql.Identifier(self.module_login)))
         self.conn.execute(sql.SQL('GRANT INSERT,SELECT ON mod_crm.ket_qua_g214 TO {},{}')
                           .format(sql.Identifier(self.module_login), sql.Identifier(self.core.info.user)))
+        self.conn.execute("INSERT INTO loi.dang_ky_loai_viec(module,loai,phien_ban) VALUES ('crm','DEMO',1) ON CONFLICT DO NOTHING")
+        engine = self.conn.execute("SELECT id FROM loi.engine_dinh_nghia WHERE ma='demo_g214' AND so_phien_ban='1'").fetchone()
+        if engine is None:
+            self._ghi('engine', ma='demo_g214', ten='DEMO', so_phien_ban='1', ma_bam_goi='a'*64,
+                      adapter=dict(ma='demo', phien_ban='1'),
+                      capability=[dict(ma='DEMO_ENGINE', dau_vao='demo.in', dau_ra='demo.out')], gioi_han={})
+            engine = self.conn.execute("SELECT id FROM loi.engine_dinh_nghia WHERE ma='demo_g214' AND so_phien_ban='1'").fetchone()
+        self.engine = engine[0]
+        self.conn.execute("INSERT INTO loi.dang_ky_loai_viec VALUES ('crm','DEMO_ENGINE',1,%s) ON CONFLICT DO NOTHING", (self.engine,))
 
     def setUp(self):
         g209.TaiLieuPostgresTest.setUp(self)
         self.instance = uuid4()
         self.viec_id = self._moi()
+        self.uy = phien.cap_phien(self.core, nguoi_dung_id=self.nd, module='crm', phap_nhan_id=self.pn,
+            dang_nhap_csdl=self.module_login, pham_vi_hanh_dong=[LAP, g209.SUA, g209.XEM, g209.DUYET],
+            loai='UY_NHIEM_PHIEN', ma_goc=self.ma,
+            hieu_luc_den=datetime.now(timezone.utc)+timedelta(minutes=4)).ma
 
     def _moi(self, **doi):
         with self.core.transaction():
@@ -258,6 +281,60 @@ class ViecPostgresTest(unittest.TestCase):
         self.assertEqual(bat.exception.ma, 'VIEC_KHOA_KHAC_NOI_DUNG')
         self.assertEqual(self.conn.execute('SELECT count(*) FROM loi.buoc_viec WHERE viec_id=%s', (dau,)).fetchone()[0], 1)
 
+    def _module_tao(self, **doi):
+        return viec.tao_viec(self.module, **{**dict(loai='DEMO', phien_ban=1, khoa_dedupe=uuid4().hex,
+            tham_chieu_id=self.obj, bang_tham_chieu='doi_tuong'), **self._ctx(ma=self.uy), **doi})
+
+    def test_module_nghiep_vu_bien_nhan_tao_viec_cung_tx_commit_va_rollback(self):
+        for rollback in (True, False):
+            with self.subTest(rollback=rollback):
+                kq, khoa = uuid4(), uuid4().hex
+                ts = dict(operation='CRM.DEMO.LAP', khoa=khoa, noi_dung={'demo': True},
+                    doi_tuong=dict(bang='doi_tuong', id=str(self.obj)), **self._ctx(ma=self.uy))
+                with self.module.transaction(force_rollback=rollback):
+                    self.module.execute('INSERT INTO mod_crm.ket_qua_g214 VALUES (%s,%s)', (kq, 'DEMO'))
+                    v = self._module_tao(khoa_dedupe=khoa)
+                    self.assertEqual(self._module_tao(khoa_dedupe=khoa), v)
+                    tn.ghi_thao_tac(self.module, ket_qua={'id': str(kq), 'viec_id': str(v)},
+                        quyen_doc=dict(hanh_dong=g209.XEM, doi_tuong=ts['doi_tuong'], phien_ban_contract='1',
+                            tai_lieu_id=str(self.tai_lieu_id), bien_the='goc'), **ts)
+                    self.assertEqual(tn.tra_thao_tac(self.module, **ts)['ket_qua']['viec_id'], str(v))
+                for bang, cot, id_ in (('mod_crm.ket_qua_g214', 'id', kq),
+                                      ('loi_tai_lieu.bien_nhan_thao_tac', 'khoa_chong_trung', khoa),
+                                      ('loi.hang_viec', 'id', v), ('loi.buoc_viec', 'viec_id', v)):
+                    self.assertEqual(self.conn.execute('SELECT count(*) FROM '+bang+' WHERE '+cot+'=%s',
+                                                       (id_,)).fetchone()[0], int(not rollback))
+
+    def test_module_chi_tao_dung_module_loai_phien_ban_va_engine_da_dang_ky(self):
+        for doi, ma in (({'module': 'm2', 'hanh_dong': 'M2:DEMO:LAP'}, 'VIEC_PHIEN'),
+                        ({'loai': 'CHUA_DANG_KY'}, 'VIEC_CHUA_DANG_KY'),
+                        ({'phien_ban': 2}, 'VIEC_CHUA_DANG_KY'),
+                        ({'loai': 'DEMO_ENGINE'}, 'VIEC_CHUA_DANG_KY'),
+                        ({'loai': 'DEMO_ENGINE', 'engine_id': uuid4()}, 'VIEC_CHUA_DANG_KY'),
+                        ({'engine_id': self.engine}, 'VIEC_CHUA_DANG_KY'),
+                        ({'phap_nhan_id': self.pn_khac}, 'VIEC_PHIEN'),
+                        ({'ma': self.ma}, 'VIEC_PHIEN')):
+            with self.subTest(doi=doi), self.assertRaises(viec.LoiViec) as bat, self.module.transaction():
+                self._module_tao(**doi)
+            self.assertEqual(bat.exception.ma, ma)
+        khoa = uuid4().hex
+        with self.module.transaction():
+            v = self._module_tao(loai='DEMO_ENGINE', engine_id=self.engine, khoa_dedupe=khoa)
+            self.assertEqual(self._module_tao(loai='DEMO_ENGINE', engine_id=self.engine, khoa_dedupe=khoa), v)
+        self.assertEqual(self.conn.execute('SELECT module,engine_id FROM loi.hang_viec WHERE id=%s', (v,)).fetchone(),
+                         ('crm', self.engine))
+        with self.assertRaises(viec.LoiViec) as bat, self.module.transaction():
+            self._module_tao(loai='DEMO_ENGINE', engine_id=self.engine, khoa_dedupe=khoa, co_tac_dong_ngoai=True)
+        self.assertEqual(bat.exception.ma, 'VIEC_KHOA_KHAC_NOI_DUNG')
+        with self.assertRaises(psycopg.errors.InsufficientPrivilege):
+            self.module.execute("INSERT INTO loi.dang_ky_loai_viec VALUES ('crm','GIA',1,NULL)")
+
+    def test_module_tao_viec_van_can_mtq(self):
+        self.conn.execute("UPDATE mod_crm.doi_tuong SET tap='[]'::jsonb WHERE id=%s", (self.obj,))
+        with self.assertRaises(viec.LoiViec) as bat, self.module.transaction():
+            self._module_tao()
+        self.assertEqual(bat.exception.ma, 'VIEC_MTQ')
+
     def test_lease_het_han_chan_heartbeat_ket_thuc_va_xac_minh_chung(self):
         g = self._nhan()
         self.assertIsNotNone(self._xac(g))
@@ -293,6 +370,16 @@ class ViecPostgresTest(unittest.TestCase):
         self.assertGreater(moi.giu_den, g.giu_den)
         self.assertEqual(self._xac(g).hieu_luc_den, moi.giu_den)
         self.assertEqual(self.conn.execute('SELECT count(*) FROM loi.lan_thu_trang_thai WHERE viec_id=%s', (g.viec_id,)).fetchone()[0], 2)
+
+    def test_heartbeat_120_khong_rut_ngan_lease_300_hoac_ma(self):
+        g = self._nhan(module=True, lease_giay=300)
+        with self.module.transaction():
+            moi = viec.gia_han(self.module, g, lease_giay=120)
+        self.assertEqual(moi.giu_den, g.giu_den)
+        self.assertEqual(moi.the_he, g.the_he)
+        self.assertEqual(self._xac(moi, self.module).hieu_luc_den, g.giu_den)
+        self.assertEqual(self.conn.execute('SELECT giu_den FROM loi.hang_viec WHERE id=%s',
+                                          (g.viec_id,)).fetchone()[0], g.giu_den)
 
     def test_rollback_nghiep_vu_va_trang_thai_viec_cung_tx(self):
         g = self._nhan(module=True)
@@ -365,7 +452,7 @@ class ViecPostgresTest(unittest.TestCase):
         self.assertIsNotNone(self._xac(moi))
         self.assertEqual(self.conn.execute('SELECT count(*) FROM loi.lan_thu WHERE viec_id=%s', (g.viec_id,)).fetchone()[0], 2)
 
-    def test_huy_hop_tac_khong_mat_dau_chua_ro(self):
+    def test_huy_hop_tac_dang_chay_thanh_da_dung(self):
         g = self._nhan()
         with self.core.transaction():
             viec.yeu_cau_dung(self.core, g.viec_id, row_version=self._trang()[1], **self._ctx())
@@ -374,6 +461,23 @@ class ViecPostgresTest(unittest.TestCase):
             viec.ket_thuc(self.core, g, 'DA_DUNG')
         self.assertEqual(self._trang()[0], 'DA_DUNG')
         self.assertIsNone(self._xac(g))
+
+    def test_huy_hop_tac_khong_mat_dau_chua_ro_va_khong_tu_nhan_lai(self):
+        g = self._nhan(module=True)
+        with self.module.transaction():
+            viec.ket_thuc(self.module, g, 'CHUA_RO', ma_loi='CAN_DOI_CHIEU')
+        self.assertEqual(self._trang()[0], 'CHUA_RO')
+        with self.core.transaction():
+            self.assertTrue(viec.yeu_cau_dung(self.core, g.viec_id, row_version=self._trang()[1], **self._ctx()))
+            self.assertEqual(viec.phuc_hoi(self.core, instance_id=self.instance, **self._ctx()), 0)
+        self.assertEqual(self.conn.execute('SELECT trang_thai,yeu_cau_dung,ma_loi,lan_thu_id FROM loi.hang_viec WHERE id=%s',
+                                          (g.viec_id,)).fetchone(), ('CHUA_RO', True, 'CAN_DOI_CHIEU', g.lan_thu_id))
+        self.assertEqual(self.conn.execute('SELECT trang_thai,ma_loi FROM loi.lan_thu_trang_thai WHERE viec_id=%s ORDER BY phien_ban_dong',
+                                          (g.viec_id,)).fetchall(),
+                         [('DANG_CHAY', None), ('CHUA_RO', 'CAN_DOI_CHIEU'), ('CHUA_RO', 'CAN_DOI_CHIEU')])
+        self.assertIsNone(self._nhan())
+        self.assertIsNone(self._xac(g, self.module))
+        self.assertEqual(self.conn.execute('SELECT count(*) FROM loi.lan_thu WHERE viec_id=%s', (g.viec_id,)).fetchone()[0], 1)
 
     def test_runtime_khong_ghi_thang_va_lich_su_khong_sua(self):
         self._nhan()
