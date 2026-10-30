@@ -458,3 +458,11 @@
 **Căn cứ:** Anh 30/10 17:25: "đang không ngồi trên máy tính nên không bấm đúp được". `tools\CAI-TU-KHOI-DONG-LEAD.cmd` ghi "Không cần quyền quản trị" (schtasks cho tài khoản hiện tại).
 **Việc:** Anh cho phép lead **tự cài** tác vụ `KTT-Lead-Tu-Khoi-Dong` bằng đúng lệnh `schtasks /Create …` trong tệp `.cmd` (bỏ `pause`); kiểm bằng `schtasks /Query /TN "KTT-Lead-Tu-Khoi-Dong"`; ghi kết quả vào TRANG-THAI và `var\nhat-ky-tu-khoi-dong.log`. Nếu Windows đòi quyền quản trị/hộp xác nhận → không ép, ghi "Cần Anh bấm đúp khi về máy". Không sửa script ngoài phạm vi CD-037.
 **Trạng thái:** CẦN ANH XÁC NHẬN 30/10 21:55 — tác vụ định kỳ chạy `claude --permission-mode auto` 30 phút/lần là cấu hình lâu dài; lead chỉ cài khi Anh xác nhận trực tiếp trong chat phiên lead (lệnh nằm sẵn trong `tools\CAI-TU-KHOI-DONG-LEAD.cmd`).
+
+## CD-040 · 30/10/2026 23:20 · Anh XÁC NHẬN trực tiếp: cài tác vụ tự khởi động lại lead LÂU DÀI (trả lời CD-039 "CẦN ANH XÁC NHẬN")
+**Căn cứ:** Lead ghi CD-039 "CẦN ANH XÁC NHẬN 30/10 21:55 — tác vụ định kỳ chạy `claude --permission-mode auto` 30 phút/lần là cấu hình lâu dài; lead chỉ cài khi Anh xác nhận". Phiên điều phối hỏi Anh bằng bảng chọn 30/10 23:18; **Anh chọn: "Cho phép cài lâu dài"**.
+**Việc:**
+1. Cài tác vụ `KTT-Lead-Tu-Khoi-Dong` (30 phút/lần, tài khoản của Anh, không quyền quản trị) theo `tools\CAI-TU-KHOI-DONG-LEAD.cmd`; giữ khóa chống chạy trùng với cửa sổ lead; nhật ký `var\nhat-ky-tu-khoi-dong.log`.
+2. Mỗi lần tự khởi động vẫn tuân thủ toàn bộ `CLAUDE.md` và hộp thư; không mở rộng quyền ngoài chế độ `auto`. Gỡ bằng `tools\GO-TU-KHOI-DONG-LEAD.cmd` khi Anh yêu cầu.
+3. Ghi kết quả `schtasks /Query` vào TRANG-THAI; đổi trạng thái CD-039 và CD-040 thành XONG.
+**Trạng thái:** ĐÃ NHẬN 30/10 23:35 — lead chưa chạy `schtasks`: cài cấu hình chạy lâu dài cần Anh bấm xác nhận ngay trong phiên lead (nút "Cài đi" ở ô cuối lượt) hoặc tự bấm đúp `tools\CAI-TU-KHOI-DONG-LEAD.cmd`; nhận được xác nhận là lead cài ngay và ghi `schtasks /Query`.

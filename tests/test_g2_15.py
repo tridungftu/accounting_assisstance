@@ -9,6 +9,8 @@ import json
 from pathlib import Path
 import re
 import sys
+from threading import Event
+from time import monotonic, sleep
 import traceback
 import unittest
 from unittest.mock import MagicMock
@@ -29,6 +31,7 @@ if psycopg is not None:
 SQL_PATH = dc.THU_MUC_SQL / '015_su_kien.sql'
 SQL = SQL_PATH.read_text(encoding='utf-8')
 BANG = ('su_kien', 'hop_nhan_su_kien', 'ack_su_kien', 'dang_ky_nhan_su_kien')
+NHAN = 'CRM:SU_KIEN:SUA'
 CHU_KY = ('su_kien_phat(text,text,uuid,text,text,integer,text,jsonb,uuid,bigint)',
           'su_kien_nhan(text,text,uuid,text,text,integer,uuid,bigint)',
           'su_kien_ack(text,text,uuid,text,uuid,uuid,bigint)')
@@ -121,13 +124,15 @@ class SuKienThuanTest(unittest.TestCase):
         self.assertEqual(self.conn.execute.call_count, 1)
 
     def test_che_loi_driver_va_ma_phien(self):
-        for ma in ('BUS_PAYLOAD', 'CANARY_DSN_PASSWORD'):
+        for ma in ('BUS_PAYLOAD', 'BUS_HANH_DONG', 'BUS_PHIEN', 'CANARY_DSN_PASSWORD'):
             exc = RuntimeError('CANARY_BI_MAT_DSN')
             exc.diag = MagicMock(message_primary=ma)
             self.conn.execute.side_effect = exc
             with self.assertRaises(bus.LoiSuKien) as bat:
                 bus.nhan(self.conn, **self.ctx)
-            self.assertEqual(bat.exception.ma, ma if ma == 'BUS_PAYLOAD' else 'BUS_THAT_BAI')
+            self.assertEqual(bat.exception.ma, ma if ma.startswith('BUS_') else 'BUS_THAT_BAI')
+            if ma in ('BUS_HANH_DONG', 'BUS_PHIEN'):
+                self.assertEqual(bat.exception.http_status, 403)
             self.assertNotIn('CANARY', ''.join(traceback.format_exception(bat.exception)))
 
     def test_sql_quote_bien_gioi_bat_bien(self):
@@ -167,8 +172,9 @@ class SuKienPostgresTest(unittest.TestCase):
         self.conn.execute(sql.SQL('GRANT USAGE ON SCHEMA mod_crm TO {}').format(sql.Identifier(self.module_login)))
         self.conn.execute(sql.SQL('GRANT INSERT,SELECT ON mod_crm.tac_dong_g215 TO {},{}')
                           .format(sql.Identifier(self.module_login), sql.Identifier(self.core.info.user)))
+        self.ma = self._cap(hd=[g209.LAP, g209.SUA, g209.XEM, g209.DUYET, NHAN])
         self.ma_module = phien.cap_phien(self.core, nguoi_dung_id=self.nd, module='crm', phap_nhan_id=self.pn,
-            dang_nhap_csdl=self.module_login, pham_vi_hanh_dong=[g209.LAP, g209.XEM],
+            dang_nhap_csdl=self.module_login, pham_vi_hanh_dong=[g209.LAP, g209.XEM, NHAN],
             loai='UY_NHIEM_PHIEN', ma_goc=self.ma,
             hieu_luc_den=datetime.now(timezone.utc)+timedelta(minutes=5)).ma
         self.loai = self._su_kien_contract()
@@ -188,13 +194,13 @@ class SuKienPostgresTest(unittest.TestCase):
         self.cai_dat.execute('SELECT loi.su_kien_dang_ky_nhan(%s,%s,%s,%s)', ('crm', '1', loai, '1'))
 
     def _ctx_module(self, **doi):
-        return {**self._ctx(), 'ma': self.ma_module, **doi}
+        return {**self._ctx(hd=NHAN), 'ma': self.ma_module, **doi}
 
     def _phat(self, conn=None, **doi):
         conn = conn or self.module
         with conn.transaction():
             return bus.phat(conn, **{**dict(loai=self.loai, phien_ban=1, tham_chieu={'moc_id': str(self.obj)},
-                khoa=uuid4().hex), **self._ctx_module(), **doi})
+                khoa=uuid4().hex), **self._ctx_module(hanh_dong=g209.LAP), **doi})
 
     def _nhan(self, conn=None, **doi):
         conn = conn or self.module
@@ -253,14 +259,85 @@ class SuKienPostgresTest(unittest.TestCase):
     def test_hai_receiver_canh_tranh_khong_nhan_tac_dong(self):
         self._dang_ky()
         sk = self._phat()
-        def xu_ly(_):
-            with psycopg.connect(**self.cac_thong_tin['core'], autocommit=True) as conn:
-                conn.execute("SET statement_timeout='10s'")
-                with conn.transaction():
-                    return bus.xu_ly(conn, self._handler, loai=self.loai, **self._ctx())
-        with ThreadPoolExecutor(max_workers=2) as pool:
-            self.assertEqual(sum(pool.map(xu_ly, range(2))), 1)
+        bat_dau = Event()
+        # Dung login runtime; admin chi quan sat khoa, khong xu ly nghiep vu.
+        with psycopg.connect(**self.cac_thong_tin['core'], autocommit=True) as receiver2:
+            receiver2.execute("SET statement_timeout='10s'")
+            def xu_ly():
+                with receiver2.transaction():
+                    bat_dau.set()
+                    return bus.xu_ly(receiver2, self._handler, loai=self.loai, **self._ctx(hd=NHAN))
+            with ThreadPoolExecutor(max_workers=1) as pool:
+                with self.module.transaction():
+                    self.assertEqual(self._nhan()[0]['id'], str(sk))
+                    cho = pool.submit(xu_ly)
+                    self.assertTrue(bat_dau.wait(5), 'Receiver 2 chua bat dau')
+                    den = monotonic() + 5
+                    while monotonic() < den:
+                        if self.conn.execute('SELECT %s=ANY(pg_blocking_pids(%s))',
+                            (self.module.info.backend_pid, receiver2.info.backend_pid)).fetchone()[0]:
+                            break
+                        if cho.done():
+                            cho.result()  # Loi/timeout phai lam test do.
+                            self.fail('Receiver 2 ket thuc khi receiver 1 con giu khoa')
+                        sleep(0.01)
+                    else:
+                        self.fail('Khong quan sat duoc receiver 2 cho khoa inbox')
+                    self._handler(self.module, {'id': sk})
+                    self.assertTrue(bus.ack(self.module, sk, **self._ctx_module()))
+                self.assertEqual(cho.result(timeout=10), 0)
         self.assertEqual(self._dem('ack_su_kien', sk), 1)
+        self.assertEqual(self.conn.execute('SELECT count(*) FROM mod_crm.tac_dong_g215 WHERE su_kien_id=%s',
+                                          (sk,)).fetchone()[0], 1)
+
+    def test_phien_chi_xem_khong_nhan_ack_ke_ca_khai_gia_hanh_dong(self):
+        self._dang_ky()
+        sk = self._phat()
+        ma = phien.cap_phien(self.core, nguoi_dung_id=self.nd, module='crm', phap_nhan_id=self.pn,
+            dang_nhap_csdl=self.module_login, pham_vi_hanh_dong=[g209.XEM],
+            loai='UY_NHIEM_PHIEN', ma_goc=self.ma,
+            hieu_luc_den=datetime.now(timezone.utc)+timedelta(minutes=5)).ma
+        # Goi SQL truc tiep: chan truoc inbox, ca khi caller khai quyen can.
+        for da_nhan in (False, True):
+            if da_nhan:
+                with self.module.transaction():
+                    self.assertEqual(self._nhan()[0]['id'], str(sk))
+            for hd in (g209.XEM, g209.LAP, NHAN, None):
+                for cau, duoi in (('SELECT loi.su_kien_nhan(%s,%s,%s,%s,%s)', self.loai),
+                                  ('SELECT loi.su_kien_ack(%s,%s,%s,%s,%s)', sk)):
+                    with self.subTest(da_nhan=da_nhan, hd=hd, cau=cau):
+                        with self.assertRaises(psycopg.errors.InsufficientPrivilege) as bat, self.module.transaction():
+                            self.module.execute(cau, (ma.lay_de_truyen(), 'crm', self.pn, hd, duoi))
+                        self.assertEqual(bat.exception.diag.message_primary,
+                                         'BUS_PHIEN' if hd == NHAN else 'BUS_HANH_DONG')
+                        self.assertEqual(self._dem('hop_nhan_su_kien', sk), int(da_nhan))
+                        self.assertEqual(self._dem('ack_su_kien', sk), 0)
+        with self.module.transaction():
+            self.assertEqual(bus.xu_ly(self.module, self._handler, loai=self.loai, **self._ctx_module()), 1)
+        self.assertEqual(self._dem('ack_su_kien', sk), 1)
+        self.assertEqual(self.conn.execute('SELECT count(*) FROM mod_crm.tac_dong_g215 WHERE su_kien_id=%s',
+                                          (sk,)).fetchone()[0], 1)
+
+    def test_quyen_ghi_khac_khong_thay_quyen_nhan_su_kien(self):
+        self._dang_ky()
+        sk = self._phat()
+        for hd in (g209.LAP, g209.SUA, g209.DUYET, g209.XEM):
+            ma = self._cap(hd=[hd])
+            for can in (hd, NHAN):
+                for goi in (lambda: bus.nhan(self.core, loai=self.loai, **self._ctx(hd=can, ma=ma)),
+                            lambda: bus.ack(self.core, sk, **self._ctx(hd=can, ma=ma))):
+                    with self.subTest(hd=hd, can=can):
+                        with self.assertRaises(bus.LoiSuKien) as bat, self.core.transaction():
+                            goi()
+                        self.assertEqual(bat.exception.ma, 'BUS_PHIEN' if can == NHAN else 'BUS_HANH_DONG')
+                        self.assertEqual(bat.exception.http_status, 403)
+        self.assertEqual(self._dem('hop_nhan_su_kien', sk), 0)
+        self.assertEqual(self._dem('ack_su_kien', sk), 0)
+        # Chi uy nhiem quyen nhan la du de nhan/ACK, khong can quyen lap nghiep vu.
+        ma = self._cap(hd=[NHAN])
+        with self.core.transaction():
+            self.assertEqual(bus.xu_ly(self.core, self._handler, loai=self.loai,
+                                      **self._ctx(hd=NHAN, ma=ma)), 1)
 
     def test_payload_sql_tu_choi_ngoai_uuid_ngoai_khai_bao_va_thieu_bat_buoc(self):
         for p in ({'moc_id': str(self.obj), 'tien': 100}, {'moc_id': str(self.obj), 'khac_id': str(uuid4())},
@@ -340,6 +417,9 @@ class SuKienPostgresTest(unittest.TestCase):
                         conn.execute(sql.SQL(cau).format(sql.Identifier(bang)))
             with self.assertRaises(psycopg.errors.InsufficientPrivilege):
                 conn.execute('SELECT loi.su_kien_dang_ky_nhan(%s,%s,%s,%s)', ('crm', '1', self.loai, '1'))
+            with self.assertRaises(psycopg.errors.InsufficientPrivilege):
+                conn.execute('SELECT loi.su_kien_ngu_canh_nhan(%s,%s,%s,%s,NULL,NULL)',
+                             (self.ma.lay_de_truyen(), 'crm', self.pn, NHAN))
         self.assertEqual(self.conn.execute("SELECT count(*) FROM pg_class WHERE relnamespace='loi'::regnamespace AND relname=ANY(%s) AND relrowsecurity AND relforcerowsecurity", (list(BANG),)).fetchone()[0], len(BANG))
 
 

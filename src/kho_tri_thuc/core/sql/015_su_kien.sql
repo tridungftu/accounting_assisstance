@@ -191,6 +191,20 @@ BEGIN
     END;
     $ham$;
 
+    -- Nhan/ACK thay doi inbox cua ca module: quyen rieng, khong muon quyen
+    -- XEM hay hanh dong ghi nghiep vu khac do caller tu chon.
+    CREATE OR REPLACE FUNCTION loi.su_kien_ngu_canh_nhan(p_ma text,p_module text,p_pn uuid,p_hd text,
+        p_viec uuid,p_the_he bigint) RETURNS uuid
+    LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path=pg_catalog,pg_temp AS $ham$
+    DECLARE can constant text := upper(p_module)||':SU_KIEN:SUA';
+    BEGIN
+        IF p_hd IS DISTINCT FROM can THEN
+            RAISE EXCEPTION 'BUS_HANH_DONG' USING ERRCODE='42501';
+        END IF;
+        RETURN loi.su_kien_ngu_canh(p_ma,p_module,p_pn,can,p_viec,p_the_he);
+    END;
+    $ham$;
+
     CREATE OR REPLACE FUNCTION loi.su_kien_phat(p_ma text,p_module text,p_pn uuid,p_hd text,
         p_loai text,p_pb integer,p_khoa text,p_noi_dung jsonb,p_viec uuid DEFAULT NULL,p_the_he bigint DEFAULT NULL)
     RETURNS uuid LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path=pg_catalog,pg_temp AS $ham$
@@ -228,7 +242,7 @@ BEGIN
     RETURNS jsonb LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path=pg_catalog,pg_temp AS $ham$
     DECLARE sk loi.su_kien; ket_qua jsonb := '[]'::jsonb;
     BEGIN
-        PERFORM loi.su_kien_ngu_canh(p_ma,p_module,p_pn,p_hd,p_viec,p_the_he);
+        PERFORM loi.su_kien_ngu_canh_nhan(p_ma,p_module,p_pn,p_hd,p_viec,p_the_he);
         IF p_gioi_han IS NULL OR p_gioi_han NOT BETWEEN 1 AND 1000 THEN
             RAISE EXCEPTION 'BUS_DAU_VAO' USING ERRCODE='22023';
         END IF;
@@ -257,7 +271,7 @@ BEGIN
     LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path=pg_catalog,pg_temp AS $ham$
     DECLARE ai uuid; sk loi.su_kien;
     BEGIN
-        ai:=loi.su_kien_ngu_canh(p_ma,p_module,p_pn,p_hd,p_viec,p_the_he);
+        ai:=loi.su_kien_ngu_canh_nhan(p_ma,p_module,p_pn,p_hd,p_viec,p_the_he);
         SELECT * INTO sk FROM loi.su_kien WHERE phap_nhan_id=p_pn AND id=p_su_kien;
         IF NOT FOUND OR NOT loi.su_kien_duoc_nhan(p_module,sk.loai_su_kien,sk.phien_ban_contract) THEN
             RAISE EXCEPTION 'BUS_DANG_KY' USING ERRCODE='42501';
