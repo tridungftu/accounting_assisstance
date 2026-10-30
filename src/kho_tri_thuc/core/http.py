@@ -165,8 +165,10 @@ class UngDungHTTP:
         if headers.get('origin') and headers['origin'] != self.origin:
             raise LoiHTTP(403)
         phien = self._phien(headers.get('cookie', ''))
-        if path == '/api/v1/phien' and method == 'POST' and phien is None:
-            phien = self._phien(headers.get('cookie', ''), tien_phien=True)
+        if phien is None:
+            route, _ = self.dispatcher.registry.tra(method, path)
+            if route.phien in {'tien_phien', 'khong'}:
+                phien = self._phien(headers.get('cookie', ''), tien_phien=True)
         if method not in {'GET', 'HEAD', 'OPTIONS'}:
             csrf = headers.get('x-csrf-token', '')
             if (headers.get('origin') != self.origin or phien is None
