@@ -1,7 +1,7 @@
 # CONTRACT-DU-LIEU.md
 
 **Trạng thái:** Nháp G1c-2 để duyệt; chỉ tài liệu, chưa triển khai.  
-**Phạm vi:** Bảy contract dữ liệu và hai contract phục vụ API; JSON Schema draft 2020-12, ví dụ DEMO và quy tắc chuyển đổi từ nguồn hiện có.
+**Phạm vi:** Bảy contract dữ liệu, hai contract API, hai schema manifest chính thức (§15), ví dụ DEMO và bộ kiểm tuân thủ; JSON Schema draft 2020-12. Đây là thiết kế đích, không khẳng định đã triển khai.
 
 ## 1. Căn cứ và nguyên tắc
 
@@ -41,27 +41,28 @@ Quy tắc bắt buộc:
 2. Bật kiểm `format` cho `uuid`, `date`, `date-time`; không chỉ coi `format` là annotation.
 3. Từ chối trường ngoài khai báo, sai kiểu, giá trị không hữu hạn và khóa JSON trùng nhau. Khóa trùng phải bị chặn ở bước đọc JSON.
 4. Kiểm đầu vào trước tác động; kiểm đầu ra trước lưu hoặc trả người gọi.
-5. Ghim phiên bản contract, engine và adapter theo lần chạy. Không thay nội dung schema đã phát hành dưới cùng `$id`.
+5. Ghim chính xác `$id` + phiên bản contract, engine và adapter theo lần chạy/manifest. Mỗi contract tự đặt hằng `phien_ban`; phần vỏ chung chỉ kiểm kiểu. **Mọi thay đổi schema đã phát hành, kể cả thêm trường tùy chọn, tạo `$id` mới** và hằng phiên bản mới tại contract đó; không thay schema dưới cùng `$id`. Quy ước tài nguyên mới: `urn:ktt:contract:<ten>.v<major>:<semver>` (ví dụ `urn:ktt:contract:tra_loi_ai.v1:1.1.0`); giữ các ID 1.0.0 trong bảng cho lần phát hành đầu. Bên phát trả đúng bản bên nhận đã ghim, chuyển đổi có kiểm nếu hỗ trợ; không có bản khớp thì từ chối đăng ký/kích hoạt, không gửi ngầm bản mới. `unevaluatedProperties:false` vẫn áp dụng; nâng một contract không sửa vỏ chung hoặc các contract khác. Vòng 2 chưa phát hành nên hiệu chỉnh tại các ID nháp hiện tại.
 6. Schema hợp lệ không chứng minh quyền truy cập, dẫn chứng đúng hay kết quả đã được duyệt. Các kiểm này thuộc lớp ngữ nghĩa và quyền của Core.
 
 ### 2.1. Metadata kết quả do Core quản lý
 
 Sáu contract nội dung kế thừa phần vỏ gồm `contract`, `phien_ban`, `revision`, `nguon_tep_ids`. Metadata kết quả đầy đủ — pháp nhân, module/engine/function tạo kết quả, phiên bản, việc/bước/lần thử, biến thể, trạng thái duyệt và retention — được lưu hoặc tham chiếu ở Core, **theo phiếu CSDL/API**.
 
-Cách này phù hợp nháp API đang trả metadata kết quả, còn nội dung được tải qua tệp: `docs/47-core/g1/DAC-TA-API.md:131`, `docs/47-core/g1/DAC-TA-API.md:1606`.
+Cách này phù hợp API vòng 2 trả metadata kết quả, nội dung tải qua tệp: `docs/47-core/g1/DAC-TA-API.md:144`, `docs/47-core/g1/DAC-TA-API.md:1832`.
 
 Core phải đối chiếu metadata với nội dung:
 
 - `contract`, `revision`, `nguon_tep_ids` phải khớp.
 - Mọi ID nguồn phải thuộc phạm vi được phép.
 - Engine không được tự cấp pháp nhân hoặc trạng thái `da_duyet`.
+- Core tự gắn module/engine/function/version, việc/bước/lần thử từ instance và lease đã xác minh; không nhận provenance tự khai của module làm bằng chứng OCR. `nguon_tep_ids`/dẫn chứng chỉ là tham chiếu phải kiểm quyền/hash/revision, không tạo quyền hoặc danh tính nguồn (SDK §3 `ket_qua`).
 - Tệp phản hồi nguồn, tệp gốc và tệp nội dung chuẩn có ID riêng; không đồng nhất các mã băm của chúng.
 - Tham chiếu tệp có thể trỏ tới vùng tạm có hạn dùng. Không mặc định lưu bền dữ liệu RAM-only.
 
 ### 2.2. Tiền, ngày và dữ liệu chưa xác định
 
 - Tiền chuẩn có `gia_tri` là chuỗi decimal và `don_vi_tien`; không dùng JSON number.
-- Miền tiền trong nháp này khớp nháp API: tối đa 18 chữ số phần nguyên, 6 chữ số thập phân. Miền cuối cùng, scale và quy tắc làm tròn **theo phiếu CSDL/API**. Căn cứ: `docs/47-core/g1/DAC-TA-API.md:1469`.
+- Miền tiền khớp API: tối đa 18 chữ số phần nguyên, 6 chữ số thập phân. Scale và quy tắc làm tròn theo nghiệp vụ/phiếu CSDL. Căn cứ: `docs/47-core/g1/DAC-TA-API.md:1666`.
 - Giá trị decimal nguồn của XML được giữ riêng, không ép vào miền tiền chuẩn và không tự làm tròn.
 - Ngày nghiệp vụ là `YYYY-MM-DD`; thời điểm response là RFC 3339 UTC, kết thúc bằng `Z`.
 - `null`, chưa đọc được, thiếu, chuỗi rỗng và số `0` mang nghĩa khác nhau.
@@ -128,7 +129,7 @@ Tài nguyên `chung.v1` cung cấp kiểu dữ liệu và phần vỏ; không ph
       "required": ["contract", "phien_ban", "revision", "nguon_tep_ids"],
       "properties": {
         "contract": {"type": "string"},
-        "phien_ban": {"const": "1.0.0"},
+        "phien_ban": {"type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"},
         "revision": {"type": "integer", "minimum": 1},
         "nguon_tep_ids": {
           "type": "array",
@@ -323,6 +324,7 @@ Core kiểm MIME thực, kích thước, mã băm và tên tải an toàn. `het_
   ],
   "properties": {
     "contract": {"const": "van_ban_tai_lieu.v1"},
+    "phien_ban": {"const": "1.0.0"},
     "van_ban": {"type": "string"},
     "trang": {
       "type": "array",
@@ -421,6 +423,7 @@ Bảng dùng danh sách cột, số hàng và các ô có chỉ số bắt đầ
   "required": ["bang", "phan_hoi_nguon_tep_id"],
   "properties": {
     "contract": {"const": "du_lieu_bang.v1"},
+    "phien_ban": {"const": "1.0.0"},
     "phan_hoi_nguon_tep_id": {
       "oneOf": [
         {"$ref": "urn:ktt:contract:chung.v1#/$defs/id"},
@@ -560,6 +563,7 @@ Một tham số có giá trị đã định kiểu hoặc lý do chưa xác đ�
   ],
   "properties": {
     "contract": {"const": "tham_so.v1"},
+    "phien_ban": {"const": "1.0.0"},
     "loai_hop_dong": {"type": "string", "minLength": 1},
     "danh_muc_id": {"type": "string", "minLength": 1},
     "danh_muc_sha256": {
@@ -660,6 +664,7 @@ Contract này áp dụng cho **văn bản đã che**. Chưa công bố khả nă
   ],
   "properties": {
     "contract": {"const": "noi_dung_da_che.v1"},
+    "phien_ban": {"const": "1.0.0"},
     "van_ban_da_che": {"type": "string", "minLength": 1},
     "luot_che_id": {"$ref": "urn:ktt:contract:chung.v1#/$defs/id"},
     "het_han_mo_che_luc": {
@@ -692,10 +697,11 @@ Contract này áp dụng cho **văn bản đã che**. Chưa công bố khả nă
     "kiem_tra": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["danh_muc", "gui_duoc", "so_con_sot"],
+      "required": ["danh_muc", "gui_duoc", "so_con_sot", "giu_nguyen_tien_ngay"],
       "properties": {
         "danh_muc": {"enum": ["da_mo", "da_khoa", "chua_co"]},
         "gui_duoc": {"type": "boolean"},
+        "giu_nguyen_tien_ngay": {"const": true},
         "so_con_sot": {"type": "integer", "minimum": 0}
       },
       "allOf": [
@@ -725,7 +731,7 @@ Ví dụ:
   "phien_ban": "1.0.0",
   "revision": 1,
   "nguon_tep_ids": ["10000000-0000-4000-8000-000000000001"],
-  "van_ban_da_che": "DEMO [CONG_TY_1] thanh toan 1000000 VND",
+  "van_ban_da_che": "DEMO [CONG_TY_1] thanh toan 1000000 VND ngay 2026-10-30",
   "luot_che_id": "10000000-0000-4000-8000-000000000003",
   "het_han_mo_che_luc": "2026-10-30T04:30:00Z",
   "quy_tac": {
@@ -736,6 +742,7 @@ Ví dụ:
   "kiem_tra": {
     "danh_muc": "da_mo",
     "gui_duoc": true,
+    "giu_nguyen_tien_ngay": true,
     "so_con_sot": 0
   }
 }
@@ -744,6 +751,7 @@ Ví dụ:
 Điều kiện vận hành:
 
 - Cổng AI kiểm lại điều kiện gửi tại thời điểm gọi; không tin cờ do module/frontend tự gửi.
+- **Không che tiền/ngày:** số tiền, đơn vị tiền và ngày nghiệp vụ giữ nguyên ý nghĩa/giá trị từ nguồn đã xác minh. `kiem_tra.giu_nguyen_tien_ngay: true` bắt buộc trong schema, do cổng Core đối chiếu nguồn trước khi gắn; schema không chứng minh nội dung cờ. Mất/đổi/che các giá trị đó thì chặn Cloud, không tự đặt cờ. Ca DEMO có tiền/ngày, kể cả sát định danh cần che, tại bộ kiểm §5 (TL 48 và review Opus G1c §4).
 - Không đưa bảng ánh xạ, định danh gốc hoặc `ma_luot` vào contract công khai, log hay request Cloud.
 - Hết hạn hoặc mất instance Mask thì lượt không còn dùng được, dù JSON vẫn hợp lệ.
 - Revision quy tắc chưa được nguồn công bố phải ghi `chua_cong_bo`; không lấy phiên bản adapter thay revision quy tắc. Kết quả đó không được quảng bá là có thể tái lập đầy đủ.
@@ -762,7 +770,23 @@ Giữ được kết quả theo từng trường của `KetQuaAI`. Không tự t
   "$id": "urn:ktt:contract:tra_loi_ai.v1",
   "title": "tra_loi_ai.v1",
   "allOf": [
-    {"$ref": "urn:ktt:contract:chung.v1#/$defs/vo_noi_dung"}
+    {"$ref": "urn:ktt:contract:chung.v1#/$defs/vo_noi_dung"},
+    {
+      "if": {
+        "anyOf": [
+          {"properties": {"duong": {"enum": ["CLOUD", "LOCAL+CLOUD"]}}, "required": ["duong"]},
+          {"properties": {"truong": {"contains": {"properties": {"nguon": {"const": "CLOUD"}}, "required": ["nguon"]}}}, "required": ["truong"]},
+          {"properties": {"mo_hinh": {"contains": {"properties": {"duong": {"const": "CLOUD"}}, "required": ["duong"]}}}, "required": ["mo_hinh"]}
+        ]
+      },
+      "then": {
+        "required": ["luot_che_id"],
+        "properties": {
+          "duong": {"enum": ["CLOUD", "LOCAL+CLOUD"]},
+          "kiem_tra": {"properties": {"mo_che": {"enum": ["dat", "khong_dat"]}}}
+        }
+      }
+    }
   ],
   "type": "object",
   "unevaluatedProperties": false,
@@ -773,6 +797,8 @@ Giữ được kết quả theo từng trường của `KetQuaAI`. Không tự t
   ],
   "properties": {
     "contract": {"const": "tra_loi_ai.v1"},
+    "phien_ban": {"const": "1.0.0"},
+    "luot_che_id": {"$ref": "urn:ktt:contract:chung.v1#/$defs/id"},
     "cau_tra_loi": {"type": ["string", "null"]},
     "duong": {"enum": ["LOCAL", "CLOUD", "LOCAL+CLOUD", "KHONG"]},
     "muc": {"enum": ["VANG", "DO"]},
@@ -788,9 +814,12 @@ Giữ được kết quả theo từng trường của `KetQuaAI`. Không tự t
         "required": ["ten", "gia_tri", "nguon", "gia_tri_local", "dan_chung"],
         "properties": {
           "ten": {"type": "string", "minLength": 1},
-          "gia_tri": {"type": "string"},
+          "gia_tri": {"$ref": "urn:ktt:contract:chung.v1#/$defs/gia_tri"},
           "nguon": {"enum": ["LOCAL", "CLOUD"]},
-          "gia_tri_local": {"type": ["string", "null"]},
+          "gia_tri_local": {"oneOf": [
+            {"$ref": "urn:ktt:contract:chung.v1#/$defs/gia_tri"},
+            {"type": "null"}
+          ]},
           "dan_chung": {
             "type": "array",
             "minItems": 1,
@@ -838,7 +867,7 @@ Ví dụ:
   "truong": [
     {
       "ten": "ten_hop_dong",
-      "gia_tri": "DEMO hop dong",
+      "gia_tri": {"kieu": "van_ban", "gia_tri": "DEMO hop dong"},
       "nguon": "LOCAL",
       "gia_tri_local": null,
       "dan_chung": [
@@ -875,6 +904,8 @@ Ví dụ:
 
 Tên trường không trùng. Dẫn chứng phải đối chiếu đúng biến thể/revision nguồn. `can_cu: thuc_te` đòi hỏi có tên model và bằng chứng từ lượt gọi; cấu hình model không tự chứng minh model thực tế đã xử lý. Cloud mở che thất bại không được công bố thành câu trả lời đã mở che.
 
+Có CLOUD ở đường xử lý, nguồn trường hoặc model thì bắt buộc `luot_che_id` và `kiem_tra.mo_che` ∈ `{dat, khong_dat}`; giả nhãn `LOCAL` không tránh được điều kiện schema. Core đối chiếu lượt đúng việc/pháp nhân, còn hiệu lực lúc gọi và thực sự qua Mask v2; có ID không tự cấp quyền. `khong_dat` chỉ giữ kết quả lỗi được bảo vệ để xử lý, không công bố như đã mở che. Giá trị dùng kiểu phân biệt `chung.v1#/$defs/gia_tri`, gồm tiền có đơn vị/ngày ISO/số decimal; không nhận `"1.000.000"` làm tiền hoặc đoán kiểu từ chuỗi. Adapter chuyển theo catalog trường đã ghim, không rõ kiểu thì `chua_ro`, không mất bản Local.
+
 Các trường nguồn hiện có tại `src/kho_tri_thuc/tri_thuc/cong_ai.py:295`, `src/kho_tri_thuc/tri_thuc/cong_ai.py:304`. DTO này chưa chứa model thực thi; adapter lấy bằng chứng bổ sung từ cổng/hồ sơ lượt gọi hoặc ghi chưa có.
 
 ## 10. `hoa_don.v1`
@@ -903,6 +934,7 @@ Contract cung cấp phần chiếu chuẩn và tham chiếu bắt buộc tới c
   ],
   "properties": {
     "contract": {"const": "hoa_don.v1"},
+    "phien_ban": {"const": "1.0.0"},
     "tep_xml_id": {"$ref": "urn:ktt:contract:chung.v1#/$defs/id"},
     "chi_tiet_nguon_tep_id": {"$ref": "urn:ktt:contract:chung.v1#/$defs/id"},
     "profile_ref": {"type": ["string", "null"], "minLength": 1},
@@ -967,7 +999,7 @@ Contract cung cấp phần chiếu chuẩn và tham chiếu bắt buộc tới c
         "additionalProperties": false,
         "required": [
           "thu_tu_nguon", "dinh_vi", "tinh_chat", "don_vi",
-          "so_luong", "don_gia", "thanh_tien", "tien_chuan"
+          "so_luong", "don_gia", "thanh_tien", "tien_chuan", "thue_suat"
         ],
         "properties": {
           "thu_tu_nguon": {"type": "integer", "minimum": 1},
@@ -979,6 +1011,17 @@ Contract cung cấp phần chiếu chuẩn và tham chiếu bắt buộc tới c
             ]
           },
           "don_vi": {"type": ["string", "null"]},
+          "thue_suat": {
+            "type": "object", "additionalProperties": false,
+            "required": ["trang_thai", "gia_tri_nguon"],
+            "properties": {
+              "trang_thai": {"enum": ["TEXT", "ABSENT", "EMPTY", "KHONG_HOP_LE"]},
+              "gia_tri_nguon": {"type": ["string", "null"], "minLength": 1}
+            },
+            "if": {"properties": {"trang_thai": {"const": "TEXT"}}, "required": ["trang_thai"]},
+            "then": {"properties": {"gia_tri_nguon": {"type": "string"}}},
+            "else": {"properties": {"gia_tri_nguon": {"const": null}}}
+          },
           "so_luong": {"$ref": "#/$defs/thap_phan_nguon"},
           "don_gia": {"$ref": "#/$defs/thap_phan_nguon"},
           "thanh_tien": {"$ref": "#/$defs/thap_phan_nguon"},
@@ -1107,6 +1150,7 @@ Ví dụ:
       "dinh_vi": "/HDon/DLHDon/NDHDon/DSHHDVu/HHDVu[1]",
       "tinh_chat": "GOODS",
       "don_vi": "CAI",
+      "thue_suat": {"trang_thai": "TEXT", "gia_tri_nguon": "10%"},
       "so_luong": {"trang_thai": "EXACT", "gia_tri": "1"},
       "don_gia": {"trang_thai": "EXACT", "gia_tri": "100000"},
       "thanh_tien": {
@@ -1130,6 +1174,9 @@ Quy tắc chuyển đổi:
 - Không chọn occurrence đầu/cuối; không sửa lexeme nguồn. Reader đã phân biệt `ABSENT`, `EMPTY`, `TEXT`: `src/kho_tri_thuc/nguon/hoa_don_xml.py:221`, `src/kho_tri_thuc/nguon/hoa_don_xml.py:252`.
 - Decimal nguồn giữ exact text theo `DecimalFact`; không chuyển qua float. Căn cứ: `src/kho_tri_thuc/nguon/hoa_don_xml.py:430`.
 - `tien_chuan` chỉ được tạo khi giá trị, đơn vị và miền biểu diễn đều xác định. Vượt miền thì trả `null`, thêm issue; giữ `gia_tri_nguon`.
+- `dong[].thue_suat` lấy occurrence `TSuat` rõ ràng từ `InvoiceLine.fields`, giữ lexeme, gồm cả ký hiệu không chịu thuế/không kê khai; không suy từ tổng hoặc mặc định thiếu thành 0. `TEXT/ABSENT/EMPTY` theo nguồn; nhiều occurrence/mixed content hoặc không thể chiếu thì `KHONG_HOP_LE` + issue, chi tiết nguồn giữ nguyên (`src/kho_tri_thuc/nguon/hoa_don_xml.py:45`, `:517`).
+- `tong_tien[].ma=truoc_thue` ánh xạ `TgTCThue`, gồm cả phần không chịu thuế; **cấm coi là cơ sở chịu thuế** (`src/kho_tri_thuc/nguon/hoa_don_xml.py:459`). Muốn tính thuế phải dùng thành phần nguồn/profile nghiệp vụ được duyệt, không lấy tổng này nhân thuế suất.
+- `dong[].tien_chuan` giữ giá trị nguồn, **không mã hóa dấu tác động nghiệp vụ**. `TChat=3` là `DISCOUNT` (`src/kho_tri_thuc/nguon/hoa_don_xml.py:48`); không cộng các dòng hoặc đổi dấu tùy ý để dựng tổng. Tổng hóa đơn chỉ lấy `tong_tien` đã chiếu từ nguồn; thiếu thì giữ thiếu, không bù bằng tổng dòng. Đối chiếu có thể báo lệch nhưng không thay số nguồn.
 - Không dùng `thu_tu_nguon` hoặc `STT` làm khóa dòng nghiệp vụ.
 - Quan hệ hóa đơn, các thành phần thuế, crosswalk, coverage và mọi occurrence nằm trong `chi_tiet_nguon_tep_id`; không bỏ chúng khi tạo phần chiếu.
 - ZIP không được gộp mất entry lỗi hoặc entry trùng tên. Mỗi entry XML đọc được tạo một kết quả; báo cáo gói giữ ordinal, tên, hash, trạng thái và coverage theo DTO nguồn. Contract báo cáo gói riêng nằm ngoài lát này; chưa có schema được duyệt thì không công bố capability trả báo cáo gói như đã chuẩn hóa.
@@ -1137,9 +1184,9 @@ Quy tắc chuyển đổi:
 
 ## 11. `loi_chuan.v1`
 
-Bổ sung vì API đã cần dạng lỗi thống nhất. Giữ nguyên body bốn trường của nháp API; phiên bản nằm ở tài nguyên schema, không thêm trường `contract` vào body.
+Bổ sung vì API cần dạng lỗi thống nhất: bốn trường bắt buộc và `chi_tiet` tùy chọn theo API vòng 2 §2.3; phiên bản nằm ở tài nguyên schema, không thêm `contract` vào body. Mã lỗi module/HTTP phải đăng ký trong manifest/contract; Core đối chiếu registry, sai trả 502 `PHAN_HOI_SAI_CONTRACT`.
 
-Căn cứ: `docs/47-core/g1/DAC-TA-API.md:65`, `docs/47-core/g1/DAC-TA-API.md:1483`.
+Căn cứ: `docs/47-core/g1/DAC-TA-API.md:81`, `docs/47-core/g1/DAC-TA-API.md:1680`.
 
 ```json
 {
@@ -1161,7 +1208,18 @@ Căn cứ: `docs/47-core/g1/DAC-TA-API.md:65`, `docs/47-core/g1/DAC-TA-API.md:14
       "maxLength": 1000
     },
     "request_id": {"$ref": "urn:ktt:contract:chung.v1#/$defs/id"},
-    "thu_lai_duoc": {"type": "boolean"}
+    "thu_lai_duoc": {"type": "boolean"},
+    "chi_tiet": {
+      "type": "array", "maxItems": 100,
+      "items": {
+        "type": "object", "additionalProperties": false,
+        "required": ["truong", "ma"],
+        "properties": {
+          "truong": {"type": "string", "minLength": 1, "maxLength": 255},
+          "ma": {"type": "string", "pattern": "^[A-Z][A-Z0-9_]{0,95}$"}
+        }
+      }
+    }
   }
 }
 ```
@@ -1170,18 +1228,21 @@ Ví dụ:
 
 ```json
 {
-  "ma": "DEMO_XUNG_DOT_PHIEN_BAN",
-  "thong_diep": "Dữ liệu DEMO đã thay đổi. Anh tải lại trước khi lưu.",
+  "ma": "DEMO_GHI_CHU_KHONG_HOP_LE",
+  "thong_diep": "Ghi chú DEMO chưa hợp lệ. Anh kiểm tra ô được đánh dấu.",
   "request_id": "10000000-0000-4000-8000-000000000099",
-  "thu_lai_duoc": false
+  "thu_lai_duoc": false,
+  "chi_tiet": [{"truong": "ghi_chu", "ma": "BAT_BUOC"}]
 }
 ```
 
 Không đưa SQL, DSN, khóa, cookie, header xác thực, đường dẫn vật lý hoặc nội dung tài liệu vào thông điệp. Adapter chỉ ánh xạ lỗi đã biết; lỗi lập trình không được đổi thành kết quả nghiệp vụ thành công.
 
+`chi_tiet[].truong` chỉ là đường trường đã khai trong input schema của operation, `ma` thuộc danh mục lỗi trường đã đăng ký (ví dụ `BAT_BUOC`); không chứa giá trị, bản nháp hoặc nội dung nguồn. JS SDK dùng đường trường để gắn lỗi từng ô, không phản chiếu input.
+
 ## 12. `viec.v1`
 
-Bổ sung vì API cần biên nhận việc lâu và trạng thái polling. Giữ cấu trúc nháp API tại `docs/47-core/g1/DAC-TA-API.md:1817`; không bổ sung token lease hay mã ủy nhiệm vào response.
+Bổ sung vì API cần biên nhận việc lâu và trạng thái polling. Giữ cấu trúc API vòng 2 tại `docs/47-core/g1/DAC-TA-API.md:2053`, `:2061`; không bổ sung token lease hay mã ủy nhiệm vào response.
 
 ```json
 {
@@ -1327,12 +1388,528 @@ Không so sánh bốn loại hash như cùng một thuật toán/ngữ nghĩa.
 Trước khi công bố các contract:
 
 - Chốt miền tiền, metadata, retention, mã phiên và ánh xạ trạng thái **theo phiếu CSDL/API**.
-- Phiếu SDK chung cung cấp schema chính thức của `module.json`; lát này không tạo một manifest cạnh tranh.
+- Hai schema manifest chính thức tại §15; hai ví dụ SDK §6 và ca âm §15.3 phải được kiểm trước cài, không có schema cạnh tranh.
 - Adapter phải có bảng ánh xạ source-version → contract-version và ca kiểm bảo toàn bằng chứng.
 - Khả năng che tệp độc lập, báo cáo ZIP chuẩn và capability E1-MUA chỉ được công bố sau khi có schema và bằng chứng triển khai tương ứng.
 - Chạy kiểm meta-schema, resolve `$ref`, toàn bộ ví dụ và ca âm trong giai đoạn được phép triển khai.
 
-**Tình trạng lát G1c-2:** chỉ khảo sát tĩnh và soạn tài liệu; chưa chạy validator, test, ứng dụng, SQL hoặc dịch vụ. Các ví dụ được soạn để hợp lệ theo schema đề xuất, chưa có kết quả kiểm tự động.
+**Tình trạng vòng 2:** chỉ sửa tài liệu và kiểm JSON/schema/ví dụ offline; không chạy test ứng dụng, SQL hoặc dịch vụ. Kiểm runtime Windows/CSDL/adapter thuộc G2 sau duyệt, không suy kiểm tĩnh thành nghiệm thu.
+
+## 15. Schema manifest chính thức — phiên bản 1.0.0
+
+Hai tài nguyên thuộc phiếu SDK, nằm ngay trong tài liệu để không tạo tệp ngoài handoff. Registry nạp cả hai cùng các contract §2, không truy cập mạng. Ví dụ hợp lệ là hai manifest DEMO tại `DAC-TA-SDK.md` §6.1–6.2. Sau phát hành, mọi thay đổi có ID/phiên bản mới theo §2.
+
+### 15.1. Module — `urn:ktt:manifest:module.v1`
+
+V1 là `bang`/`ham` trong khối riêng Core suy ra; V2/V3/V4 tách thành ba danh sách. Mã V2 thuộc registry cửa ghi Core; không gộp lời gọi đọc SDK vào V2. Tất cả trường cấp cao bắt buộc; mảng rỗng diễn đạt không dùng tính năng đó.
+
+```json
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:ktt:manifest:module.v1",
+  "$comment": "Phien ban schema 1.0.0; manifest v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "phien_ban_manifest",
+    "loai",
+    "ma",
+    "ten",
+    "phien_ban",
+    "tuong_thich",
+    "goi",
+    "backend",
+    "giao_dien",
+    "thao_tac",
+    "du_lieu_rieng",
+    "ham_core_goi",
+    "ma_loi",
+    "quyen_yeu_cau",
+    "engine_dung",
+    "quy_trinh",
+    "cong_bo",
+    "su_kien",
+    "tien_trinh",
+    "cong_tac"
+  ],
+  "properties": {
+    "phien_ban_manifest": {"const":1},
+    "loai": {"const":"module"},
+    "ma": {"$ref":"#/$defs/ma"},
+    "ten": {"type":"string","minLength":1},
+    "phien_ban": {"$ref":"#/$defs/semver"},
+    "tuong_thich": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["core","api","sdk_python","sdk_js","contract"],
+      "properties": {
+        "core": {"type":"string","minLength":1},
+        "api": {"const":"v1"},
+        "sdk_python": {"type":"string","minLength":1},
+        "sdk_js": {"type":"string","minLength":1},
+        "contract": {"type":"array","items":{"$ref":"#/$defs/contract"},"uniqueItems":true}
+      }
+    },
+    "goi": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["tep_kiem_ke","thuat_toan_ma_bam","phu_thuoc_module"],
+      "properties": {
+        "tep_kiem_ke": {"$ref":"#/$defs/tep"},
+        "thuat_toan_ma_bam": {"const":"sha256"},
+        "phu_thuoc_module": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["ma","phien_ban"],
+            "properties": {"ma":{"$ref":"#/$defs/ma"},"phien_ban":{"type":"string","minLength":1}}
+          },
+          "uniqueItems": true
+        }
+      }
+    },
+    "backend": {"type":"object","additionalProperties":false,"required":["diem_vao"],"properties":{"diem_vao":{"$ref":"#/$defs/diem_vao"}}},
+    "giao_dien": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["diem_vao","tai_nguyen","icon","nhom_mau","thu_tu","trang_dau","thao_tac_khung","phan","the"],
+      "properties": {
+        "diem_vao": {"$ref":"#/$defs/tep"},
+        "tai_nguyen": {"type":"array","items":{"$ref":"#/$defs/tep"},"minItems":1,"uniqueItems":true},
+        "icon": {"$ref":"#/$defs/ma"},
+        "nhom_mau": {"$ref":"#/$defs/ma"},
+        "thu_tu": {"type":"integer","minimum":0},
+        "trang_dau": {"$ref":"#/$defs/route_ui"},
+        "thao_tac_khung": {"$ref":"#/$defs/ma"},
+        "phan": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["ma","ten","icon","thu_tu","duong_dan","quyen_xem"],
+            "properties": {
+              "ma": {"$ref":"#/$defs/ma"},
+              "ten": {"type":"string","minLength":1},
+              "icon": {"$ref":"#/$defs/ma"},
+              "thu_tu": {"type":"integer","minimum":0},
+              "duong_dan": {"$ref":"#/$defs/route_ui"},
+              "quyen_xem": {"$ref":"#/$defs/quyen"},
+              "dem": {"$ref":"#/$defs/ma"}
+            }
+          }
+        },
+        "the": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["ma","nhan","dem","loc"],
+            "properties": {
+              "ma": {"$ref":"#/$defs/ma"},
+              "nhan": {"type":"string","minLength":1},
+              "dem": {"$ref":"#/$defs/ma"},
+              "loc": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["phan","tham_so"],
+                "properties": {"phan":{"$ref":"#/$defs/ma"},"tham_so":{"type":"object"}}
+              }
+            }
+          },
+          "minItems": 2,
+          "maxItems": 4
+        }
+      }
+    },
+    "thao_tac": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["ma","phuong_thuc","duong_dan","dau_vao","dau_ra","quyen","kieu","chong_trung"],
+        "properties": {
+          "ma": {"$ref":"#/$defs/ma"},
+          "phuong_thuc": {"enum":["GET","POST","PUT","PATCH","DELETE"]},
+          "duong_dan": {"type":"string","pattern":"^/[a-z0-9_/{}/-]*$"},
+          "dau_vao": {"$ref":"#/$defs/schema_ref"},
+          "dau_ra": {"$ref":"#/$defs/schema_ref"},
+          "quyen": {"$ref":"#/$defs/quyen"},
+          "kieu": {"enum":["dong_bo","viec"]},
+          "chong_trung": {"type":"boolean"},
+          "kiem_row_version": {"type":"boolean"},
+          "quy_trinh": {"type":"string","minLength":1}
+        },
+        "allOf": [
+          {
+            "if": {"properties":{"kieu":{"const":"viec"}},"required":["kieu"]},
+            "then": {
+              "properties": {
+                "dau_ra": {"const":"urn:ktt:contract:viec.v1#/$defs/da_nhan"},
+                "chong_trung": {"const":true},
+                "phuong_thuc": {"enum":["POST","PUT","PATCH","DELETE"]}
+              }
+            }
+          },
+          {
+            "if": {"properties":{"phuong_thuc":{"const":"GET"}},"required":["phuong_thuc"]},
+            "then": {"properties":{"kieu":{"const":"dong_bo"},"chong_trung":{"const":false}}},
+            "else": {"properties":{"chong_trung":{"const":true}}}
+          }
+        ]
+      },
+      "minItems": 1
+    },
+    "du_lieu_rieng": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["bang","ham","phan_vung","goi_migration","v2_ghi_chung","v3_danh_muc","v4_cong_bo_doc","cot_nhom_a"],
+      "properties": {
+        "bang": {"$ref":"#/$defs/ds_ma"},
+        "ham": {"$ref":"#/$defs/ds_ma"},
+        "phan_vung": {"const":"phap_nhan_id"},
+        "goi_migration": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["ma","phien_ban_du_lieu","tep_kiem_ke","thu_muc"],
+          "properties": {
+            "ma": {"$ref":"#/$defs/ma"},
+            "phien_ban_du_lieu": {"type":"integer","minimum":1},
+            "tep_kiem_ke": {"$ref":"#/$defs/tep"},
+            "thu_muc": {"$ref":"#/$defs/tep"}
+          }
+        },
+        "v2_ghi_chung": {"$ref":"#/$defs/ds_ma"},
+        "v3_danh_muc": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["doi_tuong","truong"],
+            "properties": {"doi_tuong":{"type":"string","pattern":"^danh_muc\\.[a-z][a-z0-9_]*$"},"truong":{"$ref":"#/$defs/ds_ma"}}
+          },
+          "uniqueItems": true
+        },
+        "v4_cong_bo_doc": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["module","ma","phien_ban","schema"],
+            "properties": {
+              "module": {"$ref":"#/$defs/ma"},
+              "ma": {"$ref":"#/$defs/ma"},
+              "phien_ban": {"type":"string","minLength":1},
+              "schema": {"$ref":"#/$defs/schema_ref"}
+            }
+          },
+          "uniqueItems": true
+        },
+        "cot_nhom_a": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["bang","cot","cot_ban_ma","cot_phien_ban_khoa","cot_hmac","mien_hmac","chuan_hoa","quyen_xem_du"],
+            "properties": {
+              "bang": {"$ref":"#/$defs/ma"},
+              "cot": {"$ref":"#/$defs/ma"},
+              "cot_ban_ma": {"$ref":"#/$defs/ma"},
+              "cot_phien_ban_khoa": {"$ref":"#/$defs/ma"},
+              "cot_hmac": {"$ref":"#/$defs/ma"},
+              "mien_hmac": {"$ref":"#/$defs/quyen"},
+              "chuan_hoa": {"$ref":"#/$defs/ma"},
+              "quyen_xem_du": {"$ref":"#/$defs/quyen"}
+            }
+          }
+        }
+      }
+    },
+    "ham_core_goi": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["loai_ham","phien_ban_contract","ham","chu_ky"],
+        "properties": {
+          "loai_ham": {"enum":["resolver_mtq","kiem_nghia_vu"]},
+          "phien_ban_contract": {"type":"string","minLength":1},
+          "ham": {"$ref":"#/$defs/ma"},
+          "chu_ky": {"$ref":"#/$defs/tep"}
+        }
+      }
+    },
+    "ma_loi": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["ma","http","truong"],
+        "properties": {
+          "ma": {"type":"string","pattern":"^[A-Z][A-Z0-9_]{0,95}$"},
+          "http": {"enum":[400,401,403,404,409,410,413,415,422,429,500,502,503,504]},
+          "truong": {"$ref":"#/$defs/ds_chuoi"}
+        }
+      }
+    },
+    "quyen_yeu_cau": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["tai_nguyen","hanh_dong","pham_vi"],
+        "properties": {
+          "tai_nguyen": {"$ref":"#/$defs/ma"},
+          "hanh_dong": {"type":"array","items":{"$ref":"#/$defs/ma"},"minItems":1,"uniqueItems":true},
+          "pham_vi": {"$ref":"#/$defs/ma"},
+          "truong": {"$ref":"#/$defs/ds_ma"},
+          "bien_the": {"$ref":"#/$defs/ds_ma"},
+          "capability": {"$ref":"#/$defs/ds_chuoi"},
+          "loai": {"$ref":"#/$defs/ds_chuoi"}
+        }
+      }
+    },
+    "engine_dung": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["capability","bat_buoc","dau_vao","dau_ra"],
+        "properties": {
+          "capability": {"type":"string","minLength":1},
+          "bat_buoc": {"type":"boolean"},
+          "dau_vao": {"$ref":"#/$defs/contract"},
+          "dau_ra": {"$ref":"#/$defs/contract"}
+        }
+      }
+    },
+    "quy_trinh": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["ma","phien_ban","tep"],
+        "properties": {"ma":{"$ref":"#/$defs/ma"},"phien_ban":{"type":"string","minLength":1},"tep":{"$ref":"#/$defs/tep"}}
+      }
+    },
+    "cong_bo": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["ma","phien_ban","ham","schema","truong","quyen_doc"],
+        "properties": {
+          "ma": {"$ref":"#/$defs/ma"},
+          "phien_ban": {"type":"string","minLength":1},
+          "ham": {"$ref":"#/$defs/ma"},
+          "schema": {"$ref":"#/$defs/schema_ref"},
+          "truong": {"$ref":"#/$defs/ds_ma"},
+          "quyen_doc": {"$ref":"#/$defs/quyen"}
+        }
+      }
+    },
+    "su_kien": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["phat","nhan"],
+      "properties": {
+        "phat": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["loai","phien_ban","tham_chieu"],
+            "properties": {"loai":{"type":"string","minLength":1},"phien_ban":{"type":"integer","minimum":1},"tham_chieu":{"$ref":"#/$defs/ds_ma"}}
+          }
+        },
+        "nhan": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["loai","phien_ban","xu_ly"],
+            "properties": {"loai":{"type":"string","minLength":1},"phien_ban":{"type":"integer","minimum":1},"xu_ly":{"$ref":"#/$defs/ma"}}
+          }
+        }
+      }
+    },
+    "tien_trinh": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["cong","nhan_listener","readiness","thu_hoi","bi_mat","che_do_mac_dinh","ranh_giay_de_xuat"],
+      "properties": {
+        "cong": {"$ref":"#/$defs/cong"},
+        "nhan_listener": {"const":"socket.fromshare"},
+        "readiness": {"const":"kenh_dieu_khien"},
+        "thu_hoi": {"const":"drain_va_xac_nhan"},
+        "bi_mat": {"const":"stdin_hoac_handle"},
+        "che_do_mac_dinh": {"const":"tu_kich_hoat_tu_dong"},
+        "ranh_giay_de_xuat": {"type":"integer","minimum":1}
+      }
+    },
+    "cong_tac": {"type":"object","additionalProperties":false,"required":["mac_dinh"],"properties":{"mac_dinh":{"const":"TAT"}}}
+  },
+  "$defs": {
+    "ma": {"type":"string","pattern":"^[a-z][a-z0-9_]{0,31}$"},
+    "chuoi": {"type":"string","minLength":1},
+    "semver": {"type":"string","pattern":"^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)(-[0-9A-Za-z.-]+)?(\\+[0-9A-Za-z.-]+)?$"},
+    "tep": {"type":"string","pattern":"^(?!/)(?!.*(?:^|/)\\.\\.(?:/|$))[A-Za-z0-9_./-]+$"},
+    "diem_vao": {"type":"string","pattern":"^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*)+$"},
+    "route_ui": {"type":"string","pattern":"^#[a-z][a-z0-9_/-]*$"},
+    "quyen": {"type":"string","pattern":"^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*){2,}$"},
+    "contract": {
+      "type": "string",
+      "pattern": "^(urn:ktt:contract:)?[a-z][a-z0-9_]*\\.v[1-9][0-9]*(:[0-9]+\\.[0-9]+\\.[0-9]+)?(#/\\$defs/[a-z][a-z0-9_]*)?$"
+    },
+    "schema_ref": {"oneOf":[{"$ref":"#/$defs/contract"},{"allOf":[{"$ref":"#/$defs/tep"},{"pattern":"^schema/.+\\.json$"}]}]},
+    "ds_ma": {"type":"array","items":{"$ref":"#/$defs/ma"},"uniqueItems":true},
+    "ds_chuoi": {"type":"array","items":{"type":"string","minLength":1},"uniqueItems":true},
+    "cong": {"const":{"nguon":"core_cap","pham_vi":"loopback"}}
+  }
+}
+```
+
+### 15.2. Engine — `urn:ktt:manifest:engine.v1`
+
+Tham chiếu kiểu dùng chung từ schema module không cấp dịch vụ CSDL cho engine. `ket_noi_ngoai` nếu bỏ qua được Core chuẩn hóa thành `[]` trước kiểm/chạy (`default` không tự chèn dữ liệu); mặc định không kết nối ngoài.
+
+```json
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:ktt:manifest:engine.v1",
+  "$comment": "Phien ban schema 1.0.0; manifest v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "phien_ban_manifest",
+    "loai",
+    "ma",
+    "ten",
+    "phien_ban",
+    "tuong_thich",
+    "adapter",
+    "capability",
+    "ho_so_chay_mau",
+    "readiness",
+    "tai_nguyen",
+    "ban_giao_ket_qua",
+    "thu_hoi"
+  ],
+  "properties": {
+    "phien_ban_manifest": {"const":1},
+    "loai": {"const":"engine"},
+    "ma": {"$ref":"urn:ktt:manifest:module.v1#/$defs/ma"},
+    "ten": {"type":"string","minLength":1},
+    "phien_ban": {"$ref":"urn:ktt:manifest:module.v1#/$defs/semver"},
+    "tuong_thich": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["core","api"],
+      "properties": {"core":{"type":"string","minLength":1},"api":{"const":"v1"}}
+    },
+    "adapter": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["ma","phien_ban"],
+      "properties": {"ma":{"$ref":"urn:ktt:manifest:module.v1#/$defs/ma"},"phien_ban":{"type":"string","minLength":1}}
+    },
+    "capability": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["ma","dau_vao","dau_ra","mime","tep_toi_da_mib","trang_toi_da","thoi_han_giay"],
+        "properties": {
+          "ma": {"type":"string","minLength":1},
+          "dau_vao": {"$ref":"urn:ktt:manifest:module.v1#/$defs/contract"},
+          "dau_ra": {"$ref":"urn:ktt:manifest:module.v1#/$defs/contract"},
+          "mime": {"type":"array","items":{"type":"string","pattern":"^[a-z0-9.+-]+/[a-z0-9.+-]+$"},"minItems":1,"uniqueItems":true},
+          "tep_toi_da_mib": {"type":"integer","minimum":1},
+          "trang_toi_da": {"type":"integer","minimum":1},
+          "thoi_han_giay": {"type":"integer","minimum":1}
+        }
+      },
+      "minItems": 1
+    },
+    "ho_so_chay_mau": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "ma_moi_truong",
+        "diem_vao",
+        "headless",
+        "cong",
+        "nhan_listener",
+        "tham_so_cong",
+        "bi_mat",
+        "login_csdl",
+        "che_do_mac_dinh",
+        "ranh_giay_de_xuat"
+      ],
+      "properties": {
+        "ma_moi_truong": {"$ref":"urn:ktt:manifest:module.v1#/$defs/ma"},
+        "diem_vao": {"$ref":"urn:ktt:manifest:module.v1#/$defs/diem_vao"},
+        "headless": {"const":true},
+        "cong": {"$ref":"urn:ktt:manifest:module.v1#/$defs/cong"},
+        "nhan_listener": {"type":"array","items":{"enum":["socket.fromshare","tham_so_cong"]},"minItems":1,"uniqueItems":true},
+        "tham_so_cong": {"const":"--port"},
+        "bi_mat": {"const":"stdin_hoac_handle"},
+        "login_csdl": {"const":false},
+        "che_do_mac_dinh": {"const":"tu_kich_hoat_tu_dong"},
+        "ranh_giay_de_xuat": {"type":"integer","minimum":1}
+      }
+    },
+    "readiness": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kenh","kiem","thoi_han_giay"],
+      "properties": {
+        "kenh": {"const":"dieu_khien_noi_bo"},
+        "kiem": {"type":"array","items":{"enum":["instance","phien_ban","capability","model_san_sang"]},"minItems":4,"uniqueItems":true},
+        "thoi_han_giay": {"type":"integer","minimum":1,"maximum":120}
+      }
+    },
+    "tai_nguyen": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["so_viec_dong_thoi","ram_toi_da_mib_de_xuat","cpu_phan_tram_toi_da_de_xuat"],
+      "properties": {
+        "so_viec_dong_thoi": {"type":"integer","minimum":1},
+        "ram_toi_da_mib_de_xuat": {"type":"integer","minimum":1},
+        "cpu_phan_tram_toi_da_de_xuat": {"type":"integer","minimum":1,"maximum":100}
+      }
+    },
+    "ket_noi_ngoai": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["dich_vu","muc_dich"],
+        "properties": {"dich_vu":{"$ref":"urn:ktt:manifest:module.v1#/$defs/ma"},"muc_dich":{"type":"string","minLength":1}}
+      },
+      "default": [],
+      "uniqueItems": true
+    },
+    "ban_giao_ket_qua": {"const":"core_xac_nhan_truoc_giai_phong"},
+    "thu_hoi": {"const":"drain_va_xac_nhan"}
+  }
+}
+```
+
+### 15.3. Tham chiếu, kiểm ngữ nghĩa và ca âm bắt buộc
+
+JSON Schema kiểm hình dạng. Không dùng tính năng ngoài draft 2020-12 như `$data` để so hai trường động; Core kiểm thêm trước cài:
+
+- Mã module không trùng, độ dài tên schema/role dẫn xuất hợp PostgreSQL; `goi_migration.ma` bằng `ma`. Core suy `mod_<ma>`, `cong_bo_<ma>`, owner/runtime; không nhận trường role/schema/đối tượng công bố từ gói.
+- `ham_core_goi[].ham` thuộc hàm riêng V1, chữ ký khớp schema gói; cài DEFINER đúng owner/hash/ACL/policy rồi ghi `loi.dang_ky_ham_module`. Loại + phiên bản không trùng; chỉ cổng Core nội bộ EXECUTE.
+- Tiền tố quyền operation/menu/công bố/cột nhóm A bằng chính `<ma>.`; yêu cầu quyền Core được kiểm/cấp riêng. Cột nhóm A thuộc bảng V1; cột bản mã/phiên bản khóa/HMAC, miền/chuẩn hóa phải có trong migration, không lưu bản rõ/khóa.
+- Mã operation, phần/thẻ, quy trình, công bố, capability và lỗi không trùng. `thao_tac_khung`, phần lọc, bộ đếm, workflow `ma@phien_ban`, schema/event/handler phải giải được từ gói/registry; sự kiện có schema gói ghim theo loại + phiên bản. `loc.tham_so` kiểm tiếp theo input schema operation, không thực thi JSON tự do.
+- Mọi contract tham chiếu giải đúng `$id` đã ghim trong `tuong_thich.contract` hoặc registry gói; fragment phải tồn tại. Semver/range Core/SDK/dependency phải parse và tương thích; hình dạng chuỗi chưa đủ. Capability có version và được engine/adapter thực hỗ trợ.
+- Tệp sau resolve/chuẩn hóa phải nằm trong gói, chống symlink/đường dẫn thoát/ổ đĩa/UNC; bytes/hash khớp kiểm kê. `ham` công bố là tên cục bộ dưới `cong_bo_<ma>`, không nhận schema tự do.
+- Mã lỗi + HTTP/tên trường phải thuộc contract operation; danh mục mã lỗi trường (gồm `BAT_BUOC`) phải đăng ký, không chứa input. Kết nối ngoài chỉ mã dịch vụ Core đã duyệt, mặc định rỗng; không mở cổng AI riêng.
+
+Ca âm KT07 phủ **cả module lẫn engine**: thiếu trường/sai version/sai enum/trường lạ; thêm mật khẩu/role migration; tự chọn schema/đối tượng công bố/số cổng; sai tiền tố quyền; đường dẫn `../`/absolute/symlink thoát; thiếu `$ref`/fragment/schema gói, trùng operation/route/capability, workflow/handler không có, version không tương thích; V2 trỏ hàm đọc, V3 trỏ bảng module, V4 ngoài contract; cột nhóm A thiếu HMAC/phiên bản khóa; hàm registry sai owner/chữ ký; việc lâu dùng schema polling; engine `login_csdl:true`, thiếu kiểm model, RAM/CPU vượt miền, dịch vụ ngoài chưa duyệt hoặc AI trực tiếp. Phân biệt lỗi schema và lỗi ngữ nghĩa; schema không tự chứng minh ACL/tiến trình.
+
 
 ---
 
@@ -1404,6 +1981,22 @@ Mức chặn gắn với từng capability. Capability chưa đạt có thể kh
 | `KT09` | **Không ghi khóa vào log.** Tiêm bí mật DEMO có thể nhận diện vào các kênh xác thực; gây lỗi parse, timeout, 401, lỗi SQL, exception, hủy và crash. Quét stdout/stderr, log, audit, trace, metric label, thông điệp HTTP và báo cáo kiểm; kiểm cả dạng escape/encode thông dụng. | `tests/test_xs2_worker.py:178`, `tests/test_xs2_worker.py:520`, `tests/test_xs3_cong.py:86`, `tests/test_xs3_hoa_don.py:173`, `tests/test_trich6_host.py:40`. | `C0` |
 | `KT10` | **Engine không login CSDL; gọi AI đúng cổng.** Kiểm gói, hồ sơ chạy và cấu hình truyền vào không trao DSN/mật khẩu CSDL cho engine. Chặn thử mở DB trong sandbox thử. Dùng spy để chứng minh AI/OCR gọi cổng được cấp; đường Cloud chỉ sau Mask v2. | `tests/test_xs3_cong.py:256`, `tests/test_xs3_cong.py:267`, `tests/test_xs3_cong.py:302`, `tests/test_cong_ai.py`. Kiểm process/config engine là bổ sung. | `C0` |
 
+**Bổ sung vòng 2 bắt buộc cho các mã trên** (đều là yêu cầu mới cần chạy sau, chưa phải test đã có):
+
+| Mã | Ca và tiêu chí bổ sung | Mức |
+|---|---|---|
+| KT01/KT03 | Chạy lại mỗi lần kích hoạt và mỗi lần Core khởi động; giả GRANT tay vượt quyền, đổi owner/policy hoặc membership phải đưa module về chưa kích hoạt. Thử driver SQL trực tiếp bỏ qua SDK vẫn bị role/RLS/Core chặn; SDK không phải ranh giới an ninh. | C0 |
+| KT04/KT11 | Việc nhận mã riêng theo `viec_id` + thế hệ lease trong `GiuViec`; token HTTP không dùng làm mã nền. Hết lease/restart/thu hồi quyền thì mã cũ thất bại; lease mới chỉ nhận mã mới sau kiểm quyền/đối chiếu tác động. | C0 |
+| KT05 | Biên nhận module bất biến, giữ vĩnh viễn trong `loi_tai_lieu.bien_nhan_thao_tac` qua V2 cùng transaction nghiệp vụ/tạo việc, UNIQUE pháp nhân/module/operation/client_key; Core chỉ khóa request đang chạy. Thử rollback; crash sau commit trước response; Core/module restart; replay sau 24 giờ; alias cũ/v1 dùng cùng operation/body chuẩn hóa/khóa, không theo path/method. Cùng fingerprint trả cùng kết quả/việc; khác fingerprint trả 409; quyền hiện tại được kiểm trước tra/replay, không thấy kết quả trả 404 kể cả khác người tạo. Không tạo việc qua HTTP rồi ghi biên nhận riêng; không có biên nhận hoàn tất thứ hai ở Core. | C0 |
+| KT05 | Gọi thẳng cổng loopback module thiếu token; sai chữ ký/instance; TTL >30 giây/hết hạn; hash method/path/body lệch; nonce lặp kể cả cạnh tranh đều 401 trước handler. Retry bằng token/nonce mới giữ khóa chống trùng cũ. | C0 |
+| KT06/KT07 | Nạp offline **cả hai** schema manifest §15, kiểm meta-schema, hai mẫu SDK §6 và ca âm §15.3; mã lỗi/HTTP/trường lỗi phải đăng ký. `kieu:viec` bắt buộc `urn:ktt:contract:viec.v1#/$defs/da_nhan`, không dùng schema polling. | C1; vượt quyền/bí mật là C0 |
+| KT08 | Core bind với `SO_EXCLUSIVEADDRUSE`, thử tiến trình khác dùng `SO_REUSEADDR` bind lại phải thất bại; nhánh engine cũ vẫn ghi khoảng hở. Module chỉ ready khi login/role và phiên bản dữ liệu/checksum khớp `loi.lich_su_doi_cau_truc`; lệch không phục vụ. Trạng thái đúng `stopped/starting/ready/busy/dang_dung/failed` (API §5). | C1; chiếm cổng/gọi nhầm là C0 |
+| KT08/KT10 | Con chạy token hạn chế/tài khoản riêng: mở `bi-mat`, dùng DPAPI lấy khóa, mở/đọc/ghi nhớ Core, duplicate handle/token, sửa ACL lấy lại quyền đều phải thất bại. Chỉ kế thừa handle allowlist; engine không login DB; không đạt thì không kích hoạt (SDK §4.4). | C0 |
+| KT09 | Quét thêm log PostgreSQL trong môi trường DEMO, xác minh `log_parameter_max_length=0` và `log_parameter_max_length_on_error=0` (`log_parameter_max_length*=0`); lỗi SQL/rollback không rò mã ủy nhiệm hoặc khóa. Mật khẩu truyền `password=` riêng, không DSN chứa bí mật; khóa mã hóa không vào SQL/GUC. | C0 |
+| KT12/KT16 | Đang tự đóng có việc `queued`/sự kiện chờ thì Core đánh thức đúng một instance; `TAT` giữ hàng chờ, không tự bật. Hộp nhận chưa rỗng/lease/request/lượt Mask đang dùng thì chưa rảnh. Job `KILL_ON_JOB_CLOSE`, cây con và RAM/CPU được Core xác minh từ Job accounting, không lấy tự khai làm số đo chính. | C1; vượt quyền/mất tác động là C0 |
+| KT14 | Module không giả nguồn OCR/engine/version/việc được; Core tự gắn provenance từ instance/lease và kiểm nguồn tham chiếu. | C0 |
+| KT03/KT09 | Cổng `ma_hoa`: cột nhóm A đăng ký, bản mã + phiên bản khóa, HMAC miền/khóa độc lập; xem rút gọn tối đa bốn số, xem đủ cần quyền + audit. Thử sai pháp nhân/cột, đổi khóa/khôi phục và canary log; module không nhận khóa/bản rõ ngoài quyền. | C0 |
+
 ### 4.1. Quyền và SQL chéo: thứ tự kiểm
 
 Không kết luận an toàn chỉ vì trace DEMO chưa thấy câu SQL xấu. Thứ tự:
@@ -1452,6 +2045,16 @@ Mọi contract có ít nhất: một ví dụ đúng, thiếu trường bắt bu
 | `hoa_don.v1` | Thiếu/rỗng/trùng field; exact decimal; tiền vượt miền; không default tiền tệ/số lượng; số hóa đơn giữ `0` đầu; namespace ngoài profile; ZIP trùng tên/CRC lỗi/partial; không suy đủ kỳ hoặc đã ghi sổ. | `tests/test_hoa_don_xml.py`, `tests/test_xs3_hoa_don.py:78`, `tests/test_xs3_hoa_don.py:121`, `tests/test_xs3_hoa_don.py:164`. | `C0` cho bảo toàn tiền/định danh/nguồn; còn lại `C1` |
 | `loi_chuan.v1` | Đủ bốn trường, mã đúng; không lộ lỗi thô; `request_id` xuyên tiến trình; không bật retry cho tác động chưa rõ. | `tests/test_xs2_worker.py:178`, `tests/test_xs3_hoa_don.py:192`; kiểm wire body là bổ sung. | `C0` cho lộ bí mật/retry nguy hiểm; còn lại `C1` |
 | `viec.v1` | Phân biệt 202/polling; không lộ lease/token; trạng thái không hợp lệ; hủy là đề nghị; `CHUA_RO` không tự retry; không trả kết quả khác pháp nhân. | `tests/test_xs2_sql.py:280`, `tests/test_xs2_sql.py:293`, `tests/test_xs2_sql.py:317`, `tests/test_xs2_worker.py:468`. | `C0` cho quyền/toàn vẹn; còn lại `C1` |
+
+Ca contract bổ sung vòng 2 (thuộc cùng KT06, dùng cổng giả/DEMO, không dịch vụ ngoài):
+
+| Contract | Ca bắt buộc và kết quả mong đợi | Mức |
+|---|---|---|
+| Tất cả | Sai hằng `phien_ban` riêng phải bị bác; nâng một contract tạo ID mới không đổi hằng contract khác/vỏ chung. Consumer ghim bản cũ chỉ nhận bản cũ; thêm trường dưới cùng ID phải bị kiểm phát hành bác. | C1 |
+| `noi_dung_da_che.v1` | Thiếu/cờ `giu_nguyen_tien_ngay:false` bị schema bác; chuỗi nguồn DEMO có tiền, đơn vị, ngày và định danh sát nhau: sau che các định danh, tiền/ngày vẫn nguyên. Mất/đổi/che tiền/ngày dù tự khai cờ true phải bị kiểm ngữ nghĩa chặn Cloud. | C0 |
+| `tra_loi_ai.v1` | CLOUD/LOCAL+CLOUD thiếu lượt, lượt null/sai UUID hoặc `mo_che:khong_ap_dung/chua_kiem` đều bị schema bác. Nhãn LOCAL nhưng trường/model CLOUD cũng không qua. ID đúng hình dạng nhưng sai việc/pháp nhân/hết hạn bị Core bác; mở che `khong_dat` không công bố như đã mở che. Tiền có dấu nhóm `1.000.000`, thiếu đơn vị hoặc chuỗi trần thay typed value bị bác; giữ typed Local và kiểm catalog. | **C0** cho Cloud không lượt/tiền/quyền |
+| `hoa_don.v1` | Thiếu `thue_suat` bị schema bác; TSuat thiếu/rỗng/trùng/ký hiệu đặc biệt giữ trạng thái/lexeme/issue nguồn. Có dòng chiết khấu TChat=3 dương vẫn không cộng dòng thành tổng; `truoc_thue` chứa phần không chịu thuế không được làm cơ sở chịu thuế; thiếu tổng giữ thiếu. | C0 |
+| `loi_chuan.v1` | `chi_tiet` hợp lệ gắn đúng ô; thêm `gia_tri`/giá trị input hoặc trường/mã chưa đăng ký bị bác/làm sạch thành 502, không echo input. Mã lỗi module/HTTP chưa đăng ký cũng 502. | C0 cho lộ input; còn lại C1 |
 
 Bộ kiểm phải chạy cả hai chiều: nguồn → contract và contract → consumer. Không chỉ kiểm ví dụ thủ công mà bỏ response thực do adapter tạo.
 
@@ -1522,4 +2125,25 @@ Báo cáo không quá một trang:
 - **Đã tự thử:** ca đồng thời, restart, quyền âm, tiền/đơn vị và log theo phạm vi.
 - **Còn thiếu/rủi ro:** phụ thuộc chưa duyệt và capability chưa được phép công bố.
 
-**Tình trạng G1c-2:** đã soạn hai tài liệu và đối chiếu tĩnh các nguồn dẫn; không đổi tệp, không commit. Test/validator: chưa chạy; lỗi mới so với nền: chưa đánh giá. Các bộ kiểm mô tả ở đây là yêu cầu triển khai sau duyệt, chưa phải bằng chứng tuân thủ hiện tại.
+**Tình trạng vòng 2:** chỉ cập nhật `DAC-TA-SDK.md` và tài liệu này; không commit. Kiểm offline: 24/24 khối JSON parse, 12 `$id` duy nhất và mọi `$ref` giải được, 12/12 ví dụ + 52/52 ca đúng/âm đạt kiểm tĩnh các keyword đang dùng; UTF-8 không BOM và `git diff --check` đạt. Chưa chạy validator meta-schema draft 2020-12 chính thức vì môi trường thiếu thư viện; không cài dependency hoặc tạo tệp kiểm. Không chạy test ứng dụng/runtime; các KT là tiêu chí sau duyệt, chưa là bằng chứng tuân thủ thực tế; lỗi mới so với nền ứng dụng chưa đánh giá.
+
+## Vòng 2 — đã xử lý
+
+Mã phát hiện theo quy ước SDK §1: `O` = review Opus (Chặn1–3, CS1–CS9 theo mục Ưu tiên sửa; R1–R6 theo bảng), `C` = review Codex (C1–C5 theo thứ tự bảng).
+
+| Mã phát hiện | Chỗ sửa |
+|---|---|
+| O-Chặn1; C1 | SDK §2; bộ kiểm KT05: biên nhận V2 vĩnh viễn/cùng transaction, fingerprint, quyền replay, crash/restart/>24 giờ/alias |
+| O-Chặn2; O-R1a,b | SDK §2, §4.4; KT01/KT03/KT08/KT10: role/RLS/Core, token hạn chế, bí mật/bộ nhớ/ACL/DPAPI |
+| O-Chặn3; O-R1c | SDK §3 dịch vụ `ma_hoa`; §15.1 cột nhóm A; KT03/KT09 cổng mã hóa/quyền/audit/khóa |
+| O-CS1; O-R1d | SDK §4.2; KT05 token ký/instance/TTL/nonce/hash/cổng trực tiếp |
+| O-CS2; O-R1e; O-R2i | SDK `GiuViec`/§4.3; KT04/KT11 ủy nhiệm theo lease; KT12/KT16 đánh thức/rảnh |
+| O-CS3; O-R3; C2 | §15 hai schema/version, V1–V4/registry/quyền/Core tự suy, ca âm; KT06/KT07 kiểm cả hai mẫu SDK |
+| O-CS4; O-R4 phiên bản | §2 quy tắc ID mới/ghim chính xác; §3 vỏ chung không const; §5–10 const riêng, bộ kiểm §5 |
+| O-CS5; O-R4 AI/Mask | §8 schema giữ tiền/ngày; §9 điều kiện CLOUD/lượt che/typed value; ca âm C0 bộ kiểm §5 |
+| O-CS6; O-R4 hóa đơn | §10 schema `thue_suat`, quy tắc `TgTCThue`/chiết khấu/tổng nguồn; bộ kiểm §5 |
+| O-CS7; O-R2ii,iii | SDK §4.1–4.3; KT08 readiness/login/data version/exclusive bind; KT16 Job accounting |
+| O-CS8; O-R1f và DSN; O-R5 | §2.1 Core gắn nguồn; KT01/KT03 kiểm lại lúc kích hoạt/Core restart; KT09 log PostgreSQL/tham số/khóa; KT14 provenance |
+| O-CS9; O-R6; C5 | SDK §8 ba câu mới, M4 G4 là thông báo; không hỏi trùng retention hoặc thêm logic khoản vay |
+| C3 | §12 phân biệt polling/202; §15.1 ràng buộc `dau_ra` việc lâu; KT07 |
+| C4 | §11 schema/ví dụ `chi_tiet` an toàn/đăng ký lỗi; §15 `ma_loi`; bộ kiểm §5 |
