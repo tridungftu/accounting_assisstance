@@ -35,7 +35,7 @@ Các tên JSON dưới đây là phép ánh xạ từ nguồn được dẫn; kh
 
 **Kiểu dùng lại:** `id`, `chuoi`, `ma`, `ngay`, `tien` đều tham chiếu `$defs` của `urn:ktt:contract:chung.v1`; tệp dùng `tham_chieu_tep.v1`, lỗi dùng `loi_chuan.v1`. Không định nghĩa lại các kiểu này. Mã Junsky và tài khoản kế toán dùng `chuoi`, giữ nguyên mã nguồn; không ép vào `chung.ma` vì mã ngoài có thể chứa chữ hoa, dấu chấm hoặc số đầu.
 
-Bốn contract dữ liệu ở mục 1–4 kế thừa nguyên vỏ `chung.v1#/$defs/vo_noi_dung`:
+Mọi contract **dữ liệu công bố** trong tài liệu (Chung, CRM, M4, M2) kế thừa nguyên vỏ `chung.v1#/$defs/vo_noi_dung` của T §3. Sự kiện giữ vỏ bus ở §5, không áp vỏ nội dung cho payload bus.
 
 | Trường | Nghĩa | Kiểu | Bắt buộc | Đơn vị | Nguồn |
 |---|---|---|---|---|---|
@@ -45,6 +45,8 @@ Bốn contract dữ liệu ở mục 1–4 kế thừa nguyên vỏ `chung.v1#/$
 | `nguon_tep_ids` | Các tệp nguồn làm căn cứ | Kiểu có sẵn trong vỏ chung | Có | — | T §2.1, §3 |
 
 Pháp nhân, quyền, nguồn tạo và trạng thái duyệt phải được Core kiểm chứng; các giá trị trong JSON không tự cấp quyền. Ví dụ chỉ dùng dữ liệu giả DEMO.
+
+**Nhập tay không có tệp gốc:** trước công bố, lưu ảnh chụp JSON của dữ liệu nhập tay qua kho tệp Core và lấy `tep_id` thật làm phần tử `nguon_tep_ids` (ít nhất một, không trùng). Ảnh chụp ghi dữ liệu, người nhập, thời điểm, revision và nguồn `NHAP_TAY`; metadata nguồn do Core xác minh. Ảnh chụp chỉ chứa đầu vào, không chứa ID/hash của chính tệp hoặc hash phiên bản kết quả được tính từ tệp đó, để tránh vòng băm. Đây là tệp căn cứ nhập tay, không phải bằng chứng đã ký/đã duyệt. Không dùng UUID giả, mảng rỗng hay miễn vỏ; chưa lưu được ảnh chụp thì trả `CHO`, chưa công bố. Quy tắc áp dụng cả danh mục nhập tay, `bao_gia` và `du_an_dang_ban`; các ID trong ví dụ chỉ mô phỏng tệp DEMO đã lưu. Đây là yêu cầu thiết kế, không khẳng định đã có API tạo ảnh chụp.
 
 ## 1. `doi_tuong.v1`
 
@@ -58,7 +60,7 @@ Bảng sau bổ sung cho vỏ chung:
 
 | Trường | Nghĩa nghiệp vụ | Kiểu | Bắt buộc | Đơn vị | Nguồn |
 |---|---|---|---|---|---|
-| `doi_tuong_id` | Định danh nội bộ ổn định | `id` | Có | — | P:87–88 |
+| `doi_tuong_id` | Định danh nội bộ ổn định | `id \| null` | Có và phải khác `null` tại contract danh mục | — | P:87–88; từ điển chung |
 | `phap_nhan_id` | Pháp nhân của phép tra cứu mã Junsky | `id` | Có | — | P:105–116 |
 | `ma_junsky` | ObjectID được Junsky cấp; `null` nếu chưa ánh xạ | `chuoi \| null` | Có | — | P:109; M0 §3, §6 |
 | `ten_phap_ly` | Tên pháp lý của đối tượng | `chuoi` | Có | — | P:90 |
@@ -98,7 +100,7 @@ Một đối tượng có thể được trả ở nhiều pháp nhân hoặc nh
 
 | Trường | Nghĩa nghiệp vụ | Kiểu | Bắt buộc | Đơn vị | Nguồn |
 |---|---|---|---|---|---|
-| `du_an_id` | Định danh dự án dùng chung | `id` | Có | — | P:148–149 |
+| `du_an_id` | Định danh dự án dùng chung | `id \| null` | Có và phải khác `null` tại contract danh mục | — | P:148–149; từ điển chung |
 | `phap_nhan_id` | Pháp nhân quản lý dự án | `id` | Có | — | P:150 |
 | `ma_junsky` | Mã dự án trong Junsky | `chuoi` | Có | — | P:151 |
 | `ten` | Tên dự án | `chuoi` | Có | — | P:152 |
@@ -137,19 +139,22 @@ Một đối tượng có thể được trả ở nhiều pháp nhân hoặc nh
 | Trường | Nghĩa nghiệp vụ | Kiểu | Bắt buộc | Đơn vị | Nguồn |
 |---|---|---|---|---|---|
 | `de_xuat_id` | Định danh đề xuất | `id` | Có | — | P:501–502 |
+| `phien_ban_de_xuat` | Số phiên bản đề xuất theo chứng từ; khác semver và revision công bố | Integer ≥ 1 | Có | Lần | P:504 |
+| `hien_hanh` | Đề xuất còn là bản hiện hành tại lúc công bố | Boolean | Có; bên xuất phải kiểm lại | — | P:505 |
 | `chung_tu_id` | Chứng từ được đề xuất định khoản | `id` | Có | — | P:503 |
 | `phap_nhan_id` | Pháp nhân suy ra từ chứng từ | `id` | Có | — | P:209; D §1.1 |
-| `chu_trinh` | Module nghiệp vụ sinh đề xuất | `chuoi \| null` | Có | — | P:506 |
+| `chu_trinh` | Module nghiệp vụ sinh đề xuất, do Core gắn từ instance phát đã xác thực | `chuoi \| null` | Có trong đầu ra; module không tự khai | — | P:506; T §2.1 |
 | `ngay_nghiep_vu` | Ngày nghiệp vụ của chứng từ | `ngay` | Có | Ngày | P:214 |
 | `dien_giai` | Nội dung chứng từ | Chuỗi | Tùy chọn | — | P:222 |
 | `muc` | Mức đề xuất `XANH`, `VANG`, `DO` | Enum hiện có | Có | — | P:509 |
+| `nguon_suy_luan` | Nguồn tạo đề xuất | Enum `KHOA_CUNG`, `TU_KHOA`, `LICH_SU`, `CONG_NO`, `CFO`, `LLM`, `NGUOI`, `JUNSKY` | Có; kiểm với provenance Core | — | P:514,519 |
 | `vi_sao` | Lý do, căn cứ giải thích đề xuất | Chuỗi | Tùy chọn | — | P:510; hướng dẫn định khoản |
 | `dong` | Các dòng định khoản | Mảng object | Có | — | P:521–549 |
 | `dong[].stt` | Thứ tự dòng trong đề xuất | Integer | Có | Dòng | P:524 |
 | `dong[].no_co` | Vế Nợ `N` hoặc Có `C` | Enum `N`, `C` | Có | — | P:525 |
 | `dong[].tai_khoan` | Mã tài khoản kế toán chi tiết | `chuoi` | Có | — | P:526; `../CLAUDE.md:30` |
-| `dong[].so_tien` | Số tiền của vế Nợ/Có trên dòng | `tien` | Có | Theo `don_vi_tien` | P:532–533; T §2.2 |
-| `dong[].ma_doi_tuong` | Mã trong `doi_tuong.v1` cùng pháp nhân | `chuoi \| null` | Có; thiếu giữ `null` | — | P:534 |
+| `dong[].so_tien` | Số tiền ghi sổ của vế Nợ/Có, không phải giá tính VAT | `tien`, thu hẹp `gia_tri` thành chuỗi số nguyên > 0 | Có | Chỉ VND, scale 0 | P:532–533; T §2.2 |
+| `dong[].ma_doi_tuong` | Đúng `doi_tuong.v1.ma_junsky` trong cùng pháp nhân | `chuoi \| null` | Có; thiếu giữ `null` | — | P:534 |
 | `dong[].ma_du_an` | Mã trong `du_an.v1` cùng pháp nhân | `chuoi \| null` | Tùy chọn | — | P:538 |
 | `dong[].ttcp` | Mã trung tâm chi phí | `chuoi \| null` | Tùy chọn | — | P:539 |
 | `dong[].khoan_muc` | Mã khoản mục phí | `chuoi \| null` | Tùy chọn | — | P:540 |
@@ -163,6 +168,9 @@ Một đối tượng có thể được trả ở nhiều pháp nhân hoặc nh
 - Kiểm Nợ = Có trên toàn chứng từ; không bỏ riêng dòng lỗi rồi xuất phần còn lại.
 - Chỉ xuất phiên bản đã “Đồng ý”, còn hiệu lực và không thuộc diện đã có trong Junsky. Mức `XANH` không thay quyết định duyệt.
 - Tra cứu đối tượng/dự án qua hai contract chung; không nhúng bản sao hồ sơ. Metadata duyệt dùng cơ chế Core, không thêm cờ tự khai `da_duyet`.
+- `nguon_suy_luan=LLM` thì `muc` không được `XANH`; đổi nhãn nguồn không được che provenance LLM. Mọi dòng cùng VND, tiền nguyên dương; dòng 0 không công bố, tiền âm hoặc lẻ không tự làm tròn để qua kiểm. Nợ = Có > 0.
+- Bên xuất đọc metadata kết quả/quyết định duyệt có thẩm quyền qua Core và đối chiếu đúng `de_xuat_id`, `phien_ban_de_xuat`, revision/hash nội dung; kiểm lại `hien_hanh`, kỳ khóa và trạng thái chứng từ ở cổng xuất. Trong chuyển tiếp, adapter chủ kế toán cũ kiểm `kho.de_xuat.hien_hanh` và trạng thái chứng từ theo P:705–735; consumer không đọc bảng riêng. Payload do module gửi kèm cờ/quyết định duyệt tự khai bị Core từ chối, không được lấy làm bằng chứng.
+- **Mức 2 khóa tại máy chủ** và giao diện. Tự duyệt chỉ cho **phí ngân hàng, lãi tiền gửi, lương, bút toán định kỳ**, sau khi Mức 2 được mở, đủ kiểm tra bước 4 và có nhật ký (quy tắc dự án `CLAUDE.md` ở thư mục cha, §Quy tắc riêng). `XANH` không tự kích hoạt tự duyệt hoặc mở khóa xuất.
 
 ```json
 {
@@ -171,12 +179,15 @@ Một đối tượng có thể được trả ở nhiều pháp nhân hoặc nh
   "revision": 1,
   "nguon_tep_ids": ["10000000-0000-4000-8000-000000000001"],
   "de_xuat_id": "50000000-0000-4000-8000-000000000001",
+  "phien_ban_de_xuat": 1,
+  "hien_hanh": true,
   "chung_tu_id": "60000000-0000-4000-8000-000000000001",
   "phap_nhan_id": "30000000-0000-4000-8000-000000000001",
   "chu_trinh": "M1",
   "ngay_nghiep_vu": "2026-10-01",
   "dien_giai": "THU TIEN DEMO",
   "muc": "VANG",
+  "nguon_suy_luan": "NGUOI",
   "vi_sao": "CAN KE TOAN DUYET DEMO",
   "dong": [
     {
@@ -290,11 +301,14 @@ Ngoài bảng chung:
 |---|---|---|---|---|---|
 | `tham_chieu.lien_ket_id` | Liên kết tiền–đợt đã được xác nhận | `id` | Có | — | `k2/crm.py:758–763`² |
 | `tham_chieu.chung_tu_id` | Chứng từ tiền phía nguồn | `id` | Có | — | `k2/crm.py:758–762`² |
-| `tham_chieu.lich_thu_id` | Đợt nghĩa vụ nhận phần tiền | `id` | Có | — | `k2/crm.py:759–762`² |
+| `tham_chieu.nghia_vu_id` | ID đợt nghĩa vụ đã nối; ánh xạ ID lịch thu nguồn CRM | `id` | Có | — | `k2/crm.py:759–762`²; D §3.6, §6.2 |
+| `tham_chieu.phien_ban_id` | ID phiên bản nghĩa vụ làm căn cứ liên kết | `id` | Có | — | D §3.6, §6.2 |
 
 ² Đường dẫn tính từ `src/kho_tri_thuc/`.
 
 **Khóa chống trùng dự kiến:** loại sự kiện + `lien_ket_id`, trong phạm vi pháp nhân/bên phát. Chờ chốt quan hệ giữa khóa thao tác hiện có và khóa bus.
+
+Bên nhận đọc liên kết qua V3/hàm Core được cấp quyền để lấy bộ ba `(module_nghia_vu, loai_nghia_vu, nghia_vu_id)`, ID phiên bản và `ma_bam_phien_ban_can_cu`; đối chiếu `nghia_vu_id`/`phien_ban_id` trong sự kiện rồi đọc đúng contract nguồn. Với CRM bộ ba là `(CRM, lich_thu, nghia_vu_id)` (§NV-CRM/§1). Không đưa hai chuỗi loại/module hoặc hash vào payload bus chỉ nhận UUID; không suy bộ ba từ `ben_phat=M1`.
 
 ```json
 {
@@ -304,7 +318,8 @@ Ngoài bảng chung:
   "tham_chieu": {
     "lien_ket_id": "90000000-0000-4000-8000-000000000001",
     "chung_tu_id": "60000000-0000-4000-8000-000000000001",
-    "lich_thu_id": "90000000-0000-4000-8000-000000000002"
+    "nghia_vu_id": "10000000-0000-4000-8000-000000000021",
+    "phien_ban_id": "10000000-0000-4000-8000-000000000007"
   },
   "phap_nhan_id": "30000000-0000-4000-8000-000000000001",
   "ben_phat": "M1"
@@ -349,6 +364,8 @@ Ví dụ minh họa riêng nhánh M3:
 
 **Trạng thái/phiên bản:** `nhap` / `1.0.0`; **chặn kích hoạt**. **Chờ Anh:** nghĩa bàn giao, chủ phát, bên nhận, tham chiếu quyết định và khóa chống trùng. Không gộp nghiệm thu nhà thầu, bàn giao khách hàng và chuyển giao chi phí thành một sự kiện cùng nghĩa.
 
+**Vòng 2: chưa hoàn tất định nghĩa.** Ví dụ trên chỉ minh họa nhánh, chưa đủ định danh quyết định duyệt; không được dùng để đăng ký/kích hoạt trước khi Anh chốt.
+
 ### 5.3. `moc_da_xay_ra.v1`
 
 **Mục đích:** Báo mốc thực tế đã được xác nhận để cập nhật nghiệp vụ phụ thuộc. Ngày dự kiến không chứng minh mốc đã xảy ra.
@@ -378,6 +395,8 @@ Ví dụ minh họa riêng nhánh M3:
 ```
 
 **Trạng thái/phiên bản:** `nhap` / `1.0.0`; **chặn kích hoạt**. **Chờ Anh:** tham chiếu phiên bản lịch sử, điều kiện xác nhận, bên nhận và xử lý sửa/xóa ngày thực tế. Không dùng `khoa_dedupe` như API để bên nhận tự phân tích phiên bản nguồn.
+
+**Vòng 2: chưa hoàn tất định nghĩa.** `moc_id` chưa chỉ ra một lần lịch sử; tiếp tục chờ Anh chốt tham chiếu chính xác, không thêm số `lan` vào payload bus.
 
 ### 5.4. `hop_dong_hieu_luc.v1`
 
@@ -445,6 +464,8 @@ Ví dụ minh họa riêng nhánh M3:
 
 **Trạng thái/phiên bản:** `nhap` / `1.0.0`. **Chờ Anh:** phát cho mọi quan sát mới hay chỉ quan sát được nguồn chấp nhận; bên nhận; chính sách thay đổi trạng thái nguồn. Bên nhận phải đọc đúng quan sát/phiên bản được tham chiếu, không thay bằng `latest` hoặc mặc định `eligible_content`.
 
+Đường đọc chính xác, có kiểm quyền, được đặc tả tại NV-M2/`hoa_don_mua_vao.v1` bên dưới. M0064 hiện chỉ đọc latest nên chưa đáp ứng consumer sự kiện muộn; chưa có phép đọc chính xác được đăng ký thì trả `CHO`, **chặn kích hoạt consumer phụ thuộc**, không đọc bảng riêng hoặc dùng latest thay thế.
+
 ## Quy tắc chung lớp nghiệp vụ
 
 1. **Hai lớp, một trách nhiệm rõ ràng.** JSON là dữ liệu trao đổi; JSON Schema mô tả cấu trúc để Core kiểm. Core sở hữu lớp kỹ thuật và danh mục chung; module sở hữu dữ liệu định nghĩa ý nghĩa nghiệp vụ, điều kiện công bố và xử lý ngoại lệ. Core đăng ký contract, không hấp thụ logic module. Căn cứ: CD-031, D §1.1.
@@ -455,13 +476,74 @@ Ví dụ minh họa riêng nhánh M3:
 
 4. **Phiên bản bất biến.** Ghim mã và phiên bản chính xác. Theo T §2, mọi thay đổi schema đã phát hành, kể cả thêm trường tùy chọn, phải có `$id` và phiên bản mới; không sửa schema dưới cùng `$id`. Phân biệt semver contract, revision nội dung và số phiên bản bus. Bản cũ tiếp tục phục vụ module đang dùng; sổ cảnh báo trước khi ngừng, không tự chuyển người đọc sang bản mới.
 
-5. **Gói và sổ contract.** Theo CD-032, gói có `contract/` chứa mô tả, nguồn từng trường, JSON DEMO, JSON Schema và phiên bản cho dữ liệu công bố, sự kiện phát/nhận, đầu vào nguồn. `module.json` liệt kê và ghim chúng, đồng bộ khai báo `cong_bo`/`su_kien` tại S §6. Lead phải cập nhật schema manifest tương ứng trước triển khai; lát này không tự đặt khóa manifest mới. Core kiểm và đăng ký vào sổ trong `loi`: mã, phiên bản, chủ sở hữu, module sử dụng, trạng thái `nhap`/Anh duyệt/đang dùng/ngừng. Thiếu hoặc không hợp lệ → không cài.
+5. **Gói và sổ contract.** Theo CD-032, gói có `contract/` chứa mô tả, nguồn từng trường, JSON DEMO, JSON Schema và phiên bản cho dữ liệu công bố, sự kiện phát/nhận, đầu vào nguồn. `module.json` ghim theo các khóa đã có `contract.{cong_bo,su_kien_phat,su_kien_nhan,dau_vao_nguon}` tại T §manifest (dòng 1483–1491), đồng bộ binding công bố/sự kiện tại S §6. Core kiểm và đăng ký vào sổ trong `loi`: mã, phiên bản, chủ sở hữu, module sử dụng, trạng thái `nhap`/Anh duyệt/đang dùng/ngừng. Thiếu hoặc không hợp lệ → không cài.
 
 6. **Anh duyệt trước kích hoạt.** Module soạn; lead đối chiếu nguồn và tổng hợp danh mục dạng bảng; Anh duyệt contract mới và phiên bản mới của contract đang dùng. Trường “chờ Anh” chưa trở thành quy tắc vận hành. Không cần sửa code Core chỉ để thêm contract đã đạt kiểm.
 
-7. **Trùng nghĩa → đỏ.** Contract mới trùng nghĩa contract đã có phải dùng lại hoặc mở rộng. Module đọc dữ liệu module khác ngoài contract đã đăng ký và cấp quyền cũng đỏ. Đổi tên hoặc bọc truy vấn trong view không hợp thức hóa truy cập chéo. Danh mục chung đọc qua V3; dữ liệu riêng qua `cong_bo_*`; sự kiện qua bus. Thiếu dữ liệu trả `CHO`, sai quyền trả lỗi chuẩn.
+7. **Trùng nghĩa → đỏ.** Mỗi contract khai grain (một dòng là gì), khóa dòng, chủ và nguồn chiếu theo bảng dưới. Hai chủ khác nhau khai cùng loại dòng và cùng khóa → đỏ; đổi tên không đổi grain. Phép chiếu/mở rộng hợp lệ phải dẫn contract/chủ gốc, ánh xạ trường và phiên bản, không nhận quyền sở hữu lại phần chung. Module đọc dữ liệu module khác ngoài contract đã đăng ký và cấp quyền cũng đỏ. Danh mục chung đọc qua V3; dữ liệu riêng qua `cong_bo_*`; sự kiện qua bus. Thiếu dữ liệu trả `CHO`, sai quyền trả lỗi chuẩn.
 
-*Kiểm tài liệu trong lát: 9/9 ví dụ JSON parse được và có chữ DEMO. Chưa kiểm JSON Schema hoặc runtime; không sửa tệp, không chạy ứng dụng/test hay truy cập kho dữ liệu.*
+8. **Kiểm bằng máy trước công bố.** Mọi dữ liệu kế thừa `vo_noi_dung` theo NV-CHUNG, kiểm schema đúng phiên bản và bất biến nghiệp vụ bên dưới; parse được JSON chưa đủ. Từ điển cùng tên buộc cùng kiểu, nullable và đơn vị; điều kiện cần có giá trị được ghi riêng, không đổi kiểu theo module. Tham chiếu chéo module luôn ghim ID phiên bản + mã băm và kiểm cùng pháp nhân qua mặt công bố, không lấy bản mới nhất. Trường đã nêu chỉ ID còn phải được giải tham chiếu tới metadata/hash chính xác trước khi dùng; không suy hash từ ID, không đọc bảng riêng.
+
+### Từ điển trường dùng chung và nguồn danh mục
+
+`id` và `chung.id` là cùng `$ref` tới `chung.v1#/$defs/id`; các tên kiểu viết tắt khác cũng vậy. `B`/tùy chọn quy định có khóa; nullable quy định có được nhận `null`, hai điều độc lập.
+
+| Trường / nhóm nghĩa | Kiểu, nullable, đơn vị thống nhất | Nguồn và điều kiện |
+|---|---|---|
+| `contract`, `phien_ban`, `revision`, `nguon_tep_ids` | Nguyên vỏ chung; `nguon_tep_ids` ≥ 1, không trùng, không `null` | NV-CHUNG; mọi contract công bố |
+| `phap_nhan_id` | `id`, không `null`, không đơn vị | Core xác minh |
+| `hop_dong_id` | `id \| null`, không đơn vị | Hợp đồng/nghĩa vụ phải khác `null`; kết quả K độc lập được `null` khi không gắn hợp đồng |
+| `so_hop_dong` | `chuoi \| null`, không đơn vị | **Chiếu từ `danh_muc.hop_dong` qua V3**, không phải trường CRM/M4 tự sở hữu. Khóa bắt buộc khi công bố hợp đồng; CRM nháp có thể `null`, M4 vận hành phải có số |
+| `doi_tuong_id`, `du_an_id` | `id \| null`, không đơn vị | Trên hợp đồng: **chiếu từ `danh_muc.hop_dong` qua V3**, trỏ `doi_tuong.v1`/`du_an.v1`. CRM hiệu lực/M4 có hợp đồng phải đủ dự án; bên đối tác M4 có thể chưa ánh xạ. Ngoài hợp đồng: tham chiếu danh mục tương ứng |
+| `thue_suat` | `chuoi`, không `null`, % hoặc mã chế độ | Catalog thuế ghim phiên bản: `10`, `8`, `5`, `0`, `KCT`, `KKKNT`. Cùng nghĩa tại CRM và M4; M4 ánh xạ trường nguồn `vat` decimal sang mã thuế khi có căn cứ, không dùng JSON number; giá trị ngoài catalog trả `CHO`, không ép `KCT`/`KKKNT` thành `0` |
+| `ty_le` | `thap_phan`, không `null`, % | Tỷ lệ giá bán trước VAT; không phải tỷ lệ tổng tiền có VAT/phí |
+| Các trường `tien` | Chuỗi decimal + `don_vi_tien`, nullable chỉ khi bảng cho phép | Không trộn tiền tệ trong phép cộng; chưa rõ cơ sở VAT giữ chưa rõ, không tự tính |
+
+Các kiểu nullable trên áp cho **dữ liệu công bố**; ràng buộc điều kiện vẫn buộc ID khác `null` tại danh mục gốc, hợp đồng/nghĩa vụ đủ điều kiện hoặc dự án M4. ID tham chiếu trong payload sự kiện tuân riêng vỏ bus: bắt buộc UUID khác `null`. Việc chiếu danh mục không trao quyền sửa danh mục cho CRM/M4; khi ghim hợp đồng phải giữ ID + hash phiên bản nguồn, không chụp trường danh mục rồi tự đổi nghĩa.
+
+### Grain và khóa dòng đăng ký
+
+| Contract | Một dòng / khóa ổn định trong pháp nhân | Khóa phiên bản / dòng con |
+|---|---|---|
+| `doi_tuong.v1` | Đối tượng–pháp nhân–mã Junsky / `(phap_nhan_id,doi_tuong_id,ma_junsky)`; mã thiếu chưa dùng xuất | `revision`; danh mục Core là chủ |
+| `du_an.v1` | Dự án / `du_an_id` | `revision`; danh mục Core là chủ |
+| `but_toan_de_xuat.v1` | Phiên bản đề xuất chứng từ / `de_xuat_id` | `(chung_tu_id,phien_ban_de_xuat)`; dòng `(de_xuat_id,stt)` duy nhất |
+| `tep_nhap_junsky.v1` | Lô xuất / `lo_xuat_id` | `revision`; sheet `(lo_xuat_id,ten)` duy nhất |
+| `hop_dong_ban.v1` | Phiên bản nghiệp vụ bán / `(hop_dong_id,ban.id)` | Đợt `(module_nghia_vu,loai_nghia_vu,nghia_vu_id)`; lịch mỗi phiên bản không trùng ID |
+| `bao_gia.v1` | Revision báo giá / `(bao_gia_id,revision)` | Dòng dự kiến `nghia_vu_id`; chưa là nghĩa vụ hiệu lực |
+| `du_an_dang_ban.v1` | Phiên bản cấu hình bán / `(du_an_dang_ban_id,phien_ban_du_an_id)` | Phí theo vị trí trong ảnh chụp; mốc `(id,lan)`; tiến độ `lan`; lô `(id,lan)` |
+| `hop_dong_thau.v1` | Hồ sơ nghiệp vụ thầu / `hop_dong_id` | `revision`, `rev_tham_so`; định danh chung chỉ chiếu V3 |
+| `phu_luc.v1` | Phụ lục thầu / `phu_luc_id` | `revision`; thay đổi tham số theo `ma` |
+| `boq.v1` | Lần nhập BOQ / `boq_id` | Dòng `(boq_id,sheet,so_dong)`; không dùng mã hạng mục thay vị trí nguồn |
+| `dot_thanh_toan.v1` | Đợt hồ sơ thầu / `dot_id` | `phien_ban_ho_so_id`, `(ket_luan_id,ket_luan_revision,graph_sha256)`; dòng khối lượng theo `ma_hang_muc` trong snapshot, trùng mã chưa rõ thì `CHO` |
+| `ket_qua_kiem_dot.v1` | Nhóm kiểm trong lần chạy / `(lan_kiem_id,nhom_kiem)` | Quy tắc `(lan_kiem_id,nhom_kiem,ma)`; phát hiện giữ vị trí trong snapshot |
+| `nghiem_thu.v1` | Bản bàn giao nghiệm thu / `(nghiem_thu_id,phong_bi_id)` | `phong_bi_sha256`; revision kế toán `kt_xac_nhan_id` |
+| `hoa_don_mua_vao.v1` | Quan sát hóa đơn / `(hoa_don_id,quan_sat_id,phien_ban_id)` | `ma_bam_noi_dung`; đích `(dich_id,phien_ban_dich)`; phần chung dùng lại M0064, xem NV-M2 |
+| `cong_no_phai_tra.v1` | Hồ sơ khoản phải trả / `cong_no_id` (**chờ Anh**) | `revision`; khóa căn cứ/thanh toán còn chờ Anh, chưa kích hoạt |
+
+Khóa dòng con khác ở các mảng chưa có ID là vị trí phần tử trong snapshot bất biến + khóa phiên bản cha, không được dùng vị trí để nối nghĩa vụ qua phiên bản. Khi kiểm trùng nghĩa, grain tách theo nghiệp vụ bán/thầu không làm trùng phần định danh hợp đồng do Core sở hữu.
+
+### Cơ sở VAT, thang tiền và bất biến
+
+Quy tắc sau áp dụng cho **từng trường tiền trong nhóm**, kể cả tiền trong biến thể `gia_tri`. Nguồn đọc nguyên trạng tối đa 6 số lẻ theo `chung.tien`; vượt miền trả lỗi, không làm tròn mất dữ liệu để ép vào contract. Kết quả tính CRM VND làm tròn đến đồng (scale 0, half-up), USD đến cent (scale 2, half-up), chỉ làm tròn ở kết quả tiền; phần dư phân bổ vào đợt cuối trong nhánh đã chốt. Tỷ giá không tự làm tròn hoặc tự lấy ngày mới. Đây là quy ước tính của bản nháp, chưa mở rộng policy ngoại tệ kế toán.
+
+| Phạm vi trường tiền | Cơ sở VAT / thang và kiểm |
+|---|---|
+| Bút toán `dong[].so_tien`, lô `tong_no/tong_co` | Tiền ghi sổ, không suy VAT; VND scale 0, Nợ = Có > 0; lô bằng tổng các phiên bản đã duyệt được ghim, cùng VND |
+| CRM `don_gia`/`don_gia_niem_yet`, `gia_dat_tru_m2`, tiền trong `tham_so` | `don_gia` theo `co_so_thue`; niêm yết và đất trừ trước VAT. Tham số theo `ma`/catalog ghim, chưa rõ thì không dùng tính. Tiền nguồn giữ scale; tiền kết quả theo VND/USD ở trên |
+| CRM `tong_truoc_vat`, `tong_vat`, `tong_gom_vat` | Lần lượt trước VAT, riêng VAT, gồm VAT; `tong_truoc_vat + tong_vat = tong_gom_vat`. Không cộng phí chưa chốt |
+| CRM `gia_tri_nhap`, `gia_tri_gom_vat`, `trong_do_vat` | Tiền nhập lịch là tiền trả tại đợt đã xử lý VAT; `%` tính trên giá bán trước VAT. Tổng đợt giá bán = tổng gồm VAT; tổng VAT đợt = tổng VAT; tổng % đợt giá bán = 100. Kiểm cùng đơn vị, tiền/VAT không âm, VAT ≤ tiền đợt |
+| CRM phí `muc` | Theo `co_so_gia_tri` của `PhiCrm`; `CHUA_RO` không được dùng tính nghĩa vụ. Phí là mức theo đơn vị tính, chưa phải số tiền đến hạn |
+| M4 hợp đồng `gia_tri_hop_dong`, BOQ `don_gia/thanh_tien_ghi`, tiền trong `thay_doi_tham_so` | Cơ sở theo `gom_vat`, tài liệu BOQ/catalog tham số ghim; chưa đủ căn cứ giữ `CHUA_RO`, không tính VAT mặc định. Nguồn giữ scale tối đa 6, không tự sửa `thanh_tien_ghi` bằng phép nhân |
+| Phụ lục `gia_tri_thay_doi_truoc_vat/sau_vat`, `gia_tri_hop_dong_ghi_sau_phu_luc` | Trước/gồm VAT tương ứng; số sau phụ lục giữ cơ sở tài liệu, so với hợp đồng chỉ khi cùng cơ sở. Cho phép âm ở khoản tăng/giảm; ví dụ cùng cơ sở gồm VAT: 1.100.000.000 − 11.000.000 = 1.089.000.000 |
+| Đợt M4: mọi trường tiền nguồn, `khoi_luong[].don_gia_thanh_toan`, mọi tiền review xác nhận | Tổng nguồn theo `co_so_gia_tri`; đơn giá theo `co_so_don_gia`; tiền review theo `co_so_gia_tri_review`. Giữ số nguồn; kết luận nguồn tối đa scale 2 (DUYET:27–30), không tự làm tròn lại. Nhánh VND tính mới scale 0; đơn giá/nguồn lẻ giữ nguyên và chờ căn cứ làm tròn. Khác cơ sở/đơn vị hoặc `CHUA_RO` thì không tự đối chiếu bằng phép trừ |
+| Kết quả kiểm `anh_huong_uoc_tinh` | Giữ cơ sở VAT và scale của finding/căn cứ đã ghim; không rõ thì chưa dùng ghi nhận, không suy VAT từ mức độ finding |
+| Nghiệm thu: mọi trường tiền review/kế toán xác nhận | `co_so_gia_tri` chỉ áp tiền kế toán xác nhận; tiền review kế thừa kết luận chính xác của đợt. Kế toán/nguồn giữ scale tối đa 2; chưa rõ VAT thì không tự tính VAT; các khoản tạm ứng/thu hồi/giữ lại tách riêng |
+| Công nợ: ba trường tiền | Cùng cơ sở nghĩa vụ đã được duyệt, cùng tiền tệ/scale của căn cứ ghim; số còn lại = phải trả − đã thanh toán chỉ khi đủ căn cứ và policy. Cơ sở VAT/scale vận hành cụ thể **chờ Anh**, chưa tính/ghi nhận từ JSON nháp |
+
+Các bất biến cộng tiền dùng decimal chính xác, không dùng float. `null`/thiếu không bằng 0; chưa xác định thì `CHO`, không bỏ dòng lỗi để tổng vẫn khớp. CRM chỉ áp bất biến %/tổng giá bán cho `loai_khoan=GIA_BAN`; phạm vi phí và VAT cọc ngoại lệ tiếp tục chờ Anh tại NV-CRM §1–§2.
+
+*Kiểm vòng 2 là kiểm tài liệu: parse JSON, đối chiếu vỏ/kiểu đã khai và tính lại tổng bằng decimal; chưa chứng nhận JSON Schema đầy đủ hoặc runtime. Không chạy ứng dụng hay truy cập kho dữ liệu.*
 ---
 
 | Mã contract | Mục đích | Sở hữu | Được đọc |
@@ -475,6 +557,7 @@ Ví dụ minh họa riêng nhánh M3:
 ### Quy ước áp dụng cho NV-CRM
 
 - Đây là **lớp nghiệp vụ trong JSON hai lớp**, theo CD-031/032. CRM định nghĩa nghiệp vụ; Anh duyệt trước khi kích hoạt.
+- Cả ba contract CRM kế thừa nguyên `vo_noi_dung`, gồm `nguon_tep_ids` bắt buộc ≥ 1. Nhập tay tạo ảnh chụp căn cứ theo NV-CHUNG; kiểm vỏ và schema trước công bố.
 - Dùng trực tiếp các kiểu `$defs` của `urn:ktt:contract:chung.v1`: `id`, `ma`, `chuoi`, `ngay`, `thoi_diem`, `thap_phan`, `tien`, `gia_tri`, `dan_chung`, `sha256`. Bảng dưới viết tắt thành `chung.id`, `chung.tien`…; không định nghĩa lại.
 - `phien_ban` là phiên bản **contract**; `revision` là lần sửa nội dung trao đổi; số phiên bản hợp đồng/dự án là trường nghiệp vụ riêng. Không dùng thay thế nhau.
 - `doi_tuong_id` tham chiếu `doi_tuong.v1`; `du_an_id` tham chiếu `du_an.v1` của lát Chung. Không nhúng lại tên, MST, CCCD, tài khoản hoặc toàn bộ danh mục. Mã nghiệp vụ kế thừa như số hợp đồng, mã lô, mã sự kiện giữ kiểu chuỗi theo catalog nguồn; không nới kiểu `chung.ma`.
@@ -509,12 +592,13 @@ Chưa tìm thấy tài liệu tên bắt đầu bằng “50” trong các tệp
 | `contract` | Mã cấu trúc trao đổi | Hằng `hop_dong_ban.v1` | B | — | CD-031; DL §2 |
 | `phien_ban` | Phiên bản cấu trúc | Hằng `1.0.0` | B | — | DL §2 |
 | `revision` | Lần sửa nội dung được công bố | Kiểu `revision` của `chung.vo_noi_dung` | B | lần | DL §3 |
-| `hop_dong_id` | Định danh hợp đồng chung | `chung.id` | B | — | CSDL §6.2; TK §6 |
+| `nguon_tep_ids` | Tệp nguồn hoặc ảnh chụp nhập tay đã lưu Core | Mảng `chung.id`, ≥ 1, không trùng | B | — | DL §3; NV-CHUNG |
+| `hop_dong_id` | Định danh hợp đồng chung | `chung.id` hoặc `null` | B và phải khác `null` tại contract hợp đồng | — | CSDL §6.2; TK §6 |
 | `ma_noi_bo` | Mã nhận diện nghiệp vụ của hợp đồng | `chung.chuoi` | B | — | `CRM:393`; TK §6 |
-| `so_hop_dong` | Số ghi trên hợp đồng | `chung.chuoi` hoặc `null` | B; được `null` khi chưa có số | — | `CRM:709`; TL42 §4 |
+| `so_hop_dong` | Chiếu số hợp đồng từ `danh_muc.hop_dong` qua V3 | `chung.chuoi` hoặc `null` | B; được `null` khi chưa có số | — | CSDL §6.2; `CRM:709`; TL42 §4 |
 | `phap_nhan_id` | Pháp nhân sở hữu hồ sơ | `chung.id` | B | — | CSDL §5; `CRM:393` |
-| `doi_tuong_id` | Khách hàng, tham chiếu `doi_tuong.v1` | `chung.id` hoặc `null` | B; phải có trước hiệu lực | — | `CRM:403`; TK §6 |
-| `du_an_id` | Dự án, tham chiếu `du_an.v1` | `chung.id` hoặc `null` | B; phải có trước hiệu lực | — | `CRM:405`; TK §6 |
+| `doi_tuong_id` | Chiếu khách hàng từ `danh_muc.hop_dong`, trỏ `doi_tuong.v1` | `chung.id` hoặc `null` | B; phải có trước hiệu lực | — | CSDL §6.2; `CRM:403`; TK §6 |
+| `du_an_id` | Chiếu dự án từ `danh_muc.hop_dong`, trỏ `du_an.v1` | `chung.id` hoặc `null` | B; phải có trước hiệu lực | — | CSDL §6.2; `CRM:405`; TK §6 |
 | `lo_can_id` | Lô/căn trong cấu hình bán của dự án | `chung.id` | T | — | `GK:339`; TL42 §6–§7 |
 | `loai_hinh_id` | Loại hình doanh thu/profile áp dụng | `chung.id` | B | — | `CRM:360`; TK §6 |
 | `trang_thai_giao_ket` | Trạng thái xử lý hợp đồng | Chuỗi theo catalog CRM | B; mapping catalog chờ Anh | — | TL42 §13; TK §4 |
@@ -522,8 +606,9 @@ Chưa tìm thấy tài liệu tên bắt đầu bằng “50” trong các tệp
 | `ngay_ky` | Ngày ký thực tế | `chung.ngay` hoặc `null` | B; phải có khi đã ký | ngày | TL42 §8 |
 | `tham_so` | Tham số và căn cứ của phiên bản | Mảng object theo bảng dưới | B | — | TK §6; `CRM:373` |
 | `gia_thue` | Giá và kết quả VAT của phiên bản | Object `GiaCrm` bên dưới | B | VND/USD | CD-024; TL42 §7 |
+| `phi` | Các phí kế thừa nguyên từ revision báo giá khi chuyển Soạn | Mảng `PhiCrm` tại §3 | B; được rỗng | Theo dòng | TL42 §6; `GK:341`–`343`; phạm vi sinh nghĩa vụ chờ Anh |
 | `lich_thanh_toan` | Các đợt theo đúng thứ tự thanh toán | Mảng `DongLichCrm` bên dưới | B | — | CD-024; TK §6 |
-| `tep_nguon` | Tệp làm căn cứ cho phiên bản | `tham_chieu_tep.v1` | ĐK: phiên bản từ tài liệu/ký | — | DL §4; `CRM:358` |
+| `tep_nguon` | Thông tin tải/xem tài liệu hợp đồng chính, khác danh sách ID nguồn trong vỏ | `tham_chieu_tep.v1` | ĐK: phiên bản từ tài liệu/ký; `tep_id` phải thuộc `nguon_tep_ids` | — | DL §4; `CRM:358` |
 
 **Các trường trong `ban`:**
 
@@ -540,6 +625,8 @@ Chưa tìm thấy tài liệu tên bắt đầu bằng “50” trong các tệp
 | `kiem_luc` | Thời điểm kiểm | `chung.thoi_diem` | ĐK: đã kiểm | — | `CRM:429` |
 | `duyet_boi` | Người duyệt phiên bản | `chung.chuoi` | T | — | `CRM:723` |
 | `duyet_luc` | Thời điểm duyệt | `chung.thoi_diem` | ĐK: đã duyệt | — | `CRM:724` |
+
+**Đầu vào `ban.ma_bam`:** SHA-256 của UTF-8 không BOM của JSON canonical: sắp khóa object theo thứ tự mã Unicode, không khoảng trắng thừa, giữ thứ tự mảng; chuỗi Unicode ghi trực tiếp, không chuẩn hóa Unicode hay escape `/`, chỉ escape ký tự JSON bắt buộc (ký tự điều khiển dùng `\u00xx` chữ thường, dấu nháy/backslash dùng escape JSON tương ứng). Trường decimal theo schema giữ dạng chuỗi chuẩn (bỏ 0 lẻ tận cùng, không số mũ, `-0` thành `0`), không chuẩn hóa chuỗi mã/ID. Object đầu vào gồm `contract`, `phien_ban`, `hop_dong_id`, `phap_nhan_id`, `ma_noi_bo`, `so_hop_dong`, `doi_tuong_id`, `du_an_id`, `lo_can_id`/`loai_hinh_id` nếu có, `ngay_ky`, `ban.{id,so,loai,so_phu_luc,thay_cho_id,ngay_hieu_luc}` (khóa tùy chọn chỉ có khi được khai), `tham_so`, `gia_thue`, `phi`, `lich_thanh_toan` và mảng object `{tep_id,sha256}` của tệp trong `nguon_tep_ids` đã giải qua Core, đặt dưới khóa `nguon_tep`, sắp theo `tep_id`. Không băm chính `ban.ma_bam`, revision công bố, trạng thái xử lý, thông tin kiểm/duyệt, URL tải/hạn tải; chúng không làm đổi nội dung nghĩa vụ. Thay nội dung đầu vào phải có phiên bản `ban.id` mới và hash mới. M3/M1 ghim `ban.id` + `ban.ma_bam`; `ma_bam_phien_ban_can_cu` của liên kết Core nhận đúng hash này. Hash chữ lặp trong JSON là placeholder DEMO, không phải kết quả băm được chứng nhận.
 
 **Các trường trong mỗi phần tử `tham_so`:**
 
@@ -580,9 +667,10 @@ Chưa tìm thấy tài liệu tên bắt đầu bằng “50” trong các tệp
 
 | Tên | Nghĩa nghiệp vụ | Kiểu | Yêu cầu | Đơn vị | Nguồn |
 |---|---|---|---|---|---|
-| `dong_id` | ID ổn định của dòng lịch | `chung.id` | B | — | `GK:279` |
-| `nghia_vu_id` | ID nghĩa vụ sau khi được hình thành | `chung.id` | ĐK: đã sinh nghĩa vụ | — | TK §6; CSDL §6.2 |
-| `khoa_nghia_vu` | Khóa theo dõi nghĩa vụ qua phiên bản | `chung.chuoi` | ĐK: đã sinh nghĩa vụ | — | `CRM:419`–`422` |
+| `nghia_vu_id` | Tên duy nhất của ID dòng đợt cụ thể trong phiên bản; tại báo giá là ID dự kiến, chưa có hiệu lực | `chung.id` | B | — | Ánh xạ `GK:279`; khi đã hình thành dùng ID `master.lich_thu` tương ứng; TK §6; CSDL §6.2 |
+| `module_nghia_vu` | Chủ đợt nghĩa vụ | Hằng `CRM` | B trong hợp đồng; bỏ ở báo giá dự kiến | — | CSDL §3.6, §6.2 |
+| `loai_nghia_vu` | Loại đợt bán dùng khi nối tiền | Hằng `lich_thu` | B trong hợp đồng; bỏ ở báo giá dự kiến | — | CSDL §3.6, §6.2; tên lịch nguồn |
+| `loai_khoan` | Phân biệt giá bán với loại khoản khác theo catalog ghim | `chung.chuoi`, bản nháp minh họa `GIA_BAN` | B; catalog phí chờ Anh | — | TK §6; review Opus S3 |
 | `lan` | Thứ tự đợt thanh toán | Integer dương | B | lần | TL45 §2 BG-01 |
 | `gia_tri_nhap` | Giá trị gốc người dùng nhập: % hoặc tiền | `chung.gia_tri` | B | % hoặc VND/USD | TL45 §8 BG-20 |
 | `ty_le` | Tỷ lệ tính trên giá trước VAT | `chung.thap_phan` | B | % | CD-024 |
@@ -598,7 +686,8 @@ Chưa tìm thấy tài liệu tên bắt đầu bằng “50” trong các tệp
 |---|---|---|---|---|---|
 | `loai` | Mốc ngày cố định hoặc sự kiện | Enum `NGAY`, `SU_KIEN` | B | — | `GK:278` |
 | `ngay` | Ngày cố định của đợt | `chung.ngay` | ĐK: `NGAY` | ngày | `GK:283` |
-| `su_kien` | Mã sự kiện đã resolve từ catalog, có thể chứa độ lệch ngày theo quy ước hiện có | Chuỗi catalog CRM | ĐK: `SU_KIEN` | — | `GK:78`–`106` |
+| `su_kien` | Mã sự kiện cơ sở đã resolve từ catalog, không nhét số ngày vào mã | Chuỗi catalog CRM | ĐK: `SU_KIEN` | — | Ánh xạ mã legacy tại `GK:78`–`106` |
+| `so_ngay_sau_moc` | Số ngày sau mốc thực tế để xác định hạn | Integer ≥ 0 | ĐK: `SU_KIEN`; 0 nghĩa ngay ngày mốc | ngày | Tách độ lệch từ `GK:78`–`106`; CD-007 |
 | `moc_du_an_id` | Tham chiếu mốc riêng của đúng dự án | `chung.id` | ĐK: dùng mốc riêng dự án | — | `SQL-MOC:18`–`25` |
 | `lan_moc` | Phiên bản mốc làm căn cứ cho ảnh chụp này | Integer dương | ĐK: dùng mốc riêng dự án | lần | `SQL-MOC:29`–`43`; KK §3 |
 | `ngay_du_kien` | Ngày dự kiến của mốc | `chung.ngay` | ĐK: mốc riêng đã khai | ngày | CD-007 |
@@ -607,11 +696,15 @@ Chưa tìm thấy tài liệu tên bắt đầu bằng “50” trong các tệp
 
 **Quy tắc nghiệp vụ đã chốt:**
 
-1. Tổng tỷ lệ bằng 100%; tỷ lệ tính trên tổng trước VAT. Tổng tiền các đợt bằng tổng gồm VAT; tổng `trong_do_vat` bằng tổng VAT.
-2. Đợt được đánh dấu đặt cọc không thu VAT; VAT của cọc dồn vào đợt kế tiếp. Chênh làm tròn dồn đợt cuối. Không mặc định dòng đầu luôn là cọc sau khi người dùng đã đổi đánh dấu.
+1. Trong nhánh giá bán `loai_khoan=GIA_BAN`, tổng tỷ lệ bằng 100%; tỷ lệ tính trên tổng giá bán trước VAT. Tổng tiền các đợt giá bán bằng tổng giá bán gồm VAT; tổng `trong_do_vat` của các đợt đó bằng tổng VAT giá bán. Phạm vi phí trong lịch bản 1 còn chờ Anh, không tự cộng phí vào các tổng này.
+2. Nhánh đã chốt: một đợt cọc có đợt kế tiếp không phải cọc thì cọc không thu VAT, VAT cọc dồn vào đợt kế tiếp. Chênh làm tròn dồn đợt cuối; VND đến đồng (scale 0, half-up), theo bảng thang tiền chung. Không mặc định dòng đầu luôn là cọc sau khi người dùng đã đổi đánh dấu. **Cọc ở dòng cuối/lịch một dòng hoặc nhiều dòng cọc: chờ Anh**, chưa áp một thuật toán dồn VAT suy đoán; trường hợp này chặn in/hiệu lực khi chưa chốt và chưa tính được tiền/VAT hợp lệ.
 3. `gia_tri_nhap` giữ ô gốc; bên nhận không suy lại tỷ lệ bằng cách chia tiền đợt cho tổng gồm VAT.
 4. Mốc chưa có ngày thực tế: hiển thị dự kiến, **không đếm quá hạn**. Qua ngày dự kiến sinh việc chờ chỉnh ngày; khi có thực tế mới tính hạn theo thực tế cộng số ngày đã khai.
 5. Phiên bản đã duyệt nhưng chưa tới ngày hiệu lực không được coi là phiên bản đang hiệu lực. Lịch và tiền đã nối không tự chứng minh doanh thu hoặc nghĩa vụ VAT ghi sổ của M3.
+
+**Định danh khi nối tiền:** chỉ dùng `nghia_vu_id`, không công bố thêm alias `dong_id`, `khoa_nghia_vu` hay `lich_thu_id`. Bộ ba chuẩn là `(module_nghia_vu=CRM, loai_nghia_vu=lich_thu, nghia_vu_id)`; ghim thêm `ban.id` và `ban.ma_bam`. ID báo giá là dự kiến; khi nguồn ghi dòng nghĩa vụ phải công bố đúng ID dòng đã lưu, không giả định UUID dự kiến bằng UUID lịch thu. Nguồn CRM tạo dòng mới cho phiên bản mới (CRM:660); UUID dòng cũ giữ nguyên cho lịch sử, không tự coi UUID dòng là khóa logic xuyên phiên bản. Resolver chủ CRM dùng quan hệ thay thế/khóa logic legacy nội bộ để kiểm cả chuỗi tiền đã nối, không công bố thêm alias ID; tách/gộp đợt phải xác lập ID mới và xử lý tiền đã nối, không tái dùng ID khác nghĩa. Bên nhận sự kiện §5.1 kiểm đúng bộ ba/phiên bản/hash qua liên kết Core và contract CRM trong transaction theo D §6.2.
+
+**Phí trong lịch nghĩa vụ hợp đồng bán bản 1: chờ Anh** quyết định có gồm phí bảo trì/sử dụng/hạ tầng hay chỉ giá bán chia %. `phi` vẫn giữ nguyên khi chuyển Soạn; chưa có quyết định thì không suy phí thành nghĩa vụ hoặc bỏ phí khỏi dữ liệu. `loai_khoan` là mã catalog ghim và mỗi khoản giữ cơ sở tính/VAT riêng; đã có chỗ phân biệt khoản giá bán với khoản phí về sau. Nếu cần mở rộng catalog/schema sau phát hành, tạo phiên bản mới có ánh xạ và tiếp tục phục vụ bản cũ, không đổi nghĩa tổng/%/ID của bản cũ. Quy tắc này áp cho cả báo giá và hợp đồng; hai câu về phí và VAT cọc là điểm chờ duyệt, không phải quyết định vòng 2.
 
 #### Ví dụ JSON DEMO
 
@@ -620,6 +713,7 @@ Chưa tìm thấy tài liệu tên bắt đầu bằng “50” trong các tệp
   "contract": "hop_dong_ban.v1",
   "phien_ban": "1.0.0",
   "revision": 1,
+  "nguon_tep_ids": ["10000000-0000-4000-8000-000000000008"],
   "hop_dong_id": "10000000-0000-4000-8000-000000000001",
   "ma_noi_bo": "DEMO-HD-001",
   "so_hop_dong": "DEMO/HD/001",
@@ -666,11 +760,13 @@ Chưa tìm thấy tài liệu tên bắt đầu bằng “50” trong các tệp
     "tong_vat": {"gia_tri": "100000000", "don_vi_tien": "VND"},
     "tong_gom_vat": {"gia_tri": "1100000000", "don_vi_tien": "VND"}
   },
+  "phi": [],
   "lich_thanh_toan": [
     {
-      "dong_id": "10000000-0000-4000-8000-000000000011",
       "nghia_vu_id": "10000000-0000-4000-8000-000000000021",
-      "khoa_nghia_vu": "DEMO_THU_1",
+      "module_nghia_vu": "CRM",
+      "loai_nghia_vu": "lich_thu",
+      "loai_khoan": "GIA_BAN",
       "lan": 1,
       "gia_tri_nhap": {"kieu": "so", "gia_tri": "10", "don_vi": "%"},
       "ty_le": "10",
@@ -681,9 +777,10 @@ Chưa tìm thấy tài liệu tên bắt đầu bằng “50” trong các tệp
       "ghi_chu": "DEMO đặt cọc"
     },
     {
-      "dong_id": "10000000-0000-4000-8000-000000000012",
       "nghia_vu_id": "10000000-0000-4000-8000-000000000022",
-      "khoa_nghia_vu": "DEMO_THU_2",
+      "module_nghia_vu": "CRM",
+      "loai_nghia_vu": "lich_thu",
+      "loai_khoan": "GIA_BAN",
       "lan": 2,
       "gia_tri_nhap": {"kieu": "so", "gia_tri": "30", "don_vi": "%"},
       "ty_le": "30",
@@ -693,6 +790,7 @@ Chưa tìm thấy tài liệu tên bắt đầu bằng “50” trong các tệp
       "moc": {
         "loai": "SU_KIEN",
         "su_kien": "DAM-10000000-0000-4000-8000-000000000031",
+        "so_ngay_sau_moc": 0,
         "moc_du_an_id": "10000000-0000-4000-8000-000000000031",
         "lan_moc": 1,
         "ngay_du_kien": "2026-12-01",
@@ -702,9 +800,10 @@ Chưa tìm thấy tài liệu tên bắt đầu bằng “50” trong các tệp
       "ghi_chu": "DEMO gồm VAT của đợt này và VAT cọc"
     },
     {
-      "dong_id": "10000000-0000-4000-8000-000000000013",
       "nghia_vu_id": "10000000-0000-4000-8000-000000000023",
-      "khoa_nghia_vu": "DEMO_THU_3",
+      "module_nghia_vu": "CRM",
+      "loai_nghia_vu": "lich_thu",
+      "loai_khoan": "GIA_BAN",
       "lan": 3,
       "gia_tri_nhap": {"kieu": "so", "gia_tri": "60", "don_vi": "%"},
       "ty_le": "60",
@@ -743,6 +842,7 @@ Chưa tìm thấy tài liệu tên bắt đầu bằng “50” trong các tệp
 | `contract` | Mã cấu trúc | Hằng `bao_gia.v1` | B | — | CD-031 |
 | `phien_ban` | Phiên bản cấu trúc | Hằng `1.0.0` | B | — | DL §2 |
 | `revision` | Revision báo giá được công bố | Kiểu `revision` của `chung.vo_noi_dung` | B | lần | `GK:1080`; TL45 §8 |
+| `nguon_tep_ids` | Tệp nguồn/ảnh chụp báo giá nhập tay đã lưu Core | Mảng `chung.id`, ≥ 1, không trùng | B | — | DL §3; NV-CHUNG |
 | `bao_gia_id` | Định danh báo giá | `chung.id` | B | — | `GK:789` |
 | `so_bao_gia` | Số báo giá giao khách | `chung.chuoi` | ĐK: đã in | — | TL42 §6 |
 | `phap_nhan_id` | Pháp nhân lập báo giá | `chung.id` | B | — | TL42 §6 |
@@ -755,9 +855,10 @@ Chưa tìm thấy tài liệu tên bắt đầu bằng “50” trong các tệp
 | `trang_thai` | Nháp, đã in, đã chuyển, hủy hoặc hết hạn | Chuỗi catalog CRM | B; mã hóa catalog chờ Anh | — | TL42 §6 |
 | `nguon_lich` | Theo dự án hoặc theo khách | Enum `DU_AN`, `KHACH` | B | — | `GK:323`; TL45 BG-10 |
 | `phien_ban_du_an_id` | Phiên bản cấu hình dự án dùng để lập báo giá | `chung.id` | ĐK: lấy chuẩn từ dự án | — | `GK:926`; KK §3 |
+| `ma_bam_du_an` | Hash ảnh chụp cấu hình dự án đã ghim | `chung.sha256` | ĐK: đi cùng `phien_ban_du_an_id` | — | CSDL §6.1; `GK:926` |
 | `gia_thue` | Giá, thuế và tỷ giá | `GiaCrm` tại §1 | B | VND/USD | CD-024 |
 | `phi` | Các phí áp dụng, giữ cơ sở tính riêng | Mảng `PhiCrm` tại §3 | B; có thể rỗng | Theo dòng | `GK:341`–`343`; TL42 §6 |
-| `lich_thanh_toan` | Lịch dự kiến | Mảng `DongLichCrm` tại §1; chưa có ID/khóa nghĩa vụ | B; có thể chưa đủ khi nháp | — | TL45 §8–§9 |
+| `lich_thanh_toan` | Lịch dự kiến | Mảng `DongLichCrm` tại §1; có `nghia_vu_id` dự kiến, chưa có bộ ba đích nối hiệu lực | B; có thể chưa đủ khi nháp | — | TL45 §8–§9 |
 | `het_han` | Ngày hết hạn báo giá nếu có | `chung.ngay` | T | ngày | `GK:335` |
 | `ghi_chu` | Ghi chú chung | `chung.chuoi` | T | — | `GK:336` |
 
@@ -770,6 +871,7 @@ Chưa tìm thấy tài liệu tên bắt đầu bằng “50” trong các tệp
   "contract": "bao_gia.v1",
   "phien_ban": "1.0.0",
   "revision": 1,
+  "nguon_tep_ids": ["20000000-0000-4000-8000-000000000008"],
   "bao_gia_id": "20000000-0000-4000-8000-000000000001",
   "so_bao_gia": "DEMO/BG/001",
   "phap_nhan_id": "10000000-0000-4000-8000-000000000002",
@@ -782,6 +884,7 @@ Chưa tìm thấy tài liệu tên bắt đầu bằng “50” trong các tệp
   "trang_thai": "NHAP",
   "nguon_lich": "DU_AN",
   "phien_ban_du_an_id": "30000000-0000-4000-8000-000000000002",
+  "ma_bam_du_an": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
   "gia_thue": {
     "don_gia": {"gia_tri": "10000000", "don_vi_tien": "VND"},
     "dien_tich": "100",
@@ -795,7 +898,8 @@ Chưa tìm thấy tài liệu tên bắt đầu bằng “50” trong các tệp
   "phi": [],
   "lich_thanh_toan": [
     {
-      "dong_id": "20000000-0000-4000-8000-000000000011",
+      "nghia_vu_id": "20000000-0000-4000-8000-000000000011",
+      "loai_khoan": "GIA_BAN",
       "lan": 1,
       "gia_tri_nhap": {"kieu": "so", "gia_tri": "10", "don_vi": "%"},
       "ty_le": "10",
@@ -806,7 +910,8 @@ Chưa tìm thấy tài liệu tên bắt đầu bằng “50” trong các tệp
       "ghi_chu": "DEMO cọc"
     },
     {
-      "dong_id": "20000000-0000-4000-8000-000000000012",
+      "nghia_vu_id": "20000000-0000-4000-8000-000000000012",
+      "loai_khoan": "GIA_BAN",
       "lan": 2,
       "gia_tri_nhap": {"kieu": "tien", "gia_tri": "340000000", "don_vi_tien": "VND"},
       "ty_le": "30",
@@ -816,6 +921,7 @@ Chưa tìm thấy tài liệu tên bắt đầu bằng “50” trong các tệp
       "moc": {
         "loai": "SU_KIEN",
         "su_kien": "DAM-10000000-0000-4000-8000-000000000031",
+        "so_ngay_sau_moc": 0,
         "moc_du_an_id": "10000000-0000-4000-8000-000000000031",
         "lan_moc": 1,
         "ngay_du_kien": "2026-12-01",
@@ -825,7 +931,8 @@ Chưa tìm thấy tài liệu tên bắt đầu bằng “50” trong các tệp
       "ghi_chu": "DEMO nhập tiền, máy suy tỷ lệ 30%"
     },
     {
-      "dong_id": "20000000-0000-4000-8000-000000000013",
+      "nghia_vu_id": "20000000-0000-4000-8000-000000000013",
+      "loai_khoan": "GIA_BAN",
       "lan": 3,
       "gia_tri_nhap": {"kieu": "so", "gia_tri": "60", "don_vi": "%"},
       "ty_le": "60",
@@ -856,8 +963,9 @@ Chưa tìm thấy tài liệu tên bắt đầu bằng “50” trong các tệp
 | `contract` | Mã cấu trúc | Hằng `du_an_dang_ban.v1` | B | — | CD-031 |
 | `phien_ban` | Phiên bản cấu trúc | Hằng `1.0.0` | B | — | DL §2 |
 | `revision` | Lần sửa nội dung công bố | Kiểu `revision` của `chung.vo_noi_dung` | B | lần | DL §3 |
+| `nguon_tep_ids` | Tệp nguồn/ảnh chụp cấu hình nhập tay đã lưu Core | Mảng `chung.id`, ≥ 1, không trùng | B | — | DL §3; NV-CHUNG |
 | `du_an_dang_ban_id` | ID hồ sơ bán hàng của dự án | `chung.id` | B | — | `SQL-DA:61` |
-| `du_an_id` | Tham chiếu `du_an.v1` | `chung.id` | B | — | `SQL-DA:64` |
+| `du_an_id` | Tham chiếu `du_an.v1` | `chung.id` hoặc `null` | B và phải khác `null` tại cấu hình dự án | — | `SQL-DA:64` |
 | `phap_nhan_id` | Pháp nhân của dự án | `chung.id` | B | — | `SQL-DA:63` |
 | `phien_ban_du_an_id` | ID phiên bản tổng hợp sáu khối | `chung.id` | B trong thiết kế đích; cách tổng hợp chờ Anh | — | CD-023; KK §3 |
 | `so_phien_ban` | Số phiên bản nghiệp vụ tổng hợp | Integer dương | B trong thiết kế đích | phiên bản | CD-023 |
@@ -888,6 +996,7 @@ Chưa tìm thấy tài liệu tên bắt đầu bằng “50” trong các tệp
 | `muc` | Mức phí và tiền tệ | `chung.tien` | B | VND/USD | `DA:155`–`157` |
 | `don_vi_tinh` | Đơn vị áp dụng mức phí | Enum `M2_THANG`, `M2_NAM`, `LAN` | B | m²/tháng, m²/năm, lần | `DA:36` |
 | `co_so_tinh` | Diễn giải cơ sở tính phí | `chung.chuoi` | T | — | `DA:158` |
+| `co_so_gia_tri` | Cơ sở VAT của mức phí | Enum `TRUOC_VAT`, `GOM_VAT`, `CHUA_RO` | B; nguồn chưa đủ là `CHUA_RO` | — | Yêu cầu cơ sở tiền T §2.2; không suy từ `loai` |
 
 **`MocDuAnCrm` — mỗi mốc riêng:**
 
@@ -927,6 +1036,7 @@ Sao chép dự án/mẫu phải bỏ lô/căn, tên/mã dự án nguồn và ng�
   "contract": "du_an_dang_ban.v1",
   "phien_ban": "1.0.0",
   "revision": 1,
+  "nguon_tep_ids": ["30000000-0000-4000-8000-000000000008"],
   "du_an_dang_ban_id": "30000000-0000-4000-8000-000000000001",
   "du_an_id": "10000000-0000-4000-8000-000000000004",
   "phap_nhan_id": "10000000-0000-4000-8000-000000000002",
@@ -949,7 +1059,8 @@ Sao chép dự án/mẫu phải bỏ lô/căn, tên/mã dự án nguồn và ng�
     "loai": "SU_DUNG",
     "muc": {"gia_tri": "5000", "don_vi_tien": "VND"},
     "don_vi_tinh": "M2_THANG",
-    "co_so_tinh": "DEMO diện tích sử dụng theo thỏa thuận"
+    "co_so_tinh": "DEMO diện tích sử dụng theo thỏa thuận",
+    "co_so_gia_tri": "CHUA_RO"
   }],
   "moc": [{
     "id": "10000000-0000-4000-8000-000000000031",
@@ -964,7 +1075,7 @@ Sao chép dự án/mẫu phải bỏ lô/căn, tên/mã dự án nguồn và ng�
     {
       "lan": 1,
       "ty_le": "10",
-      "moc": {"loai": "SU_KIEN", "su_kien": "KY_HD", "han": null},
+      "moc": {"loai": "SU_KIEN", "su_kien": "KY_HD", "so_ngay_sau_moc": 0, "han": null},
       "ghi_chu": "DEMO đợt đầu"
     },
     {
@@ -973,6 +1084,7 @@ Sao chép dự án/mẫu phải bỏ lô/căn, tên/mã dự án nguồn và ng�
       "moc": {
         "loai": "SU_KIEN",
         "su_kien": "DAM-10000000-0000-4000-8000-000000000031",
+        "so_ngay_sau_moc": 0,
         "moc_du_an_id": "10000000-0000-4000-8000-000000000031",
         "lan_moc": 1,
         "ngay_du_kien": "2026-12-01",
@@ -1046,8 +1158,8 @@ Dùng trực tiếp `$defs` của `urn:ktt:contract:chung.v1`: `id`, `ma`, `chuo
 | `revision` | Lần sửa nội dung được công bố; khác phiên bản cấu trúc | Integer ≥ 1 | Bắt buộc | Lần | `CONTRACT-DU-LIEU.md` §2.1, §3 |
 | `nguon_tep_ids` | Tệp nguồn làm căn cứ | Mảng `id` không trùng | Bắt buộc, ít nhất một | — | `CONTRACT-DU-LIEU.md` §3 |
 | `phap_nhan_id` | Pháp nhân của hồ sơ | `id` | Bắt buộc | — | M17:278; REVIEW:46; DUYET:292 |
-| `du_an_id` | Tham chiếu `du_an.v1` của lát Chung | `id` | Bắt buộc | — | M17:279; `DAC-TA-CSDL.md` §1.1 |
-| `hop_dong_id` | Định danh hợp đồng chung; nghiệp vụ thầu do M4 sở hữu | `id` | Bắt buộc | — | M17:277, 288; `DAC-TA-CSDL.md` §6.2 |
+| `du_an_id` | Chiếu từ `danh_muc.hop_dong` qua V3, trỏ `du_an.v1`; K độc lập lấy dự án của lần kiểm | `id \| null` | Khóa bắt buộc, luôn khác `null` trong M4, kể cả K độc lập | — | M17:279; REVIEW:47–48,73–74; `DAC-TA-CSDL.md` §1.1, §6.2 |
+| `hop_dong_id` | Định danh chung từ `danh_muc.hop_dong`; nghiệp vụ thầu do M4 sở hữu | `id \| null` | Khóa bắt buộc; khác `null` trừ `ket_qua_kiem_dot` nhóm K độc lập | — | M17:277,288; REVIEW:48,73–74; `DAC-TA-CSDL.md` §6.2 |
 
 Các trường `*_tep_id` tham chiếu tệp do Core quản lý; khi lấy thông tin/tải tệp dùng `tham_chieu_tep.v1`, không truyền đường dẫn vật lý. Lỗi dùng `loi_chuan.v1`, không tạo cấu trúc lỗi M4 riêng.
 
@@ -1067,14 +1179,14 @@ Ngoài trường chung:
 
 | Tên | Nghĩa nghiệp vụ | Kiểu | Bắt buộc / tùy chọn | Đơn vị | Nguồn |
 |---|---|---|---|---|---|
-| `so_hop_dong` | Số hợp đồng chung | `chuoi` | Bắt buộc | — | `sql_master_dung_chung.py:144` |
+| `so_hop_dong` | Chiếu từ `danh_muc.hop_dong` qua V3, cùng nghĩa CRM | `chuoi \| null` | Khóa bắt buộc; M4 vận hành phải khác `null` | — | CSDL §6.2; `sql_master_dung_chung.py:144` |
 | `ten` | Tên hồ sơ hợp đồng | `chuoi` | Bắt buộc | — | M17:280 |
-| `doi_tuong_id` | Nhà thầu, tham chiếu `doi_tuong.v1` | `id` | Tùy chọn | — | `sql_master_dung_chung.py:149`, `:160`, ánh xạ `doi_tac_id` |
+| `doi_tuong_id` | Chiếu nhà thầu từ `danh_muc.hop_dong` qua V3, trỏ `doi_tuong.v1` | `id \| null` | Tùy chọn; `null` khi chưa ánh xạ | — | CSDL §6.2; `sql_master_dung_chung.py:149`, `:160`, ánh xạ `doi_tac_id` |
 | `ngay_ky` | Ngày ký hợp đồng | `ngay` | Tùy chọn | Ngày | CHEP:79 |
 | `phan_loai`, `loai_gia`, `goi_thau` | Phân loại hợp đồng, loại giá và gói thầu theo nguồn | Chuỗi | Tùy chọn | — | CHEP:79–80 |
 | `gia_tri_hop_dong` | Giá trị hợp đồng gốc theo tài liệu | `tien` | Tùy chọn | Theo tiền tệ nguồn | CHEP:80; TK-M4 §2 |
 | `gom_vat` | Nội dung nguồn về giá trị đã/chưa gồm VAT | Chuỗi | Tùy chọn | — | CHEP:80; COMPUTE:108–113 |
-| `vat` | Thuế suất có căn cứ từ hợp đồng | `thap_phan` | Tùy chọn | % | CHEP:80; COMPUTE:109–113 |
+| `thue_suat` | Thuế suất có căn cứ, dùng từ điển chung CRM/M4 | Chuỗi catalog thuế dùng chung | Tùy chọn, bỏ khóa khi chưa rõ | % hoặc mã chế độ | Ánh xạ trường nguồn `vat` tại CHEP:80; COMPUTE:109–113 |
 | `tep_hop_dong_id` | Tài liệu hợp đồng nguồn | `id` | Bắt buộc | — | M17:283; TK-M4 §2 |
 | `trang_thai_phu_luc` | `CHUA_KHAI`, `KHONG_CO`, `CO_CHUA_DU`, `CO_DU` | Enum | Bắt buộc | — | M17:284 |
 | `rev_tham_so` | Revision bộ tham số được công bố | Integer ≥ 1 | Bắt buộc | Lần | M17:282 |
@@ -1100,7 +1212,7 @@ Ngoài trường chung:
   "goi_thau": "DEMO goi thau 01",
   "gia_tri_hop_dong": {"gia_tri": "1100000000", "don_vi_tien": "VND"},
   "gom_vat": "DEMO gia tri da gom VAT",
-  "vat": "10",
+  "thue_suat": "10",
   "tep_hop_dong_id": "10000000-0000-4000-8000-000000000001",
   "trang_thai_phu_luc": "CO_DU",
   "rev_tham_so": 1,
@@ -1137,7 +1249,9 @@ Ngoài trường chung:
 | `thay_doi_tham_so[].gia_tri_cu`, `gia_tri_moi` | Giá trị trước và sau thay đổi | `gia_tri` | Bắt buộc | Theo kiểu giá trị | CHEP:120; `CONTRACT-DU-LIEU.md` §3 |
 | `thay_doi_tham_so[].dan_chung` | Căn cứ thay đổi trong phụ lục | Mảng `dan_chung` | Bắt buộc | — | CHEP:120; TK-M4 §2 |
 | `boq_ids` | Các lần nhập BOQ thuộc phụ lục | Mảng `id` | Bắt buộc; có thể rỗng | — | M17:393, 407 |
-| `huy_ly_do`, `huy_boi_id`, `huy_luc` | Lý do, người và thời điểm hủy | `chuoi`, `id`, `thoi_diem` | Bắt buộc khi `DA_HUY`; trường khác tùy chọn | UTC | M17:376–384 |
+| `huy_ly_do` | Lý do hủy nguồn | `chuoi \| null` | Bắt buộc khác `null` khi `DA_HUY`; trường hợp khác tùy chọn, được `null` | — | M17:376 |
+| `huy_boi` | Danh tính người hủy dạng text nguồn, không phải UUID người dùng | `chuoi \| null` | Bắt buộc khác `null` khi `DA_HUY`; trường hợp khác tùy chọn, được `null` | — | M17:377,681; giữ nguyên giá trị `ai` |
+| `huy_luc` | Thời điểm hủy nguồn | `thoi_diem \| null` | Bắt buộc khác `null` khi `DA_HUY`; trường hợp khác tùy chọn, được `null` | UTC | M17:378–384 |
 
 ```json
 {
@@ -1162,7 +1276,7 @@ Ngoài trường chung:
   "thay_doi_tham_so": [],
   "boq_ids": ["90000000-0000-4000-8000-000000000001"],
   "huy_ly_do": null,
-  "huy_boi_id": null,
+  "huy_boi": null,
   "huy_luc": null
 }
 ```
@@ -1250,6 +1364,8 @@ Ngoài trường chung:
 | `ngay_nghiem_thu`, `ngay_nhan_ho_so` | Ngày nghiệm thu và nhận hồ sơ nguồn | `ngay` | Tùy chọn | Ngày | M17:427; CHEP:147 |
 | `trang_thai_nop` | `NHAP` hoặc `DA_NOP` | Enum | Bắt buộc | — | M17:429 |
 | `gia_tri_ky_nguon`, `gia_tri_luy_ke_nguon` | Giá trị kỳ này và lũy kế ghi trong hồ sơ | `tien` | Tùy chọn | Theo tiền tệ nguồn | CHEP:148 |
+| `co_so_gia_tri` | Cơ sở VAT của tổng nguồn kỳ này/lũy kế và tiền khấu trừ/thanh toán nguồn | Enum `TRUOC_VAT`, `GOM_VAT`, `CHUA_RO` | Bắt buộc; chưa rõ không suy | — | T §2.2; cùng nhóm nghĩa KT:32 |
+| `co_so_don_gia` | Cơ sở VAT của đơn giá thanh toán nguồn | Cùng enum cơ sở giá trị | Bắt buộc | — | T §2.2; CHEP:159 |
 | `giu_lai_nguon`, `thu_hoi_tam_ung_nguon` | Giữ lại và thu hồi tạm ứng nguồn | `tien` | Tùy chọn | Theo tiền tệ nguồn | CHEP:148–149 |
 | `de_nghi_thanh_toan_nguon` | Giá trị thanh toán kỳ này từ hồ sơ | `tien` | Tùy chọn | Theo tiền tệ nguồn | CHEP:149 |
 | `khoi_luong` | Khối lượng thanh toán theo hạng mục | Mảng object | Bắt buộc; có thể rỗng | — | CHEP:155–163 |
@@ -1258,8 +1374,18 @@ Ngoài trường chung:
 | `khoi_luong[].don_gia_thanh_toan` | Đơn giá hồ sơ thanh toán | `tien` hoặc `null` | Bắt buộc | Tiền/đơn vị hạng mục | CHEP:159 |
 | `tep_ho_so_ids` | Tệp thuộc bộ hồ sơ đúng đợt | Mảng `id` | Bắt buộc | — | M17:435–444; TK-M4 §2 |
 | `phien_ban_ho_so_id`, `ket_luan_id` | Phiên bản hồ sơ và kết luận review được ghim | `id` | Tùy chọn | — | DUYET:194–205 |
+| `ket_luan_revision` | Revision của kết luận, khác `revision` nội dung công bố | Integer ≥ 1 | Đi cùng `ket_luan_id`; bắt buộc khi có tiền xác nhận | Lần | DUYET:201 |
+| `graph_sha256` | Mã băm đồ thị căn cứ đã lưu cùng kết luận | `sha256` | Đi cùng `ket_luan_id` và `ket_luan_revision` | — | DUYET:203 |
+| `tien_te` | Đơn vị tiền được review xác nhận | Chuỗi mã ISO 3 chữ hoa | Bắt buộc khi bàn giao; khớp mọi `don_vi_tien` của tiền xác nhận | — | DUYET:206 |
+| `co_so_gia_tri_review` | Cơ sở VAT của tiền review, không suy từ tổng nguồn | Enum `TRUOC_VAT`, `GOM_VAT`, `CHUA_RO` | Bắt buộc khi có kết luận; `CHUA_RO` chặn dùng tính/ghi nhận | — | T §2.2; căn cứ kết luận DUYET:202–207 |
+| `gia_tri_nt_xac_nhan` | Giá trị nghiệm thu do review xác nhận | `tien \| null` | Bắt buộc khi có kết luận; bàn giao nghiệm thu phải đủ | Theo `tien_te` | Ánh xạ `gia_tri_nt`, DUYET:30,207 |
+| `tam_ung_xac_nhan`, `thu_hoi_xac_nhan`, `giu_lai_xac_nhan` | Tạm ứng, thu hồi, giữ lại review xác nhận, từng khoản tách riêng | `tien \| null` | Bắt buộc khi có kết luận; `null` là chưa xác định, không phải 0 | Theo `tien_te` | Ánh xạ `tam_ung`, `thu_hoi`, `giu_lai`, DUYET:30,207; TK-M4 §3 |
 | `so_xin_thanh_toan_xac_nhan` | Số đề nghị được review xác nhận, dùng tạo Request nháp | `tien` | Tùy chọn; bắt buộc khi bàn giao tạo Request | Theo tiền tệ đã xác nhận | DUYET:30, 206–207; TK-M4 §3 |
 | `quyet_dinh_duyet_id`, `pdf_da_duyet_tep_id` | Quyết định duyệt và PDF hồ sơ đợt tương ứng | `id` | Tùy chọn trước bàn giao | — | DUYET:240–282; TK-M4 §3 |
+
+Tiền review được đọc nguyên từ đúng `(phien_ban_ho_so_id,ket_luan_id,ket_luan_revision,graph_sha256)`; hash là `graph_sha256` đã lưu ở nguồn, không băm lại phép chiếu. `so_xin_thanh_toan_xac_nhan` ánh xạ `so_xin_thanh_toan`. Khi bàn giao phải đủ bộ ghim và quyết định/PDF đúng kết luận. Không suy các số xác nhận bằng phép trừ tiền nguồn. Các trường `*_xac_nhan` tại đợt là **review**; tại `nghiem_thu` là **kế toán**, consumer phải giữ namespace contract và revision tương ứng.
+
+Ví dụ có đơn giá trước VAT, tổng nguồn gồm VAT 10% có căn cứ DEMO: 10 × 10.000.000 = 100.000.000 trước VAT; VAT 10.000.000; tổng 110.000.000. Giữ lại 5.500.000, thu hồi 11.000.000, tạm ứng kỳ này 0; số xin 93.500.000. Đây là kiểm tổng của ví dụ có đủ căn cứ, không phải quy tắc tự tính kết luận cho mọi hồ sơ.
 
 ```json
 {
@@ -1275,6 +1401,8 @@ Ngoài trường chung:
   "ngay_nghiem_thu": "2026-10-20",
   "ngay_nhan_ho_so": "2026-10-21",
   "trang_thai_nop": "DA_NOP",
+  "co_so_gia_tri": "GOM_VAT",
+  "co_so_don_gia": "TRUOC_VAT",
   "gia_tri_ky_nguon": {"gia_tri": "110000000", "don_vi_tien": "VND"},
   "gia_tri_luy_ke_nguon": {"gia_tri": "110000000", "don_vi_tien": "VND"},
   "giu_lai_nguon": {"gia_tri": "5500000", "don_vi_tien": "VND"},
@@ -1291,6 +1419,14 @@ Ngoài trường chung:
   "tep_ho_so_ids": ["10000000-0000-4000-8000-000000000005"],
   "phien_ban_ho_so_id": "b0000000-0000-4000-8000-000000000001",
   "ket_luan_id": "c0000000-0000-4000-8000-000000000001",
+  "ket_luan_revision": 1,
+  "graph_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "tien_te": "VND",
+  "co_so_gia_tri_review": "GOM_VAT",
+  "gia_tri_nt_xac_nhan": {"gia_tri": "110000000", "don_vi_tien": "VND"},
+  "tam_ung_xac_nhan": {"gia_tri": "0", "don_vi_tien": "VND"},
+  "thu_hoi_xac_nhan": {"gia_tri": "11000000", "don_vi_tien": "VND"},
+  "giu_lai_xac_nhan": {"gia_tri": "5500000", "don_vi_tien": "VND"},
   "so_xin_thanh_toan_xac_nhan": {"gia_tri": "93500000", "don_vi_tien": "VND"},
   "quyet_dinh_duyet_id": "d0000000-0000-4000-8000-000000000001",
   "pdf_da_duyet_tep_id": "10000000-0000-4000-8000-000000000006"
@@ -1310,8 +1446,8 @@ Một bản ghi đại diện một nhóm kiểm của một lần chạy. K = K
 | Tên | Nghĩa nghiệp vụ | Kiểu | Bắt buộc / tùy chọn | Đơn vị | Nguồn |
 |---|---|---|---|---|---|
 | `lan_kiem_id` | Định danh lần kiểm, không tái dùng cho lần chạy lại | `id` | Bắt buộc | — | REVIEW:44–77; CD-011 |
-| `dot_id` | Đợt được kiểm | `id` | Bắt buộc với B/C; tùy chọn với K/P | — | REVIEW:49, 73; TK-M4 §4 |
-| `phu_luc_id` | Phụ lục được kiểm | `id` | Bắt buộc với P; tùy chọn với nhóm khác | — | CHEP:179; `review_goc/csdl_hop_dong.py:834` |
+| `dot_id` | Đợt được kiểm | `id \| null` | Bắt buộc khác `null` với B/C; tùy chọn, được `null` với K/P | — | REVIEW:49,73; TK-M4 §4 |
+| `phu_luc_id` | Phụ lục được kiểm | `id \| null` | Bắt buộc khác `null` với P; tùy chọn, được `null` với nhóm khác | — | CHEP:179; `review_goc/csdl_hop_dong.py:834` |
 | `nhom_kiem` | K, B, C hoặc P | Enum | Bắt buộc | — | CD-011; COMPUTE:31–32; `chung_tu_adapter.py:40` |
 | `can_cu_sha256` | Mã băm căn cứ đã ghim | `sha256` | Bắt buộc với lần kiểm vận hành | — | REVIEW:54–55 |
 | `bang_kiem` | Kết quả theo từng mã thực sự được xét | Mảng object | Bắt buộc | — | COMPUTE:152–225; NV-GOC:293–298 |
@@ -1326,6 +1462,8 @@ Một bản ghi đại diện một nhóm kiểm của một lần chạy. K = K
 
 Trạng thái phạm vi K/B/C dùng nguyên tập hiện có: `CHECKED`, `NOT_ELIGIBLE`, `LIMITED`, `NOT_AVAILABLE`, `INCOMPLETE`, `ERROR`, `KHONG_AP_DUNG`. Không chuyển `INCOMPLETE` thành “Đạt” chỉ vì không có finding.
 
+**Điều kiện phạm vi:** K độc lập (review L1 không gắn hợp đồng) vẫn hợp lệ với `hop_dong_id=null`, `dot_id=null`, `phu_luc_id=null`; vẫn bắt buộc `du_an_id` của lần kiểm theo REVIEW:47. Không tạo hợp đồng giả để qua kiểm. K gắn hồ sơ phải giữ đúng ID hợp đồng; B/C bắt buộc hợp đồng + đợt; P bắt buộc hợp đồng + phụ lục. Ví dụ sau minh họa K độc lập, không phải lần kiểm của đợt ở ví dụ trước.
+
 ```json
 {
   "contract": "ket_qua_kiem_dot.v1",
@@ -1334,9 +1472,9 @@ Trạng thái phạm vi K/B/C dùng nguyên tập hiện có: `CHECKED`, `NOT_EL
   "nguon_tep_ids": ["10000000-0000-4000-8000-000000000005"],
   "phap_nhan_id": "20000000-0000-4000-8000-000000000001",
   "du_an_id": "30000000-0000-4000-8000-000000000001",
-  "hop_dong_id": "40000000-0000-4000-8000-000000000001",
+  "hop_dong_id": null,
   "lan_kiem_id": "e0000000-0000-4000-8000-000000000001",
-  "dot_id": "a0000000-0000-4000-8000-000000000001",
+  "dot_id": null,
   "phu_luc_id": null,
   "nhom_kiem": "K",
   "can_cu_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
@@ -1488,6 +1626,34 @@ Theo D §1.1, §6.1, định danh chung nằm tại `danh_muc`; quan sát, phiê
 
 Bảng sau bổ sung cho vỏ chung. `hoa_don[]` là tập kết quả trong một pháp nhân, kế thừa cách trả `CHO`/`CO_DU_LIEU` của M0064.
 
+### Quan hệ và vòng đời với M0064
+
+`hoa_don_mua_vao.v1` là **phép chiếu có chuyển đổi và mở rộng** phần quan sát/phiên bản của `m2-hoa-don-cong-bo/v1`, cùng chủ M2; không phải định nghĩa độc lập cho cùng phần dữ liệu. M0064 tiếp tục phục vụ consumer cũ với nguyên envelope, trường tiền/raw-state, coverage, quyền và hành vi latest (CB:30–68). Adapter công bố thuộc M2 dùng lại nguồn/ngữ nghĩa đã có, thêm vỏ chung, nguồn tệp và các trường nghiệp vụ chờ duyệt; không chuyển đổi mất dữ liệu rồi trả ngược dưới mã cũ.
+
+| M0064 (`hoa_don[]`, nếu không ghi khác) | `hoa_don_mua_vao.v1` | Quy tắc chuyển đổi |
+|---|---|---|
+| Envelope `phap_nhan_id`, `trang_thai`, `ly_do`, `hoa_don` | Cùng tên | Giữ `CHO`/`CO_DU_LIEU`; đổi mã contract rõ ràng, bổ sung `phien_ban/revision/nguon_tep_ids` từ metadata được kiểm |
+| `hoa_don_id`, `phien_ban_id` | Cùng tên | Giữ nguyên UUID và quan hệ cùng pháp nhân |
+| `phien_ban` | `phien_ban_nguon` | Integer nguồn, không phải semver ngoài vỏ |
+| `semantic_contract`, `semantic_sha256` | `contract_noi_dung_nguon`, `ma_bam_noi_dung` | Giữ nguyên ngữ nghĩa/hash đã lưu, không băm lại phép chiếu |
+| `trang_thai_nguon.quan_sat_id`, `.classification` | `quan_sat_id`, `phan_loai_quan_sat` | Đúng quan sát được chọn; không ghép trạng thái quan sát mới với phiên bản cũ |
+| `trang_thai_nguon.raw_status_namespace`, `.raw_status` | `mien_trang_thai_nguon`, `ma_trang_thai_nguon` | Giữ nguyên mã, không diễn giải thành duyệt/hủy |
+| `trang_thai_nguon.accepted_source_observation_id`, `.eligible_content_id` | `quan_sat_nguon_chap_nhan_id`, `noi_dung_du_dieu_kien_id` | Con trỏ trạng thái tại thời điểm đọc, không tự chứng minh trạng thái lịch sử của quan sát đã phát |
+| `money_basis_state` | `trang_thai_can_cu_tien` | Giữ nguyên; `UNPROVEN_NO_MINOR` không tạo tiền chuẩn |
+| Không có trong envelope M0064 | `lan_tiep_nhan_id`, `da_nhan_luc`, `ket_qua_doc_xml`, `trang_thai_xml`, `doi_tuong_id`, `dich_hach_toan` | M2 bổ sung từ đúng quan sát/nguồn và quyết định có quyền đọc; không bịa từ latest |
+| `so_chuan/so_hoa_don/mau_so/ky_hieu/ngay_lap/mst_ban/mst_mua`, `tien_te/tong_tien/total_minor`, `trang_thai_nguon.native_fiscal_status`, `coverage/coverage_hieu_luc/period_completeness`, pháp nhân từng dòng | Không chiếu trực tiếp ở bản nháp mới | Vẫn giữ ở contract M0064 cho consumer cũ; không suy từ sự vắng mặt thành 0 hoặc đầy đủ kỳ. Không có phép đổi ngược toàn phần |
+
+**Vòng đời:** hai mã cùng tồn tại với binding/phiên bản riêng trong sổ contract và manifest, mỗi consumer ghim chính xác mã/phiên bản. Bản mới còn `nhap`, chỉ kích hoạt sau khi Anh duyệt schema, ánh xạ, quyền và có đường đọc phù hợp; không tự đổi tên mã M0064 đang dùng. Chuyển từng consumer bằng adapter đã kiểm; chỉ ngừng mã cũ sau thông báo và hết consumer ghim mã đó. Mọi bổ sung sau phát hành tạo `$id`/semver mới theo T §2, giữ phục vụ bản cũ; không thay hành vi latest dưới mã M0064 hiện tại.
+
+### Phép đọc công bố theo tham chiếu chính xác (yêu cầu thiết kế)
+
+Mặt `cong_bo_m2` phải có phép đọc đăng ký cho contract này nhận pháp nhân + tập bộ `(hoa_don_id,quan_sat_id,phien_ban_id)`, tùy chọn hash kỳ vọng đã ghim. Đây là yêu cầu giao diện, **chưa phải API/hàm đã triển khai**. Kiểm danh tính, quyền contract/trường/pháp nhân trước lookup theo cùng nguyên tắc CB:20–27; chỉ M2 đọc bảng của mình.
+
+1. Chọn **đúng `quan_sat_id`**, kiểm quan sát thuộc hóa đơn/pháp nhân và trỏ **đúng `phien_ban_id`**; lấy nội dung/hash đã lưu của phiên bản đó cùng lần tiếp nhận và nguồn tệp tương ứng. Không join qua `latest_observation_id`, không lấy `max(phien_ban)` hoặc `eligible_content_id` để thay yêu cầu.
+2. Trả đúng dòng quan sát/phiên bản trong cấu trúc đã khai; bên nhận ghim `ma_bam_noi_dung` và so hash kỳ vọng nếu có. Những con trỏ hiện hành/đích hạch toán không được dùng để giả lập quyết định tại thời điểm sự kiện; muốn dùng quyết định phải ghim riêng `dich_id/phien_ban_dich` và kiểm hiện hành/quyền.
+3. Sai quyền trả lỗi quyền chuẩn; ID/hash/quan hệ không khớp trả lỗi tham chiếu chuẩn. Nguồn/phiên bản chưa sẵn sàng trả `CHO` có lý do, không thay bằng một quan sát khác và không xác nhận đã xử lý nghiệp vụ. Khi đọc tập, không bỏ âm thầm bộ tham chiếu thiếu rồi coi cả tập đã đủ.
+4. Phép đọc danh sách hiện hành có thể dùng lựa chọn latest của M0064; **consumer `hoa_don_da_nhan` bắt buộc dùng phép đọc chính xác**. Nếu quan sát mới đến trước lúc consumer xử lý, consumer vẫn đọc quan sát/phiên bản đã phát, giữ hash tương ứng. Chưa cung cấp được phép đọc này thì chặn kích hoạt consumer; không cho đọc bảng riêng M2.
+
 | Tên | Nghĩa nghiệp vụ | Kiểu | Bắt buộc / tùy chọn | Đơn vị | Nguồn |
 |---|---|---|---|---|---|
 | `phap_nhan_id` | Pháp nhân của tập hóa đơn | `id` | Bắt buộc | — | CB:30–32, CB:64–68 |
@@ -1496,11 +1662,11 @@ Bảng sau bổ sung cho vỏ chung. `hoa_don[]` là tập kết quả trong m�
 | `hoa_don` | Danh sách hóa đơn trong phạm vi được đọc | Mảng đối tượng theo các dòng dưới | Bắt buộc; rỗng khi `CHO` | — | CB:6, CB:38–68 |
 | `hoa_don[].hoa_don_id` | Danh tính hóa đơn dùng chung | `id` | Bắt buộc | — | CB:39; D §1.1, §6.1 |
 | `hoa_don[].phien_ban_id` | Phiên bản nội dung gắn với quan sát được công bố | `id` | Bắt buộc | — | CB:40, CB:57–60 |
-| `hoa_don[].phien_ban_nguon` | Số phiên bản nội dung hóa đơn | Integer ≥ 1 | Bắt buộc | Lần | CB:40; P:5264 |
+| `hoa_don[].phien_ban_nguon` | Số phiên bản nội dung hóa đơn | Integer ≥ 1 | Bắt buộc | Lần | CB:40; P:5260 |
 | `hoa_don[].contract_noi_dung_nguon` | Contract ngữ nghĩa của nội dung M2 đã lưu | `chuoi` | Bắt buộc | — | CB:41 |
 | `hoa_don[].ma_bam_noi_dung` | Mã băm ngữ nghĩa đã lưu của phiên bản nguồn | `sha256` | Bắt buộc | — | CB:8–9, CB:41 |
 | `hoa_don[].quan_sat_id` | Quan sát nguồn đang được công bố | `id` | Bắt buộc | — | CB:48, CB:57 |
-| `hoa_don[].lan_tiep_nhan_id` | Lần tiếp nhận chứa quan sát; không đồng nhất với danh tính hóa đơn | `id` | Bắt buộc | — | P:5294; H:582 |
+| `hoa_don[].lan_tiep_nhan_id` | Lần tiếp nhận chứa quan sát; không đồng nhất với danh tính hóa đơn | `id` | Bắt buộc | — | P:5299; H:582 |
 | `hoa_don[].da_nhan_luc` | Thời điểm máy chủ ghi nhận quan sát | `thoi_diem` | Bắt buộc | Thời điểm UTC | P:5316; H:582 |
 | `hoa_don[].quan_sat_nguon_chap_nhan_id` | Quan sát nguồn đã được chấp nhận; chưa có thì `null` | `id \| null` | Bắt buộc, cho phép `null` | — | CB:51; D §2 |
 | `hoa_don[].noi_dung_du_dieu_kien_id` | Con trỏ nội dung đủ điều kiện theo kiểm M2; chưa có thì `null` | `id \| null` | Bắt buộc, cho phép `null` | — | CB:52; D §2 |
@@ -1509,7 +1675,7 @@ Bảng sau bổ sung cho vỏ chung. `hoa_don[]` là tập kết quả trong m�
 | `hoa_don[].phan_loai_quan_sat` | Các phân loại tiếp nhận, revision hoặc conflict do M2 lưu | Mảng `chuoi` | Bắt buộc; giữ nguyên giá trị nguồn | — | CB:48; TL43 §6 |
 | `hoa_don[].mien_trang_thai_nguon` | Namespace của mã trạng thái nguồn | `chuoi \| null` | Bắt buộc, cho phép `null` | — | CB:50 |
 | `hoa_don[].ma_trang_thai_nguon` | Mã trạng thái nguồn nguyên bản; chưa tự diễn giải thành hủy/điều chỉnh | `chuoi \| null` | Bắt buộc, cho phép `null` | — | CB:50; TL43 §6, §9 |
-| `hoa_don[].trang_thai_can_cu_tien` | Tình trạng căn cứ biểu diễn tiền của phiên bản nguồn | `chuoi` | Bắt buộc | — | CB:10, CB:46; P:5278 |
+| `hoa_don[].trang_thai_can_cu_tien` | Tình trạng căn cứ biểu diễn tiền của phiên bản nguồn | `chuoi` | Bắt buộc | — | CB:10, CB:46; P:5277 |
 | `hoa_don[].doi_tuong_id` | Nhà cung cấp đã ánh xạ qua `doi_tuong.v1` | `id \| null` | Tùy chọn — **chờ Anh** | — | M2 §3 bước 3, §4 |
 | `hoa_don[].dich_hach_toan` | Các quyết định đích theo dòng; chưa có thì mảng rỗng | Mảng đối tượng theo bảng dưới | Bắt buộc về cấu trúc nháp — **chờ Anh** | — | M2 §2–5; H:593 |
 
@@ -1530,7 +1696,7 @@ Các trường trong mỗi phần tử `dich_hach_toan[]`:
 **Quy tắc nghiệp vụ và giới hạn:**
 
 - `CO_DU_LIEU` chỉ xác nhận có nguồn. Không suy thành đã duyệt kế toán, đã ghi nhận phải trả hoặc đủ điều kiện khấu trừ thuế.
-- Quan sát công bố theo `latest_observation_id` như M0064; không tự thay bằng phiên bản lớn nhất hoặc `eligible_content_id`. Bên sử dụng phải ghim phiên bản và mã băm cụ thể.
+- Đọc danh sách hiện hành chọn `latest_observation_id` như M0064; đọc theo tham chiếu sự kiện phải chọn đúng `quan_sat_id/phien_ban_id` qua phép đọc công bố chính xác ở trên. Hai chế độ không thay thế nhau; bên sử dụng luôn ghim phiên bản và mã băm cụ thể.
 - `ma_bam_noi_dung` là mã băm ngữ nghĩa đã lưu, không phải mã băm tệp XML hay tệp JSON kết quả đọc.
 - Chỉ nhận theo manifest; cùng danh tính và cùng hash không tạo thêm hóa đơn. Khác hash hoặc trạng thái nguồn phải giữ revision/conflict. File ngoài manifest chưa rõ nguồn không đi vào đề xuất.
 - `KHONG_XML_GOC` có bằng chứng bảng kê là trường hợp tiếp nhận hợp lệ; `ket_qua_doc_xml` có thể `null`. PDF dựng từ XML chỉ để xem.
@@ -1688,4 +1854,29 @@ Ví dụ là hồ sơ chờ xác định nghĩa vụ từ hóa đơn DEMO ở co
 **Còn chờ Anh:** cấu trúc hồ sơ công nợ; cardinality với hóa đơn và căn cứ; điều kiện bắt buộc của `doi_tuong_id`; catalog và định dạng căn cứ; cách xác định ba trường tiền; giao diện tham chiếu thanh toán M1; bộ mã trạng thái; danh sách module được đọc. Không coi ví dụ hồ sơ chờ là công nợ đã ghi nhận.
 
 Theo CD-031/032 và S §6, sau khi Anh duyệt, gói M2 phải đưa mô tả, JSON Schema và ví dụ của hai contract vào `contract/`, liệt kê trong `module.json` và đăng ký đúng phiên bản tại `loi.dang_ky_contract`. Lát này chỉ soạn tài liệu; chưa tạo schema, kích hoạt contract hoặc cấp quyền đọc.
+
+## Vòng 2 — đã xử lý
+
+Mã `OPUS-*` theo `RV-NV-OPUS.md`; `NV-*` theo số dòng phát hiện của `RV-NV.md`. “Đã xử lý” là đã sửa tài liệu hoặc giữ đúng điểm chờ, không có nghĩa contract đã được Anh duyệt/kích hoạt.
+
+| Mã phát hiện | Chỗ sửa / kết quả |
+|---|---|
+| OPUS-C1 | NV-CHUNG: mọi dữ liệu công bố kế thừa `vo_noi_dung`; ảnh chụp nhập tay có ID tệp Core; ba bảng/ví dụ CRM thêm `nguon_tep_ids`; `tep_nguon` chỉ để xem/tải, không thay vỏ |
+| OPUS-C2 | NV-CRM §1 `DongLichCrm`: duy nhất `nghia_vu_id`, bộ ba `(CRM,lich_thu,nghia_vu_id)`; §5.1 sự kiện dùng cùng tên, ghim phiên bản qua liên kết; định nghĩa đầu vào `ban.ma_bam` |
+| OPUS-S1(a–f) | Quy tắc chung 5,7,8 và ba bảng: grain/khóa dòng, từ điển, bất biến tiền/cơ sở VAT/scale; ghim ID + hash; dẫn khóa manifest đã có; sửa ghi chú parse không đủ kiểm schema |
+| OPUS-S2 | Từ điển chung, bảng CRM hợp đồng và M4: `so_hop_dong/doi_tuong_id/du_an_id` chiếu `danh_muc.hop_dong` qua V3, cùng kiểu |
+| OPUS-S3 | NV-CRM §1–§3 và ví dụ: `loai_khoan`, giữ `phi`, tách `so_ngay_sau_moc`, thang VND đến đồng; không tự quyết phạm vi phí |
+| OPUS-S4(a–b) | NV-M4 `dot_thanh_toan`: cơ sở tổng/đơn giá/review, tiền NT/tạm ứng/thu hồi/giữ lại, tiền tệ, revision kết luận + graph hash; ví dụ đủ bộ ghim và số xác nhận |
+| OPUS-S5(a–f) | `but_toan_de_xuat`: nguồn suy luận, LLM không Xanh, tiền nguyên dương VND, phiên bản/hiện hành, duyệt qua Core, khóa máy chủ Mức 2 và bốn loại tự duyệt có nhật ký; mã Junsky cùng pháp nhân, Core gắn chu trình |
+| OPUS câu (a) | NV-CRM §1: **phí trong lịch nghĩa vụ hợp đồng bán bản 1 chờ Anh**; giữ phí nhưng chưa sinh nghĩa vụ; mở rộng có phiên bản, không đổi tổng/% của bản cũ |
+| OPUS câu (b) | NV-CRM §1 quy tắc 2 và §2: **VAT cọc cuối/nhiều cọc chờ Anh**; giữ gate, chưa tự đặt thuật toán; hỗ trợ nâng phiên bản có ánh xạ |
+| NV-1 | NV-M4 `phu_luc`: `huy_boi` giữ text nguồn, bỏ ánh xạ UUID thiếu căn cứ; sửa JSON |
+| NV-2 | Bảng phụ lục cho phép `null` có điều kiện; kết quả kiểm `phu_luc_id/dot_id` nullable; ví dụ đồng bộ |
+| NV-3 | NV-M4 trường chung và `ket_qua_kiem_dot`: hợp đồng nullable cho K độc lập, vẫn đủ dự án; B/C/P giữ điều kiện; ví dụ K độc lập không hợp đồng giả |
+| NV-4 | §5.2–5.3: ghi rõ chưa hoàn tất định nghĩa, tiếp tục chờ Anh và chặn kích hoạt; không đưa số `lan` vào bus |
+| NV-5 | §5.5 và NV-M2: phép đọc công bố đúng quan sát/phiên bản có kiểm quyền, xử lý sự kiện muộn; chưa có đường đọc thì chặn consumer, không thay latest |
+| NV-6 (gợi ý) | NV-M2: bảng ánh xạ `m2-hoa-don-cong-bo/v1` ↔ `hoa_don_mua_vao.v1`, phần không chiếu, vòng đời hai mã và phục vụ consumer cũ |
+| NV-7 (gợi ý) | NV-M2 bảng trường: dẫn P:5260 (`phien_ban_nguon`), P:5299 (`lan_tiep_nhan_id`), P:5277 (`trang_thai_can_cu_tien`) |
+
+Các mục Opus “Để sau” tiếp tục để sau: mapping `bank_id/cashflow_id/entry_dm` chờ NCC; nối M1–M4 chưa được coi là đã có contract nghĩa vụ M4; TL50 chưa xác nhận nguồn. Ký hiệu `id`/`chung.id` đã thống nhất ý nghĩa ở từ điển, không tạo kiểu mới.
 
