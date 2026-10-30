@@ -2,7 +2,8 @@
 
 **Tệp:** `CHUAN-CORE-CSDL-v1.0.md`  
 **Phiên bản:** v1.0  
-**Ngày Anh duyệt:** 30/10/2026  
+**Ngày Anh duyệt phiếu CSDL/API:** 30/10/2026 · **Văn bản chuẩn:** chờ Anh xem (CD-034 mục 4)
+
 **Phạm vi:** cấu trúc, sở hữu, truy cập, phân quyền, toàn vẹn, mã hóa và migration CSDL của Core và các module.
 
 **Căn cứ:**
@@ -12,13 +13,15 @@
 - `docs\47-core\g1\DAC-TA-CSDL.md`, `ANH-XA-MIGRATION.md`, `DAC-TA-API.md`, `ANH-XA-ROUTE.md`.
 - CD-026 đến CD-036 trong `docs\46-chuyen-doi-dieu-phoi\CHI-DAO-TU-ANH.md`, trong phạm vi liên quan.
 
-Đây là chuẩn thiết kế đích đã được duyệt cho phần CSDL, **không phải xác nhận hệ thống đã triển khai**. Việc ban hành chuẩn không thay thế điều kiện duyệt đủ ba phiếu CSDL/API/SDK và CD mở lại lập trình.
+Đây là bản chuẩn thiết kế đích tập hợp các quyết định CSDL từ phiếu đã duyệt; văn bản chuẩn chờ Anh xem, **không phải xác nhận hệ thống đã triển khai**. Việc ban hành chuẩn không thay thế điều kiện duyệt đủ ba phiếu CSDL/API/SDK và CD mở lại lập trình.
 
 ## 1. Thay đổi
 
 | Phiên bản | Ngày | Nội dung |
 |---|---|---|
 | v1.0 | 30/10/2026 | Bản đầu; tập hợp các quyết định đã duyệt thành hướng dẫn cho người lập trình module. |
+
+v1.0 (sửa trước khi gửi Anh): theo review Opus + Codex
 
 Mọi thay đổi sau bản này phải tăng phiên bản và ghi rõ nội dung thay đổi.
 
@@ -36,6 +39,8 @@ Mọi thay đổi sau bản này phải tăng phiên bản và ghi rõ nội dun
 10. Hạn dọn tạm không áp dụng cho bản gốc, kết quả đã duyệt, audit nghiệp vụ hoặc biên nhận nghiệp vụ module.
 
 ## 3. Bắt buộc
+
+Mục gắn [Core] do Core dựng — module chỉ cần không vi phạm; mục gắn [Module] là việc người lập trình module phải làm.
 
 ### 3.1. Khối dữ liệu, chủ sở hữu và đường truy cập
 
@@ -72,6 +77,8 @@ Module phải khai báo cụ thể tài nguyên và thao tác cần dùng.
 | V2 — ghi chung | Hàm Core được cấp trong `loi`, `loi_tai_lieu`, `danh_muc`; không ghi trực tiếp bảng chung |
 | V3 — danh mục chung | Chỉ đọc phần danh mục chung được cấp |
 | V4 — công bố | Chỉ đọc contract được cấp của `cong_bo_<nguon>`; sự kiện đi qua bus Core |
+
+Biên nhận chống trùng của operation module ghi qua hàm V2 vào `loi_tai_lieu.bien_nhan_thao_tac`, cùng transaction và cùng kết nối với thay đổi nghiệp vụ; bất biến, giữ vĩnh viễn (chi tiết CHUAN-CORE-API §3.6b).
 
 Không được khai bảng nghiệp vụ của module khác thành V3 để hợp thức hóa truy cập. Không dùng view hoặc hàm trong schema của mình để che việc đọc bảng riêng của bên khác.
 
@@ -164,7 +171,7 @@ Ngoại lệ của mặt công bố:
 
 Mỗi module là một tiến trình riêng. Trên một máy triển khai chỉ có một phiên hoạt động cho một mã module; dùng lease, thế hệ sở hữu và CAS để chống chạy trùng.
 
-#### 3.5.3. Membership PG16 và cài đặt
+#### 3.5.3. [Core] Membership PG16 và cài đặt
 
 Membership dùng:
 
@@ -184,7 +191,7 @@ Cơ chế cài đặt phải đáp ứng `SET FALSE`:
 
 Login cài đặt không phải superuser và không xử lý request nghiệp vụ.
 
-#### 3.5.4. Giữ và trao mật khẩu
+#### 3.5.4. [Core] Giữ và trao mật khẩu
 
 Mật khẩu ở `D:\DU-LIEU-KE-TOAN\bi-mat\`, ngoài thư mục phần mềm, bảo vệ theo tài khoản dịch vụ.
 
@@ -198,7 +205,7 @@ Theo CD-033, Core chạy dưới tài khoản Windows riêng; module/engine ch�
 
 #### 3.6.1. Danh tính phải do Core xác lập
 
-Core tự quản tài khoản người dùng và cấp mã phiên bí mật. CSDL không tin danh tính chỉ vì module đã đặt biến ngữ cảnh.
+[Core] Core tự quản tài khoản người dùng và cấp mã phiên bí mật. CSDL không tin danh tính chỉ vì module đã đặt biến ngữ cảnh.
 
 `loi.phien_xac_thuc` lưu:
 
@@ -222,7 +229,7 @@ Các biến `ktt.nguoi_dung_id`, `ktt.nguoi_dung_dang_nhap` chỉ dùng đối c
 
 #### 3.6.2. Vòng đời transaction
 
-Mỗi transaction nghiệp vụ phải:
+[Module] Mỗi transaction nghiệp vụ phải:
 
 1. Dùng kết nối của đúng login module/Core.
 2. Nhận mã phiên hoặc mã ủy nhiệm hợp lệ do Core cấp.
@@ -282,7 +289,7 @@ Hai ràng buộc phải được kiểm độc lập:
 
 Phép tính phải dùng **đủ các dòng liên quan trong pháp nhân đã xác minh**, kể cả dòng người thao tác không có quyền xem.
 
-#### 3.7.1. Role và policy kiểm riêng
+#### 3.7.1. [Core] Role và policy kiểm riêng
 
 Khối cần tính tổng có `vai_kiem_toan_ven_<khoi>`:
 
@@ -294,7 +301,7 @@ Khối cần tính tổng có `vai_kiem_toan_ven_<khoi>`:
 
 Hàm nội bộ chỉ trả kết luận/mã lỗi cần thiết; không trả dòng hoặc tổng bị che cho runtime.
 
-Core kiểm tiền chứng từ. Module chủ kiểm nghĩa vụ; khi cần tổng liên kết chung, dùng hàm tổng Core nội bộ được cấp cho role kiểm đã đăng ký, không SELECT bảng chéo.
+Core kiểm tiền chứng từ. [Module] Module chủ kiểm nghĩa vụ; khi cần tổng liên kết chung, dùng hàm tổng Core nội bộ được cấp cho role kiểm đã đăng ký, không SELECT bảng chéo.
 
 Khóa bằng `SELECT … FOR UPDATE` cần quyền UPDATE trên một cột kỹ thuật và policy UPDATE USING. Nếu không cấp được, dùng `pg_advisory_xact_lock` theo ID, giữ đúng thứ tự khóa.
 
@@ -355,7 +362,7 @@ Mặt công bố phải:
 
 View công bố bật `security_barrier`, không bật `security_invoker`. Policy bảng nguồn của owner view phải xác minh phiên, pháp nhân và quyền contract; module nhận không có quyền bảng nguồn.
 
-Resolver là hàm `SECURITY DEFINER` của module chủ, được Core gọi động qua `loi.dang_ky_ham_module`. Registry lưu chữ ký, owner và mã băm gói; chỉ chức trách cài đặt được sửa. Không nhận tên hàm tùy ý từ client.
+[Module] Resolver là hàm `SECURITY DEFINER` của module chủ, được Core gọi động qua `loi.dang_ky_ham_module`. Registry lưu chữ ký, owner và mã băm gói; chỉ chức trách cài đặt được sửa. Không nhận tên hàm tùy ý từ client.
 
 Thiếu dữ liệu/contract trả `CHO`; sai quyền trả lỗi quyền. Hai trường hợp không được đánh đồng.
 
@@ -413,11 +420,11 @@ Nhóm A đã duyệt phải mã hóa. Nhóm B **chờ Anh**. Nhóm C gồm tiề
 Quy tắc thực hiện:
 
 1. Mã hóa/giải mã qua cổng hạ tầng Core dùng chung; riêng mở che qua cổng Mask hiện có.
-2. `vai_chay_loi` phục vụ cổng giải mã nhận bản mã qua hàm đọc hẹp sau xác thực, MTQ, quyền nội dung và audit ID.
+2. [Core] `vai_chay_loi` phục vụ cổng giải mã nhận bản mã qua hàm đọc hẹp sau xác thực, MTQ, quyền nội dung và audit ID.
 3. Module, view công bố, role kiểm, role xuất, engine và máy phụ không được giải mã tùy ý.
-4. Khóa được bọc DPAPI theo tài khoản dịch vụ, giữ ngoài phần mềm/CSDL tại `bi-mat`; chỉ ở RAM dịch vụ được phép, tách khóa backup.
-5. Không truyền khóa qua GUC hoặc tham số SQL, **kể cả bind**. Không có hàm giải mã PostgreSQL nhận khóa SQL.
-6. Lưu bản mã và phiên bản khóa; tra cứu bằng HMAC có khóa độc lập, giữ miền UNIQUE và quy tắc chuẩn hóa. Không dùng hash trần cho số tài khoản.
+4. [Core] Khóa được bọc DPAPI theo tài khoản dịch vụ, giữ ngoài phần mềm/CSDL tại `bi-mat`; chỉ ở RAM dịch vụ được phép, tách khóa backup.
+5. [Core] Không truyền khóa qua GUC hoặc tham số SQL, **kể cả bind**. Không có hàm giải mã PostgreSQL nhận khóa SQL.
+6. [Core] Lưu bản mã và phiên bản khóa; tra cứu bằng HMAC có khóa độc lập, giữ miền UNIQUE và quy tắc chuẩn hóa. Không dùng hash trần cho số tài khoản.
 7. Chỉ hiện bốn số cuối; xem đủ cần quyền và audit. Log không chứa bản rõ hoặc khóa.
 8. Rà cả bản sao, JSON path và lịch sử; không chỉ mã hóa bảng chính.
 
@@ -434,9 +441,10 @@ Migration nằm trong gói sở hữu đối tượng. Core chỉ mang migration
 `loi.lich_su_doi_cau_truc` ghi:
 
 ```text
-ma_goi, so_phien_ban, ma_bam, ap_dung_luc,
-nguoi_ap_dung, nguon_lich_su
+ma_goi, so_phien_ban, ma_bam, ap_dung_luc
 ```
+
+Sổ còn ghi người áp dụng và nguồn lịch sử theo đặc tả CSDL §7; chuẩn này chỉ mô tả ý nghĩa, không ấn định tên cột khi đặc tả chưa định nghĩa.
 
 Khóa sổ là `(ma_goi, so_phien_ban)`. Module không ghi trực tiếp sổ Core.
 
@@ -507,7 +515,7 @@ Trong lát bảo trì đó phải xác minh đúng tài nguyên, chủ sở hữ
 
 Giữ bảng cố định; mỗi kỳ, đợt, phụ lục, phiên bản hoặc lần chạy là thêm dòng. Không tạo bảng/cột/CSDL theo từng lần phát sinh.
 
-### 3.14. Tài khoản người dùng do Core quản — câu 3A
+### 3.14. [Core] Tài khoản người dùng do Core quản — câu 3A
 
 Core tự quản tài khoản đăng nhập người dùng. Module không tự mở hệ tài khoản hoặc ma trận quyền song song.
 
@@ -521,7 +529,7 @@ Tài khoản người dùng, login PostgreSQL và tài khoản Windows là ba l�
 
 Danh sách nhân sự đăng nhập thật: **chờ Anh cung cấp**. Không đưa tài khoản mô phỏng, quyền thử hoặc dữ liệu DEMO thành dữ liệu thật.
 
-### 3.15. Tệp và xuất riêng một pháp nhân
+### 3.15. [Core] Tệp và xuất riêng một pháp nhân
 
 Module nhận ID tài liệu/tệp, không nhận đường dẫn để tự mở kho. Core quản metadata, hash, biến thể và quan hệ nguồn; cùng hash không đồng nghĩa cùng quyền.
 
@@ -572,7 +580,7 @@ Trên API, dữ liệu minh họa có thể biểu diễn:
 ```json
 {
   "id": "10000000-0000-4000-8000-000000000001",
-  "phap_nhan_id": "10000000-0000-4000-8000-000000000002",
+  "phap_nhan_id": "10000000-0000-4000-8000-000000000001",
   "so_tien": "100.00",
   "don_vi_tien": "VND",
   "row_version": "3"
@@ -634,6 +642,7 @@ Checklist là yêu cầu kiểm trước khi nộp, không phải tuyên bố c�
 
 ### 7.3. Toàn vẹn và công bố
 
+- [ ] Nếu module là chủ nghĩa vụ tiền: có resolver `SECURITY DEFINER` đăng ký ở `loi.dang_ky_ham_module`, khóa theo thứ tự chứng từ → nghĩa vụ, `vai_kiem_toan_ven_mod_<ma>` với policy chỉ lọc pháp nhân; đạt ca nghĩa vụ 80 + 30.
 - [ ] Kiểm đủ hai giới hạn tiền dưới FORCE RLS, gồm hai ca 80 + 30 độc lập.
 - [ ] Ca cạnh tranh 60 + 60, sửa/hủy và giảm sức chứa giữ đúng giới hạn.
 - [ ] Resolver dùng registry, đúng owner/chữ ký; không nhận tên hàm tùy ý.
@@ -666,21 +675,23 @@ Checklist là yêu cầu kiểm trước khi nộp, không phải tuyên bố c�
 
 ### 8.1. Tài liệu tra cứu
 
-Các đường dẫn dưới đây tính từ tệp chuẩn trong `docs\47-core\chuan\`.
+Các đường dẫn dưới đây tính từ gốc repo `accounting_assisstance`, để vẫn tra cứu được khi sao chép chuẩn sang `D:\Claude\QUY-TRINH-CHUNG\CHUAN-CORE\`.
 
 | Tài liệu | Nội dung tra cứu |
 |---|---|
-| [DAC-TA-CSDL.md](../g1/DAC-TA-CSDL.md) | §1–3: sở hữu, tên và mô hình bảng; §4–5: role, phiên, RLS, mã hóa; §6–8: truy cập, migration, dọn dữ liệu |
-| [ANH-XA-MIGRATION.md](../g1/ANH-XA-MIGRATION.md) | Ánh xạ 67 migration, chủ đích, hàm/trigger và điều kiện quyền khi đóng gói |
-| [DAC-TA-API.md](../g1/DAC-TA-API.md) | §2.4: biên nhận/CAS; §2.5: kiểu trao đổi; §4.2: ngữ cảnh liên tiến trình; phụ lục OpenAPI |
-| [ANH-XA-ROUTE.md](../g1/ANH-XA-ROUTE.md) | Chuyển tiếp route cũ và các điều kiện bảo vệ |
-| [PHIEU-DUYET-CSDL.md](../PHIEU-DUYET-CSDL.md) | Kết quả duyệt cuối: 1A, 2A, 3A |
-| [PHIEU-DUYET-API.md](../PHIEU-DUYET-API.md) | Kết quả duyệt 1A, 2A và các quy ước API liên quan |
-| [CHI-DAO-TU-ANH.md](../../46-chuyen-doi-dieu-phoi/CHI-DAO-TU-ANH.md) | CD-026…CD-036: phạm vi, cổng duyệt, contract, tài khoản tiến trình và chuẩn v1.0 |
+| `docs\47-core\g1\DAC-TA-CSDL.md` | §1–3: sở hữu, tên và mô hình bảng; §4–5: role, phiên, RLS, mã hóa; §6–8: truy cập, migration, dọn dữ liệu |
+| `docs\47-core\g1\ANH-XA-MIGRATION.md` | Ánh xạ 67 migration, chủ đích, hàm/trigger và điều kiện quyền khi đóng gói |
+| `docs\47-core\g1\DAC-TA-API.md` | §2.4: biên nhận/CAS; §2.5: kiểu trao đổi; §4.2: ngữ cảnh liên tiến trình; phụ lục OpenAPI |
+| `docs\47-core\g1\ANH-XA-ROUTE.md` | Chuyển tiếp route cũ và các điều kiện bảo vệ |
+| `docs\47-core\PHIEU-DUYET-CSDL.md` | Kết quả duyệt cuối: 1A, 2A, 3A |
+| `docs\47-core\PHIEU-DUYET-API.md` | Kết quả duyệt 1A, 2A và các quy ước API liên quan |
+| `docs\46-chuyen-doi-dieu-phoi\CHI-DAO-TU-ANH.md` | CD-026…CD-036: phạm vi, cổng duyệt, contract, tài khoản tiến trình và chuẩn v1.0 |
 
 Không chép lại toàn bộ OpenAPI hoặc JSON Schema trong chuẩn CSDL. Khi hiện thực, dùng định nghĩa chi tiết đúng phiên bản đã đăng ký và duyệt.
 
 ### 8.2. Điểm còn chờ, không tự chốt
+
+Cách gọi cụ thể (hàm SDK cho biên nhận V2, File Store, mã ủy nhiệm, credential instance) nằm ở `CHUAN-CORE-SDK-v1.0.md`, **chưa ban hành, chờ Anh duyệt phiếu SDK bản 2**. Chưa có SDK thì không tự viết lớp thay thế.
 
 | Nội dung | Trạng thái |
 |---|---|
@@ -694,3 +705,17 @@ Không chép lại toàn bộ OpenAPI hoặc JSON Schema trong chuẩn CSDL. Khi
 | Dọn CSDL/role test tồn đọng | **Chờ Anh giao lát bảo trì riêng**, có xem trước |
 
 Ba lựa chọn CSDL về mã phiên bí mật, hạn giữ tạm và Core quản tài khoản **đã được duyệt A**; không còn là câu hỏi chờ chọn.
+
+## 9. Đã xử lý review
+
+Mã C/D theo `RV-CHUAN-OPUS.md`; mã CX dưới đây định danh theo thứ tự các phát hiện trong `RV-CHUAN.md`.
+
+| Mã | Chỗ sửa |
+|---|---|
+| C2 | Đầu tệp: phân biệt ngày duyệt phiếu với văn bản chuẩn còn chờ Anh xem. |
+| C4 | §8.2: ghi rõ chuẩn SDK chưa ban hành, chờ Anh duyệt phiếu bản 2. |
+| C5 | §8.1: dùng đường dẫn từ gốc repo cho toàn bộ tài liệu tra cứu. |
+| C6 | §3: giải thích [Core]/[Module]; gắn trách nhiệm tại §3.5.3–3.5.4, §3.6.1–3.6.2, §3.7.1, §3.8, §3.11 mục 2 và 4–6, §3.14–3.15; §7.3 thêm checklist chủ nghĩa vụ tiền. |
+| C7 | §3.2: ghi rõ biên nhận module qua V2, cùng transaction/kết nối, bất biến và vĩnh viễn. |
+| D1 | §5.1: đồng bộ UUID pháp nhân với ví dụ API, đuôi `…0001`. |
+| CX-1 — tên cột migration | §3.12.1: giữ tên kỹ thuật đã có căn cứ; người áp dụng và nguồn lịch sử chỉ mô tả ý nghĩa. |

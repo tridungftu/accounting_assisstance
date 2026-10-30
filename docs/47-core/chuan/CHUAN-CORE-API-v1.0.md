@@ -2,7 +2,8 @@
 
 **Tệp:** `CHUAN-CORE-API-v1.0.md`  
 **Phiên bản:** v1.0  
-**Ngày Anh duyệt:** 30/10/2026  
+**Ngày Anh duyệt phiếu CSDL/API:** 30/10/2026 · **Văn bản chuẩn:** chờ Anh xem (CD-034 mục 4)
+
 **Đối tượng:** Người lập trình module, engine, adapter và giao diện kết nối Core; áp dụng cho lập trình viên nội bộ và AI worker.
 
 **Căn cứ đã duyệt:**
@@ -12,7 +13,7 @@
 - `docs\46-chuyen-doi-dieu-phoi\CHI-DAO-TU-ANH.md`, CD-026 đến CD-036; trực tiếp áp dụng CD-027, CD-028, CD-029, CD-031, CD-032, CD-033 và CD-034.
 - Đặc tả kỹ thuật: `docs\47-core\g1\DAC-TA-API.md`, `ANH-XA-ROUTE.md`, `DAC-TA-CSDL.md`, `ANH-XA-MIGRATION.md`.
 
-Đây là chuẩn thiết kế API đã duyệt, không phải xác nhận các chức năng đã được triển khai. Việc mở lại lập trình thực hiện theo chỉ đạo riêng; bản chuẩn này không thay thế điều kiện duyệt SDK bản 2 và CD mở lại lập trình.
+Đây là bản chuẩn thiết kế API tập hợp các quyết định từ phiếu đã duyệt; văn bản chuẩn chờ Anh xem, không phải xác nhận các chức năng đã được triển khai. Việc mở lại lập trình thực hiện theo chỉ đạo riêng; bản chuẩn này không thay thế điều kiện duyệt SDK bản 2 và CD mở lại lập trình.
 
 ## 1. Thay đổi
 
@@ -20,12 +21,14 @@
 |---|---|---|
 | v1.0 | 30/10/2026 | Bản đầu; tập hợp quy tắc API Core đã duyệt để hướng dẫn lập trình module mới. |
 
+v1.0 (sửa trước khi gửi Anh): theo review Opus + Codex
+
 Mọi thay đổi sau v1.0 phải tăng phiên bản và bổ sung vào mục này.
 
 ## 2. Kết luận
 
 1. Người dùng chỉ kết nối Core; API công khai dùng tiền tố `/api/v1/`.
-2. Nghiệp vụ module nằm dưới `/api/v1/module/{ma}/…`; từng route phải đăng ký riêng.
+2. Nghiệp vụ module nằm dưới `/api/v1/module/{ma_module}/…`; từng route phải đăng ký riêng.
 3. Core xác thực phiên, kiểm pháp nhân, quyền, Origin/CSRF và chuyển tiếp yêu cầu.
 4. Lỗi dùng một cấu trúc chung, thông điệp tiếng Việt và `request_id`.
 5. Việc lâu trả `202` cùng `viec_id`; hủy là đề nghị; gián đoạn phải thể hiện bằng `interrupted`.
@@ -46,10 +49,10 @@ API công khai của hệ thống nằm dưới:
 Nghiệp vụ riêng của module nằm dưới:
 
 ```text
-/api/v1/module/{ma}/...
+/api/v1/module/{ma_module}/...
 ```
 
-`{ma}` là mã module đã đăng ký. Module mẫu trong tài liệu này có mã giả định `mau_demo`.
+`{ma_module}` là mã module đã đăng ký. `mau_demo` là mã giả định để minh họa quy tắc; ví dụ CAS §6.3 dùng route CRM đã khai báo trong OpenAPI của đặc tả.
 
 Namespace module **không phải wildcard cho phép gọi operation tùy ý**. Mỗi route phải được khai báo riêng trong gói module, có method, đường dẫn và contract đầu vào/đầu ra trước khi đăng ký.
 
@@ -66,8 +69,8 @@ Quy tắc đặt tên:
 
 Phải phân biệt:
 
-- `GET /api/v1/module` và `GET /api/v1/module/{ma}`: metadata do **Core sở hữu**.
-- `/api/v1/module/{ma}/…`: nghiệp vụ do **module sở hữu**, theo từng route đã đăng ký.
+- `GET /api/v1/module` và `GET /api/v1/module/{ma_module}`: metadata do **Core sở hữu**.
+- `/api/v1/module/{ma_module}/…`: nghiệp vụ do **module sở hữu**, theo từng route đã đăng ký.
 
 Core tra registry bằng mã module. Client không được chỉ định host, cổng hoặc URL nội bộ để Core chuyển tiếp tùy ý.
 
@@ -234,7 +237,7 @@ Module phải khai mã lỗi và HTTP status trong contract. Response sai schema
 | `429` | Vượt hạn mức hoặc hàng đợi đầy; kèm `Retry-After`. |
 | `500` | Lỗi nội bộ đã làm sạch. |
 | `502` | Phản hồi/protocol từ tiến trình phụ thuộc không hợp lệ. |
-| `503` | Chưa sẵn sàng, đang dừng, khởi động lỗi hoặc xung đột cổng. |
+| `503` | Chưa sẵn sàng, đang dừng, khởi động lỗi, xung đột cổng hoặc thiếu chính sách bắt buộc. |
 | `504` | Hết thời hạn chờ phản hồi sau khi đã chuyển request. |
 
 Với lệnh ghi chưa rõ kết quả, client phải đối chiếu bằng **cùng khóa chống trùng**, không tạo request mới chỉ vì nhận timeout.
@@ -267,11 +270,11 @@ Phạm vi chống trùng gồm:
 nguoi_dung × phap_nhan_hoac_he_thong × module × operation × khoa
 ```
 
-Biên nhận operation Core lưu tách khỏi biên nhận nghiệp vụ module. Khi việc còn hoạt động hoặc kết quả chưa xác định, phải giữ biên nhận để đối chiếu.
+Biên nhận operation Core lưu tách khỏi biên nhận nghiệp vụ module. Biên nhận operation Core giữ 24 giờ từ kết quả cuối (đặc tả API §2.4); giữ tiếp khi việc còn hoạt động hoặc kết quả chưa xác định; hết hạn không cho phép tạo trùng nghiệp vụ.
 
 #### b. Operation nghiệp vụ module
 
-Đối với `/api/v1/module/{ma}/…`:
+Đối với `/api/v1/module/{ma_module}/…`:
 
 - Core chỉ giữ khóa request đang chạy.
 - Core chuyển nguyên `Idempotency-Key` trong thẻ ngữ cảnh đã ký.
@@ -413,7 +416,7 @@ Content-Type: multipart/form-data
 
 Quy định:
 
-- **Mỗi tệp không quá 20 MB**, theo câu 2A phiếu API.
+- Mỗi tệp không quá 20 MB (= 20 MiB = 20.971.520 byte theo OpenAPI của đặc tả; Core đếm byte khi nhận luồng).
 - Tiếp tục chịu giới hạn nhỏ hơn của capability.
 - JSON tối đa 1 MiB theo đặc tả.
 - Không đưa tệp base64 vào JSON.
@@ -882,18 +885,18 @@ Cache-Control: no-store
 
 Kết quả vẫn có thể cần duyệt dù việc đã `succeeded`. Nếu mất heartbeat sau restart hoặc hết lease, trạng thái phải là `interrupted`.
 
-### 6.3. Cập nhật ghi chú trong `mau_demo` với CAS
+### 6.3. Cập nhật ghi chú báo giá CRM với CAS
 
-Giả định gói `mau_demo` khai báo route báo giá mẫu và yêu cầu cả `row_version`, `expected_revision`, theo mẫu CAS của đặc tả.
+Ví dụ dùng nguyên contract tối thiểu đã khai báo trong Phụ lục — `openapi-v1.yaml` của đặc tả API: `GET` và `PATCH /api/v1/module/crm/bao-gia/{id}`. PATCH dùng operation `crm_luu_ghi_chu_bao_gia`: body theo `#/components/schemas/LuuGhiChuBaoGia`, response `200` theo `#/components/schemas/GhiChuBaoGia`, lỗi `409` qua `#/components/responses/XungDot` theo schema `Loi`. Cả `row_version` và `expected_revision` đều bắt buộc; dữ liệu dưới đây hoàn toàn giả định, không khai báo thêm route cho `mau_demo`.
 
 ```http
-PATCH /api/v1/module/mau_demo/bao-gia/10000000-0000-4000-8000-000000000006 HTTP/1.1
+PATCH /api/v1/module/crm/bao-gia/10000000-0000-4000-8000-000000000006 HTTP/1.1
 Host: core.example.test
 Origin: https://core.example.test
 Cookie: __Host-ktt_phien=PHIEN_MINH_HOA
 X-CSRF-Token: CSRF_MINH_HOA
 X-Phap-Nhan-Id: 10000000-0000-4000-8000-000000000001
-Idempotency-Key: mau_demo-luu-bao-gia-0001
+Idempotency-Key: crm-luu-bao-gia-0001
 Content-Type: application/json
 Accept: application/json
 
@@ -943,7 +946,7 @@ Module ghi thay đổi và biên nhận bất biến trong cùng transaction. N�
 
 ### 7.1. Route và contract
 
-- [ ] Mọi route nghiệp vụ nằm dưới `/api/v1/module/{ma}/…`, khai báo riêng theo method/path.
+- [ ] Mọi route nghiệp vụ nằm dưới `/api/v1/module/{ma_module}/…`, khai báo riêng theo method/path.
 - [ ] Không chiếm route Core hoặc namespace module khác.
 - [ ] Có OpenAPI, JSON Schema đầu vào/đầu ra, HTTP status và mã lỗi.
 - [ ] Có `contract/`, khai trong `module.json`; contract nghiệp vụ đã được duyệt trước kích hoạt.
@@ -975,7 +978,7 @@ Module ghi thay đổi và biên nhận bất biến trong cùng transaction. N�
 
 ### 7.4. Tệp và vận hành
 
-- [ ] Upload multipart, giới hạn 20 MB/tệp và giới hạn nhỏ hơn của capability.
+- [ ] Upload multipart; giới hạn nhỏ hơn của capability vẫn áp dụng. Mỗi tệp không quá 20 MB (= 20 MiB = 20.971.520 byte theo OpenAPI của đặc tả; Core đếm byte khi nhận luồng).
 - [ ] Kiểm MIME thực, hash, kích thước và quyền trước công bố.
 - [ ] Download kiểm quyền trước bytes; không nhận đường dẫn/URL tùy ý.
 - [ ] Tệp module qua File Store Core; kết quả tải theo metadata → `tep_id`.
@@ -991,19 +994,40 @@ Module ghi thay đổi và biên nhận bất biến trong cùng transaction. N�
 
 Các tài liệu sau cung cấp schema và ánh xạ chi tiết; không cần đọc phiếu duyệt hoặc biên bản review để hiểu quy tắc trong bản chuẩn này.
 
+Các đường dẫn dưới đây tính từ gốc repo `accounting_assisstance`, để vẫn tra cứu được khi sao chép chuẩn sang `D:\Claude\QUY-TRINH-CHUNG\CHUAN-CORE\`.
+
 | Tài liệu | Nội dung tra cứu |
 |---|---|
-| [`docs\47-core\g1\DAC-TA-API.md`](../g1/DAC-TA-API.md) | §2 quy ước; §3 route; §4 dispatcher, thẻ và thời hạn; §5 vận hành; §6 ví dụ; §8 OpenAPI 3.1 và schema API. |
-| [`docs\47-core\g1\ANH-XA-ROUTE.md`](../g1/ANH-XA-ROUTE.md) | Ánh xạ theo nguồn/method/path; phân loại `T/T*/D/N/S/B`; chuyển tiếp và điều kiện gỡ route cũ. |
-| [`docs\47-core\g1\DAC-TA-CSDL.md`](../g1/DAC-TA-CSDL.md) | Chủ dữ liệu, biên nhận, phiên/mã ủy nhiệm, login, RLS, giao dịch và quyền CSDL. |
-| [`docs\47-core\g1\ANH-XA-MIGRATION.md`](../g1/ANH-XA-MIGRATION.md) | Chuyển đối tượng cũ sang chủ mới; giữ lịch sử và tránh đọc/ghi chéo module. |
+| `docs\47-core\g1\DAC-TA-API.md` | §2 quy ước; §3 route; §4 dispatcher, thẻ và thời hạn; §5 vận hành; §6 ví dụ; Phụ lục — `openapi-v1.yaml`: OpenAPI 3.1 và schema API. |
+| `docs\47-core\g1\ANH-XA-ROUTE.md` | Ánh xạ theo nguồn/method/path; phân loại `T/T*/D/N/S/B`; chuyển tiếp và điều kiện gỡ route cũ. |
+| `docs\47-core\g1\DAC-TA-CSDL.md` | Chủ dữ liệu, biên nhận, phiên/mã ủy nhiệm, login, RLS, giao dịch và quyền CSDL. |
+| `docs\47-core\g1\ANH-XA-MIGRATION.md` | Chuyển đối tượng cũ sang chủ mới; giữ lịch sử và tránh đọc/ghi chéo module. |
 
 **Các điểm còn chờ, không tự quyết định:**
+
+Cách gọi cụ thể (hàm SDK cho biên nhận V2, File Store, mã ủy nhiệm, credential instance) nằm ở `CHUAN-CORE-SDK-v1.0.md`, **chưa ban hành, chờ Anh duyệt phiếu SDK bản 2**. Chưa có SDK thì không tự viết lớp thay thế.
 
 - Danh sách nhân sự đăng nhập thật: **chờ Anh**.
 - Phiếu SDK bản 2 và điều kiện mở lại lập trình: theo trạng thái phê duyệt, **chờ Anh** khi chưa có quyết định.
 - Chủ nghiệp vụ, mã module hoặc contract của các đích `T*` và `{ma_module_van_hanh}` chưa được duyệt: **chờ Anh**; chưa kích hoạt.
 - Ngày ngừng alias chưa được duyệt: **chờ Anh**; không tự đặt lịch ngừng.
 - Ngoại lệ tài khoản cho engine cũ cần tài khoản riêng: **chờ Anh**; không tự nới quyền.
+- Route quản trị sổ contract: bổ sung khi mở G2.
 
 Không dùng nhãn “đề xuất” hoặc “chờ duyệt” lịch sử trong đặc tả để mở lại các lựa chọn đã chốt: API **1A/2A**, CSDL **1A/2A/3A**. Các điểm chưa được duyệt vẫn giữ trạng thái chờ; bản chuẩn này không tự bổ sung quyết định mới.
+
+## 9. Đã xử lý review
+
+Mã C/D theo `RV-CHUAN-OPUS.md`; mã CX dưới đây định danh theo thứ tự các phát hiện trong `RV-CHUAN.md`.
+
+| Mã | Chỗ sửa |
+|---|---|
+| C1 / CX-3 — giới hạn upload | §3.9a và §7.4: giữ cách gọi 20 MB của phiếu 2A, ghi rõ 20 MiB = 20.971.520 byte theo OpenAPI, đếm byte khi nhận luồng. |
+| C2 | Đầu tệp: phân biệt ngày duyệt phiếu với văn bản chuẩn còn chờ Anh xem. |
+| C3 | §3.6a: biên nhận Core giữ 24 giờ từ kết quả cuối, giữ tiếp khi cần; hết hạn không cho tạo trùng. |
+| C4 | §8: ghi rõ chuẩn SDK chưa ban hành, chờ Anh duyệt phiếu bản 2. |
+| C5 | §8: dùng đường dẫn từ gốc repo cho toàn bộ tài liệu tra cứu. |
+| D2 | §3.5: bổ sung 503 khi thiếu chính sách bắt buộc; §8: route quản trị sổ contract bổ sung khi mở G2. |
+| CX-2 — path parameter | §2, §3.1, §3.6b và §7.1: đồng bộ `{ma_module}` với route metadata và namespace của đặc tả. |
+| CX-4 — route/schema ví dụ CAS | §6.3: dùng GET/PATCH báo giá CRM đã khai báo; chỉ rõ operation và ánh xạ schema request/response/lỗi, không tạo contract `mau_demo`. |
+| CX-5 — dẫn chiếu OpenAPI (gợi ý) | §8: sửa đích dẫn chiếu thành Phụ lục — `openapi-v1.yaml`. |
