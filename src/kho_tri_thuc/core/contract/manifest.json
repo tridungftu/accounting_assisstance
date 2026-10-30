@@ -1,0 +1,515 @@
+{
+  "urn:ktt:manifest:module.v1": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "urn:ktt:manifest:module.v1",
+    "$comment": "Phien ban schema 1.0.0; manifest v1",
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+      "phien_ban_manifest",
+      "loai",
+      "ma",
+      "ten",
+      "phien_ban",
+      "tuong_thich",
+      "goi",
+      "contract",
+      "backend",
+      "giao_dien",
+      "thao_tac",
+      "du_lieu_rieng",
+      "ham_core_goi",
+      "ma_loi",
+      "quyen_yeu_cau",
+      "engine_dung",
+      "quy_trinh",
+      "cong_bo",
+      "su_kien",
+      "tien_trinh",
+      "cong_tac"
+    ],
+    "properties": {
+      "phien_ban_manifest": {"const":1},
+      "loai": {"const":"module"},
+      "ma": {"$ref":"#/$defs/ma"},
+      "ten": {"type":"string","minLength":1},
+      "phien_ban": {"$ref":"#/$defs/semver"},
+      "tuong_thich": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["core","api","sdk_python","sdk_js","contract"],
+        "properties": {
+          "core": {"type":"string","minLength":1},
+          "api": {"const":"v1"},
+          "sdk_python": {"type":"string","minLength":1},
+          "sdk_js": {"type":"string","minLength":1},
+          "contract": {"type":"array","items":{"$ref":"#/$defs/contract"},"uniqueItems":true}
+        }
+      },
+      "goi": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["tep_kiem_ke","thuat_toan_ma_bam","phu_thuoc_module"],
+        "properties": {
+          "tep_kiem_ke": {"$ref":"#/$defs/tep"},
+          "thuat_toan_ma_bam": {"const":"sha256"},
+          "phu_thuoc_module": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["ma","phien_ban"],
+              "properties": {"ma":{"$ref":"#/$defs/ma"},"phien_ban":{"type":"string","minLength":1}}
+            },
+            "uniqueItems": true
+          }
+        }
+      },
+      "contract": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["cong_bo","su_kien_phat","su_kien_nhan","dau_vao_nguon"],
+        "properties": {
+          "cong_bo": {"$ref":"#/$defs/ds_contract_goi"},
+          "su_kien_phat": {"$ref":"#/$defs/ds_contract_goi"},
+          "su_kien_nhan": {"$ref":"#/$defs/ds_contract_goi"},
+          "dau_vao_nguon": {"$ref":"#/$defs/ds_contract_goi"}
+        }
+      },
+      "backend": {"type":"object","additionalProperties":false,"required":["diem_vao"],"properties":{"diem_vao":{"$ref":"#/$defs/diem_vao"}}},
+      "giao_dien": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["diem_vao","tai_nguyen","icon","nhom_mau","thu_tu","trang_dau","thao_tac_khung","phan","the"],
+        "properties": {
+          "diem_vao": {"$ref":"#/$defs/tep"},
+          "tai_nguyen": {"type":"array","items":{"$ref":"#/$defs/tep"},"minItems":1,"uniqueItems":true},
+          "icon": {"$ref":"#/$defs/ma"},
+          "nhom_mau": {"$ref":"#/$defs/ma"},
+          "thu_tu": {"type":"integer","minimum":0},
+          "trang_dau": {"$ref":"#/$defs/route_ui"},
+          "thao_tac_khung": {"$ref":"#/$defs/ma"},
+          "phan": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["ma","ten","icon","thu_tu","duong_dan","quyen_xem"],
+              "properties": {
+                "ma": {"$ref":"#/$defs/ma"},
+                "ten": {"type":"string","minLength":1},
+                "icon": {"$ref":"#/$defs/ma"},
+                "thu_tu": {"type":"integer","minimum":0},
+                "duong_dan": {"$ref":"#/$defs/route_ui"},
+                "quyen_xem": {"$ref":"#/$defs/quyen"},
+                "dem": {"$ref":"#/$defs/ma"}
+              }
+            }
+          },
+          "the": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["ma","nhan","dem","loc"],
+              "properties": {
+                "ma": {"$ref":"#/$defs/ma"},
+                "nhan": {"type":"string","minLength":1},
+                "dem": {"$ref":"#/$defs/ma"},
+                "loc": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": ["phan","tham_so"],
+                  "properties": {"phan":{"$ref":"#/$defs/ma"},"tham_so":{"type":"object"}}
+                }
+              }
+            },
+            "minItems": 2,
+            "maxItems": 4
+          }
+        }
+      },
+      "thao_tac": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["ma","phuong_thuc","duong_dan","dau_vao","dau_ra","quyen","kieu","chong_trung"],
+          "properties": {
+            "ma": {"$ref":"#/$defs/ma"},
+            "phuong_thuc": {"enum":["GET","POST","PUT","PATCH","DELETE"]},
+            "duong_dan": {"type":"string","pattern":"^/[a-z0-9_/{}/-]*$"},
+            "dau_vao": {"$ref":"#/$defs/schema_ref"},
+            "dau_ra": {"$ref":"#/$defs/schema_ref"},
+            "quyen": {"$ref":"#/$defs/quyen"},
+            "kieu": {"enum":["dong_bo","viec"]},
+            "chong_trung": {"type":"boolean"},
+            "kiem_row_version": {"type":"boolean"},
+            "quy_trinh": {"type":"string","minLength":1}
+          },
+          "allOf": [
+            {
+              "if": {"properties":{"kieu":{"const":"viec"}},"required":["kieu"]},
+              "then": {
+                "properties": {
+                  "dau_ra": {"const":"urn:ktt:contract:viec.v1#/$defs/da_nhan"},
+                  "chong_trung": {"const":true},
+                  "phuong_thuc": {"enum":["POST","PUT","PATCH","DELETE"]}
+                }
+              }
+            },
+            {
+              "if": {"properties":{"phuong_thuc":{"const":"GET"}},"required":["phuong_thuc"]},
+              "then": {"properties":{"kieu":{"const":"dong_bo"},"chong_trung":{"const":false}}},
+              "else": {"properties":{"chong_trung":{"const":true}}}
+            }
+          ]
+        },
+        "minItems": 1
+      },
+      "du_lieu_rieng": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["bang","ham","phan_vung","goi_migration","v2_ghi_chung","v3_danh_muc","v4_cong_bo_doc","cot_nhom_a"],
+        "properties": {
+          "bang": {"$ref":"#/$defs/ds_ma"},
+          "ham": {"$ref":"#/$defs/ds_ma"},
+          "phan_vung": {"const":"phap_nhan_id"},
+          "goi_migration": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["ma","phien_ban_du_lieu","tep_kiem_ke","thu_muc"],
+            "properties": {
+              "ma": {"$ref":"#/$defs/ma"},
+              "phien_ban_du_lieu": {"type":"integer","minimum":1},
+              "tep_kiem_ke": {"$ref":"#/$defs/tep"},
+              "thu_muc": {"$ref":"#/$defs/tep"}
+            }
+          },
+          "v2_ghi_chung": {"$ref":"#/$defs/ds_ma"},
+          "v3_danh_muc": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["doi_tuong","truong"],
+              "properties": {"doi_tuong":{"type":"string","pattern":"^danh_muc\\.[a-z][a-z0-9_]*$"},"truong":{"$ref":"#/$defs/ds_ma"}}
+            },
+            "uniqueItems": true
+          },
+          "v4_cong_bo_doc": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["module","ma","phien_ban","schema"],
+              "properties": {
+                "module": {"$ref":"#/$defs/ma"},
+                "ma": {"$ref":"#/$defs/ma"},
+                "phien_ban": {"type":"string","minLength":1},
+                "schema": {"$ref":"#/$defs/schema_ref"}
+              }
+            },
+            "uniqueItems": true
+          },
+          "cot_nhom_a": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["bang","cot","cot_ban_ma","cot_phien_ban_khoa","cot_hmac","mien_hmac","chuan_hoa","quyen_xem_du"],
+              "properties": {
+                "bang": {"$ref":"#/$defs/ma"},
+                "cot": {"$ref":"#/$defs/ma"},
+                "cot_ban_ma": {"$ref":"#/$defs/ma"},
+                "cot_phien_ban_khoa": {"$ref":"#/$defs/ma"},
+                "cot_hmac": {"$ref":"#/$defs/ma"},
+                "mien_hmac": {"$ref":"#/$defs/quyen"},
+                "chuan_hoa": {"$ref":"#/$defs/ma"},
+                "quyen_xem_du": {"$ref":"#/$defs/quyen"}
+              }
+            }
+          }
+        }
+      },
+      "ham_core_goi": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["loai_ham","phien_ban_contract","ham","chu_ky"],
+          "properties": {
+            "loai_ham": {"enum":["resolver_mtq","kiem_nghia_vu"]},
+            "phien_ban_contract": {"type":"string","minLength":1},
+            "ham": {"$ref":"#/$defs/ma"},
+            "chu_ky": {"$ref":"#/$defs/tep"}
+          }
+        }
+      },
+      "ma_loi": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["ma","http","truong"],
+          "properties": {
+            "ma": {"type":"string","pattern":"^[A-Z][A-Z0-9_]{0,95}$"},
+            "http": {"enum":[400,401,403,404,409,410,413,415,422,429,500,502,503,504]},
+            "truong": {"$ref":"#/$defs/ds_chuoi"}
+          }
+        }
+      },
+      "quyen_yeu_cau": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["tai_nguyen","hanh_dong","pham_vi"],
+          "properties": {
+            "tai_nguyen": {"$ref":"#/$defs/ma"},
+            "hanh_dong": {"type":"array","items":{"$ref":"#/$defs/ma"},"minItems":1,"uniqueItems":true},
+            "pham_vi": {"$ref":"#/$defs/ma"},
+            "truong": {"$ref":"#/$defs/ds_ma"},
+            "bien_the": {"$ref":"#/$defs/ds_ma"},
+            "capability": {"$ref":"#/$defs/ds_chuoi"},
+            "loai": {"$ref":"#/$defs/ds_chuoi"}
+          }
+        }
+      },
+      "engine_dung": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["capability","bat_buoc","dau_vao","dau_ra"],
+          "properties": {
+            "capability": {"type":"string","minLength":1},
+            "bat_buoc": {"type":"boolean"},
+            "dau_vao": {"$ref":"#/$defs/contract"},
+            "dau_ra": {"$ref":"#/$defs/contract"}
+          }
+        }
+      },
+      "quy_trinh": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["ma","phien_ban","tep"],
+          "properties": {"ma":{"$ref":"#/$defs/ma"},"phien_ban":{"type":"string","minLength":1},"tep":{"$ref":"#/$defs/tep"}}
+        }
+      },
+      "cong_bo": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["ma","phien_ban","ham","schema","truong","quyen_doc"],
+          "properties": {
+            "ma": {"$ref":"#/$defs/ma"},
+            "phien_ban": {"type":"string","minLength":1},
+            "ham": {"$ref":"#/$defs/ma"},
+            "schema": {"$ref":"#/$defs/schema_ref"},
+            "truong": {"$ref":"#/$defs/ds_ma"},
+            "quyen_doc": {"$ref":"#/$defs/quyen"}
+          }
+        }
+      },
+      "su_kien": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["phat","nhan"],
+        "properties": {
+          "phat": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["loai","phien_ban","tham_chieu"],
+              "properties": {"loai":{"type":"string","minLength":1},"phien_ban":{"type":"integer","minimum":1},"tham_chieu":{"$ref":"#/$defs/ds_ma"}}
+            }
+          },
+          "nhan": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["loai","phien_ban","xu_ly"],
+              "properties": {"loai":{"type":"string","minLength":1},"phien_ban":{"type":"integer","minimum":1},"xu_ly":{"$ref":"#/$defs/ma"}}
+            }
+          }
+        }
+      },
+      "tien_trinh": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["cong","nhan_listener","readiness","thu_hoi","bi_mat","che_do_mac_dinh","ranh_giay_de_xuat"],
+        "properties": {
+          "cong": {"$ref":"#/$defs/cong"},
+          "nhan_listener": {"const":"socket.fromshare"},
+          "readiness": {"const":"kenh_dieu_khien"},
+          "thu_hoi": {"const":"drain_va_xac_nhan"},
+          "bi_mat": {"const":"stdin_hoac_handle"},
+          "che_do_mac_dinh": {"const":"tu_kich_hoat_tu_dong"},
+          "ranh_giay_de_xuat": {"type":"integer","minimum":1}
+        }
+      },
+      "cong_tac": {"type":"object","additionalProperties":false,"required":["mac_dinh"],"properties":{"mac_dinh":{"const":"TAT"}}}
+    },
+    "$defs": {
+      "ma": {"type":"string","pattern":"^[a-z][a-z0-9_]{0,31}$"},
+      "chuoi": {"type":"string","minLength":1},
+      "semver": {"type":"string","pattern":"^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)(-[0-9A-Za-z.-]+)?(\\+[0-9A-Za-z.-]+)?$"},
+      "tep": {"type":"string","pattern":"^(?!/)(?!.*(?:^|/)\\.\\.(?:/|$))[A-Za-z0-9_./-]+$"},
+      "diem_vao": {"type":"string","pattern":"^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*)+$"},
+      "route_ui": {"type":"string","pattern":"^#[a-z][a-z0-9_/-]*$"},
+      "quyen": {"type":"string","pattern":"^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*){2,}$"},
+      "contract": {
+        "type": "string",
+        "pattern": "^(urn:ktt:contract:)?[a-z][a-z0-9_]*\\.v[1-9][0-9]*(:[0-9]+\\.[0-9]+\\.[0-9]+)?(#/\\$defs/[a-z][a-z0-9_]*)?$"
+      },
+      "schema_ref": {"oneOf":[{"$ref":"#/$defs/contract"},{"allOf":[{"$ref":"#/$defs/tep"},{"pattern":"^schema/.+\\.json$"}]},{"$ref":"#/$defs/tep_contract"}]},
+      "tep_contract": {"allOf":[{"$ref":"#/$defs/tep"},{"pattern":"^contract/.+\\.json$"}]},
+      "ds_contract_goi": {
+        "type": "array",
+        "uniqueItems": true,
+        "items": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["ma","phien_ban","module_so_huu","tep_mo_ta","schema","vi_du"],
+          "properties": {
+            "ma": {"type":"string","minLength":1},
+            "phien_ban": {"type":"string","minLength":1},
+            "module_so_huu": {"$ref":"#/$defs/ma"},
+            "tep_mo_ta": {"$ref":"#/$defs/tep_contract"},
+            "schema": {"$ref":"#/$defs/tep_contract"},
+            "vi_du": {"$ref":"#/$defs/tep_contract"}
+          }
+        }
+      },
+      "ds_ma": {"type":"array","items":{"$ref":"#/$defs/ma"},"uniqueItems":true},
+      "ds_chuoi": {"type":"array","items":{"type":"string","minLength":1},"uniqueItems":true},
+      "cong": {"const":{"nguon":"core_cap","pham_vi":"loopback"}}
+    }
+  },
+  "urn:ktt:manifest:engine.v1": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "urn:ktt:manifest:engine.v1",
+    "$comment": "Phien ban schema 1.0.0; manifest v1",
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+      "phien_ban_manifest",
+      "loai",
+      "ma",
+      "ten",
+      "phien_ban",
+      "tuong_thich",
+      "adapter",
+      "capability",
+      "ho_so_chay_mau",
+      "readiness",
+      "tai_nguyen",
+      "ban_giao_ket_qua",
+      "thu_hoi"
+    ],
+    "properties": {
+      "phien_ban_manifest": {"const":1},
+      "loai": {"const":"engine"},
+      "ma": {"$ref":"urn:ktt:manifest:module.v1#/$defs/ma"},
+      "ten": {"type":"string","minLength":1},
+      "phien_ban": {"$ref":"urn:ktt:manifest:module.v1#/$defs/semver"},
+      "tuong_thich": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["core","api"],
+        "properties": {"core":{"type":"string","minLength":1},"api":{"const":"v1"}}
+      },
+      "adapter": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["ma","phien_ban"],
+        "properties": {"ma":{"$ref":"urn:ktt:manifest:module.v1#/$defs/ma"},"phien_ban":{"type":"string","minLength":1}}
+      },
+      "capability": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["ma","dau_vao","dau_ra","mime","tep_toi_da_mib","trang_toi_da","thoi_han_giay"],
+          "properties": {
+            "ma": {"type":"string","minLength":1},
+            "dau_vao": {"$ref":"urn:ktt:manifest:module.v1#/$defs/contract"},
+            "dau_ra": {"$ref":"urn:ktt:manifest:module.v1#/$defs/contract"},
+            "mime": {"type":"array","items":{"type":"string","pattern":"^[a-z0-9.+-]+/[a-z0-9.+-]+$"},"minItems":1,"uniqueItems":true},
+            "tep_toi_da_mib": {"type":"integer","minimum":1},
+            "trang_toi_da": {"type":"integer","minimum":1},
+            "thoi_han_giay": {"type":"integer","minimum":1}
+          }
+        },
+        "minItems": 1
+      },
+      "ho_so_chay_mau": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "ma_moi_truong",
+          "diem_vao",
+          "headless",
+          "cong",
+          "nhan_listener",
+          "tham_so_cong",
+          "bi_mat",
+          "login_csdl",
+          "che_do_mac_dinh",
+          "ranh_giay_de_xuat"
+        ],
+        "properties": {
+          "ma_moi_truong": {"$ref":"urn:ktt:manifest:module.v1#/$defs/ma"},
+          "diem_vao": {"$ref":"urn:ktt:manifest:module.v1#/$defs/diem_vao"},
+          "headless": {"const":true},
+          "cong": {"$ref":"urn:ktt:manifest:module.v1#/$defs/cong"},
+          "nhan_listener": {"type":"array","items":{"enum":["socket.fromshare","tham_so_cong"]},"minItems":1,"uniqueItems":true},
+          "tham_so_cong": {"const":"--port"},
+          "bi_mat": {"const":"stdin_hoac_handle"},
+          "login_csdl": {"const":false},
+          "che_do_mac_dinh": {"const":"tu_kich_hoat_tu_dong"},
+          "ranh_giay_de_xuat": {"type":"integer","minimum":1}
+        }
+      },
+      "readiness": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["kenh","kiem","thoi_han_giay"],
+        "properties": {
+          "kenh": {"const":"dieu_khien_noi_bo"},
+          "kiem": {"type":"array","items":{"enum":["instance","phien_ban","capability","model_san_sang"]},"minItems":4,"uniqueItems":true},
+          "thoi_han_giay": {"type":"integer","minimum":1,"maximum":120}
+        }
+      },
+      "tai_nguyen": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["so_viec_dong_thoi","ram_toi_da_mib_de_xuat","cpu_phan_tram_toi_da_de_xuat"],
+        "properties": {
+          "so_viec_dong_thoi": {"type":"integer","minimum":1},
+          "ram_toi_da_mib_de_xuat": {"type":"integer","minimum":1},
+          "cpu_phan_tram_toi_da_de_xuat": {"type":"integer","minimum":1,"maximum":100}
+        }
+      },
+      "ket_noi_ngoai": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["dich_vu","muc_dich"],
+          "properties": {"dich_vu":{"$ref":"urn:ktt:manifest:module.v1#/$defs/ma"},"muc_dich":{"type":"string","minLength":1}}
+        },
+        "default": [],
+        "uniqueItems": true
+      },
+      "ban_giao_ket_qua": {"const":"core_xac_nhan_truoc_giai_phong"},
+      "thu_hoi": {"const":"drain_va_xac_nhan"}
+    }
+  }
+}
