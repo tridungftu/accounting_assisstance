@@ -74,7 +74,7 @@ def _nodes(schema):
     for key in ('allOf', 'anyOf', 'oneOf'):
         for child in schema.get(key, []):
             yield from _nodes(child)
-    for key in ('items', 'contains', 'if', 'then', 'else'):
+    for key in ('items', 'contains', 'if', 'then', 'else', 'not'):
         if key in schema:
             yield from _nodes(schema[key])
 
@@ -159,6 +159,8 @@ def _minimal(value, schema, root, schemas):
         require(_equal(value, schema['const']), 'const')
     if 'enum' in schema:
         require(any(_equal(value, item) for item in schema['enum']), 'enum')
+    if 'not' in schema:
+        require(not valid(schema['not'])[0], 'not')
     for child in schema.get('allOf', []):
         evaluated.update(check(child))
     for key in ('anyOf', 'oneOf'):
@@ -266,14 +268,14 @@ class BundleContractTest(unittest.TestCase):
             else:
                 _minimal(value, schema, root, self.schemas)
 
-    def reject(self, key, value):
-        if Draft202012Validator:
+    def reject(self, key, value, *, minimal=False):
+        if Draft202012Validator and not minimal:
             from jsonschema.exceptions import ValidationError
             error = ValidationError
         else:
             error = ValueError
         with self.assertRaises(error):
-            self.validate(key, value)
+            self.validate(key, value, minimal=minimal)
 
     def example(self, name):
         key = 'urn:ktt:contract:' + name + '.v1'
@@ -291,8 +293,25 @@ class BundleContractTest(unittest.TestCase):
     def test_noi_dung_trung_nguyen_van_sau_parse_json(self):
         for key, schema in self.schemas.items():
             with self.subTest(id=key):
+                original = deepcopy(self.originals[key])
+                if key == 'urn:ktt:manifest:engine.v1':
+                    # CD-038 chi sua ngoai le man hinh; phan con lai van khop G1.
+                    profile = original['properties']['ho_so_chay_mau']
+                    profile['properties']['headless'] = {'type': 'boolean'}
+                    profile['properties']['ngoai_le_man_hinh'] = {
+                        'type': 'object', 'additionalProperties': False,
+                        'required': ['ma_quyet_dinh', 'ly_do'],
+                        'properties': {
+                            'ma_quyet_dinh': {'enum': ['CD-038-ENGINE-2A',
+                                                      'CD-038-ENGINE-3A']},
+                            'ly_do': {'type': 'string', 'minLength': 1, 'pattern': r'\S'},
+                        },
+                    }
+                    profile['if'] = {'properties': {'headless': {'const': False}}}
+                    profile['then'] = {'required': ['ngoai_le_man_hinh']}
+                    profile['else'] = {'not': {'required': ['ngoai_le_man_hinh']}}
                 # Giu moi ky tu trong gia tri, chi bo qua whitespace cua JSON.
-                self.assertEqual(schema, self.originals[key])
+                self.assertEqual(schema, original)
 
     @unittest.skipUnless(Draft202012Validator, 'CHUA_KIEM: thieu jsonschema; fallback khong thay meta-schema 2020-12')
     def test_meta_schema_2020_12_day_du(self):
@@ -305,7 +324,7 @@ class BundleContractTest(unittest.TestCase):
         supported = annotations | {
             '$defs', '$ref', 'type', 'const', 'enum', 'properties', 'required',
             'additionalProperties', 'unevaluatedProperties', 'dependentRequired',
-            'allOf', 'anyOf', 'oneOf', 'if', 'then', 'else', 'items', 'contains',
+            'allOf', 'anyOf', 'oneOf', 'if', 'then', 'else', 'not', 'items', 'contains',
             'uniqueItems', 'minItems', 'maxItems', 'minLength', 'maxLength',
             'pattern', 'format', 'minimum', 'maximum', 'exclusiveMinimum',
         }
@@ -521,6 +540,89 @@ class BundleContractTest(unittest.TestCase):
         value = deepcopy(original)
         value['readiness'].pop('kiem')
         self.reject(key, value)
+
+    def test_engine_co_man_hinh_chi_qua_voi_ngoai_le_cd038(self):
+        key = 'urn:ktt:manifest:engine.v1'
+        for code in ('CD-038-ENGINE-2A', 'CD-038-ENGINE-3A'):
+            value = deepcopy(self.examples[key])
+            value['ho_so_chay_mau'].update({
+                'headless': False,
+                'ngoai_le_man_hinh': {'ma_quyet_dinh': code,
+                                     'ly_do': 'DEMO: phien Windows rieng co man hinh'},
+            })
+            for minimal in (False, True):
+                with self.subTest(code=code, minimal=minimal):
+                    self.validate(key, value, minimal=minimal)
+
+    def test_engine_co_man_hinh_thieu_ngoai_le_hoac_ma_la_bi_bac(self):
+        key = 'urn:ktt:manifest:engine.v1'
+        for exception in (None, {}, {'ly_do': 'DEMO'},
+                          {'ma_quyet_dinh': 'CD-038-ENGINE-4A', 'ly_do': 'DEMO'},
+                          {'ma_quyet_dinh': 'CD-038', 'ly_do': 'DEMO'}):
+            value = deepcopy(self.examples[key])
+            value['ho_so_chay_mau']['headless'] = False
+            if exception is not None:
+                value['ho_so_chay_mau']['ngoai_le_man_hinh'] = exception
+            for minimal in (False, True):
+                with self.subTest(exception=exception, minimal=minimal):
+                    self.reject(key, value, minimal=minimal)
+
+    def test_engine_ngoai_le_phai_co_ly_do_va_dung_cau_truc(self):
+        key = 'urn:ktt:manifest:engine.v1'
+        approved = {'ma_quyet_dinh': 'CD-038-ENGINE-3A', 'ly_do': 'DEMO'}
+        exceptions = [None, [], 'CD-038-ENGINE-3A',
+                      {'ma_quyet_dinh': 'CD-038-ENGINE-3A'},
+                      {**approved, 'tu_duyet': True}]
+        exceptions += [{**approved, 'ly_do': reason}
+                       for reason in ('', ' \t\n', None, 123)]
+        for exception in exceptions:
+            value = deepcopy(self.examples[key])
+            value['ho_so_chay_mau'].update({
+                'headless': False, 'ngoai_le_man_hinh': exception})
+            for minimal in (False, True):
+                with self.subTest(exception=exception, minimal=minimal):
+                    self.reject(key, value, minimal=minimal)
+
+    def test_engine_headless_khong_duoc_khai_ngoai_le(self):
+        key = 'urn:ktt:manifest:engine.v1'
+        for code in ('CD-038-ENGINE-2A', 'CD-038-ENGINE-3A'):
+            value = deepcopy(self.examples[key])
+            value['ho_so_chay_mau']['ngoai_le_man_hinh'] = {
+                'ma_quyet_dinh': code, 'ly_do': 'DEMO'}
+            for minimal in (False, True):
+                with self.subTest(code=code, minimal=minimal):
+                    self.reject(key, value, minimal=minimal)
+
+    def test_engine_headless_van_bat_buoc_dung_kieu_boolean(self):
+        key = 'urn:ktt:manifest:engine.v1'
+        for headless in (None, 0, 1, 'false'):
+            value = deepcopy(self.examples[key])
+            value['ho_so_chay_mau'].update({
+                'headless': headless,
+                'ngoai_le_man_hinh': {'ma_quyet_dinh': 'CD-038-ENGINE-2A',
+                                     'ly_do': 'DEMO'},
+            })
+            for minimal in (False, True):
+                with self.subTest(headless=headless, minimal=minimal):
+                    self.reject(key, value, minimal=minimal)
+
+    def test_engine_capability_van_bat_buoc_khong_rong_ke_ca_ngoai_le(self):
+        key = 'urn:ktt:manifest:engine.v1'
+        for code in (None, 'CD-038-ENGINE-2A', 'CD-038-ENGINE-3A'):
+            for capability in (None, [], '', [{}]):
+                value = deepcopy(self.examples[key])
+                if code is not None:
+                    value['ho_so_chay_mau'].update({
+                        'headless': False,
+                        'ngoai_le_man_hinh': {'ma_quyet_dinh': code, 'ly_do': 'DEMO'},
+                    })
+                if capability is None:
+                    value.pop('capability')
+                else:
+                    value['capability'] = capability
+                for minimal in (False, True):
+                    with self.subTest(code=code, capability=capability, minimal=minimal):
+                        self.reject(key, value, minimal=minimal)
 
     def test_doc_json_chan_khoa_trung_va_so_khong_huu_han(self):
         for raw in ('{"x":1,"x":2}', '{"x":{"a":1,"a":2}}',
