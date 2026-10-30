@@ -783,3 +783,7 @@ Chi tiết có tệp:dòng: `BANG-DIEU-KIEN-GO-LIVE.md`; quy trình: `CHECKLIST-
   - SDK: chờ.
 - **G2 cần:** đủ 3 phiếu + CD mới mở lập trình.
 - **Codex rảnh, có lý do:** G0–G1 xong; còn chờ Anh.
+### 30/10 ~13:05 — **Anh DUYỆT phiếu CSDL** (1A, 2A, 3A)
+- **Tình trạng 3 phiếu:** CSDL đã duyệt; API đã duyệt; **SDK chờ Anh**.
+- **G2 cần:** phiếu SDK + CD mới mở lập trình.
+- **Việc của Anh:** gửi danh sách nhân sự đăng nhập.

@@ -81,3 +81,7 @@ Trả lời một dòng, ví dụ: **"Duyệt CSDL; câu 1 A, câu 2 A, câu 3 A
 - **Câu 3: A.** Core tự quản tài khoản. Anh sẽ gửi danh sách nhân sự đăng nhập sau.
 - **Câu 1: Anh hỏi lại** "trường hợp nào module tự nhận là người dùng khác được?". Lead đã giải thích bằng ví dụ trong phiên làm việc; chờ Anh chọn A/B.
 - **Duyệt toàn phiếu:** chờ câu 1.
+- **ANH ĐÃ DUYỆT CẢ PHIẾU (30/10/2026):** "Duyệt CSDL 1 A".
+  - Câu 1: A. Core cấp mã phiên bí mật, CSDL tự kiểm.
+  - Câu 2: A.
+  - Câu 3: A (danh sách nhân sự Anh gửi sau).
