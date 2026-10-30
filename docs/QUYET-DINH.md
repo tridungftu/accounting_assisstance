@@ -387,3 +387,14 @@ Anh chốt 26/10 ~22:50: "Đồng ý toàn bộ đề xuất S1–S6 và M1–M3
   - M2 khóa cột bọc DPAPI theo tài khoản chạy phần mềm, trong `D:\DU-LIEU-KE-TOAN\bi-mat\`; khóa sao lưu riêng cất ổ ngoài + bản dự phòng. **Người giữ ổ ngoài: Anh chỉ định khi tới bước tạo khóa sao lưu.**
   - M3 sao lưu mã hóa 23:00 hằng ngày và trước/sau nâng cấp hoặc nạp; chép ổ khác hằng ngày, ổ ngoài hằng tuần; giữ 30 bản ngày + 12 bản tháng, không tự xóa; mục tiêu mất ≤ 24 giờ, khôi phục ≤ 2 giờ; báo Anh nếu BitLocker làm chậm > 10% (pgbench) hoặc > 15% (thao tác lưu).
 - Lát mở: XS-4b (SQL công tắc), XS-4c (máy chủ), XS-2 (hàng việc nền), pilot XS-T1; MH-1 (cổng mã hóa cột), SL-1 (sao lưu mã hóa), rồi MH-2…, SL-2, DO-1.
+
+## QD-20261030-01 · Core: pháp nhân tắt MTQ không mở đường quyền cũ cho module mới (lead, 30/10/2026)
+
+- **Bối cảnh:** QD-20261026-10 mục 3, 6 ghi: mọi pháp nhân tắt MTQ → đi đường quyền cũ (`CU`); `mtq_duoc_doc` trả NULL.
+- **Vấn đề:** đặc tả CSDL Core §5 (Anh duyệt phiếu CSDL 30/10) quy định "đường quyền cũ chỉ được giữ cho đối tượng chuyển tiếp đã khai báo, không tự lan sang module mới".
+- **Quyết định:** trong Core (G2-06):
+  - mọi pháp nhân tắt → `CHO`;
+  - `mtq_duoc_doc` → false;
+  - đối tượng chuyển tiếp cần đường cũ phải khai báo riêng.
+- QD này thay mục 3, 6 của QD-20261026-10 **chỉ trong Core**. Mã cũ ở `k2\` giữ nguyên tới khi module chuyển sang Core.
+- **Căn cứ:** review Opus G2-06 N2.
