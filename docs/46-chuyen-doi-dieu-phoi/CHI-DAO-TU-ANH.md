@@ -354,3 +354,38 @@
 5. Thứ tự: G0 khảo sát (song song 4 Codex: (a) xương sống/Core hiện có, (b) database + 67 migration, (c) route/API hiện có, (d) công cụ ngoài: Mask v2, OCR-1, bộ tải hóa đơn, #6/E1; Engine Studio/OCR đối chiếu chờ Anh cho vị trí) → G1a CSDL → G1b API → G1c SDK; phiếu nào xong gửi Anh trước (CD-029).
 6. Lệnh dừng lập trình (CD-026) vẫn giữ: G0–G1 chỉ tài liệu; không code, không gộp code, không migration.
 **Trạng thái:** ĐÃ NHẬN 30/10 10:30 — 4 Codex chỉ đọc; Claude chỉ ghép phiếu + review Opus điểm cốt lõi; kiểm xác suất chọn trước (G0: KS-B); /usage đầu ngày đã ghi (tuần 1%).
+
+## CD-031 · 30/10/2026 13:45 · Phiếu SDK — contract dữ liệu: JSON hai lớp, bổ sung contract NGHIỆP VỤ theo module
+**Căn cứ:** Anh trao đổi 30/10 13:28–13:45 về mục 5 `docs\47-core\PHIEU-DUYET-SDK.md`: "không hiểu tại sao không trao đổi dữ liệu dạng JSON và bao gồm tất cả các thông tin yêu cầu; việc thể hiện tiền dạng chữ số hoặc mã tiền tệ chỉ là yếu tố rất nhỏ, không đại diện cho tất cả các loại nghiệp vụ". Anh chốt: **JSON hai lớp, bổ sung contract nghiệp vụ theo module**.
+**Việc:**
+1. **Sửa cách trình bày trong phiếu SDK:** nói rõ dữ liệu trao đổi là **JSON**; contract (JSON Schema) chỉ là bản mô tả gói JSON phải có những thông tin gì để Core kiểm tự động. Không nhấn mạnh chi tiết định dạng tiền ở phần tóm tắt (để phụ lục).
+2. **Lớp kỹ thuật** (Core định nghĩa — giữ 9 contract hiện có): tệp, văn bản tài liệu, bảng, tham số, nội dung đã che, trả lời AI, hóa đơn (đọc từ XML), lỗi, việc.
+3. **Lớp nghiệp vụ** (module sở hữu dữ liệu định nghĩa, Anh duyệt) — lập **danh mục + ví dụ JSON đầy đủ** cho từng contract, trường lấy từ thiết kế đã chốt (TL 42, 45, 49, 50; thiết kế M4 20/10 + CD-011; TL 43 M2-00; CD-022…024), mỗi trường ghi nguồn:
+   - **CRM:** `hop_dong_ban` (phiên bản, tham số, lịch thanh toán % + giá trị gồm VAT + VAT, mốc dự kiến/thực tế), `bao_gia`, `du_an_dang_ban` (thông tin, giá & thuế, phí, mốc, tiến độ %, lô/căn);
+   - **M4:** `hop_dong_thau`, `phu_luc`, `boq`, `dot_thanh_toan`, `ket_qua_kiem_dot`, `nghiem_thu`;
+   - **M2:** `hoa_don_mua_vao` (đã nhận, đích hạch toán, trạng thái), `cong_no_phai_tra`;
+   - **Chung:** `doi_tuong`, `du_an`, `but_toan_de_xuat`, `tep_nhap_junsky`;
+   - **Sự kiện:** `tien_da_noi_dot`, `ban_giao_da_duyet`, `moc_da_xay_ra`, `hop_dong_hieu_luc`, `hoa_don_da_nhan`.
+4. Mỗi contract nghiệp vụ: mục đích · module sở hữu · module được đọc · danh sách trường (tên tiếng Việt không dấu, nghĩa, bắt buộc/tùy chọn, đơn vị) · một ví dụ JSON DEMO đầy đủ · trạng thái/phiên bản. Phần tóm tắt cho Anh ≤ 2 trang; chi tiết để phụ lục `docs\47-core\g1\CONTRACT-NGHIEP-VU.md`.
+5. Codex soạn nháp (tối đa song song theo module), Codex review chéo; Opus review một lượt phần quy tắc chung + 3 contract cốt lõi (`hop_dong_ban`, `dot_thanh_toan`, `but_toan_de_xuat`). Gửi lại Anh **phiếu SDK bản 2** (câu 1–3 cũ giữ nguyên + mục contract mới).
+**Trạng thái:** ĐÃ NHẬN 30/10 14:00 — 4 Codex soạn contract nghiệp vụ (CRM, M4, M2, Chung+sự kiện; đề `docs/47-core/g1/GIAO-G1C-NV.md`) → Codex review chéo → Opus quy tắc chung + 3 contract cốt lõi → phiếu SDK bản 2.
+
+## CD-032 · 30/10/2026 13:50 · Quy tắc: mỗi module phải tạo lớp dữ liệu giao tiếp có cấu trúc để gắn vào Core (sổ contract)
+**Căn cứ:** Anh 30/10 13:42: "contract Core sẽ phải thường xuyên cập nhật khi có module mới vì có nguồn dữ liệu khác nhau; phải ghi quy tắc để mỗi module khi tạo cũng phải hình thành lớp dữ liệu giao tiếp một cách có cấu trúc để gắn vào Core". TL 55 §11; `CLAUDE.md` thêm dòng "Lớp dữ liệu giao tiếp".
+**Việc (đưa vào phiếu SDK bản 2 cùng CD-031 và đặc tả G1c):**
+1. Gói module bắt buộc có `contract/` (dữ liệu công bố, sự kiện phát/nhận, đầu vào nguồn); mỗi contract: mục đích, sở hữu, được đọc, trường (tên tiếng Việt không dấu, nghĩa, bắt buộc, đơn vị, nguồn), ví dụ JSON đầy đủ, JSON Schema, phiên bản; `module.json` liệt kê. Thiếu/không hợp lệ → không cài.
+2. **Sổ đăng ký contract** trong `loi`: cài/nâng cấp module → Core kiểm và đăng ký thêm, không sửa code Core; ghi mã, phiên bản, module sở hữu, module đang dùng, trạng thái (nháp / Anh duyệt / đang dùng / ngừng); màn quản trị xem sổ.
+3. Bộ kiểm tuân thủ thêm: contract mới trùng nghĩa contract đã có → đỏ (phải dùng lại/mở rộng contract chung); module đọc dữ liệu module khác ngoài contract đã đăng ký + cấp quyền → đỏ.
+4. Contract nghiệp vụ mới hoặc phiên bản mới của contract đang được dùng → Anh duyệt trước khi kích hoạt; xuất danh mục dạng bảng (như `Danh-muc-contract-du-lieu.xlsx` phiên điều phối đã gửi Anh) để duyệt.
+5. Phiên bản cũ giữ cho module đang dùng; sổ cảnh báo module còn dùng phiên bản sắp ngừng.
+6. Áp ngay cho M4, CRM, M2 ở G4: mỗi module làm `contract/` trước khi làm màn hình.
+**Trạng thái:** ĐÃ NHẬN 30/10 14:00 — đưa `contract/` + sổ contract trong `loi` + kiểm trùng nghĩa vào đặc tả SDK/CSDL và phiếu SDK bản 2.
+
+## CD-033 · 30/10/2026 13:55 · Anh trả lời 3 câu phiếu SDK
+**Căn cứ:** `docs\47-core\PHIEU-DUYET-SDK.md` mục 2; Anh trả lời 30/10 13:44–13:51 trong phiên điều phối (câu 2 sau khi được giải thích kỹ: tài khoản máy tính phụ trên cùng máy chủ, như thẻ ra vào khác nhau trong cùng tòa nhà; Core giữ "két" `D:\DU-LIEU-KE-TOAN\bi-mat\`).
+**Quyết định:**
+1. **Câu 1 — Module thử Core ở G2: CRM** (Anh chọn, khác khuyến nghị A). Dùng **dữ liệu DEMO**; phạm vi thử đủ đi qua: tệp, engine (trích xuất/OCR), việc lâu, công bố + sự kiện, `contract/` (CD-032), cài/tắt qua giao diện, ma trận thẩm quyền, cổng do Core giữ/nhả (CD-028). Lead đề xuất phạm vi CRM tối thiểu cho G2 (vd: Dự án đang bán + Báo giá) để Anh xem cùng phiếu SDK bản 2; G4 thứ tự M4 → CRM → M2 giữ nguyên, phần CRM đã thử ở G2 được dùng tiếp.
+2. **Câu 2 — A:** module/engine chạy dưới **tài khoản máy tính phụ có quyền hạn chế** (vd `ktt_module`), Core dưới tài khoản riêng (vd `ktt_core`); áp **ngay từ giai đoạn thử trên máy Anh**, không chạy chung tài khoản. Script tạo tài khoản + cấp quyền thư mục, chạy lại được khi chuyển máy chủ; Anh chỉ bấm đồng ý quyền quản trị. Engine cũ cần tài khoản riêng (vd ABBYY Hot Folder) → ghi ngoại lệ, hỏi Anh, không tự nới quyền. Bộ kiểm tuân thủ kiểm tiến trình module/engine không đọc được thư mục bí mật.
+3. **Câu 3 — A:** module đang tự đóng mà có việc chờ → Core bật ngay; Admin đổi theo số đo (CD-028 mục 3b); không tự bật module Anh đã tắt.
+**Việc:** cập nhật `PHIEU-DUYET-SDK.md` thành bản 2 gồm 3 câu trên (đã chốt) + phần contract JSON hai lớp (CD-031) + quy tắc lớp dữ liệu giao tiếp và sổ contract (CD-032); gửi Anh duyệt toàn phiếu. Sau khi Anh duyệt phiếu SDK bản 2, chờ CD mở lại lập trình (G2).
+**Trạng thái:** ĐÃ NHẬN 30/10 14:00 — ghi 1 CRM, 2A, 3A vào phiếu SDK; lead đề xuất phạm vi CRM tối thiểu cho G2 trong phiếu bản 2.

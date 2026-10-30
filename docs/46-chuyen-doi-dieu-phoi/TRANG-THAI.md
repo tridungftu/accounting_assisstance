@@ -787,3 +787,13 @@ Chi tiết có tệp:dòng: `BANG-DIEU-KIEN-GO-LIVE.md`; quy trình: `CHECKLIST-
 - **Tình trạng 3 phiếu:** CSDL đã duyệt; API đã duyệt; **SDK chờ Anh**.
 - **G2 cần:** phiếu SDK + CD mới mở lập trình.
 - **Việc của Anh:** gửi danh sách nhân sự đăng nhập.
+### 30/10 ~14:00 — nhận CD-031/032/033; giao 4 Codex contract nghiệp vụ
+- **CD-033 (Anh trả lời phiếu SDK):**
+  - câu 1 = **CRM** là module thử Core ở G2, dữ liệu DEMO;
+  - câu 2 = A, tài khoản máy phụ hạn chế ngay từ giai đoạn thử trên máy Anh;
+  - câu 3 = A.
+- **CD-031:** JSON hai lớp; thêm lớp contract nghiệp vụ.
+  - 4 Codex đang soạn: CRM, M4, M2, Chung+sự kiện.
+  - Đề: `docs\47-core\g1\GIAO-G1C-NV.md`.
+- **CD-032:** gói module bắt buộc có `contract/`; sổ contract trong `loi`.
+- **Tiếp theo:** ghép `CONTRACT-NGHIEP-VU.md` → review chéo Codex → Opus (quy tắc chung + `hop_dong_ban`, `dot_thanh_toan`, `but_toan_de_xuat`) → **phiếu SDK bản 2**, kèm đề xuất phạm vi CRM tối thiểu cho G2.
