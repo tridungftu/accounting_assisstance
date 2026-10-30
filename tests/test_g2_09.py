@@ -435,7 +435,9 @@ class TaiLieuPostgresTest(unittest.TestCase):
                 if loai != 'tep':
                     nguon_kq = self._ket_qua(nguon_tep, bien_the='goc')
                     if loai == 'chuoi_ket_qua':
-                        nguon_kq = self._ket_qua(tep, bien_the='da_che',
+                        # Tep dau ra phai duoc gan dung bien the cua mat xich trung gian.
+                        tep_da_che = self._tep('da_che')
+                        nguon_kq = self._ket_qua(tep_da_che, bien_the='da_che',
                             nguon=[dict(ket_qua_id=str(nguon_kq), revision=1, sha256=BAM)])
                     nguon = [dict(ket_qua_id=str(nguon_kq), revision=1, sha256=BAM)]
                 da_cong_bo = self._ket_qua(tep, nguon=nguon)
