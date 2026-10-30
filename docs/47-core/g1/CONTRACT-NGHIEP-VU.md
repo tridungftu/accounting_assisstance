@@ -1434,4 +1434,258 @@ Chỉ công bố hồ sơ đủ điều kiện bàn giao khi PDF, quyết địn
 **Trạng thái/phiên bản:** `nhap` / `1.0.0`. **Chờ Anh:** quyền M2 đọc và biểu diễn trạng thái hiện hành/HOLD trên mặt công bố. Xác nhận kế toán không đồng nghĩa đã ghi công nợ; việc ghi nhận phải đi qua luồng chung M2/M4 để chống ghi nợ hai lần. Request bị trả lại hoặc từ chối không tự hủy nghiệm thu/công nợ, theo TK-M4 §3.
 ---
 
-## M2 — đang soạn lại (lượt đầu bị ngắt do Codex quá tải)
+| Mã contract | Mục đích | Sở hữu | Được đọc |
+|---|---|---|---|
+| `hoa_don_mua_vao.v1` | Công bố hóa đơn đã nhận, phiên bản nguồn, trạng thái và đích hạch toán từng dòng | M2 | Dự kiến M1, M4, M5, M6, M8, M10 theo phạm vi nghiệp vụ — chờ Anh duyệt |
+| `cong_no_phai_tra.v1` | Công bố khoản phải trả có căn cứ, phần đã thanh toán và phần còn lại | M2 | Dự kiến M1, M8, M10 — chờ Anh duyệt |
+
+## NV-M2 — Quy ước và căn cứ
+
+**Trạng thái toàn lát: `nhap`; phiên bản cấu trúc dự kiến `1.0.0`.** Các tên trường dưới đây là ánh xạ contract đề xuất, không khẳng định đã có API hoặc đã triển khai công nợ đầy đủ.
+
+Ký hiệu nguồn:
+
+- **TL43:** `../43-M2-00-nhan-nguon-tu-cong-thue.md`, đã chốt phạm vi §2–6 và policy tiền tệ tại §9. Bản `../THIET-KE-MODULE-DE-CHOT-2026-10-20/M2-00-NHAN-NGUON-TU-CONG-THUE.md` được đối chiếu cùng nội dung này.
+- **M2:** `../THIET-KE-MODULE-DE-CHOT-2026-10-20/M2-MUA-HANG-VA-CONG-NO.md`. Thiết kế nghiệp vụ này **chưa được Anh chốt**, theo TL55 §9.
+- **CB:** `src/kho_tri_thuc/k2/sql_cong_bo_hoa_don.py`, contract công bố M0064.
+- **H:** `src/kho_tri_thuc/k2/hoa_don.py`.
+- **P:** `src/kho_tri_thuc/ha_tang/pg_migrations.py`.
+- **T, D, S:** lần lượt là `CONTRACT-DU-LIEU.md`, `DAC-TA-CSDL.md`, `DAC-TA-SDK.md` trong `docs/47-core/g1/`.
+
+Trong bảng, **“chờ Anh”** nghĩa là nội dung chưa được phê duyệt để vận hành. Kiểu và tính bắt buộc của những trường này cũng là đề xuất nháp. Mã nguồn hiện có là căn cứ về cấu trúc kỹ thuật, không thay thế việc Anh duyệt nghiệp vụ.
+
+**Dùng lại contract chung:**
+
+- `id`, `chuoi`, `ma`, `sha256`, `ngay`, `thoi_diem`, `tien` tham chiếu nguyên `$defs` của `urn:ktt:contract:chung.v1`.
+- Tệp dùng `tham_chieu_tep.v1`; lỗi quyền, tham số và xử lý dùng `loi_chuan.v1`. Không định nghĩa lại.
+- Nhà cung cấp chỉ tham chiếu `doi_tuong.v1` bằng `doi_tuong_id`; dự án chỉ tham chiếu `du_an.v1` bằng `du_an_id`. Không nhúng lại danh mục hoặc tự sinh mã Junsky.
+- Phần đọc XML dùng nguyên `hoa_don.v1`. Contract nghiệp vụ không khai lại đầu hóa đơn, dòng hàng, số lượng, thuế hoặc tổng tiền đọc từ XML.
+
+Hai contract kế thừa vỏ `chung.v1#/$defs/vo_noi_dung`:
+
+| Tên | Nghĩa nghiệp vụ | Kiểu | Bắt buộc / tùy chọn | Đơn vị | Nguồn |
+|---|---|---|---|---|---|
+| `contract` | Mã contract trao đổi | Hằng theo từng contract | Bắt buộc | — | T §2–3 |
+| `phien_ban` | Phiên bản cấu trúc contract | Hằng `"1.0.0"` của bản nháp | Bắt buộc | — | T §2–3 |
+| `revision` | Revision nội dung công bố; khác phiên bản hóa đơn | Kiểu trong vỏ chung | Bắt buộc | Lần | T §2–3 |
+| `nguon_tep_ids` | Các tệp nguồn làm căn cứ | Kiểu trong vỏ chung | Bắt buộc | — | T §2.1, §3 |
+
+Theo D §1.1, §6.1, định danh chung nằm tại `danh_muc`; quan sát, phiên bản, dòng, đích và công nợ thuộc `mod_m2`. Module khác chỉ đọc qua `cong_bo_m2` đúng contract và quyền đã cấp. Không tạo FK sang bảng riêng M2; tham chiếu phiên bản nguồn phải kiểm ID, mã băm và cùng pháp nhân.
+
+## 1. `hoa_don_mua_vao.v1`
+
+**Mã:** `hoa_don_mua_vao.v1`.
+
+**Mục đích:** Công bố những hóa đơn mua vào M2 đã tiếp nhận, giữ rõ phiên bản và quan sát nguồn để module khác đối chiếu. Bổ sung đích hạch toán từng dòng khi có quyết định tương ứng; việc nhận hóa đơn không tự xác nhận ghi nhận công nợ hoặc điều kiện thuế.
+
+**Module sở hữu:** M2.
+
+**Module được đọc:** Dự kiến M1, M4, M5, M6, M8, M10 theo liên kết tại M2 §2, §6; **chờ Anh duyệt danh sách và phạm vi trường**.
+
+**Loại:** Dữ liệu công bố.
+
+### Bảng trường
+
+Bảng sau bổ sung cho vỏ chung. `hoa_don[]` là tập kết quả trong một pháp nhân, kế thừa cách trả `CHO`/`CO_DU_LIEU` của M0064.
+
+| Tên | Nghĩa nghiệp vụ | Kiểu | Bắt buộc / tùy chọn | Đơn vị | Nguồn |
+|---|---|---|---|---|---|
+| `phap_nhan_id` | Pháp nhân của tập hóa đơn | `id` | Bắt buộc | — | CB:30–32, CB:64–68 |
+| `trang_thai` | Có nguồn để công bố hay đang chờ; nhận `CO_DU_LIEU` hoặc `CHO` | Enum theo M0064 | Bắt buộc | — | CB:5–6, CB:64–68 |
+| `ly_do` | Lý do chờ; `null` khi có dữ liệu | `chuoi \| null` | Bắt buộc; khác `null` khi `CHO` | — | CB:31–32, CB:67 |
+| `hoa_don` | Danh sách hóa đơn trong phạm vi được đọc | Mảng đối tượng theo các dòng dưới | Bắt buộc; rỗng khi `CHO` | — | CB:6, CB:38–68 |
+| `hoa_don[].hoa_don_id` | Danh tính hóa đơn dùng chung | `id` | Bắt buộc | — | CB:39; D §1.1, §6.1 |
+| `hoa_don[].phien_ban_id` | Phiên bản nội dung gắn với quan sát được công bố | `id` | Bắt buộc | — | CB:40, CB:57–60 |
+| `hoa_don[].phien_ban_nguon` | Số phiên bản nội dung hóa đơn | Integer ≥ 1 | Bắt buộc | Lần | CB:40; P:5264 |
+| `hoa_don[].contract_noi_dung_nguon` | Contract ngữ nghĩa của nội dung M2 đã lưu | `chuoi` | Bắt buộc | — | CB:41 |
+| `hoa_don[].ma_bam_noi_dung` | Mã băm ngữ nghĩa đã lưu của phiên bản nguồn | `sha256` | Bắt buộc | — | CB:8–9, CB:41 |
+| `hoa_don[].quan_sat_id` | Quan sát nguồn đang được công bố | `id` | Bắt buộc | — | CB:48, CB:57 |
+| `hoa_don[].lan_tiep_nhan_id` | Lần tiếp nhận chứa quan sát; không đồng nhất với danh tính hóa đơn | `id` | Bắt buộc | — | P:5294; H:582 |
+| `hoa_don[].da_nhan_luc` | Thời điểm máy chủ ghi nhận quan sát | `thoi_diem` | Bắt buộc | Thời điểm UTC | P:5316; H:582 |
+| `hoa_don[].quan_sat_nguon_chap_nhan_id` | Quan sát nguồn đã được chấp nhận; chưa có thì `null` | `id \| null` | Bắt buộc, cho phép `null` | — | CB:51; D §2 |
+| `hoa_don[].noi_dung_du_dieu_kien_id` | Con trỏ nội dung đủ điều kiện theo kiểm M2; chưa có thì `null` | `id \| null` | Bắt buộc, cho phép `null` | — | CB:52; D §2 |
+| `hoa_don[].ket_qua_doc_xml` | Tệp JSON chứa nguyên kết quả `hoa_don.v1` | `tham_chieu_tep.v1 \| null` | Bắt buộc, cho phép `null` khi không có kết quả đọc | — | T §2.1, §4, §10; TL43 §6 |
+| `hoa_don[].trang_thai_xml` | Kết quả tải XML: `OK`, `KHONG_XML_GOC` hoặc `LOI` | Enum theo manifest | Bắt buộc | — | TL43 §5–6 |
+| `hoa_don[].phan_loai_quan_sat` | Các phân loại tiếp nhận, revision hoặc conflict do M2 lưu | Mảng `chuoi` | Bắt buộc; giữ nguyên giá trị nguồn | — | CB:48; TL43 §6 |
+| `hoa_don[].mien_trang_thai_nguon` | Namespace của mã trạng thái nguồn | `chuoi \| null` | Bắt buộc, cho phép `null` | — | CB:50 |
+| `hoa_don[].ma_trang_thai_nguon` | Mã trạng thái nguồn nguyên bản; chưa tự diễn giải thành hủy/điều chỉnh | `chuoi \| null` | Bắt buộc, cho phép `null` | — | CB:50; TL43 §6, §9 |
+| `hoa_don[].trang_thai_can_cu_tien` | Tình trạng căn cứ biểu diễn tiền của phiên bản nguồn | `chuoi` | Bắt buộc | — | CB:10, CB:46; P:5278 |
+| `hoa_don[].doi_tuong_id` | Nhà cung cấp đã ánh xạ qua `doi_tuong.v1` | `id \| null` | Tùy chọn — **chờ Anh** | — | M2 §3 bước 3, §4 |
+| `hoa_don[].dich_hach_toan` | Các quyết định đích theo dòng; chưa có thì mảng rỗng | Mảng đối tượng theo bảng dưới | Bắt buộc về cấu trúc nháp — **chờ Anh** | — | M2 §2–5; H:593 |
+
+Các trường trong mỗi phần tử `dich_hach_toan[]`:
+
+| Tên | Nghĩa nghiệp vụ | Kiểu | Bắt buộc / tùy chọn | Đơn vị | Nguồn |
+|---|---|---|---|---|---|
+| `dich_id` | Định danh quyết định đích | `id` | Bắt buộc — **chờ Anh** | — | P:5492; H:593 |
+| `dong_nguon_id` | Dòng nguồn mà quyết định áp dụng; không dùng STT sau sắp xếp | `id` | Bắt buộc — **chờ Anh** | — | P:5492; M2 §5 |
+| `dong_danh_tinh_id` | Danh tính dòng nghiệp vụ đã được xác lập | `id` | Bắt buộc — **chờ Anh** | — | P:5492; M2 §3–5 |
+| `phien_ban_dich` | Phiên bản quyết định đích | Integer ≥ 1 | Bắt buộc — **chờ Anh** | Lần | P:5492; H:593 |
+| `dich` | Đích đang lưu: `CHI_PHI`, `XDCB_241`, `TAI_SAN`, `KHO` | Enum theo mã hiện có | Bắt buộc — **chờ Anh chốt catalog áp dụng** | — | H:35; M2 §2, §8 M2-Q3 |
+| `hien_hanh` | Quyết định có đang là đích hiện hành của dòng hay không | Boolean | Bắt buộc — **chờ Anh** | — | P:5492; M2 §5 |
+| `trang_thai` | Trạng thái quyết định đích; mã hiện có gồm `NHAP`, `CHO_DUYET`, `DA_DUYET`, `THAY_THE`, `BO_QUA` | Enum theo bảng hiện có | Bắt buộc — **chờ Anh** | — | P:5492; H:593 |
+| `ly_do` | Lý do chọn hoặc thay đích | `chuoi` | Bắt buộc — **chờ Anh** | — | P:5492, cột `reason`; M2 §2, §4 |
+| `du_an_id` | Dự án của dòng theo `du_an.v1`, khi đã xác định | `id \| null` | Tùy chọn — **chờ Anh** | — | M2 §2, §8 M2-Q3; D §1.1 |
+
+**Quy tắc nghiệp vụ và giới hạn:**
+
+- `CO_DU_LIEU` chỉ xác nhận có nguồn. Không suy thành đã duyệt kế toán, đã ghi nhận phải trả hoặc đủ điều kiện khấu trừ thuế.
+- Quan sát công bố theo `latest_observation_id` như M0064; không tự thay bằng phiên bản lớn nhất hoặc `eligible_content_id`. Bên sử dụng phải ghim phiên bản và mã băm cụ thể.
+- `ma_bam_noi_dung` là mã băm ngữ nghĩa đã lưu, không phải mã băm tệp XML hay tệp JSON kết quả đọc.
+- Chỉ nhận theo manifest; cùng danh tính và cùng hash không tạo thêm hóa đơn. Khác hash hoặc trạng thái nguồn phải giữ revision/conflict. File ngoài manifest chưa rõ nguồn không đi vào đề xuất.
+- `KHONG_XML_GOC` có bằng chứng bảng kê là trường hợp tiếp nhận hợp lệ; `ket_qua_doc_xml` có thể `null`. PDF dựng từ XML chỉ để xem.
+- Policy tiền tệ tại TL43 §6 được giữ riêng với dữ liệu gốc: đề xuất VND phải có cờ và phiên bản policy; không ghi đè đơn vị tiền trong `hoa_don.v1`. Có dấu hiệu ngoại tệ hoặc mâu thuẫn thì chờ kiểm.
+- Đích áp dụng theo từng dòng. Theo thiết kế M2 đang chờ duyệt, một dòng chỉ có một đích hiện hành; tuyến `KHO` chưa xác nhận ghi nhận giá trị kho.
+- Contract này không thay thế toàn bộ phép chiếu M0064, đặc biệt các thông tin coverage và mức đầy đủ kỳ. Không được suy tập hóa đơn trả về là toàn bộ hóa đơn của kỳ.
+
+### Ví dụ JSON DEMO đầy đủ
+
+Ví dụ có nguồn XML và một quyết định đích nháp; chưa có con trỏ nội dung đủ điều kiện. Các UUID, mã băm và thông tin tệp đều là giả lập DEMO.
+
+```json
+{
+  "contract": "hoa_don_mua_vao.v1",
+  "phien_ban": "1.0.0",
+  "revision": 1,
+  "nguon_tep_ids": [
+    "10000000-0000-4000-8000-000000000001",
+    "10000000-0000-4000-8000-000000000002"
+  ],
+  "phap_nhan_id": "30000000-0000-4000-8000-000000000001",
+  "trang_thai": "CO_DU_LIEU",
+  "ly_do": null,
+  "hoa_don": [
+    {
+      "hoa_don_id": "40000000-0000-4000-8000-000000000001",
+      "phien_ban_id": "40000000-0000-4000-8000-000000000002",
+      "phien_ban_nguon": 1,
+      "contract_noi_dung_nguon": "M2_XML_CONTENT_V1",
+      "ma_bam_noi_dung": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "quan_sat_id": "40000000-0000-4000-8000-000000000003",
+      "lan_tiep_nhan_id": "40000000-0000-4000-8000-000000000004",
+      "da_nhan_luc": "2026-10-30T07:00:00Z",
+      "quan_sat_nguon_chap_nhan_id": null,
+      "noi_dung_du_dieu_kien_id": null,
+      "ket_qua_doc_xml": {
+        "contract": "tham_chieu_tep.v1",
+        "phien_ban": "1.0.0",
+        "tep_id": "10000000-0000-4000-8000-000000000003",
+        "ten_tep": "DEMO-ket-qua-hoa-don.v1.json",
+        "mime": "application/json",
+        "kich_thuoc": 2048,
+        "sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "het_han_luc": null
+      },
+      "trang_thai_xml": "OK",
+      "phan_loai_quan_sat": [],
+      "mien_trang_thai_nguon": "DEMO_NGUON",
+      "ma_trang_thai_nguon": "DEMO_MA_CHUA_DIEN_GIAI",
+      "trang_thai_can_cu_tien": "UNPROVEN_NO_MINOR",
+      "doi_tuong_id": null,
+      "dich_hach_toan": [
+        {
+          "dich_id": "50000000-0000-4000-8000-000000000001",
+          "dong_nguon_id": "50000000-0000-4000-8000-000000000002",
+          "dong_danh_tinh_id": "50000000-0000-4000-8000-000000000003",
+          "phien_ban_dich": 1,
+          "dich": "CHI_PHI",
+          "hien_hanh": true,
+          "trang_thai": "NHAP",
+          "ly_do": "DEMO - đích minh họa đang chờ xác nhận",
+          "du_an_id": null
+        }
+      ]
+    }
+  ]
+}
+```
+
+**Trạng thái/phiên bản:** `nhap` / `1.0.0`.
+
+**Còn chờ Anh:** danh sách module và trường được đọc; `doi_tuong_id`; toàn bộ cấu trúc `dich_hach_toan` và catalog/policy áp dụng. Bảng diễn giải `ma_trang_thai_nguon` vẫn chờ xác nhận theo TL43 §9. Các enum đích và trạng thái quyết định nêu trên phản ánh mã hiện có, chưa được coi là phê duyệt thiết kế nghiệp vụ M2 đầy đủ.
+
+## 2. `cong_no_phai_tra.v1`
+
+**Mã:** `cong_no_phai_tra.v1`.
+
+**Mục đích:** Công bố khoản phải trả đã được xác định từ căn cứ mua hàng hoặc nghiệm thu, cùng phần thanh toán đã nối và phần còn lại. Hóa đơn, RQ và nghiệm thu cùng một sự kiện kinh tế phải được kiểm để không ghi nhận nghĩa vụ lần hai.
+
+**Module sở hữu:** M2.
+
+**Module được đọc:** Dự kiến M1 để nối thanh toán, M8 và M10 để đối chiếu; **chờ Anh duyệt**.
+
+**Loại:** Dữ liệu công bố.
+
+**Giới hạn phê duyệt:** CD-031 yêu cầu có contract này, nhưng chưa chốt cấu trúc nghiệp vụ công nợ. Các trường bên dưới là ánh xạ nháp từ M2 §3–5, **đều chờ Anh**, ngoài vỏ kỹ thuật và quy tắc định danh/phạm vi dùng chung. Không bổ sung hạn thanh toán, tuổi nợ, lãi phạt hoặc điều kiện thanh toán chưa có căn cứ.
+
+### Bảng trường
+
+| Tên | Nghĩa nghiệp vụ | Kiểu | Bắt buộc / tùy chọn | Đơn vị | Nguồn |
+|---|---|---|---|---|---|
+| `cong_no_id` | Định danh hồ sơ khoản phải trả, tách khỏi danh tính hóa đơn | `id` | Bắt buộc — **chờ Anh** | — | M2 §4 “Kết quả”; D §3 |
+| `phap_nhan_id` | Pháp nhân mang nghĩa vụ phải trả | `id` | Bắt buộc | — | M2 §4; D §3, §6.1 |
+| `doi_tuong_id` | Nhà cung cấp qua `doi_tuong.v1`; chưa ánh xạ thì `null` | `id \| null` | Bắt buộc, cho phép `null` — **chờ Anh** | — | M2 §3 bước 3, §4 “Căn cứ” |
+| `hoa_don_id` | Hóa đơn liên quan nếu đã nhận; khoản phải trả có thể còn chờ hóa đơn | `id \| null` | Bắt buộc, cho phép `null` — **chờ Anh** | — | M2 §2–5 |
+| `phien_ban_hoa_don_id` | Phiên bản hóa đơn được dùng làm căn cứ | `id \| null` | Bắt buộc; có giá trị khi dùng căn cứ hóa đơn — **chờ Anh** | — | M2 §4; D §6.1 |
+| `ma_bam_hoa_don` | Mã băm phiên bản hóa đơn đã ghim | `sha256 \| null` | Bắt buộc; đi cùng phiên bản hóa đơn — **chờ Anh** | — | D §6.1; CB:41 |
+| `can_cu_ghi_nhan` | Các căn cứ RQ/nghiệm thu được tham chiếu rõ phiên bản và phạm vi | Mảng đối tượng theo bảng dưới | Bắt buộc về cấu trúc nháp — **chờ Anh** | — | M2 §3 bước 3–4, §4 |
+| `so_tien_phai_tra` | Giá trị nghĩa vụ có căn cứ; không mặc định bằng tổng hóa đơn | `tien \| null` | Bắt buộc, cho phép `null` khi chưa xác định — **chờ Anh** | Theo `don_vi_tien`, như VND/USD | M2 §2–5; T §2.2–3 |
+| `so_tien_da_thanh_toan` | Phần tiền M1 đã được nối hợp lệ với nghĩa vụ này | `tien \| null` | Bắt buộc, cho phép `null` khi chưa xác định — **chờ Anh** | Cùng đơn vị nghĩa vụ; khác tiền tệ chờ policy | M2 §4–5, §7 M2-05 |
+| `so_tien_con_lai` | Phần nghĩa vụ còn lại theo căn cứ và liên kết thanh toán đã kiểm | `tien \| null` | Bắt buộc, cho phép `null` khi chưa xác định — **chờ Anh** | Cùng đơn vị nghĩa vụ | M2 §4 “Kết quả”, §7 M2-05 |
+| `tham_chieu_thanh_toan` | Tham chiếu thanh toán/tạm ứng M1 đã nối; không nhúng sao kê hay tài khoản ngân hàng | Mảng `chuoi`; định dạng tham chiếu chờ chốt | Bắt buộc về cấu trúc nháp — **chờ Anh** | — | M2 §2, §5, §6 L2 |
+| `trang_thai` | Trạng thái hồ sơ công nợ; chưa chốt bộ mã | `chuoi \| null` | Bắt buộc, cho phép `null` trong nháp — **chờ Anh** | — | M2 §4 “Quyết định”, “Kết quả” |
+| `ly_do` | Lý do hồ sơ chờ hoặc ngoại lệ cần xử lý | `chuoi \| null` | Bắt buộc; có nội dung khi hồ sơ chờ — **chờ Anh** | — | M2 §3 bước 4, §4–5 |
+
+Các trường trong mỗi phần tử `can_cu_ghi_nhan[]`:
+
+| Tên | Nghĩa nghiệp vụ | Kiểu | Bắt buộc / tùy chọn | Đơn vị | Nguồn |
+|---|---|---|---|---|---|
+| `loai` | Loại căn cứ, như RQ hoặc nghiệm thu; catalog chưa chốt | `chuoi` | Bắt buộc — **chờ Anh** | — | M2 §2–4 |
+| `tham_chieu` | Mã tham chiếu căn cứ tại nguồn sở hữu | `chuoi` | Bắt buộc — **chờ Anh** | — | M2 §4 “Căn cứ” |
+| `phien_ban` | Phiên bản căn cứ được sử dụng | `chuoi` | Bắt buộc — **chờ Anh** | — | M2 §4 “Căn cứ” |
+| `pham_vi` | Phạm vi nguồn đã xác nhận cho căn cứ | `chuoi` | Bắt buộc — **chờ Anh** | — | M2 §4 “Căn cứ” |
+
+**Quy tắc nghiệp vụ đề xuất, chờ Anh chốt cùng thiết kế M2:**
+
+- Nhận hóa đơn hoặc RQ đã duyệt chưa đủ để xác nhận công nợ. Phải kiểm căn cứ, policy, catalog và phần ghi nhận đã sử dụng.
+- Không đồng nhất một hóa đơn với một khoản phải trả theo quan hệ một-một. Cardinality giữa khoản phải trả, hóa đơn và căn cứ RQ/nghiệm thu **chờ Anh chốt**; nháp này chỉ minh họa nhánh tham chiếu một hóa đơn.
+- Thanh toán/tạm ứng thuộc lớp tiền M1. Việc nối tiền cũ không tạo thêm giao dịch ngân hàng hoặc ghi nhận mua lần hai.
+- `null` nghĩa chưa xác định, khác số tiền 0. Mảng thanh toán rỗng không tự chứng minh chưa thanh toán.
+- Chỉ xác định phần còn lại khi nghĩa vụ, tiền đã nối và đơn vị tiền đã được kiểm. Không tự quy đổi ngoại tệ hoặc lấy tổng hóa đơn trừ tổng tiền ngân hàng.
+- Thay đổi căn cứ sau kiểm/duyệt phải đánh dấu ảnh hưởng hoặc stale; giữ lịch sử và kiểm lại trước khi dùng.
+
+### Ví dụ JSON DEMO đầy đủ
+
+Ví dụ là hồ sơ chờ xác định nghĩa vụ từ hóa đơn DEMO ở contract trước. Căn cứ và tiền chưa đủ nên giữ `null` hoặc mảng rỗng; không tạo số công nợ giả từ `UNPROVEN_NO_MINOR`.
+
+```json
+{
+  "contract": "cong_no_phai_tra.v1",
+  "phien_ban": "1.0.0",
+  "revision": 1,
+  "nguon_tep_ids": [
+    "10000000-0000-4000-8000-000000000001",
+    "10000000-0000-4000-8000-000000000002"
+  ],
+  "cong_no_id": "60000000-0000-4000-8000-000000000001",
+  "phap_nhan_id": "30000000-0000-4000-8000-000000000001",
+  "doi_tuong_id": null,
+  "hoa_don_id": "40000000-0000-4000-8000-000000000001",
+  "phien_ban_hoa_don_id": "40000000-0000-4000-8000-000000000002",
+  "ma_bam_hoa_don": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "can_cu_ghi_nhan": [],
+  "so_tien_phai_tra": null,
+  "so_tien_da_thanh_toan": null,
+  "so_tien_con_lai": null,
+  "tham_chieu_thanh_toan": [],
+  "trang_thai": null,
+  "ly_do": "DEMO - mới có nguồn hóa đơn; chưa đủ căn cứ xác định nghĩa vụ và phần thanh toán"
+}
+```
+
+**Trạng thái/phiên bản:** `nhap` / `1.0.0`.
+
+**Còn chờ Anh:** cấu trúc hồ sơ công nợ; cardinality với hóa đơn và căn cứ; điều kiện bắt buộc của `doi_tuong_id`; catalog và định dạng căn cứ; cách xác định ba trường tiền; giao diện tham chiếu thanh toán M1; bộ mã trạng thái; danh sách module được đọc. Không coi ví dụ hồ sơ chờ là công nợ đã ghi nhận.
+
+Theo CD-031/032 và S §6, sau khi Anh duyệt, gói M2 phải đưa mô tả, JSON Schema và ví dụ của hai contract vào `contract/`, liệt kê trong `module.json` và đăng ký đúng phiên bản tại `loi.dang_ky_contract`. Lát này chỉ soạn tài liệu; chưa tạo schema, kích hoạt contract hoặc cấp quyền đọc.
+
