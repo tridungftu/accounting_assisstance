@@ -35,15 +35,109 @@ _CHU = {}
 class LoiTienTrinh(RuntimeError):
     http_status = 503
 
-    def __init__(self, ma):
+    def __init__(self, ma, retry_after=2):
         self.ma = ma
+        self.headers = {'Retry-After': str(retry_after)}
         super().__init__(ma)
 
 
-def _job():
+def _ten_job(so_id, instance):
+    # Cùng namespace qua cả lần Core restart ở Windows session khác.
+    return 'Global\\ktt-' + str(so_id) + '-' + str(instance)
+
+
+def _job(ten):
     if os.name != 'nt':
         raise LoiTienTrinh('CAN_WINDOWS')
-    return _JobWindows()
+    job = _JobWindows()
+    # Tái dùng cấu hình/thuật toán Job hiện có, thêm tên để Core mới đối chiếu.
+    c, w, k = job._c, job._w, job._k
+    h = None
+    try:
+        class Basic(c.Structure):
+            _fields_ = [('user', c.c_int64), ('job', c.c_int64), ('flags', w.DWORD),
+                        ('min', c.c_size_t), ('max', c.c_size_t), ('active', w.DWORD),
+                        ('affinity', c.c_size_t), ('priority', w.DWORD), ('schedule', w.DWORD)]
+        class Ext(c.Structure):
+            _fields_ = [('basic', Basic), ('io', c.c_ulonglong * 6),
+                        ('limits', c.c_size_t * 4)]
+        info = Ext()
+        if not k.QueryInformationJobObject(job._h, 9, c.byref(info), c.sizeof(info), None):
+            raise LoiTienTrinh('JOB_TRUY_VAN_LOI')
+        h = k.CreateJobObjectW(None, ten)
+        if not h or c.get_last_error() == 183:
+            raise LoiTienTrinh('JOB_TAO_LOI')
+        if not k.SetInformationJobObject(h, 9, c.byref(info), c.sizeof(info)):
+            raise LoiTienTrinh('JOB_CAU_HINH_LOI')
+        job.dong()
+        job._h, h = h, None
+        return job
+    except BaseException:
+        if h:
+            k.CloseHandle(h)
+        job.dong()
+        raise
+
+
+def _phien_da_dung(phien):
+    """Chỉ đọc OS; không kill PID/Job lạ, lỗi quyền/truy vấn => chưa xác nhận."""
+    if os.name != 'nt' or not phien.get('ten_job'):
+        return False
+    import ctypes as c
+    from ctypes import wintypes as w
+    k = c.WinDLL('kernel32', use_last_error=True)
+    k.OpenProcess.argtypes, k.OpenProcess.restype = [w.DWORD, w.BOOL, w.DWORD], w.HANDLE
+    k.OpenJobObjectW.argtypes, k.OpenJobObjectW.restype = [w.DWORD, w.BOOL, w.LPCWSTR], w.HANDLE
+    k.WaitForSingleObject.argtypes = [w.HANDLE, w.DWORD]
+    k.CloseHandle.argtypes = [w.HANDLE]
+    k.QueryInformationJobObject.argtypes = [w.HANDLE, c.c_int, c.c_void_p, w.DWORD, c.c_void_p]
+    # Giữ handle PID trong suốt đối chiếu, chống PID tái sử dụng giữa hai phép đọc.
+    h = k.OpenProcess(0x100000 | 0x1000, False, phien['pid'])
+    if not h and c.get_last_error() != 87:
+        return False
+    try:
+        if h:
+            tao = dinh_danh_lan_tao(SimpleNamespace(_handle=h))
+            if tao == phien['dinh_danh_lan_tao'] and k.WaitForSingleObject(h, 0) != 0:
+                return False
+        j = k.OpenJobObjectW(4, False, phien['ten_job'])  # JOB_OBJECT_QUERY
+        if not j:
+            return c.get_last_error() == 2  # không tồn tại, KHÔNG suy từ access denied
+        try:
+            # JOBOBJECT_BASIC_ACCOUNTING_INFORMATION: 4 LARGE_INTEGER + 4 DWORD.
+            info = (c.c_ulonglong * 6)()
+            if not k.QueryInformationJobObject(j, 1, c.byref(info), c.sizeof(info), None):
+                return False
+            active = c.cast(c.byref(info, 40), c.POINTER(w.DWORD))[0]
+            return active == 0
+        finally:
+            k.CloseHandle(j)
+    finally:
+        if h:
+            k.CloseHandle(h)
+
+
+def _doc_phien(conn, so_id):
+    return so_cong._goi(conn, 'so_cong_doc_phien', (so_id,))
+
+
+def _doi_chieu(conn, so_id, instance, the_he, bang_chung):
+    return so_cong._goi(conn, 'so_cong_doi_chieu', (so_id, instance, the_he, bang_chung))
+
+
+def _ghi_job(conn, so_id, instance, the_he, ten):
+    return so_cong._goi(conn, 'so_cong_ghi_job', (so_id, instance, the_he, ten))
+
+
+def _loi_chua_nhan(conn, so_id, the_he, ma):
+    return so_cong._goi(conn, 'so_cong_loi_chua_nhan', (so_id, the_he, ma))
+
+
+def _nhan_co_job(conn, so_id, instance, the_he, *, ten_job, **kwargs):
+    dong = so_cong.nhan(conn, so_id, instance, the_he, **kwargs)
+    if ten_job is not None:
+        _ghi_job(conn, so_id, instance, dong['the_he'], ten_job)
+    return dong
 
 
 class TienTrinhCore:
@@ -55,7 +149,7 @@ class TienTrinhCore:
 
     def __init__(self, *, so_cong_id, giao_dich, lenh, phien_ban, issuer, contracts,
                  tham_so=None, ma_chu=None, cho_khoi_dong=120, cho_dung=30, popen=subprocess.Popen,
-                 job_factory=_job, doc_dong=_doc_dong, socket_factory=socket.socket,
+                 job_factory=None, doc_dong=_doc_dong, socket_factory=socket.socket,
                  doc_lan_tao=dinh_danh_lan_tao):
         if (not isinstance(lenh, (tuple, list)) or not lenh
                 or not all(isinstance(s, str) and s for s in lenh)
@@ -79,6 +173,7 @@ class TienTrinhCore:
         self._proc = self._job = self._nghe = None
         self._nonce = self._lan_tao = self.instance_id = self.the_he = None
         self._da_nhan = self._khoa_loi = False
+        self._da_dung = set()
         self.trang_thai, self.chu_accept = 'stopped', 'core'
         with _KHOA:
             self.khoa = _CHU.setdefault(self.id, (threading.RLock(), None))[0]
@@ -135,7 +230,35 @@ class TienTrinhCore:
         Trich6Host._don(don, self._proc, job)
         if self._job is not None:
             self._job.dong()
+        if self._da_nhan:
+            self._da_dung.add((str(self.instance_id), self.the_he))
         self._proc = self._job = None
+
+    def doi_chieu(self):
+        """Đối chiếu cả lease chưa hết; CAS không thay thế bằng chứng OS/Job."""
+        with self.khoa:
+            dong = self._so(so_cong.doc)
+            if dong['giu_boi'] is None:
+                return dong
+            with _KHOA:
+                chu = _CHU[self.id][1]
+                if chu is not None and chu is not self:
+                    raise LoiTienTrinh('CONG_CAN_DOI_CHIEU')
+            if self._proc is not None:
+                raise LoiTienTrinh('CONG_CAN_DOI_CHIEU')
+            phien = self._so(_doc_phien)
+            if (not phien or str(phien['id']) != str(dong['giu_boi'])
+                    or phien['the_he'] != dong['the_he']):
+                raise LoiTienTrinh('CONG_CAN_DOI_CHIEU')
+            da_dung = (str(dong['giu_boi']), dong['the_he']) in self._da_dung
+            if not da_dung:
+                try:
+                    da_dung = _phien_da_dung(phien)
+                except Exception as exc:
+                    _xoa_loi(exc)
+            if not da_dung:
+                raise LoiTienTrinh('CONG_CAN_DOI_CHIEU')
+            return self._so(_doi_chieu, UUID(str(dong['giu_boi'])), dong['the_he'], uuid4())
 
     def khoi_dong(self):
         with self.khoa:
@@ -146,9 +269,15 @@ class TienTrinhCore:
             dong = self._so(so_cong.doc)
             if dong['trang_thai'] == 'LOI':
                 raise LoiTienTrinh('KHOI_DONG_BI_KHOA')
-            # Không suy diễn lease hết thành bằng chứng tiến trình cũ đã chết.
             if dong['giu_boi'] is not None:
-                raise LoiTienTrinh('CONG_CAN_DOI_CHIEU')
+                dong = self.doi_chieu()
+            thu_lai = dong.get('thu_lai_sau')
+            if thu_lai:
+                if isinstance(thu_lai, str):
+                    thu_lai = datetime.fromisoformat(thu_lai)
+                con_lai = (thu_lai - datetime.now(timezone.utc)).total_seconds()
+                if con_lai > 0:
+                    raise LoiTienTrinh('KHOI_DONG_LOI', math.ceil(con_lai))
             if (dong['dia_chi_nghe'] not in ('127.0.0.1', '::1')
                     or type(dong['cong']) is not int or not 1024 <= dong['cong'] <= 65535):
                 raise ValueError('Sổ cổng không hợp lệ')
@@ -164,13 +293,17 @@ class TienTrinhCore:
             han = time.monotonic() + self.cho_khoi_dong
             ma = 'KHOI_DONG_LOI'
             try:
-                self._job = self._job_factory()
+                self._job = (_job(_ten_job(self.id, self.instance_id))
+                             if self._job_factory is None else self._job_factory())
                 self._proc = self._popen(self._lenh, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
                     stderr=subprocess.DEVNULL, env=env_con(), shell=False, close_fds=True,
                     creationflags=0x08000000 if os.name == 'nt' else 0)
                 self._job.gan(self._proc)  # trước bất kỳ cấu hình/capability nào
                 self._lan_tao = self._doc_lan_tao(self._proc)
-                dong = self._so(so_cong.nhan, self.instance_id, dong['the_he'],
+                # Danh tinh Job va claim phai commit cung nhau: restart ngay sau
+                # claim khong de lai mot phien khong biet Job nao de doi chieu.
+                dong = self._so(_nhan_co_job, self.instance_id, dong['the_he'],
+                    ten_job=_ten_job(self.id, self.instance_id) if self._job_factory is None else None,
                     pid=self._proc.pid, dinh_danh_lan_tao=self._lan_tao,
                     phien_ban=self._phien_ban, nhan_yeu_cau_luc=yeu_cau,
                     bat_dau_luc=datetime.now(timezone.utc), lease_giay=240)
@@ -215,11 +348,16 @@ class TienTrinhCore:
             finally:
                 cfg = dong_ready = None
             self.trang_thai = 'failed'
-            # Ghi khóa lỗi ở transaction riêng, không rollback cùng lỗi bind/readiness.
+            # Ghi số lỗi/hạn thử lại bền vững trước cleanup, không rollback cùng lỗi.
             try:
                 if self._da_nhan:
                     self._so(so_cong.loi_khoi_dong, self.instance_id, self.the_he, ma_loi=ma)
                     self._khoa_loi = True
+                    loi = self._so(so_cong.doc)
+                else:
+                    loi = self._so(_loi_chua_nhan, dong['the_he'], ma)
+                if loi['trang_thai'] == 'LOI':
+                    ma = 'KHOI_DONG_BI_KHOA'
             finally:
                 try:
                     self._don_loi()
@@ -238,12 +376,12 @@ class TienTrinhCore:
         with self.khoa:
             return self._so(so_cong.gia_han, self.instance_id, self.the_he)
 
-    def _thu_sau_khi_chet(self):
+    def _thu_sau_khi_chet(self, *, da_xac_minh=False):
         ma = 'DUNG_CHUA_XAC_NHAN'
         da_dung = False
         try:
-            da_dung = (self._proc.poll() is not None
-                and Trich6Host._cho_job_rong(self, self._job, min(self.cho_dung, 10)))
+            da_dung = da_xac_minh or (self._proc.poll() is not None
+                and self._job.so_tien_trinh() == 0)
         except LoiHost as exc:
             ma = exc.ma
             _xoa_loi(exc)
@@ -251,6 +389,7 @@ class TienTrinhCore:
             raise LoiTienTrinh(ma)
         # Thu hồi quyền trong máy trước: lỗi sổ không được giữ _proc/accept cũ.
         self._job.dong()
+        self._da_dung.add((str(self.instance_id), self.the_he))
         proc = self._proc
         self._proc = self._job = self._nonce = None
         self._da_nhan = False
@@ -276,7 +415,30 @@ class TienTrinhCore:
         with self.khoa:
             if self._proc is None or self._proc.poll() is None:
                 return False
-            return self._thu_sau_khi_chet()
+            proc = self._proc
+        return self._cho_thu_hoi(proc)
+
+    def _cho_thu_hoi(self, proc):
+        # Job có thể cập nhật accounting sau khi handle tiến trình đã terminal.
+        # Chờ worker ở ngoài khóa; mỗi lần chỉ truy vấn/finalize dưới khóa.
+        han = time.monotonic() + min(self.cho_dung, 10)
+        while True:
+            with self.khoa:
+                if self._proc is not proc:
+                    return True
+                ma = None
+                try:
+                    rong = self._job.so_tien_trinh() == 0
+                except LoiHost as exc:
+                    ma = exc.ma
+                    _xoa_loi(exc)
+                if ma:
+                    raise LoiTienTrinh(ma)
+                if rong:
+                    return self._thu_sau_khi_chet(da_xac_minh=True)
+            if time.monotonic() >= han:
+                raise LoiTienTrinh('DUNG_CHUA_XAC_NHAN')
+            time.sleep(0.05)
 
     def thu_hoi(self, *, timeout=300):
         if not 0 < timeout <= 300:
@@ -284,25 +446,28 @@ class TienTrinhCore:
         with self.khoa:
             if self._proc is None:
                 return True
-            if self._proc.poll() is not None:
-                return self._thu_sau_khi_chet()
-            if self.trang_thai == 'dang_dung':
-                raise LoiTienTrinh('TIEN_TRINH_DANG_DUNG')
-            # Khóa dispatch giữ suốt drain; gia hạn trước để không hết lease giữa
-            # lúc chờ (gia_han không hồi sinh một lease vốn đã hết).
-            self._so(so_cong.gia_han, self.instance_id, self.the_he,
-                     lease_giay=max(120, math.ceil(timeout) + 30))
-            self.trang_thai = 'dang_dung'
-            try:
-                self._gui('thu_hoi')
-                # Đợi terminal (không chỉ ACK) và Job rỗng; không cưỡng bức drain.
-                self._proc.wait(timeout)
-            except (subprocess.TimeoutExpired, OSError):
-                raise LoiTienTrinh('DUNG_CHUA_XAC_NHAN') from None
-            return self._thu_sau_khi_chet()
+            proc = self._proc
+            if proc.poll() is None:
+                if self.trang_thai == 'dang_dung':
+                    raise LoiTienTrinh('TIEN_TRINH_DANG_DUNG')
+                # Chỉ đổi trạng thái/gửi lệnh dưới khóa; chờ terminal ở ngoài khóa.
+                self._so(so_cong.gia_han, self.instance_id, self.the_he,
+                         lease_giay=max(120, math.ceil(timeout) + 30))
+                self.trang_thai = 'dang_dung'
+                try:
+                    self._gui('thu_hoi')
+                except OSError:
+                    raise LoiTienTrinh('DUNG_CHUA_XAC_NHAN') from None
+        try:
+            proc.wait(timeout)
+        except (subprocess.TimeoutExpired, OSError):
+            raise LoiTienTrinh('DUNG_CHUA_XAC_NHAN') from None
+        return self._cho_thu_hoi(proc)
 
     def accept(self, *, timeout=0):
         with self.khoa:
+            if self.trang_thai == 'dang_dung':
+                raise LoiTienTrinh('TIEN_TRINH_DANG_DUNG')
             if self.chu_accept != 'core' or self._proc is not None or self._nghe is None:
                 raise LoiTienTrinh('CORE_KHONG_CO_QUYEN_ACCEPT')
             self._nghe.settimeout(timeout)
