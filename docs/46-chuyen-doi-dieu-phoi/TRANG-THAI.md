@@ -797,3 +797,15 @@ Chi tiết có tệp:dòng: `BANG-DIEU-KIEN-GO-LIVE.md`; quy trình: `CHECKLIST-
   - Đề: `docs\47-core\g1\GIAO-G1C-NV.md`.
 - **CD-032:** gói module bắt buộc có `contract/`; sổ contract trong `loi`.
 - **Tiếp theo:** ghép `CONTRACT-NGHIEP-VU.md` → review chéo Codex → Opus (quy tắc chung + `hop_dong_ban`, `dot_thanh_toan`, `but_toan_de_xuat`) → **phiếu SDK bản 2**, kèm đề xuất phạm vi CRM tối thiểu cho G2.
+### 30/10 ~14:30 — nhận CD-034…037
+- **CD-034 (3 chuẩn Core v1.0):**
+  - Codex đang soạn chuẩn CSDL và chuẩn API (`docs\47-core\chuan\`).
+  - Chuẩn SDK chờ Anh duyệt phiếu SDK bản 2.
+  - Bản sao đặt ở `D:\Claude\QUY-TRINH-CHUNG\CHUAN-CORE\` sau Opus review.
+- **CD-035/036:** Codex soạn bản giao việc 5 engine, có bảng dùng lại/bọc/sửa/viết mới.
+- **CD-037:**
+  - Claude Code 2.1.300; `claude -p` chạy được bằng gói Max.
+  - Script tự khởi động lại đã viết và thử nhánh bỏ qua; nhịp lead ở `var\lead-nhip.txt`.
+  - **Cần Anh:** bấm đúp `tools\CAI-TU-KHOI-DONG-LEAD.cmd` để cài tác vụ; xác nhận bật `crossSessionInbound`; gõ `/remote-control` khi mở phiên lead.
+- **Contract nghiệp vụ vòng 2:** Codex đang sửa.
+- **Phiếu SDK bản 2:** đã có nháp, gửi Anh sau khi sửa xong.

@@ -389,3 +389,54 @@
 3. **Câu 3 — A:** module đang tự đóng mà có việc chờ → Core bật ngay; Admin đổi theo số đo (CD-028 mục 3b); không tự bật module Anh đã tắt.
 **Việc:** cập nhật `PHIEU-DUYET-SDK.md` thành bản 2 gồm 3 câu trên (đã chốt) + phần contract JSON hai lớp (CD-031) + quy tắc lớp dữ liệu giao tiếp và sổ contract (CD-032); gửi Anh duyệt toàn phiếu. Sau khi Anh duyệt phiếu SDK bản 2, chờ CD mở lại lập trình (G2).
 **Trạng thái:** ĐÃ NHẬN 30/10 14:00 — ghi 1 CRM, 2A, 3A vào phiếu SDK; lead đề xuất phạm vi CRM tối thiểu cho G2 trong phiếu bản 2.
+
+## CD-034 · 30/10/2026 14:00 · Xuất BẢN CUỐI 3 chuẩn Core (API · CSDL · SDK) dạng md để hướng dẫn lập trình module khác
+**Căn cứ:** Anh 30/10 13:54: "Sau khi chỉnh lại và chốt lại API, CSDL và SDK, hãy cho tôi file md bản cuối của 3 mục này để tôi hướng dẫn lập trình của module khác". Đã duyệt: phiếu API (1A, 2A), phiếu CSDL (1A, 2A, 3A). SDK: chờ bản 2 (CD-031, CD-032, CD-033).
+**Việc (làm ngay sau khi Anh duyệt phiếu SDK bản 2; API và CSDL có thể soạn trước):**
+1. Ba file **bản chuẩn v1.0 đã duyệt**, viết cho **người lập trình module mới** (nội bộ hoặc AI worker) đọc là làm được, không cần đọc phiếu/biên bản review:
+   - `CHUAN-CORE-CSDL-v1.0.md` — khối dữ liệu (`loi`, `loi_tai_lieu`, `danh_muc`, `mod_<ma>`, `cong_bo_<ma>`), quy tắc đặt tên tiếng Việt không dấu, kiểu dữ liệu (UUID, numeric + đơn vị, timestamptz, row_version), role chạy/migration, RLS theo pháp nhân + mã phiên bí mật (câu 1A), mã hóa cột nhóm A, migration trong gói module, việc module **được/không được** làm, checklist trước khi nộp gói.
+   - `CHUAN-CORE-API-v1.0.md` — `/api/v1/` và namespace `/api/v1/module/{ma}/…`, xác thực, lỗi chuẩn tiếng Việt, 202 + việc, idempotency, row_version/409, phân trang, cổng do Core giữ/nhả (CD-028), danh sách route Core module được dùng, ví dụ request/response, checklist.
+   - `CHUAN-CORE-SDK-v1.0.md` — dịch vụ SDK Python/JS + hàm chính + ví dụ dùng; khung chạy module/engine (nhận cổng, sẵn sàng, dừng); tài khoản máy tính hạn chế (CD-033 câu 2); `module.json` mẫu đầy đủ; **lớp dữ liệu giao tiếp `contract/`** + sổ contract (CD-031, CD-032) kèm mẫu contract nghiệp vụ và ví dụ JSON; bộ kiểm tuân thủ (danh sách KT); checklist.
+2. Mỗi file: phiên bản, ngày Anh duyệt, căn cứ (phiếu + CD); kết luận đầu file; phần "Bắt buộc" / "Khuyến nghị" tách rõ; ví dụ dùng module mẫu giả định (không dữ liệu thật, không tên công ty thật); phụ lục trỏ tới đặc tả chi tiết `docs\47-core\g1\` (OpenAPI, JSON Schema) thay vì chép nguyên.
+3. Lưu tại `docs\47-core\chuan\` **và** bản sao tại `D:\Claude\QUY-TRINH-CHUNG\CHUAN-CORE\` (để Anh dùng cho dự án/module khác). Mọi thay đổi sau này → tăng phiên bản, ghi mục "Thay đổi" đầu file.
+4. Codex soạn từ đặc tả đã duyệt; Opus review một lượt (đúng với phiếu đã duyệt, không thêm quyết định mới — quyết định mới phải hỏi Anh). Báo Anh khi xong (ghi TRANG-THAI "Cần Anh xem: 3 chuẩn Core v1.0").
+**Trạng thái:** ĐÃ NHẬN 30/10 14:30 — Codex đang soạn CHUAN-CORE-CSDL và CHUAN-CORE-API v1.0 (đề `docs/47-core/chuan/GIAO-CHUAN-V1.md`); CHUAN-CORE-SDK soạn sau khi Anh duyệt phiếu SDK bản 2.
+
+## CD-035 · 30/10/2026 14:10 · Bước sau 3 chuẩn Core: dựng Core + 5 engine song song, rồi module
+**Căn cứ:** Anh 30/10 14:01 và chốt 14:05 qua bảng chọn; TL 55 §12 (thay bảng engine §5).
+**Thứ tự:** CD-034 (3 chuẩn Core v1.0) → **G2 dựng Core và G3 năm engine song song** → cắm engine vào Core, thử bằng CRM (CD-033) → G4 module M4, CRM, M2. Lệnh dừng lập trình CD-026 vẫn giữ tới khi Anh duyệt phiếu SDK bản 2 và ra CD mở lại.
+**5 engine:**
+1. `e_ocr` — lõi **ABBYY FineReader, Hot Folder** (OCR-1, cách của phần mềm review); Core quản lý thư mục in/out; ABBYY cần tài khoản riêng → ghi ngoại lệ, hỏi Anh.
+2. `e_mask` — **Mask file v2** (API MASK-1/2); không che tiền/ngày.
+3. `e_trich_xuat` — **phần trích xuất theo tham số của phần mềm review xây dựng** (37 tham số, Local AI) + danh mục theo loại E1-MUA.
+4. `e_hoi_ai` (**mới**) — tách cổng AI hiện có (`tri_thuc/cong_ai.py`, AI-1/AI-2) thành engine chung: Local luôn có, Cloud chỉ qua `e_mask`, đo độ chính xác Local, kiểm xác suất (TL 48); hỗ trợ cờ "chỉ Local" cho M9.
+5. `e_hoa_don` — **tải hóa đơn từ cổng hóa đơn điện tử + đọc XML/ZIP thành contract `hoa_don`** (bộ tải #7/M2-00, `nguon/hoa_don_xml.py`); gọi cổng thuế thật chỉ khi Anh ra lệnh riêng.
+**Mỗi engine:** contract vào/ra, adapter, test mẫu dữ liệu giả chạy độc lập, tài khoản hạn chế (CD-033), Core giữ/nhả cổng + số đo khởi động (CD-028), không giữ mật khẩu/khóa. Chuẩn bị ngay (chỉ tài liệu, trong lúc chờ SDK bản 2): bản giao việc từng engine (≤ 1 trang, lát nhỏ ≤ 3 tệp, Codex làm chính) để mở lại lập trình là chạy được ngay.
+**Trạng thái:** ĐÃ NHẬN 30/10 14:30 — Codex soạn bản giao việc 5 engine (ENGINE-1: e_ocr, e_mask, e_hoi_ai; ENGINE-2: e_trich_xuat, e_hoa_don), chỉ tài liệu.
+
+## CD-036 · 30/10/2026 14:15 · Engine phải DÙNG LẠI code đã có — 4 thư mục nguồn chính thức
+**Căn cứ:** Anh 30/10 14:04: "vẫn phải lưu ý Claude Code sử dụng lại những gì đã có, hạn chế code lại hoàn toàn từ đầu". Phiên điều phối kiểm 14:10: khảo sát G0 của lead (`docs\47-core\g0\KS-D.md`, `KS-E.md`) **đã đọc được cả 4 thư mục**, có dẫn chiếu tệp:dòng (review_xaydung 22 chỗ, download hóa đơn 26, Mask v2 39, `D:\GPT\OCR\ocr-abbyy-ai\ocr_web\app.py:25`, `:315`).
+**Nguồn chính thức cho từng engine:**
+| Engine | Nguồn dùng lại |
+|---|---|
+| `e_ocr` | `D:\GPT\OCR\ocr-abbyy-ai` (và thư viện nó dùng trong `D:\GPT\OCR`: `abbyy-hotfolder`, `mask_ocr`) |
+| `e_mask` | `D:\GPT\Phan mem Mask file\Mask file v2` |
+| `e_trich_xuat` | `D:\Claude\Ho tro review ho so xay dung\review_xaydung` (phần `trich_xuat`) |
+| `e_hoa_don` | `D:\Claude\Phan mem download hoa don` (+ `nguon/hoa_don_xml.py` trong repo) |
+| `e_hoi_ai` | cổng AI trong repo (`tri_thuc/cong_ai.py`, AI-1/AI-2) |
+**Quy tắc:**
+1. **Ưu tiên bọc (adapter) quanh code gốc**, giữ nguyên thuật toán và test gốc; chỉ chép code vào gói engine khi bắt buộc — ghi nguồn + SHA256 + phiên bản bản gốc.
+2. **Không sửa bản gốc** nếu chưa hỏi Anh; riêng Mask v2 nếu cần sửa thì theo `CLAUDE.md` của Mask v2 (không git, CHANGELOG, test + độ phủ không giảm); review_xaydung đang đóng băng (CD-011).
+3. Mỗi bản giao việc engine (CD-035) có bảng **"dùng lại nguyên / bọc / sửa / viết mới"** theo từng phần, kèm lý do cho phần viết mới; Opus review kiểm bảng này. Phần viết mới chỉ cho: adapter theo contract, khung chạy (cổng, sẵn sàng, dừng — CD-028), lớp vận hành Core.
+4. Test gốc của từng nguồn phải đạt khi chạy qua engine (cùng dữ liệu giả).
+5. Áp dụng tương tự cho module G4 (M4 dùng lại review_xaydung + M4 hiện có; CRM, M2 dùng lại code `hop-nhat`).
+**Trạng thái:** ĐÃ NHẬN 30/10 14:30 — bảng "dùng lại nguyên / bọc / sửa / viết mới" bắt buộc trong mỗi bản giao việc engine; Opus review kiểm bảng này.
+
+## CD-037 · 30/10/2026 14:20 · Để phiên điều phối chỉ đạo lead liên tục: bật Remote Control + tác vụ tự khởi động lại
+**Căn cứ:** Anh 30/10 14:06: "hãy chỉ đạo lead một cách liên tục". Phiên điều phối đã đặt tác vụ giám sát 2 giờ/lần (đọc git, hộp thư, TRANG-THAI; nhắn lead nếu nhắn được; báo Anh khi lead dừng hoặc có việc cần Anh). Lead đã dừng 27/10 16:23 → 30/10 (nghi hết hạn mức tuần, `/loop` không tự chạy lại sau hạn mức, `/loop` hết hạn sau 7 ngày — tài liệu Claude Code).
+**Việc (việc vận hành, không phải lập trình sản phẩm — được làm dù CD-026 còn hiệu lực):**
+1. Cấu hình phiên lead **nhận tin từ phiên Claude khác** (cross-session messaging, cài `crossSessionInbound` cho nhận thẳng, không giữ chờ duyệt) và ghi hướng dẫn 1 dòng để Anh gõ `/remote-control` khi mở phiên lead. Ghi phiên bản Claude Code đang dùng (`claude --version`; cần ≥ 2.1.234 trên Windows).
+2. **Tác vụ tự khởi động lại** bằng Windows Task Scheduler (tài khoản của Anh, không cần quyền quản trị nếu được): 30 phút/lần kiểm tra — nếu không có phiên lead nào đang chạy (khóa tệp/PID) thì chạy `claude -c -p "Đọc docs\46-chuyen-doi-dieu-phoi\CHI-DAO-TU-ANH.md, làm một lượt theo CD-020" --permission-mode auto` trong thư mục repo; có khóa chống chạy trùng với cửa sổ lead; ghi nhật ký mỗi lần chạy vào `var\nhat-ky-tu-khoi-dong.log`. Thử một lần, báo Anh kết quả (đặc biệt: chế độ `-p` có chạy được bằng đăng nhập gói Max không).
+3. Script đặt trong `tools\`, có tệp `.cmd` để Anh bấm đúp cài/gỡ tác vụ; không đụng kho thật, không đọc `.env`.
+**Báo Anh khi:** thử xong tác vụ tự khởi động lại; cần Anh bấm `/remote-control`.
+**Trạng thái:** CẦN ANH XÁC NHẬN 30/10 14:30 — Claude Code 2.1.300 (đạt); thử `claude -p` bằng gói Max: chạy được. Script `tools/lead_tu_khoi_dong.ps1` + `tools/CAI-TU-KHOI-DONG-LEAD.cmd` / `GO-TU-KHOI-DONG-LEAD.cmd` đã viết, thử nhánh "lead còn sống" đạt (nhịp `var/lead-nhip.txt`); tác vụ Windows **chưa cài** — Anh bấm đúp CAI để cài. `crossSessionInbound` (nhận tin phiên khác không chờ duyệt) là đổi cài đặt an ninh: chờ Anh xác nhận trong chat.
