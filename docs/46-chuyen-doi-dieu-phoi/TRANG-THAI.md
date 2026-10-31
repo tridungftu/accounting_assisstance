@@ -995,3 +995,4 @@ Chi tiết có tệp:dòng: `BANG-DIEU-KIEN-GO-LIVE.md`; quy trình: `CHECKLIST-
 - **Hồi quy hợp nhất 03:35** (29 module G2 + G3, PG DEMO): **740 ok / 0 lỗi / 2 skip**, 0 treo.
 - **31/10 ~05:45 — đạt mốc N:** đã gộp G2-20 (`7cd3e4d`) và G2-21. Test PG: G2-20 32/32, G2-21 29/29 (tiến trình Windows thật).
 - **Hồi quy sau mốc N** (32 module G2 + G3, PG DEMO): **814 ok / 0 lỗi / 2 skip**, 0 treo.
+- **Ghi chú hiệu năng 31/10 10:20:** test_dm_1 chạy 398 giây khi 6 Codex song song (trước đó khoảng 15 giây) → theo dõi tải máy (CD-048 ngưỡng tự hạ); nghi trigger DM-1 + máy bận.
