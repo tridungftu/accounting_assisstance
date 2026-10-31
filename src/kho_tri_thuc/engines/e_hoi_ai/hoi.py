@@ -97,8 +97,7 @@ class AdapterHoiAI:
 
         truong = []
         for item in kq.truong.values():
-            if not item.trich_dan or item.trich_dan not in yc.van_ban:
-                raise ValueError('Dẫn chứng không khớp văn bản nguồn.')
+            # Cổng gốc đã chuẩn hóa và kiểm dẫn chứng trước khi giữ trường.
             truong.append(dict(
                 ten=item.ten, gia_tri=gia_tri(item.gia_tri), nguon=item.nguon,
                 gia_tri_local=(None if item.gia_tri_local is None

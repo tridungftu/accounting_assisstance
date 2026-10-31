@@ -36,9 +36,9 @@ def dau_vao(**changes):
                 chi_dan='Trích lãi suất DEMO.', truong=['lai_suat'], **changes)
 
 
-def tra_loi(value='8%/năm', do_tin_cay=0.95):
+def tra_loi(value='8%/năm', do_tin_cay=0.95, trich_dan=VAN_BAN):
     return json.dumps({'truong': [{'ten': 'lai_suat', 'gia_tri': value,
-                                  'trich_dan': VAN_BAN}],
+                                  'trich_dan': trich_dan}],
                        'do_tin_cay': do_tin_cay}, ensure_ascii=False)
 
 
@@ -124,6 +124,37 @@ class AdapterTest(unittest.TestCase):
         self.assertIn('CLOUD_TAT', out['ly_do'])
         self.cloud.tra_loi.assert_not_called()
         self.mask.che.assert_not_called()
+
+    def test_dan_chung_chuan_hoa_khoang_trang_qua_adapter(self):
+        for van_ban in (VAN_BAN.replace('DEMO ', 'DEMO\n'),
+                        VAN_BAN.replace(' ', '   \t ')):
+            for chi_cuc_bo in (True, False):
+                with self.subTest(van_ban=van_ban, chi_cuc_bo=chi_cuc_bo):
+                    out = self.goi({**dau_vao(chi_cuc_bo=chi_cuc_bo),
+                                    'van_ban': van_ban})
+                    self.assertEqual(out['duong'], 'LOCAL' if chi_cuc_bo else 'CLOUD')
+                    self.assertEqual(out['truong'][0]['dan_chung'],
+                                     [dict(vi_tri=NGUON['vi_tri'], trich_dan=VAN_BAN)])
+                    self.assertEqual(out['kiem_tra']['trich_dan'], 'dat')
+                    self.assertEqual(out['truong_bi_loai'], [])
+
+    def test_dan_chung_ngoai_van_ban_bi_cong_goc_loai_qua_adapter(self):
+        answer = tra_loi(trich_dan='Lãi suất DEMO 10%/năm.')
+        self.local.return_value = answer
+        self.cloud.tra_loi.return_value = ca.PhanHoiCloud(answer, 'cloud-DEMO-thuc', 10, 20)
+        yc = ca.YeuCauAI('BOC_TACH_HOP_DONG', VAN_BAN, 'Trích lãi suất DEMO.',
+                         ('lai_suat',))
+        for chi_cuc_bo in (True, False):
+            with self.subTest(chi_cuc_bo=chi_cuc_bo):
+                goc = ca.danh_gia(ca.doc_json_tra_loi(answer), yc,
+                                  ca.loai_viec(yc.loai_viec),
+                                  'LOCAL' if chi_cuc_bo else 'CLOUD')
+                self.assertEqual(goc.bi_loai, {'lai_suat': 'TRICH_DAN_SAI'})
+                out = self.goi(dau_vao(chi_cuc_bo=chi_cuc_bo))
+                self.assertEqual(out['truong'], [])
+                self.assertEqual(out['truong_bi_loai'], list(goc.bi_loai))
+                self.assertIn('TRICH_DAN_SAI', out['ly_do'])
+                self.assertEqual(out['kiem_tra']['trich_dan'], 'chua_kiem')
 
     def test_chi_local_khi_khong_chac(self):
         self.local.return_value = tra_loi(do_tin_cay=0.4)
