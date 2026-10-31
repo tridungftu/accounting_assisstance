@@ -489,4 +489,4 @@
 3. Engine **không import chéo** sang thư mục engine khác hay sang module; chỉ dùng SDK Core. Bộ kiểm tuân thủ thêm: mỗi `engines\<ten>\` chạy test độc lập được; không chứa bí mật/dữ liệu thật; tách ra khỏi repo vẫn đọc được manifest.
 4. Core đăng ký engine bằng cách đọc `engines\*\engine.json` (Engine Manager); không khai đường dẫn engine cứng trong code Core.
 5. Ghi cấu trúc thư mục này vào chuẩn SDK v1.1 (mục "Thay đổi") để module/engine sau làm theo.
-**Trạng thái:** ĐÃ NHẬN 31/10 07:35 — ghi vào `docs'-core\g2\KE-HOACH-LAT-G2-G3.md` (lát **G3-GOI** sau khi Core G2 xong; chuyển các engine đã gộp sang `engines\<ten>\` một lần, kèm `NGUON.md` / `README.md` / `CHANGELOG.md` / `contract\` / `tests\`; Engine Manager đọc `engines\*\engine.json`; ghi chuẩn SDK v1.1).
+**Trạng thái:** ĐÃ NHẬN 31/10 07:35 — ghi vào `docs\47-core\g2\KE-HOACH-LAT-G2-G3.md` (lát **G3-GOI** sau khi Core G2 xong; chuyển các engine đã gộp sang `engines\<ten>\` một lần, kèm `NGUON.md` / `README.md` / `CHANGELOG.md` / `contract\` / `tests\`; Engine Manager đọc `engines\*\engine.json`; ghi chuẩn SDK v1.1).
