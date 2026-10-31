@@ -106,6 +106,41 @@ test('mất mạng gửi lại đúng khóa/body; khác nội dung hoặc contex
   await assert.rejects(sdk.api.goi(lenh()), { ma: 'KHOA_KHAC_NOI_DUNG' }); assert.equal(calls.length, 2);
 });
 
+for (const next of [
+  { ...ctx, nguoi_dung_id: 'DEMO-NGUOI-B' },
+  { ...ctx, phap_nhan_id: 'DEMO-PN-B' },
+  { ...ctx, nguoi_dung_id: 'DEMO-NGUOI-B', phap_nhan_id: 'DEMO-PN-B' },
+  {}
+]) test(`nháp 409 không lộ hoặc sống lại sau đổi chủ ${JSON.stringify(next)}`, async () => {
+  const sdk = tao(async () => response(409, { ma: 'XUNG_DOT_PHIEN_BAN' }));
+  await assert.rejects(sdk.api.goi(lenh()), { ma: 'XUNG_DOT_PHIEN_BAN' });
+  assert.deepEqual(sdk.api.doc_nhap('DEMO-KHOA-1'), lenh().du_lieu);
+  sdk.api.doi_ngu_canh(next);
+  assert.equal(sdk.api.doc_nhap('DEMO-KHOA-1'), undefined);
+  sdk.api.doi_ngu_canh(ctx);
+  assert.equal(sdk.api.doc_nhap('DEMO-KHOA-1'), undefined);
+});
+
+test('đọc nháp kiểm pháp nhân/module sở hữu; đổi màn cùng chủ giữ nháp để đối chiếu', async () => {
+  const sdk = tao(async () => response(409, { ma: 'XUNG_DOT_PHIEN_BAN' }));
+  await assert.rejects(sdk.api.goi(lenh()), { ma: 'XUNG_DOT_PHIEN_BAN' });
+  sdk.api.doi_ngu_canh({ ...ctx, man: 'hop_dong' });
+  assert.deepEqual(sdk.api.doc_nhap('DEMO-KHOA-1'), lenh().du_lieu);
+  sdk.api.doi_ngu_canh({ ...ctx, module: 'module_khac' });
+  assert.equal(sdk.api.doc_nhap('DEMO-KHOA-1'), undefined);
+  sdk.api.doi_ngu_canh(ctx);
+  assert.deepEqual(sdk.api.doc_nhap('DEMO-KHOA-1'), lenh().du_lieu);
+
+  // Request chỉ rõ pháp nhân không được cho context chưa chọn pháp nhân đọc nháp.
+  const unselected = SDK.tao({ fetch: async () => response(409, { ma: 'XUNG_DOT_PHIEN_BAN' }),
+    tao_ma: () => 'DEMO-TRACE' });
+  unselected.api.doi_ngu_canh({ nguoi_dung_id: ctx.nguoi_dung_id, module: ctx.module });
+  unselected.api.gan_csrf('DEMO-CSRF');
+  await assert.rejects(unselected.api.goi(lenh({ phap_nhan_id: ctx.phap_nhan_id })),
+    { ma: 'XUNG_DOT_PHIEN_BAN' });
+  assert.equal(unselected.api.doc_nhap('DEMO-KHOA-1'), undefined);
+});
+
 test('409 đang xử lý chờ Retry-After, gửi đúng ý định ban đầu dù form đổi', async () => {
   const calls = [], waits = [], request = lenh();
   const sdk = tao(async (url, init) => {
@@ -220,6 +255,34 @@ test('phiên cấp CSRF trong bộ nhớ; thiếu khóa, CAS số và context kh
   assert.equal(calls.length, 2);
 });
 
+for (const duong_dan of ['/api/v1/phien', '/api/v1/phien?kiem_tra=1']) {
+  test(`đăng xuất ${duong_dan} miễn khóa chống trùng, vẫn gửi CSRF và cookie cùng nguồn`, async () => {
+    const calls = [];
+    const sdk = tao(async (url, init) => { calls.push([url, init]); return response(204); });
+    assert.equal(await sdk.api.goi({ phuong_thuc: 'DELETE', duong_dan }), null);
+    assert.equal(calls.length, 1);
+    assert.equal(calls[0][0], duong_dan);
+    assert.equal(calls[0][1].method, 'DELETE');
+    assert.equal(calls[0][1].headers['X-CSRF-Token'], 'DEMO-CSRF');
+    assert.equal(calls[0][1].headers['Idempotency-Key'], undefined);
+    assert.equal(calls[0][1].credentials, 'same-origin');
+    sdk.api.gan_csrf('');
+    await assert.rejects(sdk.api.goi({ phuong_thuc: 'DELETE', duong_dan }), { ma: 'THIEU_CSRF' });
+    assert.equal(calls.length, 1);
+  });
+}
+
+test('ngoại lệ khóa chỉ cho đăng nhập/đăng xuất, không áp cho ghi khác hoặc đường dẫn gần giống', async () => {
+  let calls = 0;
+  const sdk = tao(async () => { calls++; return response(200, {}); });
+  await sdk.api.goi({ phuong_thuc: 'POST', duong_dan: '/api/v1/phien' });
+  for (const [phuong_thuc, duong_dan] of [
+    ['PATCH', '/api/v1/phien'], ['PUT', '/api/v1/phien'],
+    ['DELETE', '/api/v1/phien/khac'], ['DELETE', '/api/v1/module/crm/bao-gia/DEMO-1']
+  ]) await assert.rejects(sdk.api.goi({ phuong_thuc, duong_dan }), { ma: 'THIEU_KHOA' });
+  assert.equal(calls, 1);
+});
+
 test('phân trang chuyển nguyên con trỏ opaque và giữ context', async () => {
   let called;
   const sdk = tao(async (url, init) => { called = [url, init]; return response(200,
@@ -281,7 +344,7 @@ test('tìm nhanh không thêm quyền; nội dung tên được dựng bằng te
   assert.match(root.textContent, /Chưa có nghiệp vụ phù hợp/);
 });
 
-test('dùng lại khai báo UI-2 module/phan/the; khong_quyen không dựng nghiệp vụ', () => {
+test('nhận khai báo UI-2 module/phan/the; khong_quyen không dựng nghiệp vụ', () => {
   const doc = documentGia(), root = doc.createElement('div');
   const m = khaiBao.module[0];
   const data = { module: { ma: m.ma, ten: m.ten }, phan: m.phan, the: m.the };
@@ -333,4 +396,18 @@ test('SDK browser không đọc/ghi storage hoặc cookie; asset SDK của Shell
   await instance.api.goi(lenh());
   const src = html.match(/<script src="([^"]+)"/)[1];
   assert.equal(path.resolve(__dirname, '../src/kho_tri_thuc/core/ui', src), sdkPath);
+});
+
+test('Shell tham chiếu CSS dùng chung trực tiếp, lưới sử dụng class có trong asset nền', () => {
+  const href = html.match(/<link rel="stylesheet" href="([^"]+)"/)[1];
+  const assetPath = path.resolve(__dirname, '../src/kho_tri_thuc/core/ui', href);
+  assert.equal(assetPath, path.resolve(__dirname, '../src/kho_tri_thuc/giao_dien/assets/style.css'));
+  const css = fs.readFileSync(assetPath, 'utf8');
+  assert.match(css, /\.gk-luoi\s*\{[^}]*display:grid/);
+  assert.ok(!html.includes('.core-luoi { display: grid'));
+  // Không nạp app.js cũ: tệp đó tự gọi API cũ và gắn DOM cố định.
+  assert.ok(!html.includes('<script src="../../giao_dien/assets/app.js"'));
+  const doc = documentGia(), root = doc.createElement('div');
+  SDK.khung.dung(root, khaiBao);
+  assert.equal(find(root, e => e.className?.split(' ').includes('gk-luoi')).length, 1);
 });

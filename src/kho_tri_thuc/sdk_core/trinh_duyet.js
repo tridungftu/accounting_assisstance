@@ -50,6 +50,11 @@
       for (const controller of controllers) controller.abort();
       controllers.clear();
       viecNhan.clear();
+      // Bỏ nội dung nháp khi đổi chủ; giữ fingerprint để không tái dùng nhầm khóa.
+      if ((next.nguoi_dung_id ?? null) !== (context.nguoi_dung_id ?? null) ||
+          (next.phap_nhan_id ?? null) !== (context.phap_nhan_id ?? null)) {
+        for (const intent of yDinh.values()) intent.nhap = undefined;
+      }
       // CSRF do Core cấp; không kế thừa token của người trước.
       if (next.nguoi_dung_id !== context.nguoi_dung_id) csrf = '';
       context = Object.freeze({ nguoi_dung_id: next.nguoi_dung_id ?? null,
@@ -104,8 +109,8 @@
       if (ghi) {
         if (!csrf) throw loi('THIEU_CSRF', 'Anh tải lại phiên đăng nhập trước khi lưu.');
         headers['X-CSRF-Token'] = csrf;
-        // Login không có biên nhận nghiệp vụ; mọi ý định ghi khác giữ khóa do caller cấp.
-        if (path !== '/api/v1/phien' || method !== 'POST') {
+        // API §3.6: đăng nhập và đăng xuất miễn khóa, vẫn cần CSRF.
+        if (path.split('?')[0] !== '/api/v1/phien' || !['POST', 'DELETE'].includes(method)) {
           if (typeof request.khoa !== 'string' || !request.khoa.trim()) {
             throw loi('THIEU_KHOA', 'Cần giữ khóa thao tác để gửi lại an toàn.');
           }
@@ -116,7 +121,9 @@
           if (old && old.fingerprint !== fingerprint) {
             throw loi('KHOA_KHAC_NOI_DUNG', 'Nội dung hoặc pháp nhân đã đổi. Anh đối chiếu kết quả trước khi tạo thao tác mới.');
           }
-          if (!old) yDinh.set(request.khoa, { fingerprint, nhap, da_xong: false });
+          if (!old) yDinh.set(request.khoa, { fingerprint, nhap, da_xong: false,
+            nguoi_dung_id: ctx.nguoi_dung_id ?? null, phap_nhan_id: phapNhan ?? null,
+            module: maModule ?? null });
           headers['Idempotency-Key'] = request.khoa;
         }
       } else if (body !== undefined) {
@@ -184,7 +191,13 @@
     const api = {
       doi_ngu_canh,
       gan_csrf: token => { csrf = typeof token === 'string' ? token : ''; },
-      doc_nhap: khoa => sao(yDinh.get(khoa)?.nhap),
+      doc_nhap(khoa) {
+        const intent = yDinh.get(khoa);
+        if (!intent || intent.nguoi_dung_id !== (context.nguoi_dung_id ?? null) ||
+            intent.phap_nhan_id !== (context.phap_nhan_id ?? null) ||
+            intent.module !== (context.module ?? null)) return undefined;
+        return sao(intent.nhap);
+      },
       goi(request) {
         // Chụp ý định trước await: sửa form trong lúc chờ không đổi body/context retry.
         const frozen = { ...request, du_lieu: sao(request.du_lieu) };
@@ -228,7 +241,9 @@
     root.setAttribute('aria-label', 'Pháp nhân DEMO');
   }
 
-  /* Cấu trúc module/phan/the dùng lại UI-1/UI-2. Caller chỉ truyền bản Core đã lọc.
+  /* Nhận cấu trúc module/phan/the của UI-2. Caller chỉ truyền bản Core đã lọc.
+     Cần lead: renderer UI-1 ở lat/ui-1 chưa có trong cây này; app.js của nhánh đó
+     chỉ xuất dangKy/phanTich, gắn DOM/router/API cũ, chưa có renderer độc lập để gọi lại.
      Không tự suy quyền, đếm số hoặc nạp HTML/script từ đường dẫn module. */
   function dungKhung(root, khaiBao, { khi_mo = () => {}, khi_doi_man = () => {} } = {}) {
     const doc = root.ownerDocument;
