@@ -257,3 +257,9 @@ Tối đa **bốn Codex đang làm**, tính cả reviewer; hàng dưới là cá
 | **DM-5** | Nhãn "DEMO" rõ trên giao diện khi ở pháp nhân DEMO | Thuộc khung giao diện Core (G2-31) |
 
 Test tự động vẫn dùng `kho_test_*`, không ghi CSDL thật.
+- **CD-045 — màn "Quản lý engine" / "Quản lý module" cho Admin (lead ghi 31/10 08:50):**
+  - Gộp vào **G2-31b** (giao diện quản trị), cùng **G2-24 / G2-25** (kiểm gói, áp gói) và Engine Manager (đọc `engines\*\engine.json`).
+  - Luồng: Thêm (import gói / thư mục) → bộ kiểm tuân thủ → xem trước → Cài → **Thử** → Admin bấm **Dùng**; có Nâng cấp (giữ bản cũ tới khi việc đang chạy xong) và Tắt (giữ dữ liệu).
+  - Lỗi bước nào thì dừng, lý do tiếng Việt, không kích hoạt một phần.
+  - Thêm lát **EM-CFG** "Cấu hình engine": cấu hình bên trong engine qua sổ Core, có nhật ký; bí mật lấy từ két Core, không nhập chữ thường. Ví dụ: `e_hoi_ai` máy Local AI / bật Cloud qua Mask / chỉ Local theo module / tỷ lệ kiểm xác suất; `e_ocr` Hot Folder.
+  - Phiếu cổng A màn quản trị gửi Anh thử; ghi chuẩn SDK / API v1.1.
