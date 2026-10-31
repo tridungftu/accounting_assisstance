@@ -11,6 +11,7 @@ Nhịp gộp thực tế 12 giờ gần nhất (30/10 21:00 → 31/10 09:10): **
 | **Core G2 xong:** G2-22b … G2-32, màn Quản lý engine / module (CD-045), Xem dữ liệu (CD-046), DM-1 | khoảng 14 (22b, 23, 25, 26, 27, 28, 29, 30, 31a, 31b, 31c, 32, DM-1, EM-CFG) | **31/10 khoảng 21:00 – 01/11 sáng** | G2-23 cần chốt adapter két / mã hóa (lead tự chốt theo chuẩn, nếu vướng sẽ hỏi); G2-33b tạo tài khoản Windows riêng cần Anh cho phép (thay đổi hệ thống) |
 | **Cổng D sẵn sàng cho Anh thử:** CRM CR4–CR10 trong `Module\crm\` (CD-043), DEMO trong CSDL chung DM-2 … DM-4 (CD-044) | khoảng 14 (CR4–CR10, MD-1 … MD-4, DM-2 … DM-4) | **02/11** | Anh xác nhận chạy sao lưu SL-1 / chuyển DEMO vào CSDL thật; mỗi lần chạy công cụ xóa DEMO cần Anh cho phép |
 | **5 engine xong + đóng gói `engines\<ten>\`** (G3, CD-042) | khoảng 25 lát G3 + G3-GOI | **03/11** | MASK-2 … 4 chờ Anh duyệt 4 schema Mask; TRICH-2a / 2b chờ Anh; đo độ chính xác TRICH-4 có thể phải dừng báo Anh nếu thấp hơn gốc |
+| _Đo nhịp 12:05 (CD-048)_ | 08–10h (tối đa 4 Codex): **4 lượt gộp**; 10–12h (6–8 Codex): **5 lượt gộp** — tăng ít, vì nút thắt là vòng review → sửa (hầu hết lát cần 2–3 vòng), không phải số worker | giữ dự kiến cũ; Core G2 có thể trễ sang **01/11 trưa** vì G2-25 cần Anh duyệt (dòng dưới) | **G2-25: Codex không chuyển được hàm cài gói sang tài khoản không phải superuser — cần Anh duyệt ngoại lệ hoặc chấp nhận dời** |
 | _Worker theo giờ (CD-048)_ | 10:10: **6 Codex** (OCR-2, TRICH-3a, HD-2a, G2-31a, G2-25 v3a / v3b) + 2 lần chạy PG; trước 10:00 tối đa 4 | nhịp sẽ đo lại lúc 12:00 | — |
 | **Bắt đầu G4** (M4, CRM, M2 sang `Module\<mã>\`) | sau hai mốc trên | **03–04/11** | — |
 
@@ -1001,6 +1002,6 @@ Chi tiết có tệp:dòng: `BANG-DIEU-KIEN-GO-LIVE.md`; quy trình: `CHECKLIST-
 ### Đếm review theo CD-049 (từ 31/10 10:45)
 | Tầng | Số lát / mảng | Số Chặn tìm được |
 |---|---|---|
-| Codex review chéo từng lát | 0 | 0 |
-| Opus từng lát (tiền / quyền / phiên / bí mật / xóa) | 0 | 0 |
+| Codex review chéo từng lát | 10 lượt (10:45–12:05) | 7 lát phải sửa: OCR-3, HD-3a, AI-5a, G2-22b ×2, G2-31a, OCR-4a / AI-4a trước đó |
+| Opus từng lát (tiền / quyền / phiên / bí mật / xóa) | 1 (G2-25) | **1 Chặn** (gói leo quyền superuser qua search_path) |
 | Opus theo mảng | 0 | 0 |
