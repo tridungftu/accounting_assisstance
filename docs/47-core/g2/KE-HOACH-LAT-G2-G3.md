@@ -232,3 +232,8 @@ Tối đa **bốn Codex đang làm**, tính cả reviewer; hàng dưới là cá
     - tệp: `core/sql/022_vong_doi.sql` (mới; không sửa 016), `core/tien_trinh.py`, `tests/test_g2_21.py`;
     - nội dung: lỗi khởi động giãn 2 giây / 4 giây, lần 3 mới khóa (retry lưu bền), không giữ khóa suốt drain, đối chiếu `doi_chieu_id` / dòng `CON_GIU` mồ côi.
   - **G2-22b** — `vong_doi.py`, `so_do.py`, `test_g2_22.py`: rảnh 300 giây, đánh thức một instance, `TAT` không bật, Admin CAS chế độ chạy. Giao sau G2-22a.
+- **G2-22a whitelist 4 tệp (lead duyệt 31/10 07:30):** thêm `tests/test_g2_16.py` để đổi ca cũ sang quy tắc lần 3 mới khóa.
+- **CD-042 — đóng gói engine (sau khi Core G2 xong):**
+  - mỗi engine một thư mục ở gốc repo `engines\<ten>\`, tự đủ: `engine.json`, mã + adapter, `NGUON.md` (SHA), `contract\`, `tests\`, `README.md`, `CHANGELOG.md`, thư viện ghim;
+  - không import chéo; Engine Manager đọc `engines\*\engine.json`; ghi vào chuẩn SDK v1.1.
+  - Lát đóng gói **G3-GOI** chuyển HD-1, TRICH-1a, AI-1a / 4a, MASK-1, OCR-4a từ `src\kho_tri_thuc\engines\` sang. Lát engine mới trước đó vẫn viết ở `src\kho_tri_thuc\engines\` để chuyển một lần.

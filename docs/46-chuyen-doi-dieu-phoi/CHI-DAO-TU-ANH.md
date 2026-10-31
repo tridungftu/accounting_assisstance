@@ -466,3 +466,27 @@
 2. Mỗi lần tự khởi động vẫn tuân thủ toàn bộ `CLAUDE.md` và hộp thư; không mở rộng quyền ngoài chế độ `auto`. Gỡ bằng `tools\GO-TU-KHOI-DONG-LEAD.cmd` khi Anh yêu cầu.
 3. Ghi kết quả `schtasks /Query` vào TRANG-THAI; đổi trạng thái CD-039 và CD-040 thành XONG.
 **Trạng thái:** ĐÃ NHẬN 30/10 23:35 — lead chưa chạy `schtasks`: cài cấu hình chạy lâu dài cần Anh bấm xác nhận ngay trong phiên lead (nút "Cài đi" ở ô cuối lượt) hoặc tự bấm đúp `tools\CAI-TU-KHOI-DONG-LEAD.cmd`; nhận được xác nhận là lead cài ngay và ghi `schtasks /Query`.
+
+## CD-041 · 31/10/2026 06:45 · Trả lời mục "Cần Anh quyết" của báo cáo đêm 31/10
+**Căn cứ:** `bao-cao-ngay\BAO-CAO-DEM-20261031.md` §3; Anh trả lời qua bảng chọn 31/10 06:35–06:44 trong phiên điều phối (sau khi được giải thích câu 2 và 3).
+**Quyết định:**
+1. **Thư viện `cryptography` — ĐỒNG Ý** dùng cho chữ ký Ed25519 của thẻ liên tiến trình (G2-19). Ghim phiên bản trong `pyproject.toml` (đúng bản đang có trên runtime DEMO), ghi CHANGELOG; không thêm thư viện khác kèm theo.
+2. **Sự kiện `moc_da_xay_ra.v1` (G2-CR3) — mở chặn với bộ mặc định:**
+   - (a) tham chiếu **lần ghi ngày thực tế mới nhất** của mốc (bản ghi lịch sử mốc cụ thể, không chỉ `moc_id`);
+   - (b) **"đã xác nhận" = người có quyền sửa mốc** (theo ma trận thẩm quyền) **ghi ngày thực tế kèm căn cứ**; không cần người thứ hai duyệt; mọi lần ghi có nhật ký;
+   - (c) module nhận: **CRM, M3, M10**;
+   - (d) **sửa/xóa ngày thực tế đã báo → phát sự kiện điều chỉnh mới** tham chiếu lần ghi cũ; **giữ** sự kiện cũ (không xóa); module nhận tính lại và ghi nhật ký.
+3. **Engine AI (AI-1b, `ai.hoi@1`, cờ "chỉ AI nội bộ") — giao lead tự chốt** theo TL 48 và `engine\GIAO-ENGINE-1.md` + Opus review; **không thêm quyết định mới ngoài TL 48**; ghi vào chuẩn SDK bản v1.1 (mục "Thay đổi").
+4. **Tác vụ tự khởi động lại (CD-039/040):** giữ chờ Anh bấm xác nhận trực tiếp trong phiên lead hoặc bấm đúp `tools\CAI-TU-KHOI-DONG-LEAD.cmd` khi Anh về máy — đúng cách lead đề xuất.
+5. Danh sách nhân sự đăng nhập: Anh gửi sau (giữ nguyên).
+**Trạng thái:** ĐÃ NHẬN 31/10 07:15. Mục 1 **XONG**: `pyproject.toml` nhóm `core = ["cryptography==49.0.0"]` + CHANGELOG. Mục 2: đã ghi vào CONTRACT-NGHIEP-VU §5.3, giao G2-CR3. Mục 3: Codex soạn `engine/QUYET-DINH-AI-1B.md` → review Opus → chuẩn SDK v1.1. Mục 4, 5: giữ chờ.
+
+## CD-042 · 31/10/2026 07:15 · Sau khi xong Core: đóng gói MỖI ENGINE VÀO MỘT THƯ MỤC RIÊNG `engines\<ten_engine>\`
+**Căn cứ:** Anh 31/10 07:11: "Sau khi xong Core thì đóng gói engine, mỗi engine vào 1 folder"; chốt 07:14 vị trí **trong phần mềm: `engines\<tên engine>\`**.
+**Việc (sau mốc Core G2 xong; phần thư viện thuần đã gộp HD-1, TRICH-1a, AI-1a, MASK-1 được chuyển vào đúng thư mục khi đóng gói):**
+1. Năm thư mục ở gốc repo: `engines\e_ocr\`, `engines\e_mask\`, `engines\e_trich_xuat\`, `engines\e_hoi_ai\`, `engines\e_hoa_don\`.
+2. **Mỗi thư mục tự đủ**, gồm: `engine.json` (manifest theo chuẩn SDK v1.0) · mã engine + adapter · phần bọc/chép từ nguồn gốc kèm `NGUON.md` (đường dẫn gốc, SHA256, phiên bản — CD-036) · `contract\` (JSON Schema vào/ra của engine) · `tests\` (test mẫu dữ liệu giả + test gốc chạy qua engine) · `README.md` 1 trang (làm gì, capability, cách Core khởi động, tài khoản chạy, ngoại lệ đã duyệt) · `CHANGELOG.md` · danh sách thư viện riêng có ghim phiên bản.
+3. Engine **không import chéo** sang thư mục engine khác hay sang module; chỉ dùng SDK Core. Bộ kiểm tuân thủ thêm: mỗi `engines\<ten>\` chạy test độc lập được; không chứa bí mật/dữ liệu thật; tách ra khỏi repo vẫn đọc được manifest.
+4. Core đăng ký engine bằng cách đọc `engines\*\engine.json` (Engine Manager); không khai đường dẫn engine cứng trong code Core.
+5. Ghi cấu trúc thư mục này vào chuẩn SDK v1.1 (mục "Thay đổi") để module/engine sau làm theo.
+**Trạng thái:** ĐÃ NHẬN 31/10 07:35 — ghi vào `docs\47-core\g2\KE-HOACH-LAT-G2-G3.md` (lát **G3-GOI** sau khi Core G2 xong; chuyển các engine đã gộp sang `engines\<ten>\` một lần, kèm `NGUON.md` / `README.md` / `CHANGELOG.md` / `contract\` / `tests\`; Engine Manager đọc `engines\*\engine.json`; ghi chuẩn SDK v1.1).
