@@ -479,7 +479,7 @@
 3. **Engine AI (AI-1b, `ai.hoi@1`, cờ "chỉ AI nội bộ") — giao lead tự chốt** theo TL 48 và `engine\GIAO-ENGINE-1.md` + Opus review; **không thêm quyết định mới ngoài TL 48**; ghi vào chuẩn SDK bản v1.1 (mục "Thay đổi").
 4. **Tác vụ tự khởi động lại (CD-039/040):** giữ chờ Anh bấm xác nhận trực tiếp trong phiên lead hoặc bấm đúp `tools\CAI-TU-KHOI-DONG-LEAD.cmd` khi Anh về máy — đúng cách lead đề xuất.
 5. Danh sách nhân sự đăng nhập: Anh gửi sau (giữ nguyên).
-**Trạng thái:** ĐÃ NHẬN 31/10 07:15. Mục 1 **XONG**: `pyproject.toml` nhóm `core = ["cryptography==49.0.0"]` + CHANGELOG. Mục 2: đã ghi vào CONTRACT-NGHIEP-VU §5.3, giao G2-CR3. Mục 3: Codex soạn `engine/QUYET-DINH-AI-1B.md` → review Opus → chuẩn SDK v1.1. Mục 4, 5: giữ chờ.
+**Trạng thái:** ĐÃ NHẬN 31/10 07:15. Mục 1 **XONG**: `pyproject.toml` nhóm `core = ["cryptography==49.0.0"]` + CHANGELOG. Mục 2: đã ghi vào CONTRACT-NGHIEP-VU §5.3, giao G2-CR3. Mục 3 **XONG 07:55**: `engine/QUYET-DINH-AI-1B.md` §6 (review Opus Đạt; `chi_cuc_bo` mặc định false, M9 / `mau_demo` bắt buộc true; contract `hoi_ai.v1`); chuẩn SDK nâng v1.1. Lịch / ngưỡng kiểm xác suất vẫn cần Anh nếu muốn đổi. Mục 4, 5: giữ chờ.
 
 ## CD-042 · 31/10/2026 07:15 · Sau khi xong Core: đóng gói MỖI ENGINE VÀO MỘT THƯ MỤC RIÊNG `engines\<ten_engine>\`
 **Căn cứ:** Anh 31/10 07:11: "Sau khi xong Core thì đóng gói engine, mỗi engine vào 1 folder"; chốt 07:14 vị trí **trong phần mềm: `engines\<tên engine>\`**.
