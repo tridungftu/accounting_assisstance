@@ -1005,3 +1005,6 @@ Chi tiết có tệp:dòng: `BANG-DIEU-KIEN-GO-LIVE.md`; quy trình: `CHECKLIST-
 | Codex review chéo từng lát | 10 lượt (10:45–12:05) | 7 lát phải sửa: OCR-3, HD-3a, AI-5a, G2-22b ×2, G2-31a, OCR-4a / AI-4a trước đó |
 | Opus từng lát (tiền / quyền / phiên / bí mật / xóa) | 1 (G2-25) | **1 Chặn** (gói leo quyền superuser qua search_path) |
 | Opus theo mảng | 0 | 0 |
+- **31/10 ~12:40 — đẩy GitHub (Anh đồng ý "Đẩy nhánh riêng"):**
+  - lead rà 1.184 commit / 1.875 tệp của `hop-nhat-20261023` so với `origin/main`: không có tệp dữ liệu thật / sqlite / khóa / `var\`; không có mật khẩu cụm DEMO thật; 19 chuỗi giống mật khẩu đều là mẫu / test trên localhost (`.env.example` là chỗ trống `<mat_khau>`); không có khóa API / khóa riêng; không có tệp > 2 MB.
+  - Lệnh `git push` bị bộ phân loại quyền tự động chặn → **chờ Anh tự chạy** lệnh đẩy nhánh riêng (không đụng `main`, không force).
