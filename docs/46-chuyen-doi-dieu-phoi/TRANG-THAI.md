@@ -997,3 +997,10 @@ Chi tiết có tệp:dòng: `BANG-DIEU-KIEN-GO-LIVE.md`; quy trình: `CHECKLIST-
 - **Hồi quy sau mốc N** (32 module G2 + G3, PG DEMO): **814 ok / 0 lỗi / 2 skip**, 0 treo.
 - **Ghi chú hiệu năng 31/10 10:20:** test_dm_1 chạy 398 giây khi 6 Codex song song (trước đó khoảng 15 giây) → theo dõi tải máy (CD-048 ngưỡng tự hạ); nghi trigger DM-1 + máy bận.
 - **Hồi quy sau DM-1 (31/10 ~10:30, 38 module G2 + G3, PG DEMO): 921 ok / 0 lỗi / 2 skip**, 0 treo. test_dm_1 lần này 7,2 giây → lần 398 giây trước là do máy bận, không phải trigger.
+
+### Đếm review theo CD-049 (từ 31/10 10:45)
+| Tầng | Số lát / mảng | Số Chặn tìm được |
+|---|---|---|
+| Codex review chéo từng lát | 0 | 0 |
+| Opus từng lát (tiền / quyền / phiên / bí mật / xóa) | 0 | 0 |
+| Opus theo mảng | 0 | 0 |
