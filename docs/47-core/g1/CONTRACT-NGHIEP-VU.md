@@ -398,6 +398,13 @@ Ví dụ minh họa riêng nhánh M3:
 
 **Vòng 2: chưa hoàn tất định nghĩa.** `moc_id` chưa chỉ ra một lần lịch sử; tiếp tục chờ Anh chốt tham chiếu chính xác, không thêm số `lan` vào payload bus.
 
+
+**Anh chốt 31/10/2026 (CD-041 mục 2) — mở chặn với bộ mặc định:**
+- (a) tham chiếu **lần ghi ngày thực tế mới nhất** của mốc (bản ghi lịch sử mốc cụ thể, không chỉ `moc_id`);
+- (b) "đã xác nhận" = người có quyền sửa mốc theo MTQ ghi ngày thực tế kèm căn cứ; không cần người thứ hai duyệt; mọi lần ghi có nhật ký;
+- (c) module nhận: CRM, M3, M10;
+- (d) sửa / xóa ngày thực tế đã báo → phát **sự kiện điều chỉnh mới** tham chiếu lần ghi cũ; giữ sự kiện cũ (không xóa); module nhận tính lại và ghi nhật ký.
+
 ### 5.4. `hop_dong_hieu_luc.v1`
 
 **Mục đích:** Báo một phiên bản hợp đồng bán đã được duyệt và bắt đầu có hiệu lực. Không đồng nhất hợp đồng đã ký, đã duyệt và đang có hiệu lực.
