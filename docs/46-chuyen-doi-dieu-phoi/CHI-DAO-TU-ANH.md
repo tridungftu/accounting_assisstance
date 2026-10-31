@@ -544,3 +544,23 @@
 **Căn cứ:** Anh 31/10 08:58 hỏi "dự kiến bao giờ xong Core". `KE-HOACH-LAT-G2-G3.md` chưa có ngày dự kiến.
 **Việc:** thêm vào đầu `TRANG-THAI.md` bảng **"Dự kiến theo mốc"**: Core G2 xong (đủ G2-22b…G2-32 + màn Quản lý engine/module CD-045 + Xem dữ liệu CD-046) · Cổng D sẵn sàng cho Anh thử (CRM CR4–CR10, gói `Module\crm\` CD-043, dữ liệu DEMO trong CSDL chung DM-1…DM-4 CD-044) · 5 engine xong + đóng gói `engines\` (G3, CD-042) · bắt đầu G4. Mỗi dòng: số lát còn lại · nhịp gộp thực tế 12 giờ gần nhất (lát/giờ) · ngày giờ dự kiến (ghi rõ là ước tính) · việc đang chờ Anh có thể làm trễ. Cập nhật mỗi lần ghi TRANG-THAI; báo cáo đêm/ngày nêu chênh lệch so với lần trước.
 **Trạng thái:** XONG 31/10 09:15 — bảng "Dự kiến theo mốc" ở đầu TRANG-THAI; cập nhật mỗi lần ghi TRANG-THAI, báo cáo đêm / ngày nêu chênh lệch.
+
+## CD-048 · 31/10/2026 09:50 · Nâng lên 8 worker Codex chạy cùng lúc để đẩy nhanh Core + engine
+**Căn cứ:** Anh 31/10 09:46: "đẩy nhiều agent Codex làm cùng lúc để đẩy nhanh tiến độ"; chốt 09:48: **8 Codex** (thay mức tối đa 4 Codex của CD-030; CD-004 "tăng Codex quá 4 chỉ khi Anh duyệt" — Anh đã duyệt).
+**Việc:**
+1. Tối đa **8 worker Codex** cùng lúc (Claude giữ vai lead + review Opus điểm cốt lõi như CD-030). Gợi ý chia làn: Core G2 ~3 · năm engine G3 ~3–4 (mỗi engine một thư mục riêng `engines\<tên>\`, ít đụng nhau) · CRM thử/DEMO/tách module ~1–2. Lead tự cân theo hàng đợi không bị chặn.
+2. **Giữ chất lượng như cũ:** lát ≤ 3 tệp, review chéo Codex mọi lát, Opus ở điểm tiền/quyền/phiên/bí mật, kiểm xác suất chọn trước rồi mới gộp, PG cả bộ mỗi đợt gộp.
+3. **Ngưỡng tự hạ:** hàng chờ review/gộp > 3 lát, hoặc Codex báo "at capacity"/quá tải, hoặc máy quá tải (RAM/CPU, PG test chậm), hoặc xung đột file chung → hạ về 6 rồi 4, ghi giờ + lý do vào TRANG-THAI; hết nghẽn thì tăng lại. Không giao 2 lát cùng khóa file chung.
+4. Ghi số worker thực tế theo giờ và nhịp gộp vào bảng "Dự kiến theo mốc" (CD-047) để Anh thấy tác dụng; ghi token Codex tối vào USAGE-TONG-HOP.
+5. Sửa dòng giới hạn worker trong `CLAUDE.md` theo mức mới.
+**Trạng thái:** ĐÃ NHẬN 31/10 10:10 — `CLAUDE.md` đã sửa dòng giới hạn (8 Codex + ngưỡng tự hạ). 10:10 đang chạy 6 Codex: OCR-2, TRICH-3a, HD-2a, G2-31a, G2-25 v3a, G2-25 v3b. Số worker và nhịp gộp ghi vào bảng "Dự kiến theo mốc".
+
+## CD-049 · 31/10/2026 10:05 · Phân lại review: Codex review mọi lát; lead/Opus chỉ review theo MẢNG LỚN + giữ lát tiền/quyền/bí mật
+**Căn cứ:** Anh 31/10 10:00: "chỉnh lại phần review cho Codex, lead chỉ review những mảng lớn"; chốt 10:03 qua bảng chọn. Thay phần review của CD-030 mục 2–3 và CD-048 mục 2.
+**Việc:**
+1. **Mọi lát: Codex review chéo** (worker Codex khác người viết) theo `MAU-REVIEW-CODEX.md`, kèm gate máy (test thuần + PG khi lát chạm CSDL). Đạt → lead **gộp ngay**, không đọc lại diff, **bỏ kiểm xác suất 1/4** của lead.
+2. **Opus review theo mảng** — một lượt khi xong một mảng, đọc tổng thể (kiến trúc, tính nhất quán, đúng chuẩn Core v1.x, đúng quyết định của Anh), tối đa 2 vòng: (a) từng khối Core lớn khi đủ lát (vận hành tiến trình/cổng G2-22…27; quản trị + giao diện G2-28…31; ghép + đóng gói G2-32/G3-GOI); (b) **mỗi engine** khi xong cả engine; (c) CRM thử G2 trước cổng D; (d) chuyển dữ liệu DEMO DM-1…4 trước khi chạy thật; (e) tách module + SDK dạng gói (CD-043). Kết quả mảng ghi `RV-MANG-<tên>.md`; lỗi Chặn → mở lát sửa.
+3. **Giữ Opus review từng lát** chỉ cho lát chạm **tiền** (tính tiền/VAT/lịch, liên kết tiền), **quyền** (RLS, ma trận thẩm quyền, role/GRANT), **phiên/đăng nhập**, **bí mật/khóa/mã hóa**, và **xóa dữ liệu**. Đánh dấu loại lát này trong bản giao việc.
+4. Lead tập trung: chia lát, giữ hàng đợi không trống (CD-009), gộp, chạy PG cả bộ mỗi đợt gộp, đọc kết quả review mảng, báo Anh.
+5. Ghi trong TRANG-THAI số lát qua Codex review, số mảng đã Opus review, số lỗi Chặn tìm được theo từng tầng — để đánh giá cách review mới sau 2 ngày.
+**Trạng thái:** ĐÃ NHẬN 31/10 10:45 — áp từ nay: Codex review mọi lát + gate máy → Đạt thì gộp ngay; Opus từng lát chỉ cho tiền / quyền / phiên / bí mật / xóa (G2-25, G2-23, DM-4…); Opus theo mảng ghi `RV-MANG-<tên>.md`. Số đếm theo tầng ghi trong TRANG-THAI.
