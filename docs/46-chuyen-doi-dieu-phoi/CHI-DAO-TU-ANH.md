@@ -516,3 +516,14 @@
 5. Test tự động vẫn dùng CSDL test tạm `kho_test_*` (không ghi vào CSDL thật); chỉ dữ liệu DEMO mẫu để thử bằng tay nằm trong CSDL thật chung.
 6. Cụm DEMO cũ giữ nguyên tới khi Anh thử trên CSDL chung thấy đủ; sau đó chuyển vào lưu trữ (không xóa).
 **Trạng thái:** ĐÃ NHẬN 31/10 08:05 — lập kế hoạch lát DM-1 … DM-5 (cờ `la_demo` + rào chắn → sao lưu SL-1 → công cụ chuyển có biên bản → công cụ xóa sạch cần Anh cho phép từng lần). Chưa ghi gì vào CSDL thật.
+
+## CD-045 · 31/10/2026 08:55 · Màn "Quản lý engine" cho Admin: nút Thêm engine (import gói) + cấu hình nguồn bên trong engine
+**Căn cứ:** Anh 31/10 08:46: "có cách nào tạo việc nối trên giao diện để khi có engine mới thì Admin có thể add vào hoặc bấm nút để import engine mới?". TL 54 §8–§9 (Engine Manager, giao diện quản lý engine), CD-042 (gói `engines\<tên>\`), CD-032 (sổ contract).
+**Việc (lát G2 phần quản trị, sau Engine Manager; Admin mới thấy):**
+1. **Màn "Quản lý engine"**: danh sách engine (tên, phiên bản, năng lực, trạng thái stopped/starting/ready/busy/failed, chế độ chạy, số đo khởi động, đề xuất chế độ CD-028).
+2. **Nút "Thêm engine"** (import tệp gói / thư mục `engines\<tên>\`): Core đọc `engine.json` → bộ kiểm tuân thủ (contract, test mẫu, mã băm, không bí mật, không trùng năng lực/thư viện — CD-019) → màn xem trước (năng lực, tài khoản chạy, tài nguyên, ngoại lệ đã duyệt) → **"Cài"** (Core cấp cổng, tài khoản, đăng ký năng lực, chạy test mẫu) → trạng thái **Thử** → Admin bấm **Dùng**. Lỗi ở bước nào thì dừng, hiện lý do tiếng Việt, không kích hoạt một phần. Có **Nâng cấp** (phiên bản mới, giữ bản cũ tới khi việc đang chạy xong) và **Tắt** (giữ dữ liệu).
+3. **Màn "Cấu hình engine"** cho lựa chọn bên trong engine, không cần sửa code: với `e_hoi_ai` — danh sách máy Local AI (địa chỉ LAN/Tailscale, model), bật/tắt Cloud qua Mask, chế độ "chỉ Local" theo module, tỷ lệ kiểm xác suất (TL 48); với engine khác — thư mục Hot Folder ABBYY, ngưỡng, thời gian giữ… Mỗi thay đổi có nhật ký, khóa/bí mật vẫn lấy từ két Core (không nhập vào giao diện dạng chữ thường).
+4. **AI-2** (nối engine AI vào cổng AI chung + `engine.json`) vẫn là lát lập trình; làm xong thì thêm/đổi nguồn AI chỉ qua màn cấu hình ở mục 3.
+5. Cùng cách cho module: màn "Quản lý module" với nút **"Thêm module"** (tệp gói từ `Module\<mã>\`, CD-043) theo TL 54 §7.3.
+6. Ghi vào chuẩn SDK/API v1.1; phiếu cổng A màn quản trị gửi Anh thử.
+**Trạng thái:** ĐÃ NHẬN 31/10 08:50 — ghi vào kế hoạch: G2-31b (màn Quản lý engine / module, luồng Thêm → kiểm → xem trước → Cài → Thử → Dùng; Nâng cấp; Tắt) + lát EM-CFG (cấu hình bên trong engine qua sổ Core, bí mật từ két); AI-2 đang làm; phiếu cổng A sẽ gửi Anh.

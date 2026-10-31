@@ -2210,3 +2210,121 @@ Mã phát hiện theo quy ước SDK §1: `O` = review Opus (Chặn1–3, CS1–
 | CD-032: sổ, duyệt, giữ bản cũ và màn quản trị | §15 dẫn `loi.dang_ky_contract` tại CSDL §3.1; ghi chú route đọc khi mở G2 |
 | CD-032: trùng nghĩa và đọc ngoài contract + cấp quyền → đỏ | Bộ kiểm §4: KT02/KT03, KT06/KT07, KT15; §15.3 chặn cài/kích hoạt |
 | CD-033: tài khoản riêng từ thử máy Anh, script và ngoại lệ | Bộ kiểm §4: KT08/KT10/KT15, không đọc được `D:\DU-LIEU-KE-TOAN\bi-mat\`; SDK §4.4, §8 |
+
+## Bổ sung AI-1b — `hoi_ai.v1` (31/10/2026)
+
+Contract kỹ thuật thứ 10, do Core sở hữu, bản đầu `1.0.0`, `$id`
+`urn:ktt:contract:hoi_ai.v1`; chốt tại `docs/47-core/engine/QUYET-DINH-AI-1B.md`
+§6 sau review Opus Đạt, theo CD-041 mục 3 và chuẩn SDK v1.1 §1.
+Mục này bổ sung sổ §2; giữ nguyên các mục trước để không đổi số dòng tham chiếu.
+
+Payload là một yêu cầu đầu vào `ai.hoi@1` của engine `e_hoi_ai`, không có vỏ
+`vo_noi_dung`; đầu ra dùng `tra_loi_ai.v1`. Năm trường nghiệp vụ chuyển 1-1 từ
+`YeuCauAI`; danh tính, pháp nhân và việc do Core gắn, không nhận trong payload.
+
+| Trường | Kiểu | Bắt buộc / mặc định | Ý nghĩa và nguồn |
+|---|---|---|---|
+| `loai_viec` | string không rỗng | Có | Mã trong `LOAI_VIEC`; cổng AI kiểm tiếp, không đóng enum tại schema. |
+| `van_ban` | string có ký tự khác khoảng trắng | Có | Văn bản gốc để đọc và kiểm trích dẫn; cổng AI kiểm tiếp bằng `strip()`. |
+| `chi_dan` | string | Có; được rỗng | Chỉ dẫn công việc; không đưa dữ liệu chứng từ vào đây. |
+| `truong` | array<string không rỗng> | Không; `[]` | Tên trường cần điền; bỏ qua tương đương lấy mọi trường AI trả. |
+| `dinh_danh_da_biet` | array<chuỗi / cặp / object> | Không; `[]`, không `null` | Cặp đúng hai chuỗi `[gia_tri, nhom]`; object bắt buộc cả `gia_tri`, `nhom`, không khóa lạ; nhóm được rỗng. |
+| `chi_cuc_bo` | boolean | Không; `false`, không `null` | `true`: 0 lời gọi Cloud; `false` không tự bật Cloud. |
+
+Nguồn từng trường: quyết định AI-1b §1 (`cong_ai.py`: DTO A:275–292,
+kiểm đầu vào A:1241–1246, chuẩn hóa định danh A:909–940). Grain là một yêu cầu;
+không thêm khóa định danh riêng. Schema chặn khóa ngoài khai báo. Không thêm
+giới hạn độ dài văn bản, số trường, số định danh thô hoặc enum nhóm.
+Giới hạn 500 định danh vẫn áp sau chuẩn hóa trên nhánh Cloud.
+
+`default` chỉ là annotation, không tự điền dữ liệu. Adapter AI-2 áp mặc định và
+chuyển array sang tuple; khi `chi_cuc_bo=true`, dùng instance theo request với
+`cloud_bat=False`, không đổi cấu hình instance chung. M9 và `mau_demo` bắt buộc
+đặt `true`, kể cả khi Local lỗi, thiếu chắc chắn hoặc được chọn kiểm xác suất.
+Local luôn có đường dùng; Cloud chỉ qua Mask v2 theo các điều kiện hiện có,
+không che tiền/ngày, không đổi lịch/ngưỡng kiểm. Schema không thay kiểm quyền,
+ngữ cảnh hoặc xác thực mã loại việc của Core/cổng AI.
+
+```json
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:ktt:contract:hoi_ai.v1",
+  "title": "hoi_ai.v1 — đầu vào ai.hoi@1",
+  "$comment": "Phien ban 1.0.0; Lead chot AI-1b §6 (31/10/2026).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["loai_viec", "van_ban", "chi_dan"],
+  "properties": {
+    "loai_viec": {
+      "$ref": "urn:ktt:contract:chung.v1#/$defs/chuoi",
+      "$comment": "Kiểm tiếp mã trong LOAI_VIEC hiện có; không bổ sung bảng định tuyến."
+    },
+    "van_ban": {
+      "$ref": "urn:ktt:contract:chung.v1#/$defs/chuoi",
+      "pattern": "\\S",
+      "$comment": "Văn bản gốc không rỗng/không chỉ khoảng trắng; kiểm tiếp theo strip() của Python."
+    },
+    "chi_dan": {"type": "string"},
+    "truong": {
+      "type": "array",
+      "default": [],
+      "items": {"$ref": "urn:ktt:contract:chung.v1#/$defs/chuoi"}
+    },
+    "dinh_danh_da_biet": {
+      "type": "array",
+      "default": [],
+      "items": {"$ref": "#/$defs/dinh_danh"}
+    },
+    "chi_cuc_bo": {
+      "type": "boolean",
+      "default": false,
+      "$comment": "true: 0 lời gọi Cloud cho request; false không tự bật Cloud."
+    }
+  },
+  "$defs": {
+    "dinh_danh": {
+      "oneOf": [
+        {"type": "string"},
+        {
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 2,
+          "prefixItems": [{"type": "string"}, {"type": "string"}]
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["gia_tri", "nhom"],
+          "properties": {
+            "gia_tri": {"type": "string"},
+            "nhom": {"type": "string"}
+          }
+        }
+      ]
+    }
+  }
+}
+```
+
+Ví dụ DEMO (không có dữ liệu thật), đủ ba dạng định danh:
+
+```json
+{
+  "loai_viec": "HOI_DAP_VAY",
+  "van_ban": "Hợp đồng DEMO-VAY-001: Công ty DEMO A vay Công ty DEMO B. Lãi suất 8%/năm. Số tiền 100000000 VND. Ngày ký 2026-10-01.",
+  "chi_dan": "Trích lãi suất; mỗi trường phải có trích dẫn nguyên văn.",
+  "truong": ["lai_suat"],
+  "dinh_danh_da_biet": [
+    "Công ty DEMO A",
+    ["Công ty DEMO B", "CONG_TY"],
+    {"gia_tri": "DEMO-VAY-001", "nhom": "HOP_DONG"}
+  ],
+  "chi_cuc_bo": true
+}
+```
+
+Kiểm offline bằng Draft 2020-12, đăng ký URN từ `ky_thuat.json`, không tải mạng.
+Tám ca âm phải bị bác: `van_ban` chỉ khoảng trắng, khóa lạ, tên trường rỗng,
+`chi_cuc_bo=null`, cặp định danh một phần tử, object thiếu `nhom`,
+`loai_viec` rỗng, `dinh_danh_da_biet=null` (chặt hơn nguồn nhận `None`, cố ý).
+Giữ quy tắc phiên bản §2: thay schema đã phát hành phải dùng `$id` mới.
