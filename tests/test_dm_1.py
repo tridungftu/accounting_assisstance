@@ -15,7 +15,7 @@ from unittest.mock import MagicMock
 from uuid import uuid4
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'src'))
-from kho_tri_thuc.core import doi_cau_truc as dc, mtq, phap_nhan_demo as demo, phien
+from kho_tri_thuc.core import danh_muc as dm, doi_cau_truc as dc, lien_ket as lk, mtq, phap_nhan_demo as demo, phien
 
 try:
     from . import test_g2_06 as g206
@@ -90,6 +90,25 @@ class DemoThuanTest(unittest.TestCase):
         self.assertTrue(all(a == b for a, b in zip(quotes[::2], quotes[1::2])))
         self.assertFalse(SQL_PATH.read_bytes().startswith(b'\xef\xbb\xbf'))
         self.assertNotRegex(SQL, r'(?i)\bDROP\s+(?:TABLE|ROLE|FUNCTION|DATABASE|TRIGGER)')
+
+    def test_cua_python_giu_ma_demo_va_guard_lien_ket(self):
+        ctx = dict(ma=self.ts['ma'], module='crm', phap_nhan_id=self.ts['phap_nhan_id'],
+                   hanh_dong='CRM:TIEP_NHAN:HUY')
+        for ma in ('DEMO_LIEN_KET_CHEO', 'DEMO_PHAP_NHAN', 'DEMO_CAN_READ_COMMITTED',
+                   'LIEN_KET_CAN_READ_COMMITTED'):
+            for loai_loi, goi in (
+                (dm.LoiDanhMuc, lambda: dm._goi(self.conn, 'SELECT demo()', ())),
+                (lk.LoiLienKet, lambda: lk.huy(self.conn, lien_ket_id=uuid4(), ly_do='DEMO', **ctx)),
+            ):
+                with self.subTest(ma=ma, cua=loai_loi.__name__):
+                    exc = RuntimeError('CANARY_DRIVER_TOKEN')
+                    exc.diag = SimpleNamespace(message_primary=ma)
+                    self.conn.execute.side_effect = exc
+                    with self.assertRaises(loai_loi) as bat:
+                        goi()
+                    self.assertEqual(bat.exception.ma, ma)
+                    self.assertIsNone(bat.exception.__context__)
+                    self.assertNotIn('CANARY', ''.join(traceback.format_exception(bat.exception)))
 
 
 @unittest.skipUnless(g206.psycopg is not None and g206.ADMIN_DSN,
@@ -275,6 +294,34 @@ class DemoPostgresTest(unittest.TestCase):
             self.core.execute('SELECT loi.mtq_quyet_dinh_phien(%s,%s,%s,%s,%s::jsonb)',
                               (ma.lay_de_truyen(),'crm',self.pn,'CRM:TIEP_NHAN:XEM',json.dumps(dict(bang='doi_tuong',id=str(obj)))))
         self.assertEqual(bat.exception.diag.message_primary,'DEMO_LIEN_KET_CHEO')
+
+    def test_guard_isolation_lien_ket_chay_truoc_demo_trong_mtq(self):
+        import json
+        self._dat()
+        self._resolver()
+        for cheo in (False, True):
+            obj = uuid4()
+            tap = [dict(pn=str(p), hop_le=True, loai='TIEP_NHAN')
+                   for p in ((self.pn, self.khac) if cheo else (self.pn,))]
+            self.conn.execute('INSERT INTO mod_crm.doi_tuong(id,tap) VALUES(%s,%s::jsonb)',
+                              (obj, json.dumps(tap)))
+            for bang, hd, ma_loi in (
+                ('danh_muc.lien_ket_chung_tu', 'LAP', 'LIEN_KET_CAN_READ_COMMITTED'),
+                ('danh_muc.lien_ket_chung_tu', 'SUA', 'LIEN_KET_CAN_READ_COMMITTED'),
+                ('danh_muc.chung_tu', 'SUA', 'LIEN_KET_CAN_READ_COMMITTED'),
+                ('danh_muc.chung_tu', 'XEM', 'DEMO_CAN_READ_COMMITTED'),
+            ):
+                hanh_dong = 'CRM:TIEP_NHAN:'+hd
+                ma = self._cap(self.pn, 'crm', [hanh_dong])
+                for isolation in ('REPEATABLE READ', 'SERIALIZABLE'):
+                    with self.subTest(cheo=cheo, bang=bang, hd=hd, isolation=isolation):
+                        with self.assertRaises(dm.LoiDanhMuc) as bat, self.core.transaction():
+                            self.core.execute('SET TRANSACTION ISOLATION LEVEL '+isolation)
+                            dm._goi(self.core,
+                                'SELECT loi.mtq_quyet_dinh_phien(%s,%s,%s,%s,%s::jsonb)',
+                                (ma.lay_de_truyen(), 'crm', self.pn, hanh_dong,
+                                 json.dumps(dict(bang=bang, id=str(obj)))))
+                        self.assertEqual(bat.exception.ma, ma_loi)
 
     def test_khoa_doi_co_cho_giao_dich_ghi_du_lieu(self):
         # Xac nhan hai duong dung cung khoa, khong can thread/doi vo han.

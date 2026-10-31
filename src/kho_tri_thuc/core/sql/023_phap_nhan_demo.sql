@@ -247,6 +247,15 @@ BEGIN
     EXECUTE format('SELECT %I.%I($1,$2,$3,$4,$5,$6)',h.ten_schema,h.ten_ham)
         INTO tap USING p_ma,p_pn,p_hanh_dong,p_doi_tuong,p_viec_id,p_the_he;
     IF jsonb_typeof(tap)='array' THEN
+        -- MTQ chay truoc khoa_lien_ket_noi_bo trong cua V2. Giu ma guard
+        -- G2-13 cho ghi lien ket / het hieu luc chung tu, truoc moi doc DEMO.
+        IF current_setting('transaction_isolation')<>'read committed'
+           AND ((p_doi_tuong->>'bang'='danh_muc.lien_ket_chung_tu'
+                 AND split_part(p_hanh_dong,':',3) IN ('LAP','SUA','HUY'))
+                OR (p_doi_tuong->>'bang'='danh_muc.chung_tu'
+                    AND split_part(p_hanh_dong,':',3)='SUA')) THEN
+            RAISE EXCEPTION 'LIEN_KET_CAN_READ_COMMITTED' USING ERRCODE='25000';
+        END IF;
         PERFORM loi.demo_kiem_tap_noi_bo(ARRAY(SELECT (value->>'pn')::uuid FROM jsonb_array_elements(tap)));
     END IF;
     RETURN tap;
