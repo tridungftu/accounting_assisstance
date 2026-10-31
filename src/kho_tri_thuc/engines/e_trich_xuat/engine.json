@@ -1,0 +1,45 @@
+{
+  "phien_ban_manifest": 1,
+  "loai": "engine",
+  "ma": "e_trich_xuat",
+  "ten": "Trích 37 tham số XD từ DOCX — adapter thử bằng AI giả",
+  "phien_ban": "0.1.0-demo.1",
+  "tuong_thich": {"core": ">=1.0.0,<2.0.0", "api": "v1"},
+  "adapter": {"ma": "trich_docx_xd", "phien_ban": "0.1.0-demo.1"},
+  "capability": [
+    {
+      "ma": "trich.tham_so_hop_dong@1",
+      "dau_vao": "tham_chieu_tep.v1",
+      "dau_ra": "tham_so.v1",
+      "mime": ["application/vnd.openxmlformats-officedocument.wordprocessingml.document"],
+      "tep_toi_da_mib": 20,
+      "trang_toi_da": 300,
+      "thoi_han_giay": 600
+    }
+  ],
+  "ho_so_chay_mau": {
+    "ma_moi_truong": "demo_trich_3a",
+    "diem_vao": "kho_tri_thuc.engines.e_trich_xuat.chay",
+    "headless": true,
+    "cong": {"nguon": "core_cap", "pham_vi": "loopback"},
+    "nhan_listener": ["socket.fromshare"],
+    "tham_so_cong": "--port",
+    "bi_mat": "stdin_hoac_handle",
+    "login_csdl": false,
+    "che_do_mac_dinh": "tu_kich_hoat_tu_dong",
+    "ranh_giay_de_xuat": 300
+  },
+  "readiness": {
+    "kenh": "dieu_khien_noi_bo",
+    "kiem": ["instance", "phien_ban", "capability", "model_san_sang"],
+    "thoi_han_giay": 30
+  },
+  "tai_nguyen": {
+    "so_viec_dong_thoi": 1,
+    "ram_toi_da_mib_de_xuat": 512,
+    "cpu_phan_tram_toi_da_de_xuat": 50
+  },
+  "ket_noi_ngoai": [],
+  "ban_giao_ket_qua": "core_xac_nhan_truoc_giai_phong",
+  "thu_hoi": "drain_va_xac_nhan"
+}
