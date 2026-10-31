@@ -1931,3 +1931,12 @@ Các mục Opus “Để sau” tiếp tục để sau: mapping `bank_id/cashflo
 
 CD-038 (30/10): đã áp câu 1A/2B cho `bao_gia`/`hop_dong_ban`: lịch giá bán 100%, phí riêng, VAT cọc tìm đích không cọc sau/trước, lỗi toàn cọc; bổ sung bất biến tiền và 3 ví dụ JSON có phép tính.
 
+## Phụ lục — quyết định bổ sung
+
+### `moc_da_xay_ra.v1` (§5.3)
+
+**Anh chốt 31/10/2026 (CD-041 mục 2) — mở chặn với bộ mặc định:**
+- (a) tham chiếu **lần ghi ngày thực tế mới nhất** của mốc (bản ghi lịch sử mốc cụ thể, không chỉ `moc_id`);
+- (b) "đã xác nhận" = người có quyền sửa mốc theo MTQ ghi ngày thực tế kèm căn cứ; không cần người thứ hai duyệt; mọi lần ghi có nhật ký;
+- (c) module nhận: CRM, M3, M10;
+- (d) sửa / xóa ngày thực tế đã báo → phát **sự kiện điều chỉnh mới** tham chiếu lần ghi cũ; giữ sự kiện cũ (không xóa); module nhận tính lại và ghi nhật ký.
