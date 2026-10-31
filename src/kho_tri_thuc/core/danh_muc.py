@@ -35,7 +35,8 @@ _LOI = {'DANH_MUC_KHONG_THAY', 'DANH_MUC_XUNG_DOT', 'DANH_MUC_DAU_VAO', 'DANH_MU
         'LIEN_KET_CAN_READ_COMMITTED', 'LIEN_KET_RESOLVER', 'LIEN_KET_CAN_CU',
         'LIEN_KET_MODULE_KIEM', 'LIEN_KET_POLICY_KIEM', 'LIEN_KET_BAT_BIEN',
         'LIEN_KET_DAU_VAO', 'LIEN_KET_XUNG_DOT', 'LIEN_KET_PHAM_VI',
-        'LIEN_KET_VUOT_CHUNG_TU', 'LIEN_KET_VUOT_NGHIA_VU'}
+        'LIEN_KET_VUOT_CHUNG_TU', 'LIEN_KET_VUOT_NGHIA_VU',
+        'DEMO_LIEN_KET_CHEO', 'DEMO_PHAP_NHAN', 'DEMO_CAN_READ_COMMITTED'}
 _TRUONG = {
     'doi_tac': ({'ten_phap_ly', 'ten_chuan_hoa', 'loai'}, {'mst', 'vai_tro'}),
     'du_an': ({'ma_junsky', 'ten'}, {'cha_id', 'giai_doan', 'trang_thai', 'ngay_chuyen_van_hanh'}),
