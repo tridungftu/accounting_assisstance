@@ -527,3 +527,20 @@
 5. Cùng cách cho module: màn "Quản lý module" với nút **"Thêm module"** (tệp gói từ `Module\<mã>\`, CD-043) theo TL 54 §7.3.
 6. Ghi vào chuẩn SDK/API v1.1; phiếu cổng A màn quản trị gửi Anh thử.
 **Trạng thái:** ĐÃ NHẬN 31/10 08:50 — ghi vào kế hoạch: G2-31b (màn Quản lý engine / module, luồng Thêm → kiểm → xem trước → Cài → Thử → Dùng; Nâng cấp; Tắt) + lát EM-CFG (cấu hình bên trong engine qua sổ Core, bí mật từ két); AI-2 đang làm; phiếu cổng A sẽ gửi Anh.
+
+## CD-046 · 31/10/2026 09:00 · Màn "Xem dữ liệu" trực quan trong Core — chỉ xem, lọc, xuất Excel
+**Căn cứ:** Anh 31/10 08:54: "muốn Core có thêm phần để xem cơ sở dữ liệu một cách trực quan trên giao diện"; chốt 08:58: **màn trong Core**, **chỉ xem + lọc + xuất Excel** (không sửa trực tiếp).
+**Việc (lát G2 phần quản trị, sau màn Quản lý engine/module):**
+1. **Sơ đồ khối dữ liệu:** các khối `loi`, `loi_tai_lieu`, `danh_muc`, `mod_<mã>`, `cong_bo_<mã>` dạng ô; mũi tên liên kết (khóa ngoại, dữ liệu công bố, sự kiện, contract đang dùng); mỗi khối hiện module sở hữu, số bảng, số dòng, dung lượng.
+2. **Bấm khối → danh sách bảng** (tên tiếng Việt không dấu + mô tả nghĩa tiếng Việt, số dòng, cập nhật gần nhất) → **bấm bảng → xem dòng**: phân trang, sắp xếp, lọc theo cột, tìm; xem cột (kiểu, đơn vị, bắt buộc), liên kết sang dòng ở bảng khác; **xuất Excel** phần đang lọc (ghi nhật ký tải).
+3. **Đi qua phân quyền Core:** đọc bằng phiên người dùng (RLS theo pháp nhân + ma trận thẩm quyền), không có kết nối "toàn quyền"; cột nhạy cảm nhóm A (CCCD, số tài khoản…) hiện **che** (4 số cuối); pháp nhân DEMO hiện nhãn DEMO (CD-044); không xem thư mục bí mật/khóa.
+4. **Không sửa, không xóa, không chạy câu lệnh SQL tự do** trên màn này; sửa dữ liệu chỉ qua màn nghiệp vụ của module.
+5. Mặc định chỉ Admin/CFO thấy; quyền "Xem dữ liệu" là một cột trong ma trận thẩm quyền để Anh tick cho người khác. Mỗi lần xem/xuất ghi nhật ký kiểm toán.
+6. Mô tả nghĩa bảng/cột lấy từ khai báo của gói module (`module.json` / `contract\`) — bổ sung trường mô tả vào chuẩn SDK v1.1 để module mới tự hiện đẹp trên màn này.
+7. Phiếu cổng A gửi Anh thử trên CSDL chung (pháp nhân DEMO).
+**Trạng thái:** ĐÃ NHẬN 31/10 09:15 — thêm lát **G2-31c "Xem dữ liệu"** sau G2-31b: sơ đồ khối, bảng, dòng, lọc, xuất Excel có nhật ký; đọc bằng phiên người dùng qua RLS / MTQ; che cột nhóm A; nhãn DEMO; không sửa / xóa / SQL tự do; quyền "Xem dữ liệu" trong MTQ; mô tả bảng / cột lấy từ `module.json` / `contract\` (ghi chuẩn SDK v1.1). Phiếu cổng A sẽ gửi Anh.
+
+## CD-047 · 31/10/2026 09:10 · Ghi dự kiến thời điểm xong theo mốc, cập nhật mỗi lần ghi TRANG-THAI
+**Căn cứ:** Anh 31/10 08:58 hỏi "dự kiến bao giờ xong Core". `KE-HOACH-LAT-G2-G3.md` chưa có ngày dự kiến.
+**Việc:** thêm vào đầu `TRANG-THAI.md` bảng **"Dự kiến theo mốc"**: Core G2 xong (đủ G2-22b…G2-32 + màn Quản lý engine/module CD-045 + Xem dữ liệu CD-046) · Cổng D sẵn sàng cho Anh thử (CRM CR4–CR10, gói `Module\crm\` CD-043, dữ liệu DEMO trong CSDL chung DM-1…DM-4 CD-044) · 5 engine xong + đóng gói `engines\` (G3, CD-042) · bắt đầu G4. Mỗi dòng: số lát còn lại · nhịp gộp thực tế 12 giờ gần nhất (lát/giờ) · ngày giờ dự kiến (ghi rõ là ước tính) · việc đang chờ Anh có thể làm trễ. Cập nhật mỗi lần ghi TRANG-THAI; báo cáo đêm/ngày nêu chênh lệch so với lần trước.
+**Trạng thái:** XONG 31/10 09:15 — bảng "Dự kiến theo mốc" ở đầu TRANG-THAI; cập nhật mỗi lần ghi TRANG-THAI, báo cáo đêm / ngày nêu chênh lệch.

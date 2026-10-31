@@ -2,6 +2,17 @@
 
 Trạng thái lát: Đang code → Chờ kiểm → Chờ Anh (cổng A/B) → Sửa → Xong · Bị chặn. Kế hoạch và hàng đợi đầy đủ: `4-KE-HOACH-LEAD.md`. Nền test: `NEN-TEST.md` mục 0b — **nền v4** (mục 0, 25/10): 1501/23/44/362, **0 treo**.
 
+## Dự kiến theo mốc (CD-047) — cập nhật 31/10 09:15, **ước tính**
+
+Nhịp gộp thực tế 12 giờ gần nhất (30/10 21:00 → 31/10 09:10): **24 lượt gộp ≈ 2 lượt / giờ**. Mỗi lát trung bình 2–3 vòng (review chặn → sửa), nên ước tính theo **khoảng 1,3 lát xong / giờ** khi đủ 4 Codex.
+
+| Mốc | Lát còn lại | Dự kiến (ước tính) | Việc chờ Anh có thể làm trễ |
+|---|---|---|---|
+| **Core G2 xong:** G2-22b … G2-32, màn Quản lý engine / module (CD-045), Xem dữ liệu (CD-046), DM-1 | khoảng 14 (22b, 23, 25, 26, 27, 28, 29, 30, 31a, 31b, 31c, 32, DM-1, EM-CFG) | **31/10 khoảng 21:00 – 01/11 sáng** | G2-23 cần chốt adapter két / mã hóa (lead tự chốt theo chuẩn, nếu vướng sẽ hỏi); G2-33b tạo tài khoản Windows riêng cần Anh cho phép (thay đổi hệ thống) |
+| **Cổng D sẵn sàng cho Anh thử:** CRM CR4–CR10 trong `Module\crm\` (CD-043), DEMO trong CSDL chung DM-2 … DM-4 (CD-044) | khoảng 14 (CR4–CR10, MD-1 … MD-4, DM-2 … DM-4) | **02/11** | Anh xác nhận chạy sao lưu SL-1 / chuyển DEMO vào CSDL thật; mỗi lần chạy công cụ xóa DEMO cần Anh cho phép |
+| **5 engine xong + đóng gói `engines\<ten>\`** (G3, CD-042) | khoảng 25 lát G3 + G3-GOI | **03/11** | MASK-2 … 4 chờ Anh duyệt 4 schema Mask; TRICH-2a / 2b chờ Anh; đo độ chính xác TRICH-4 có thể phải dừng báo Anh nếu thấp hơn gốc |
+| **Bắt đầu G4** (M4, CRM, M2 sang `Module\<mã>\`) | sau hai mốc trên | **03–04/11** | — |
+
 ## Lát đang chạy — 25/10: tối đa 3 worker lập trình; **từ 26/10 (CD-004): tối đa 6 = 2 suất Claude (ưu tiên review) + 4 Codex lát nhỏ ≤ 3 file** (lên 4 Codex khi PostgreSQL DEMO đã chạy dịch vụ Windows). Mọi lát Codex: `kiem-nhanh` → `review-lat` (Opus) → gộp; ngừng giao khi > 2 lát chờ review
 
 | Lát | Việc | Worker | Nhánh · worktree | Giao lúc | Trạng thái |
