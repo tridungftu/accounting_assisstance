@@ -265,3 +265,4 @@ Test tự động vẫn dùng `kho_test_*`, không ghi CSDL thật.
   - Phiếu cổng A màn quản trị gửi Anh thử; ghi chuẩn SDK / API v1.1.
 - **CD-046 — G2-31c "Xem dữ liệu"** (sau G2-31b): sơ đồ khối → bảng → dòng; phân trang / lọc / sắp xếp / tìm; xuất Excel phần đang lọc (ghi nhật ký). Đọc bằng phiên người dùng (RLS + MTQ), không kết nối toàn quyền; che cột nhóm A (4 số cuối); nhãn DEMO; không sửa / xóa / SQL tự do; quyền "Xem dữ liệu" là cột MTQ; mô tả bảng / cột lấy từ `module.json` / `contract\` (thêm trường mô tả vào chuẩn SDK v1.1).
 - **Nợ DM-1 (review Opus):** G2-25 / Module Manager gọi `loi.demo_gan_rao_chan` cho mọi bảng module mới; cấp `loi.phap_nhan_pham_vi` cho vai module cần báo cáo / xuất Junsky; giới hạn policy `demo_chu_doi_co`; gắn policy theo owner khối khi bộ cài không siêu quyền; đo hiệu năng trigger khi DM-3.
+- **G2-22b whitelist 4 tệp (lead duyệt 31/10 08:50):** thêm `core/sql/024_che_do_chay.sql` cho chế độ chạy bền + Admin CAS.
