@@ -13,9 +13,10 @@ import io
 import json
 import socket
 import threading
+import time
 
-from ...sdk_core.bootstrap import Bootstrap, LoiBootstrap
-from ...sdk_core.engine import SDKEngine
+from ...sdk_core.bootstrap import Bootstrap, LoiBootstrap, PROTOCOL, gui_thong_diep
+from ...sdk_core.engine import LoiEngine, SDKEngine
 from ...sdk_core.ngu_canh import _xoa_loi
 from .dto import KetQuaAI, TruongAI, YeuCauAI
 
@@ -41,7 +42,7 @@ class ProviderAIGia:
                         ly_do=('GIA_LAP',))
 
 
-def xu_ly_viec(sdk, *, provider):
+def xu_ly_viec(sdk, *, provider, khi_loi_ban_giao=None):
     """Đầu vào/metadata DEMO do Core cấp; chờ Core nhận xong mới kết thúc.
 
     Đây không là adapter JSON Schema ai.hoi@1/chỉ Local (AI-1b/AI-2).
@@ -58,9 +59,18 @@ def xu_ly_viec(sdk, *, provider):
         raise TypeError('Cần DTO KetQuaAI')
     raw = json.dumps(asdict(ket_qua), ensure_ascii=False, allow_nan=False).encode('utf-8')
     with io.BytesIO(raw) as luong:
-        return sdk.ghi_ket_qua(luong=luong, ten='ai-demo.json',
-            du_lieu=dau_vao['du_lieu_ket_qua'],
-            revision_tep_truoc=dau_vao['revision_tep_truoc'])
+        while True:
+            luong.seek(0)
+            try:
+                return sdk.ghi_ket_qua(luong=luong, ten='ai-demo.json',
+                    du_lieu=dau_vao['du_lieu_ket_qua'],
+                    revision_tep_truoc=dau_vao['revision_tep_truoc'])
+            except LoiEngine as exc:
+                # Chưa có ACK: giữ cả bộ đệm và kênh, không chạy lại provider.
+                _xoa_loi(exc)
+                if khi_loi_ban_giao is not None:
+                    khi_loi_ban_giao()
+                time.sleep(0.1)
 
 
 class _VongNhan:
@@ -74,6 +84,7 @@ class _VongNhan:
         self.khoa = threading.Lock()
         self.dung = False
         self.loi = False
+        self.loi_ban_giao = threading.Event()
         self.worker = threading.Thread(target=self._chay, name='ai-demo')
 
     def bat_dau(self):
@@ -103,7 +114,8 @@ class _VongNhan:
                     sdk = self.nhan_viec(conn, self.bootstrap.bo_doc)
                     # Việc đã nhận phải chờ Core ACK, kể cả khi đang drain.
                     conn.settimeout(None)
-                    xu_ly_viec(sdk, provider=self.provider)
+                    xu_ly_viec(sdk, provider=self.provider,
+                               khi_loi_ban_giao=self.loi_ban_giao.set)
         except Exception as exc:
             _xoa_loi(exc)
             self.loi = True
@@ -113,7 +125,10 @@ class _VongNhan:
             self.dung = True
 
     def drain(self):
-        self.worker.join()
+        while self.worker.is_alive():
+            self.worker.join(0.1)
+            if self.worker.is_alive() and self.loi_ban_giao.is_set():
+                return False
         return not self.loi
 
 
@@ -125,12 +140,24 @@ def chay(*, kiem_chu_ky, nhan_viec, provider=None):
     bootstrap = Bootstrap.nhan(kiem_chu_ky=kiem_chu_ky)
     vong = _VongNhan(bootstrap, nhan_viec, provider)
     bat_dau = False
+
+    def cho_drain():
+        da_bao = False
+        while not vong.drain():
+            if not da_bao:
+                gui_thong_diep(bootstrap._ra, {
+                    'protocol': PROTOCOL, 'kieu': 'drain_chua_xong'})
+                da_bao = True
+            time.sleep(0.1)
+        return True
+
     try:
         bootstrap.bao_san_sang(phien_ban=PHIEN_BAN, contracts=[],
                                kiem_san_sang=provider.san_sang)
         vong.bat_dau()
         bat_dau = True
-        bootstrap.cho_thu_hoi(ngung_accept=vong.ngung_accept, drain=vong.drain)
+        # Không đưa False ra bootstrap: kết quả chưa ACK phải giữ tiến trình.
+        bootstrap.cho_thu_hoi(ngung_accept=vong.ngung_accept, drain=cho_drain)
     finally:
         if bat_dau:
             vong.ngung_accept()

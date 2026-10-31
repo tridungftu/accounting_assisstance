@@ -13,7 +13,6 @@ from pathlib import Path
 import socket
 import subprocess
 import sys
-import threading
 import time
 import unittest
 from unittest.mock import MagicMock, patch
@@ -50,10 +49,11 @@ def _lease():
 
 
 class KenhGia(KenhCore):
-    def __init__(self, conn=None, giu=False):
-        self.conn, self.giu = conn, giu
+    def __init__(self, conn=None, giu=False, loi_lan_dau=False):
+        self.conn, self.giu, self.loi_lan_dau = conn, giu, loi_lan_dau
         self.da_goi = []
         self.raw = None
+        self.luong_cho_ack = None
 
     def goi(self, operation, giu_viec, **payload):
         self.da_goi.append(operation)
@@ -62,7 +62,18 @@ class KenhGia(KenhCore):
                         revision_tep_truoc=0)
         if operation != 'ghi_ket_qua':
             raise AssertionError('Operation ngoài test')
-        self.raw = payload['luong'].read()
+        raw = payload['luong'].read()
+        if self.loi_lan_dau:
+            if self.luong_cho_ack is None:
+                self.luong_cho_ack, self.raw = payload['luong'], raw
+                self.conn.sendall(b'loi_truoc_ack\n')
+                raise RuntimeError('AI4A_CANARY')
+            assert payload['luong'] is self.luong_cho_ack
+            assert not self.luong_cho_ack.closed
+            assert raw == self.raw
+            self.conn.sendall(b'thu_lai_cho_ack\n')
+            assert self.conn.recv(32) == b'core_da_nhan\n'
+        self.raw = raw
         assert payload['du_lieu'] == METADATA
         assert payload['revision_tep_truoc'] == 0
         assert payload['ten'] == 'ai-demo.json'
@@ -85,8 +96,9 @@ def _child():
     def nhan_viec(conn, bo_doc):
         # Chỉ lease DEMO sau marker test; runtime không bỏ kiểm chữ ký thật.
         raw = conn.recv(64)
-        assert raw in (b'DEMO_AI4A\n', b'DEMO_AI4A_GIU\n')
-        return SDKEngine(_lease(), kenh_core=KenhGia(conn, raw.endswith(b'_GIU\n')))
+        assert raw in (b'DEMO_AI4A\n', b'DEMO_AI4A_GIU\n', b'DEMO_AI4A_LOI\n')
+        return SDKEngine(_lease(), kenh_core=KenhGia(
+            conn, raw.endswith(b'_GIU\n'), raw.endswith(b'_LOI\n')))
 
     def khong_nhan_the(sig, msg):
         raise ValueError('Test này không cấp thẻ request')
@@ -153,43 +165,36 @@ class AIThuanTest(unittest.TestCase):
         b.socket.close.assert_called_once()
         self.assertEqual(b._ra.getvalue(), b'')
 
-    def test_loi_ban_giao_khong_bao_drain_thanh_cong_khong_ro_noi_dung(self):
-        b, conn = bs.Bootstrap(), MagicMock()
-        b.socket, b.bo_doc = MagicMock(), MagicMock()
-        b._duoc_accept = True
-        b._vao = io.BytesIO(b'{"protocol":"ktt.bootstrap.v1","kieu":"thu_hoi"}\n')
-        b._ra = io.BytesIO()
-        conn.__enter__.return_value = conn
-        b.socket.accept.return_value = (conn, ('127.0.0.1', 1))
+    def test_loi_ban_giao_giu_bo_dem_thu_lai_khong_goi_lai_provider(self):
         kenh = KenhGia()
         goi = kenh.goi
         loi = RuntimeError('AI4A_CANARY')
-        da_ban_giao = threading.Event()
+        luong_cho_ack = []
+        provider = MagicMock(wraps=ai.ProviderAIGia())
+        bao_loi = MagicMock()
 
         def ban_giao(operation, giu, **payload):
             if operation == 'ghi_ket_qua':
-                kenh.da_goi.append(operation)
-                da_ban_giao.set()
-                raise loi
+                luong = payload['luong']
+                self.assertFalse(luong.closed)
+                self.assertEqual(luong.tell(), 0)
+                if not luong_cho_ack:
+                    luong_cho_ack.append(luong)
+                    kenh.raw = luong.read()  # Lỗi sau khi transport đã đọc hết.
+                    kenh.da_goi.append(operation)
+                    raise loi
+                self.assertIs(luong, luong_cho_ack[0])
+                self.assertEqual(luong.getvalue(), kenh.raw)
             return goi(operation, giu, **payload)
 
         kenh.goi = ban_giao
-        cho_thu_hoi = b.cho_thu_hoi
-
-        def thu_hoi(**callbacks):
-            self.assertTrue(da_ban_giao.wait(2))
-            return cho_thu_hoi(**callbacks)
-
-        with patch.object(ai.Bootstrap, 'nhan', return_value=b), \
-                patch.object(b, 'bao_san_sang'), \
-                patch.object(b, 'cho_thu_hoi', side_effect=thu_hoi):
-            with self.assertRaisesRegex(bs.LoiBootstrap, 'DRAIN_CHUA_XONG'):
-                ai.chay(kiem_chu_ky=lambda *_: None,
-                        nhan_viec=lambda *_: SDKEngine(_lease(), kenh_core=kenh))
-        self.assertEqual(kenh.da_goi, ['doc_dau_vao', 'ghi_ket_qua'])
-        conn.__exit__.assert_called_once()
-        b.socket.close.assert_not_called()
-        self.assertEqual(b._ra.getvalue(), b'')
+        ket_qua = ai.xu_ly_viec(SDKEngine(_lease(), kenh_core=kenh),
+                               provider=provider, khi_loi_ban_giao=bao_loi)
+        self.assertEqual(ket_qua, {'ket_qua_id': 'DEMO_DA_NHAN'})
+        self.assertEqual(kenh.da_goi, ['doc_dau_vao', 'ghi_ket_qua', 'ghi_ket_qua'])
+        provider.goi.assert_called_once_with(YEU_CAU)
+        bao_loi.assert_called_once_with()
+        self.assertTrue(luong_cho_ack[0].closed)
         self.assertNotIn('AI4A_CANARY', repr(loi))
 
     def test_import_khong_khoi_dong_local_hay_mang(self):
@@ -321,6 +326,34 @@ class AITienTrinhTest(unittest.TestCase):
             with conn.makefile('rb') as reader:
                 self._kiem_ket_qua(reader)
         self.assertTrue(c.thu_hoi(timeout=5))
+
+    def test_loi_truoc_ack_tien_trinh_song_bao_chua_drain_thu_lai_dat(self):
+        c, so = self._tao()
+        c.khoi_dong()
+        proc, job = c._proc, c._job
+        conn = self._ket_noi(so)
+        conn.sendall(b'DEMO_AI4A_LOI\n')
+        reader = conn.makefile('rb')
+        self.addCleanup(reader.close)
+        self.assertEqual(reader.readline(), b'loi_truoc_ack\n')
+        self.assertIsNone(proc.poll())
+        self.assertEqual(reader.readline(), b'thu_lai_cho_ack\n')
+        with self.assertRaisesRegex(tt.LoiTienTrinh, 'DUNG_CHUA_XAC_NHAN'):
+            c.thu_hoi(timeout=0.3)
+        self.assertEqual(bs.doc_thong_diep(tt._doc_dong(proc.stdout, 3)), {
+            'protocol': bs.PROTOCOL, 'kieu': 'drain_chua_xong'})
+        self.assertIsNone(proc.poll())
+        self.assertGreaterEqual(job.so_tien_trinh(), 1)
+        self.assertEqual((c.trang_thai, c.chu_accept), ('dang_dung', 'con'))
+        self.assertNotIn('tra', [ten for ten, _ in so.go])
+        conn.sendall(b'core_da_nhan\n')
+        self._kiem_ket_qua(reader)
+        self.assertEqual(bs.doc_thong_diep(tt._doc_dong(proc.stdout, 5)), {
+            'protocol': bs.PROTOCOL, 'kieu': 'da_thu_hoi'})
+        proc.wait(5)
+        self.assertEqual(proc.returncode, 0)
+        self.assertTrue(c.kiem_con())
+        self.assertEqual(so.dong['trang_thai'], 'TRONG')
 
     def test_version_hoac_capability_sai_khong_ready(self):
         for truong, value in (('_phien_ban', 'KHAC_BAN_RUNTIME'),
