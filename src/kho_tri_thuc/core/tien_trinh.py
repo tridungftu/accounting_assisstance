@@ -79,8 +79,8 @@ def _job(ten):
         raise
 
 
-def _phien_da_dung(phien):
-    """Chỉ đọc OS; không kill PID/Job lạ, lỗi quyền/truy vấn => chưa xác nhận."""
+def _phien_da_dung(phien, dong=None):
+    """Đối chiếu OS/bind loại trừ; không kill PID/Job lạ, lỗi => chưa xác nhận."""
     if os.name != 'nt':
         return False
     import ctypes as c
@@ -96,20 +96,30 @@ def _phien_da_dung(phien):
     if not h and c.get_last_error() != 87:
         return False
     try:
-        # Phien truoc 022 chua co ten Job: chi doi chieu PID + FILETIME.
-        # Khac dinh danh chua du: phai la mot lan tao moi hon phien cu.
+        # PID goc da dung khong chung minh worker da het. Phien thieu ten
+        # Job con can bind loai tru dung dia chi/cong truoc khi tra so.
         if phien.get('ten_job') is None:
             cu = phien.get('dinh_danh_lan_tao')
             if not isinstance(cu, str) or not re.fullmatch('[0-9]{1,20}', cu) or int(cu) <= 0:
                 return False
-            if not h:  # OpenProcess da xac nhan ERROR_INVALID_PARAMETER (PID khong con).
-                return True
-            tao = dinh_danh_lan_tao(SimpleNamespace(_handle=h))
-            if not isinstance(tao, str) or not re.fullmatch('[0-9]{1,20}', tao):
+            if h:
+                tao = dinh_danh_lan_tao(SimpleNamespace(_handle=h))
+                if not isinstance(tao, str) or not re.fullmatch('[0-9]{1,20}', tao):
+                    return False
+                if not (int(tao) > int(cu)
+                        or (int(tao) == int(cu) and k.WaitForSingleObject(h, 0) == 0)):
+                    return False
+            if (not dong or dong.get('dia_chi_nghe') not in ('127.0.0.1', '::1')
+                    or type(dong.get('cong')) is not int or not 1024 <= dong['cong'] <= 65535):
                 return False
-            if int(tao) > int(cu):
+            try:
+                with socket.socket(socket.AF_INET6 if dong['dia_chi_nghe'] == '::1'
+                                   else socket.AF_INET, socket.SOCK_STREAM) as nghe:
+                    nghe.setsockopt(socket.SOL_SOCKET, socket.SO_EXCLUSIVEADDRUSE, 1)
+                    nghe.bind((dong['dia_chi_nghe'], dong['cong']))
                 return True
-            return int(tao) == int(cu) and k.WaitForSingleObject(h, 0) == 0
+            except OSError:
+                return False
         if h:
             tao = dinh_danh_lan_tao(SimpleNamespace(_handle=h))
             if tao == phien['dinh_danh_lan_tao'] and k.WaitForSingleObject(h, 0) != 0:
@@ -271,7 +281,7 @@ class TienTrinhCore:
             da_dung = (str(dong['giu_boi']), dong['the_he']) in self._da_dung
             if not da_dung:
                 try:
-                    da_dung = _phien_da_dung(phien)
+                    da_dung = _phien_da_dung(phien, dong)
                 except Exception as exc:
                     _xoa_loi(exc)
             if not da_dung:
