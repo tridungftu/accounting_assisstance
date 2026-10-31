@@ -7,6 +7,7 @@ kích hoạt contract, không cần PostgreSQL, không tự sinh UUID lịch s�
 from copy import deepcopy
 import json
 from pathlib import Path
+import re
 import sys
 import unittest
 from unittest.mock import MagicMock, patch
@@ -98,8 +99,17 @@ class MocDaXayRaTests(unittest.TestCase):
 
     def test_ben_nhan_dung_cd041_khong_suy_quyen_tu_khai_bao(self):
         spec = (ROOT / 'docs/47-core/g1/CONTRACT-NGHIEP-VU.md').read_text(encoding='utf-8')
-        section = spec.split('### 5.3. `moc_da_xay_ra.v1`', 1)[1].split('### 5.4.', 1)[0]
+        appendix = re.search(
+            r'^## Phụ lục — quyết định bổ sung\s*\n(.*?)(?=^#{1,2} |\Z)', spec, re.M | re.S)
+        self.assertIsNotNone(appendix, 'Thiếu phụ lục quyết định bổ sung')
+        decision = re.search(
+            r'^### `moc_da_xay_ra\.v1` \(§5\.3\)\s*\n(.*?)(?=^#{1,3} |\Z)',
+            appendix.group(1), re.M | re.S)
+        self.assertIsNotNone(decision, 'Thiếu quyết định moc_da_xay_ra.v1 tại phụ lục')
+        section = decision.group(1)
         self.assertIn('(c) module nhận: CRM, M3, M10;', section)
+        recipients = re.search(r'\(c\) module nhận: ([^;\n]+);', section)
+        self.assertEqual(self.schema['x-ben-nhan'], [name.strip() for name in recipients.group(1).split(',')])
         self.assertEqual(self.schema['x-ben-phat'], 'CRM')
         self.assertEqual(self.schema['x-ben-nhan'], ['CRM', 'M3', 'M10'])
 
