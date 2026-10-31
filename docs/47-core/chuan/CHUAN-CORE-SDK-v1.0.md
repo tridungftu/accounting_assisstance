@@ -1,7 +1,7 @@
 # CHUẨN CORE — SDK
 
 **Tệp:** `CHUAN-CORE-SDK-v1.0.md`  
-**Phiên bản:** v1.0  
+**Phiên bản:** v1.1 (31/10/2026; tên tệp giữ v1.0 để không đứt tham chiếu)  
 **Ngày Anh duyệt phiếu SDK bản 2:** 30/10/2026, 17:30 — CD-038  
 **Văn bản chuẩn:** chờ Anh xem (CD-034 mục 4); đã qua review Opus (Đạt) và sửa 5 điểm nhỏ.
 
@@ -29,6 +29,7 @@ Kết quả phê duyệt CD-038 được áp dụng tại những chỗ đặc t
 | Phiên bản | Ngày | Nội dung |
 |---|---|---|
 | v1.0 | 30/10/2026 | Bản đầu; tập hợp SDK Python/JS, khung tiến trình, manifest, contract và bộ kiểm. Áp dụng SDK 1A/2B và engine 1C/2A/3A theo CD-038. |
+| v1.1 | 31/10/2026 | (1) **CD-041 mục 3:** thêm contract kỹ thuật thứ 10 `hoi_ai.v1` (`urn:ktt:contract:hoi_ai.v1`, 1.0.0) — đầu vào `ai.hoi@1` từ năm trường `YeuCauAI` và cờ `chi_cuc_bo` (mặc định `false`; `true` = 0 lời gọi Cloud kể cả khi Local lỗi / không chắc / được chọn kiểm xác suất, ánh xạ `cloud_bat=False` theo request). Bắt buộc `true` với M9 (CD-015) và `mau_demo`. Chi tiết: `docs'-core\engine\QUYET-DINH-AI-1B.md` §6. (2) **CD-042:** mỗi engine một thư mục ở gốc repo `engines\<ten>\`, tự đủ: `engine.json`, mã + adapter, `NGUON.md` (đường dẫn gốc, SHA256, phiên bản), `contract\`, `tests\`, `README.md`, `CHANGELOG.md`, thư viện ghim. Không import chéo engine / module, chỉ dùng SDK Core. Engine Manager đọc `engines\*\engine.json`, không khai đường dẫn cứng. (3) **G2-17b:** manifest engine cho `headless=false` chỉ với `ngoai_le_man_hinh` mã `CD-038-ENGINE-2A` / `CD-038-ENGINE-3A`; engine chưa có capability đã kiểm thì chưa có `engine.json`. |
 
 Mọi thay đổi sau v1.0 phải tăng phiên bản và ghi rõ trong mục này.
 
@@ -953,7 +954,7 @@ JSON là dữ liệu trao đổi; JSON Schema mô tả cấu trúc để kiểm 
 | Kỹ thuật | Core | Tệp, văn bản tài liệu, bảng, tham số, nội dung đã che, trả lời AI, hóa đơn đọc từ XML, lỗi và việc. |
 | Nghiệp vụ | Module sở hữu, Anh duyệt | Ý nghĩa nghiệp vụ, grain, khóa dòng, điều kiện công bố, bất biến và ngoại lệ. |
 
-Chín contract kỹ thuật, phiên bản đầu `1.0.0`:
+Chín contract kỹ thuật, phiên bản đầu `1.0.0` (v1.1 thêm thứ 10 `hoi_ai.v1`, xem mục 1):
 
 ```text
 tham_chieu_tep.v1

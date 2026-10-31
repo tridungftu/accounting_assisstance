@@ -165,3 +165,21 @@ Ví dụ DEMO, không chứa dữ liệu thật; M9 đặt cờ chỉ Local và 
 | Opus review và ghi chuẩn SDK v1.1 | Không quy định bước SDK v1.1 | 138 yêu cầu Opus review trước lập trình | Giao việc hiện tại của Anh (CD-041 mục 3) | Chưa review; §4 chỉ là nội dung đề xuất, chưa sửa chuẩn. |
 
 **Điều kiện bàn giao tiếp:** lead giải quyết các dòng **Cần lead**, nhận Opus review và cập nhật chuẩn v1.1. Chưa dùng bản đề xuất này để tự công bố contract đã duyệt hoặc mở lập trình AI-1b/AI-2. Ca kiểm triển khai cần giữ theo E1:177–178: 0 Cloud khi chỉ Local trong cả ba tình huống và hai request khác cờ không ảnh hưởng nhau; lát tài liệu này chưa chạy engine/dịch vụ.
+
+## 6. Lead chốt (31/10/2026, theo CD-041 mục 3 — sau review Opus Đạt)
+
+Review Opus: Đạt, không có điểm Chặn. Schema hợp lệ Draft 2020-12, `$ref` URN giải offline, ví dụ DEMO đạt, 8 ca âm bị bác đúng. Không có quyết định mới ngoài TL 48.
+
+1. **Năm trường đầu vào:** chốt theo bảng §1, chuyển 1-1 từ `YeuCauAI`. Danh tính / pháp nhân / việc do Core gắn.
+   - Schema bác `dinh_danh_da_biet=null`. Mã gốc nhận `None` (A:920), nên đây là chỗ schema chặt hơn nguồn — cố ý, theo hướng an toàn.
+2. **Cờ:** `chi_cuc_bo: boolean`, mặc định `false`. Mặc định `true` sẽ là quy tắc mới ngoài TL 48 nên không chọn; công tắc toàn cục `cloud_bat` vẫn tắt sẵn.
+   - Bắt buộc `true` với **M9** (CD-015 mục 2: không gửi Cloud, kể cả qua Mask v2) và **`mau_demo`** (GIAO-ENGINE-1 dòng 172).
+   - **Cơ chế bảo đảm:** lead grep ở cổng kiểm soát mọi lời gọi `ai.hoi@1` của M9; lát AI-2 có ca test "M9 luôn gửi `chi_cuc_bo=true`".
+3. **Contract:** `hoi_ai.v1` (`urn:ktt:contract:hoi_ai.v1`, bản `1.0.0`, không có vỏ `vo_noi_dung`). Đây là contract kỹ thuật thứ 10 do Core sở hữu (SDK §3.10.4), không cần Anh duyệt như contract nghiệp vụ.
+   - Manifest `e_hoi_ai` khai capability `ai.hoi@1` với `dau_vao: hoi_ai.v1`, `dau_ra: tra_loi_ai.v1`.
+   - Lát AI-2 đăng ký `hoi_ai.v1` vào `ky_thuat.json` và `CONTRACT-DU-LIEU.md`, sửa test đếm 9 contract.
+4. **Object định danh:** bắt buộc cả `gia_tri` và `nhom` (`nhom` được rỗng); không mở thêm dạng ngầm của nguồn.
+5. **Không thêm giới hạn hay lịch kiểm.** Đổi lịch / ngưỡng kiểm xác suất **phải hỏi Anh** (TL 48 §1.6 còn "CẦN ANH XÁC NHẬN").
+6. **Đã biết, không đổi:** khi chỉ Local, nhật ký ghi lý do `CLOUD_TAT` giống công tắc toàn cục tắt, nên kiểm toán không phân biệt được hai lý do.
+
+**Mở lập trình:** AI-1b (manifest + schema) và AI-2 (adapter chỉ Local) giao được theo bản chốt này.
