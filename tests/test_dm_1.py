@@ -5,6 +5,7 @@ Các hàm fixture chỉ thử lớp constraint (kể cả đường ghi bỏ qua
 thay thế hàm Core hay cấp DML bảng cho runtime. Lead chạy PG và review Opus.
 """
 from datetime import datetime, timedelta, timezone
+from contextlib import nullcontext
 from pathlib import Path
 import re
 import sys
@@ -19,8 +20,10 @@ from kho_tri_thuc.core import danh_muc as dm, doi_cau_truc as dc, lien_ket as lk
 
 try:
     from . import test_g2_06 as g206
+    from . import test_g2_12 as g212
 except ImportError:
     import test_g2_06 as g206
+    import test_g2_12 as g212
 
 SQL_PATH = dc.THU_MUC_SQL / '023_phap_nhan_demo.sql'
 SQL = SQL_PATH.read_text(encoding='utf-8')
@@ -74,6 +77,7 @@ class DemoThuanTest(unittest.TestCase):
 
     def test_loi_an_driver_token_va_giu_ma_da_biet(self):
         for ma, du_kien in [('DEMO_CAS', 'DEMO_CAS'), ('DEMO_DA_CO_DU_LIEU', 'DEMO_DA_CO_DU_LIEU'),
+                            ('DEMO_SCHEMA_CHUA_BAO_VE', 'DEMO_SCHEMA_CHUA_BAO_VE'),
                             ('CANARY_PASSWORD', 'DEMO_THAT_BAI')]:
             exc = RuntimeError('postgresql://CANARY:SECRET@localhost')
             exc.diag = SimpleNamespace(message_primary=ma)
@@ -81,6 +85,8 @@ class DemoThuanTest(unittest.TestCase):
             with self.assertRaises(demo.LoiPhapNhanDemo) as bat:
                 demo.dat_demo(self.conn, **self.ts)
             self.assertEqual(bat.exception.ma, du_kien)
+            if ma == 'DEMO_SCHEMA_CHUA_BAO_VE':
+                self.assertEqual(bat.exception.http_status, 409)
             self.assertIsNone(bat.exception.__context__)
             self.assertNotIn('CANARY', ''.join(traceback.format_exception(bat.exception)))
 
@@ -186,9 +192,11 @@ class DemoPostgresTest(unittest.TestCase):
         with self.assertRaises(demo.LoiPhapNhanDemo) as bat:
             self._dat(False)
         self.assertEqual(bat.exception.ma, 'DEMO_CAS')
-        audit = self.conn.execute("""SELECT nguoi_dung_id,phap_nhan_id,hanh_dong,doi_tuong_id
-            FROM loi.nhat_ky_kiem_toan WHERE doi_tuong_id=%s""", (self.pn,)).fetchall()
-        self.assertEqual(audit, [(self.nd,self.pn,HD,self.pn)])
+        self._dat(False, '2')
+        audit = self.conn.execute("""SELECT nguoi_dung_id,phap_nhan_id,hanh_dong,doi_tuong_id,doi_tuong
+            FROM loi.nhat_ky_kiem_toan WHERE doi_tuong_id=%s ORDER BY id""", (self.pn,)).fetchall()
+        self.assertEqual(audit, [(self.nd,self.pn,HD,self.pn,'phap_nhan_demo.bat'),
+                                 (self.nd,self.pn,HD,self.pn,'phap_nhan_demo.tat')])
         self.assertEqual(dc.ap_doi_cau_truc(self.conn,self.tep_sql),23)
         with self.conn.transaction():
             self.conn.execute(SQL)  # DDL 023 tu chay lai duoc, khong chi bo qua checksum.
@@ -206,6 +214,7 @@ class DemoPostgresTest(unittest.TestCase):
         self.assertEqual(self.conn.execute("SELECT relrowsecurity,relforcerowsecurity FROM pg_class WHERE oid='loi.phap_nhan'::regclass").fetchone(), (True,True))
         for cau, ts in [('UPDATE loi.phap_nhan SET la_demo=true WHERE id=%s',(self.pn,)),
                         ('SELECT loi.demo_kiem_tap_noi_bo(%s::uuid[])',([self.pn],)),
+                        ('SELECT loi.demo_gan_rao_chan(%s::regclass)',('loi.phap_nhan_boi_canh',)),
                         ('INSERT INTO loi.phap_nhan(ma,ten,la_demo) VALUES(%s,%s,true)',('gia','gia'))]:
             with self.assertRaises(g206.psycopg.errors.InsufficientPrivilege),self.core.transaction():
                 self.core.execute(cau,ts)
@@ -215,6 +224,7 @@ class DemoPostgresTest(unittest.TestCase):
         self.assertEqual(self.conn.execute('SELECT rolcanlogin,rolsuper,rolbypassrls,rolcreaterole,rolcreatedb FROM pg_roles WHERE rolname=%s', (vai,)).fetchone(), (False,)*5)
         self.assertTrue(self.conn.execute("SELECT has_column_privilege(%s,'loi.phien_xac_thuc','phap_nhan_id','SELECT')",(vai,)).fetchone()[0])
         self.assertFalse(self.conn.execute("SELECT has_column_privilege(%s,'loi.phien_xac_thuc','ma_bam','SELECT')",(vai,)).fetchone()[0])
+        self.assertFalse(self.conn.execute("SELECT has_function_privilege(%s,'loi.demo_gan_rao_chan(regclass)','EXECUTE')",(vai,)).fetchone()[0])
         with self.assertRaises(g206.psycopg.errors.InsufficientPrivilege),self.core.transaction():
             self.core.execute(g206.sql.SQL('SET LOCAL ROLE {}').format(g206.sql.Identifier(vai)))
 
@@ -239,15 +249,107 @@ class DemoPostgresTest(unittest.TestCase):
             self.assertEqual(demo.pham_vi(self.core,gom_demo=True),[])
 
     def test_co_du_lieu_tu_choi_ca_hai_chieu(self):
-        for la_demo in (False,True):
-            with self.subTest(la_demo=la_demo):
-                if la_demo:
+        for bang in ('loi.phap_nhan_boi_canh', 'loi_tai_lieu.tai_lieu'):
+            for la_demo in (False,True):
+                with self.subTest(bang=bang, la_demo=la_demo):
                     self.setUp()
-                    self._dat()
-                self.conn.execute("INSERT INTO loi.phap_nhan_boi_canh(phap_nhan_id,phien_ban,muc) VALUES(%s,1,0)",(self.pn,))
-                with self.assertRaises(demo.LoiPhapNhanDemo) as bat:
-                    self._dat(not la_demo,'2' if la_demo else '1')
-                self.assertEqual(bat.exception.ma,'DEMO_DA_CO_DU_LIEU')
+                    if la_demo:
+                        self._dat()
+                    if bang == 'loi.phap_nhan_boi_canh':
+                        self.conn.execute("INSERT INTO loi.phap_nhan_boi_canh(phap_nhan_id,phien_ban,muc) VALUES(%s,1,0)",(self.pn,))
+                    else:
+                        self.conn.execute("""INSERT INTO loi_tai_lieu.tai_lieu(id,phap_nhan_id,module,loai,ten,
+                            bang_doi_tuong,doi_tuong_id,phien_ban_contract,tao_boi)
+                            VALUES(%s,%s,'crm','DEMO','DEMO','doi_tuong',%s,'1',%s)""",
+                            (uuid4(),self.pn,uuid4(),self.nd))
+                    with self.assertRaises(demo.LoiPhapNhanDemo) as bat:
+                        self._dat(not la_demo,'2' if la_demo else '1')
+                    self.assertEqual(bat.exception.ma,'DEMO_DA_CO_DU_LIEU')
+
+    def test_bang_module_moi_gan_rao_chan_va_chan_du_lieu_cheo(self):
+        self._resolver()
+        sql = g206.sql
+        bang = 'demo_'+uuid4().hex
+        ten = sql.Identifier('mod_crm', bang)
+        chu = sql.Identifier(self.tien_to+'vai_doi_cau_truc_mod_crm')
+        with self.conn.transaction():
+            self.conn.execute(sql.SQL('CREATE TABLE {} (id uuid PRIMARY KEY, phap_nhan_id uuid NOT NULL, '
+                'cha_id uuid REFERENCES {}(id), bi_mat text)').format(ten,ten))
+            self.conn.execute(sql.SQL('ALTER TABLE {} OWNER TO {}').format(ten,chu))
+            self.conn.execute(sql.SQL('ALTER TABLE {} ENABLE ROW LEVEL SECURITY').format(ten))
+            self.conn.execute(sql.SQL('ALTER TABLE {} FORCE ROW LEVEL SECURITY').format(ten))
+            self.conn.execute(sql.SQL('CREATE POLICY fixture_ghi ON {} FOR INSERT TO {} WITH CHECK(true)').format(ten,chu))
+        oid = self.conn.execute('SELECT %s::regclass::oid',('mod_crm.'+bang,)).fetchone()[0]
+        with self.assertRaises(demo.LoiPhapNhanDemo) as bat:
+            self._dat()
+        self.assertEqual((bat.exception.ma,bat.exception.http_status),('DEMO_SCHEMA_CHUA_BAO_VE',409))
+        for kn in (self.core, self.cai_dat):
+            self.assertEqual(kn.execute('SELECT current_user,session_user').fetchone(),(kn.info.user,)*2)
+        with self.assertRaises(g206.psycopg.errors.InsufficientPrivilege),self.core.transaction():
+            self.core.execute('SELECT loi.demo_gan_rao_chan(%s::oid::regclass)',(oid,))
+        # Login cai dat duoc cap dung ham, khong can quyen DDL bang module.
+        for _ in range(2):
+            self.cai_dat.execute('SELECT loi.demo_gan_rao_chan(%s::oid::regclass)',(oid,))
+        self.assertEqual(self._dat()['la_demo'],True)
+        kiem = self.tien_to+'vai_kiem_demo'
+        self.assertEqual(self.conn.execute("SELECT has_column_privilege(%s,%s,'phap_nhan_id','SELECT'),"
+            "has_column_privilege(%s,%s,'id','SELECT'),has_column_privilege(%s,%s,'bi_mat','SELECT')",
+            (kiem,oid,kiem,oid,kiem,oid)).fetchone(),(True,True,False))
+        self.assertEqual(self.conn.execute("SELECT prosecdef,proconfig FROM pg_proc WHERE "
+            "oid='loi.demo_gan_rao_chan(regclass)'::regprocedure").fetchone(),
+            (True,['search_path=pg_catalog, pg_temp']))
+        self.assertFalse(self.conn.execute("SELECT EXISTS(SELECT FROM pg_proc p,"
+            "LATERAL aclexplode(coalesce(p.proacl,acldefault('f',p.proowner))) a "
+            "WHERE p.oid='loi.demo_gan_rao_chan(regclass)'::regprocedure AND a.grantee=0)").fetchone()[0])
+        with self.conn.transaction():
+            self.conn.execute(sql.SQL('SET LOCAL ROLE {}')
+                .format(sql.Identifier(self.tien_to+'vai_doi_cau_truc_loi')))
+            self.conn.execute('SELECT loi.demo_gan_rao_chan(%s::oid::regclass)',(oid,))
+        with self.assertRaises(g206.psycopg.Error) as bat,self.cai_dat.transaction():
+            self.cai_dat.execute("SELECT loi.demo_gan_rao_chan('pg_catalog.pg_class'::regclass)")
+        self.assertEqual(bat.exception.diag.message_primary,'DEMO_SCHEMA_CHUA_BAO_VE')
+        # Fixture DEFINER chi INSERT, runtime khong nhan quyen DML bang.
+        with self.conn.transaction():
+            self.conn.execute(sql.SQL('SET LOCAL ROLE {}').format(chu))
+            self.conn.execute(sql.SQL('CREATE FUNCTION mod_crm.{}(uuid,uuid,uuid) RETURNS void '
+                'LANGUAGE sql SECURITY DEFINER SET search_path=pg_catalog,pg_temp AS '
+                '$$ INSERT INTO {}(id,phap_nhan_id,cha_id) VALUES($1,$2,$3) $$')
+                .format(sql.Identifier(bang),ten))
+            self.conn.execute(sql.SQL('REVOKE ALL ON FUNCTION mod_crm.{}(uuid,uuid,uuid) FROM PUBLIC').format(sql.Identifier(bang)))
+            self.conn.execute(sql.SQL('GRANT EXECUTE ON FUNCTION mod_crm.{}(uuid,uuid,uuid) TO {}')
+                .format(sql.Identifier(bang),sql.Identifier(self.core.info.user)))
+        ghi = sql.SQL('SELECT mod_crm.{}(%s,%s,%s)').format(sql.Identifier(bang))
+        cha = uuid4()
+        with self.core.transaction():
+            self._context()
+            self.core.execute(ghi,(cha,self.pn,None))
+        with self.assertRaises(g206.psycopg.Error) as bat,self.core.transaction():
+            self._context()
+            self.core.execute(ghi,(uuid4(),self.khac,cha))
+        self.assertEqual(bat.exception.diag.message_primary,'DEMO_LIEN_KET_CHEO')
+        with self.core.transaction():
+            self._context()
+            self.core.execute(ghi,(uuid4(),self.khac,None))
+        for pn,ma,co,ban in ((self.pn,self.ma,False,'2'),(self.khac,self._cap(self.khac),True,'1')):
+            with self.assertRaises(demo.LoiPhapNhanDemo) as bat,self.core.transaction():
+                demo.dat_demo(self.core,ma=ma,phap_nhan_id=pn,la_demo=co,row_version=ban,request_id=uuid4())
+            self.assertEqual(bat.exception.ma,'DEMO_DA_CO_DU_LIEU')
+
+    def test_mot_phap_nhan_trung_va_null_giu_shared_lock_trong_rr(self):
+        for ids in ([self.pn], [self.pn,None,self.pn]):
+            with self.subTest(ids=ids),self.conn.transaction():
+                self.conn.execute('SET TRANSACTION ISOLATION LEVEL REPEATABLE READ')
+                self.conn.execute(g206.sql.SQL('SET LOCAL ROLE {}')
+                    .format(g206.sql.Identifier(self.tien_to+'vai_doi_cau_truc_loi')))
+                self.conn.execute('SELECT loi.demo_kiem_tap_noi_bo(%s::uuid[])',(ids,))
+                with self.assertRaises(g206.psycopg.errors.LockNotAvailable),self.core.transaction():
+                    self.core.execute("SET LOCAL lock_timeout='150ms'")
+                    self.core.execute('SELECT loi.phap_nhan_dat_demo(%s,%s,true,1,%s)',
+                        (self.ma.lay_de_truyen(),self.pn,uuid4()))
+        with self.assertRaises(g206.psycopg.Error) as bat,self.conn.transaction():
+            self.conn.execute('SET TRANSACTION ISOLATION LEVEL REPEATABLE READ')
+            self.conn.execute('SELECT loi.demo_kiem_tap_noi_bo(%s::uuid[])',([self.pn,self.khac],))
+        self.assertEqual(bat.exception.diag.message_primary,'DEMO_CAN_READ_COMMITTED')
 
     def test_lien_ket_tien_mtq_va_cong_bo_bi_constraint_chan(self):
         self._dat()
@@ -315,13 +417,14 @@ class DemoPostgresTest(unittest.TestCase):
                 ma = self._cap(self.pn, 'crm', [hanh_dong])
                 for isolation in ('REPEATABLE READ', 'SERIALIZABLE'):
                     with self.subTest(cheo=cheo, bang=bang, hd=hd, isolation=isolation):
-                        with self.assertRaises(dm.LoiDanhMuc) as bat, self.core.transaction():
+                        with (self.assertRaises(dm.LoiDanhMuc) if cheo else nullcontext()) as bat, self.core.transaction():
                             self.core.execute('SET TRANSACTION ISOLATION LEVEL '+isolation)
                             dm._goi(self.core,
                                 'SELECT loi.mtq_quyet_dinh_phien(%s,%s,%s,%s,%s::jsonb)',
                                 (ma.lay_de_truyen(), 'crm', self.pn, hanh_dong,
                                  json.dumps(dict(bang=bang, id=str(obj)))))
-                        self.assertEqual(bat.exception.ma, ma_loi)
+                        if cheo:
+                            self.assertEqual(bat.exception.ma, ma_loi)
 
     def test_khoa_doi_co_cho_giao_dich_ghi_du_lieu(self):
         # Xac nhan hai duong dung cung khoa, khong can thread/doi vo han.
@@ -334,6 +437,54 @@ class DemoPostgresTest(unittest.TestCase):
         with self.assertRaises(demo.LoiPhapNhanDemo) as bat:
             self._dat()
         self.assertEqual(bat.exception.ma,'DEMO_DA_CO_DU_LIEU')
+
+
+@unittest.skipUnless(g206.psycopg is not None and g206.ADMIN_DSN,
+                     'CHUA_KIEM PG: thiếu psycopg hoặc KHO_PG_DSN_TEST')
+class DemoDanhMucPostgresTest(unittest.TestCase):
+    # Tai su dung fixture V2 day du (MTQ, cong tac, bien nhan) cua G2-12.
+    _ghi = g212.DanhMucPostgresTest._ghi
+    _contract = g212.DanhMucPostgresTest._contract
+    _trang_thai = g212.DanhMucPostgresTest._trang_thai
+    _resolver = g212.DanhMucPostgresTest._resolver
+    _cap = g212.DanhMucPostgresTest._cap
+    _ctx = g212.DanhMucPostgresTest._ctx
+    _tao = g212.DanhMucPostgresTest._tao
+
+    @classmethod
+    def setUpClass(cls):
+        g212.DanhMucPostgresTest.setUpClass.__func__(cls)
+
+    def setUp(self):
+        g212.DanhMucPostgresTest.setUp(self)
+
+    def test_thu_tu_guard_danh_muc_mot_phap_nhan_trong_rr(self):
+        ts = {**self.ts,'ma':self.ma}
+        # Ca LAP phai den guard ky cu; DEMO khong doi ma loi.
+        with self.assertRaises(dm.LoiDanhMuc) as bat,self.core.transaction():
+            self.core.execute('SET TRANSACTION ISOLATION LEVEL REPEATABLE READ')
+            dm.ghi_chung_tu(self.core,**ts)
+        self.assertEqual(bat.exception.ma,'DANH_MUC_CAN_READ_COMMITTED')
+        with self.core.transaction():
+            dm.ghi_chung_tu(self.core,**ts)
+        # SUA qua adapter kiem ky khac voi cua het hieu luc chung tu G2-13.
+        with self.assertRaises(dm.LoiDanhMuc) as bat,self.core.transaction():
+            self.core.execute('SET TRANSACTION ISOLATION LEVEL REPEATABLE READ')
+            dm.kiem_khoa_ky(self.core,chung_tu_id=self.obj,**self._ctx(g212.SUA))
+        self.assertEqual(bat.exception.ma,'DANH_MUC_CAN_READ_COMMITTED')
+        with self.assertRaises(dm.LoiDanhMuc) as bat,self.core.transaction():
+            self.core.execute('SET TRANSACTION ISOLATION LEVEL REPEATABLE READ')
+            dm.het_hieu_luc(self.core,loai='chung_tu',doi_tuong_id=self.obj,
+                khoa='demo-dm1-het-ct',row_version='1',**self._ctx(g212.SUA))
+        self.assertEqual(bat.exception.ma,'LIEN_KET_CAN_READ_COMMITTED')
+        # Doi tac khong co guard ky: het hieu luc van ghi duoc nhu truoc 023.
+        with self.core.transaction():
+            dm.ghi_doi_tac(self.core,**{**ts,'du_lieu':dict(ten_phap_ly='DEMO',ten_chuan_hoa='demo',loai='TC')})
+        with self.core.transaction():
+            self.core.execute('SET TRANSACTION ISOLATION LEVEL REPEATABLE READ')
+            kq = dm.het_hieu_luc(self.core,loai='doi_tac',doi_tuong_id=self.obj,
+                khoa='demo-dm1-het-dt',row_version='1',**self._ctx(g212.SUA))
+        self.assertEqual(kq['ket_qua']['row_version'],'2')
 
 
 if __name__ == '__main__':

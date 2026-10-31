@@ -17,7 +17,8 @@ class LoiPhapNhanDemo(RuntimeError):
     def __init__(self, ma):
         self.ma = ma
         self.http_status = (403 if ma == 'DEMO_CHI_ADMIN' else
-                            409 if ma in {'DEMO_CAS', 'DEMO_DA_CO_DU_LIEU'} else 400)
+                            409 if ma in {'DEMO_CAS', 'DEMO_DA_CO_DU_LIEU',
+                                          'DEMO_SCHEMA_CHUA_BAO_VE'} else 400)
         super().__init__('Thao tác pháp nhân DEMO thất bại (' + ma + ')')
 
 

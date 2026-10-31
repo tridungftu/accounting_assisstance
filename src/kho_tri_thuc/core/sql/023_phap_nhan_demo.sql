@@ -1,7 +1,8 @@
 -- DM-1 / CD-044. Caller giu transaction; chi provisioning DEMO/test PG16+.
 -- Vai kiem chi doc de kiem toan ven, khong login/membership/BYPASSRLS.
--- Cac bang pham vi cai SAU 023 phai duoc Module Manager gan cung trigger
--- va ACL/policy kiem toan ven nay; khong tao FK phu thuoc module tuy chon.
+-- Bang module co du lieu theo phap nhan PHAI co cot phap_nhan_id (uuid).
+-- Bang cai SAU 023: Module Manager goi loi.demo_gan_rao_chan(regclass)
+-- trong cung transaction cai bang; khong tao FK phu thuoc module tuy chon.
 DO $do$
 DECLARE
     tt text := coalesce(current_setting('kho_tri_thuc.tien_to_vai',true),'');
@@ -66,11 +67,14 @@ $do$;
 
 -- Chi tra ma loi, khong tra cac dong ngoai pham vi caller. Khoa chia se
 -- voi trigger ghi; doi co lay khoa doc quyen. READ COMMITTED doc moi sau cho.
+-- Tap 0/1 PN khong so sanh co cheo: giu guard isolation nghiep vu cu,
+-- nhung 1 PN van lay shared lock de chan doi co trong luc ghi.
 CREATE OR REPLACE FUNCTION loi.demo_kiem_tap_noi_bo(p_ids uuid[]) RETURNS void
 LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path=pg_catalog,pg_temp AS $ham$
 DECLARE pn uuid; co boolean; dau boolean;
 BEGIN
-    IF current_setting('transaction_isolation')<>'read committed' THEN
+    IF (SELECT count(DISTINCT id) FROM unnest(p_ids) id WHERE id IS NOT NULL)>=2
+       AND current_setting('transaction_isolation')<>'read committed' THEN
         RAISE EXCEPTION 'DEMO_CAN_READ_COMMITTED' USING ERRCODE='25000';
     END IF;
     FOR pn IN SELECT DISTINCT id FROM unnest(p_ids) id WHERE id IS NOT NULL ORDER BY id LOOP
@@ -143,7 +147,13 @@ BEGIN
         ORDER BY c.oid LOOP
         -- Bang moi chua gan trigger/ACL hoac policy co the che dong => fail closed.
         IF NOT EXISTS(SELECT FROM pg_trigger WHERE tgrelid=b.oid
-            AND tgname='aaa_demo_lien_ket' AND tgenabled='O')
+            AND tgname='aaa_demo_lien_ket' AND tgenabled='O'
+            AND tgfoid='loi.demo_kiem_lien_ket()'::regprocedure AND tgtype=23)
+           OR NOT has_schema_privilege(current_user,b.nspname,'USAGE')
+           OR NOT has_column_privilege(current_user,b.oid,'phap_nhan_id','SELECT')
+           OR NOT EXISTS(SELECT FROM pg_policy WHERE polrelid=b.oid AND polpermissive
+               AND polcmd IN ('r','*') AND pg_get_expr(polqual,polrelid)='true'
+               AND (SELECT oid FROM pg_roles WHERE rolname=current_user)=ANY(polroles))
            OR EXISTS(SELECT FROM pg_policy WHERE polrelid=b.oid AND NOT polpermissive) THEN
             RAISE EXCEPTION 'DEMO_SCHEMA_CHUA_BAO_VE' USING ERRCODE='23514';
         END IF;
@@ -156,12 +166,54 @@ END;
 $ham$;
 REVOKE ALL ON FUNCTION loi.demo_chan_doi_co() FROM PUBLIC;
 
+-- Ham provisioning dung chung, owner la vai provisioning dang ap migration
+-- (nhu DDL lien khoi ben duoi). Chi owner Core/login cai dat duoc EXECUTE;
+-- runtime va vai kiem khong co quyen goi, khong nhan ten vai/GUC tu caller.
+DO $do$
+BEGIN
+    PERFORM set_config('role',current_setting('kho_tri_thuc.dm1_vai_cu'),true);
+END;
+$do$;
+CREATE OR REPLACE FUNCTION loi.demo_gan_rao_chan(p_bang regclass) RETURNS void
+LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path=pg_catalog,pg_temp AS $ham$
+DECLARE b record; kiem text; cot text;
+BEGIN
+    SELECT c.oid,n.nspname,c.relname INTO b FROM pg_class c
+        JOIN pg_namespace n ON n.oid=c.relnamespace
+        WHERE c.oid=p_bang AND c.relkind IN ('r','p')
+          AND (n.nspname IN ('loi','loi_tai_lieu','danh_muc') OR n.nspname ~ '^(mod_|cong_bo_)')
+          AND EXISTS(SELECT FROM pg_attribute a WHERE a.attrelid=c.oid
+              AND a.attname='phap_nhan_id' AND a.atttypid='uuid'::regtype AND NOT a.attisdropped);
+    IF NOT FOUND OR EXISTS(SELECT FROM pg_policy WHERE polrelid=p_bang AND NOT polpermissive) THEN
+        RAISE EXCEPTION 'DEMO_SCHEMA_CHUA_BAO_VE' USING ERRCODE='23514';
+    END IF;
+    SELECT regexp_replace(pg_get_userbyid(nspowner),'vai_doi_cau_truc_loi$','vai_kiem_demo')
+        INTO kiem FROM pg_namespace WHERE nspname='loi';
+    EXECUTE format('GRANT USAGE ON SCHEMA %I TO %I',b.nspname,kiem);
+    SELECT string_agg(format('%I',attname),',' ORDER BY attnum) INTO cot
+        FROM pg_attribute WHERE attrelid=p_bang AND attnum>0 AND NOT attisdropped
+          AND attname IN ('id','phap_nhan_id');
+    EXECUTE format('GRANT SELECT (%s) ON %I.%I TO %I',cot,b.nspname,b.relname,kiem);
+    IF EXISTS(SELECT FROM pg_policy WHERE polrelid=p_bang AND polname='demo_kiem_noi_bo') THEN
+        EXECUTE format('ALTER POLICY demo_kiem_noi_bo ON %I.%I TO %I USING(true)',b.nspname,b.relname,kiem);
+    ELSE
+        EXECUTE format('CREATE POLICY demo_kiem_noi_bo ON %I.%I FOR SELECT TO %I USING(true)',b.nspname,b.relname,kiem);
+    END IF;
+    EXECUTE format('CREATE OR REPLACE TRIGGER aaa_demo_lien_ket BEFORE INSERT OR UPDATE ON %I.%I
+        FOR EACH ROW EXECUTE FUNCTION loi.demo_kiem_lien_ket()',b.nspname,b.relname);
+END;
+$ham$;
+REVOKE ALL ON FUNCTION loi.demo_gan_rao_chan(regclass) FROM PUBLIC;
+
 DO $do$
 DECLARE
     tt text := coalesce(current_setting('kho_tri_thuc.tien_to_vai',true),'');
     chu text := tt||'vai_doi_cau_truc_loi'; b record;
 BEGIN
     PERFORM set_config('role',current_setting('kho_tri_thuc.dm1_vai_cu'),true);
+    EXECUTE format('GRANT USAGE ON SCHEMA loi TO %I',tt||'dang_nhap_cai_dat');
+    EXECUTE format('GRANT EXECUTE ON FUNCTION loi.demo_gan_rao_chan(regclass) TO %I,%I',
+        chu,tt||'dang_nhap_cai_dat');
     FOR b IN SELECT c.oid,n.nspname,c.relname FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace
         WHERE c.relkind IN ('r','p') AND (n.nspname IN ('loi','loi_tai_lieu','danh_muc')
             OR n.nspname ~ '^(mod_|cong_bo_)')
@@ -170,8 +222,7 @@ BEGIN
           AND NOT (n.nspname='loi' AND c.relname IN
               ('phan_quyen','phien_xac_thuc','nhat_ky_kiem_toan','mtq_thay_doi','mtq_tu_choi'))
         ORDER BY c.oid LOOP
-        EXECUTE format('CREATE OR REPLACE TRIGGER aaa_demo_lien_ket BEFORE INSERT OR UPDATE ON %I.%I
-            FOR EACH ROW EXECUTE FUNCTION loi.demo_kiem_lien_ket()',b.nspname,b.relname);
+        PERFORM loi.demo_gan_rao_chan(b.oid::regclass);
     END LOOP;
     -- Trigger doi co chi UPDATE: INSERT khong co OLD.
     CREATE OR REPLACE TRIGGER aaa_demo_giu_pham_vi BEFORE UPDATE OF la_demo ON loi.phap_nhan
@@ -202,7 +253,9 @@ BEGIN
     UPDATE loi.phap_nhan SET la_demo=p_la_demo,phien_ban_dong=phien_ban_dong+1
         WHERE id=p_pn AND phien_ban_dong=p_phien_ban RETURNING * INTO moi;
     IF NOT FOUND THEN RAISE EXCEPTION 'DEMO_CAS' USING ERRCODE='40001'; END IF;
-    PERFORM loi.ghi_kiem_toan('CORE:DEMO:SUA','phap_nhan_demo',p_pn,'DAT',p_ma,'core',p_pn,p_request);
+    PERFORM loi.ghi_kiem_toan('CORE:DEMO:SUA',
+        CASE WHEN p_la_demo THEN 'phap_nhan_demo.bat' ELSE 'phap_nhan_demo.tat' END,
+        p_pn,'DAT',p_ma,'core',p_pn,p_request);
     RETURN jsonb_build_object('id',moi.id,'la_demo',moi.la_demo,'row_version',moi.phien_ban_dong::text);
 END;
 $ham$;
@@ -250,6 +303,7 @@ BEGIN
         -- MTQ chay truoc khoa_lien_ket_noi_bo trong cua V2. Giu ma guard
         -- G2-13 cho ghi lien ket / het hieu luc chung tu, truoc moi doc DEMO.
         IF current_setting('transaction_isolation')<>'read committed'
+           AND (SELECT count(DISTINCT (value->>'pn')::uuid) FROM jsonb_array_elements(tap))>=2
            AND ((p_doi_tuong->>'bang'='danh_muc.lien_ket_chung_tu'
                  AND split_part(p_hanh_dong,':',3) IN ('LAP','SUA','HUY'))
                 OR (p_doi_tuong->>'bang'='danh_muc.chung_tu'
