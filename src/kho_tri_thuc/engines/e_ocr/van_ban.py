@@ -2,10 +2,13 @@
 
 CD-036: dùng lại cổng/sổ trang ha_tang.cong_ocr.CongOCR (đã bọc HotFolder),
 không tạo HotFolderClient/Config hay sổ thứ hai. Bọc extract_docx và
-word_layout của D:/GPT/OCR/mask_ocr, bản khảo sát 31/10/2026:
+word_layout của D:/GPT/OCR/mask_ocr, local-mask-ocr 2.1.0, khảo sát 31/10/2026
+(đường dẫn/SHA nguồn để chuẩn bị NGUON.md khi đóng gói CD-042):
 extraction.py SHA256 f573bb79a436fd2e968a4e8376b3128a973e81bed28d8398f1abdf6c092589a8;
 layout.py SHA256 ae8f1310dfc4698c559bb15f56aae7d31389a675fa4924235b2b956b2da29a33.
-Không chép parser. Hồ sơ chạy cung cấp package nguồn hoặc hai seam hàm gốc.
+KTT_NGUON_OCR trỏ thư mục chứa mask_ocr; mặc định D:/GPT/OCR nếu tồn tại.
+Chỉ thêm sys.path lúc import, không ghi bytecode vào nguồn. Không chép parser.
+Hồ sơ chạy có thể cung cấp package nguồn hoặc hai seam hàm gốc.
 
 Core cấp ba ID riêng: đầu vào, DOCX, phản hồi nguồn; phải lưu DOCX/phản hồi
 trước khi công bố contract. Không tự gắn instance/lease/provenance hay ACK.
@@ -19,7 +22,11 @@ from copy import deepcopy
 from dataclasses import dataclass
 from datetime import datetime, timezone
 import hashlib
+import importlib
+import os
+from pathlib import Path
 import re
+import sys
 from uuid import UUID
 
 from kho_tri_thuc.ha_tang.primitives import DataError
@@ -86,6 +93,27 @@ def _kiem_dau_vao(raw, ref, tep_docx_id, phan_hoi_nguon_tep_id, revision):
             raise DataError("OCR_THAM_CHIEU_HET_HAN", "Tham chiếu tệp đã hết hạn.")
 
 
+def _nhap_parser_nguon():
+    """Import hai module nguồn chỉ đọc; khôi phục đường dẫn cả khi thiếu dependency."""
+    nguon = os.environ.get("KTT_NGUON_OCR")
+    if nguon:
+        if not Path(nguon).is_dir():
+            raise FileNotFoundError("KTT_NGUON_OCR không phải thư mục nguồn OCR.")
+    elif Path("D:/GPT/OCR").is_dir():
+        nguon = "D:/GPT/OCR"
+    duong_dan_cu = sys.path[:]
+    bytecode_cu = sys.dont_write_bytecode
+    try:
+        if nguon:
+            sys.path.insert(0, nguon)
+        sys.dont_write_bytecode = True
+        return (importlib.import_module("mask_ocr.extraction"),
+                importlib.import_module("mask_ocr.layout"))
+    finally:
+        sys.path[:] = duong_dan_cu
+        sys.dont_write_bytecode = bytecode_cu
+
+
 def trich_van_ban(
     raw: bytes, tham_chieu_tep: dict, *, cong_ocr, tep_docx_id: str,
     phan_hoi_nguon_tep_id: str, revision: int = 1, huy=None,
@@ -102,10 +130,12 @@ def trich_van_ban(
     if huy is not None and huy.is_set():
         raise DataError("OCR_HUY", "Đã hủy nhận dạng tài liệu.")
     # Kiểm parser trước khi gửi để thiếu package không tiêu hao hạn mức.
-    if extract_docx is None:
-        from mask_ocr.extraction import extract_docx
-    if word_layout is None:
-        from mask_ocr.layout import word_layout
+    if extract_docx is None or word_layout is None:
+        extraction, layout_nguon = _nhap_parser_nguon()
+        if extract_docx is None:
+            extract_docx = extraction.extract_docx
+        if word_layout is None:
+            word_layout = layout_nguon.word_layout
     if not callable(extract_docx) or not callable(word_layout):
         raise TypeError("Cần hai hàm parser DOCX nguồn.")
     docx = cong_ocr.ocr(raw, MIME_DUOI[ref["mime"]], huy=huy)

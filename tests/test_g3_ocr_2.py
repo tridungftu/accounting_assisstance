@@ -1,16 +1,19 @@
 """OCR-2: HotFolder giả, DOCX DEMO, không dịch vụ/COM/AI hoặc xóa tệp.
 
 Test thuần dùng seam; nhóm DocxNguonTests chạy nguyên parser khi package
-mask_ocr có trên PYTHONPATH cùng dependency sẵn có. Không cài thư viện.
+mask_ocr qua KTT_NGUON_OCR hoặc D:/GPT/OCR cùng dependency sẵn có.
+Không cài thư viện; thiếu nguồn/lỗi import parser phải báo lỗi.
 """
 
 from copy import deepcopy
 import hashlib
 import io
 import json
+import os
 from pathlib import Path
 import socket
 import subprocess
+import sys
 import tempfile
 import threading
 from types import SimpleNamespace
@@ -23,9 +26,13 @@ from kho_tri_thuc.ha_tang.cong_ocr import CongOCR
 from kho_tri_thuc.ha_tang.primitives import DataError
 import test_g2_17 as contract_tests
 
+LY_DO_THIEU = ""
 try:
-    from mask_ocr import extraction, layout
-except ImportError:
+    extraction, layout = van_ban._nhap_parser_nguon()
+except ModuleNotFoundError as exc:
+    if not exc.name or exc.name == "mask_ocr" or exc.name.startswith("mask_ocr."):
+        raise
+    LY_DO_THIEU = f"CHUA_KIEM: thiếu thư viện phụ thuộc mask_ocr: {exc.name}"
     extraction = layout = None
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -97,6 +104,43 @@ class _AdapterFixture:
 
 
 class OCR2Tests(_AdapterFixture, unittest.TestCase):
+    def test_dinh_vi_nguon_va_khoi_phuc_import_chi_doc(self):
+        for tuy_chon in ("DEMO-nguon-ocr", None):
+            for thieu in (None, "pymupdf", "defusedxml"):
+                with self.subTest(nguon=tuy_chon, thieu=thieu), \
+                        patch.dict(os.environ), \
+                        patch.object(van_ban.Path, "is_dir", return_value=True):
+                    if tuy_chon:
+                        os.environ["KTT_NGUON_OCR"] = tuy_chon
+                    else:
+                        os.environ.pop("KTT_NGUON_OCR", None)
+                    truoc = sys.path[:]
+                    bytecode = sys.dont_write_bytecode
+                    def nhap(ten):
+                        self.assertEqual(sys.path, [tuy_chon or "D:/GPT/OCR", *truoc])
+                        self.assertTrue(sys.dont_write_bytecode)
+                        if thieu and ten == "mask_ocr.layout":
+                            raise ModuleNotFoundError(name=thieu)
+                        return ten
+                    with patch.object(van_ban.importlib, "import_module", side_effect=nhap):
+                        if thieu:
+                            with self.assertRaises(ModuleNotFoundError) as caught:
+                                van_ban._nhap_parser_nguon()
+                            self.assertEqual(caught.exception.name, thieu)
+                        else:
+                            self.assertEqual(van_ban._nhap_parser_nguon(),
+                                             ("mask_ocr.extraction", "mask_ocr.layout"))
+                    self.assertEqual(sys.path, truoc)
+                    self.assertEqual(sys.dont_write_bytecode, bytecode)
+
+    def test_duong_dan_nguon_cau_hinh_sai_khong_am_tham_fallback(self):
+        with patch.dict(os.environ, {"KTT_NGUON_OCR": "DEMO-khong-ton-tai"}), \
+                patch.object(van_ban.Path, "is_dir", return_value=False), \
+                patch.object(van_ban.importlib, "import_module") as nhap:
+            with self.assertRaises(FileNotFoundError):
+                van_ban._nhap_parser_nguon()
+            nhap.assert_not_called()
+
     def test_hotfolder_gia_sang_contract_hash_revision_nguon(self):
         ref = tham_chieu()
         result = self.run_adapter(ref)
@@ -257,7 +301,7 @@ class OCR2Tests(_AdapterFixture, unittest.TestCase):
         self.core.validate("urn:ktt:contract:van_ban_tai_lieu.v1", self.run_adapter().van_ban)
 
 
-@unittest.skipUnless(extraction and layout, "CHUA_KIEM: cần package mask_ocr nguồn và dependency sẵn có")
+@unittest.skipUnless(extraction and layout, LY_DO_THIEU)
 class DocxNguonTests(_AdapterFixture, unittest.TestCase):
     def test_import_mac_dinh_chi_parser_nguon(self):
         result = self.run_adapter(extract_docx=None, word_layout=None)
