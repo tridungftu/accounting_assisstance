@@ -466,3 +466,17 @@
 2. Mỗi lần tự khởi động vẫn tuân thủ toàn bộ `CLAUDE.md` và hộp thư; không mở rộng quyền ngoài chế độ `auto`. Gỡ bằng `tools\GO-TU-KHOI-DONG-LEAD.cmd` khi Anh yêu cầu.
 3. Ghi kết quả `schtasks /Query` vào TRANG-THAI; đổi trạng thái CD-039 và CD-040 thành XONG.
 **Trạng thái:** ĐÃ NHẬN 30/10 23:35 — lead chưa chạy `schtasks`: cài cấu hình chạy lâu dài cần Anh bấm xác nhận ngay trong phiên lead (nút "Cài đi" ở ô cuối lượt) hoặc tự bấm đúp `tools\CAI-TU-KHOI-DONG-LEAD.cmd`; nhận được xác nhận là lead cài ngay và ghi `schtasks /Query`.
+
+## CD-041 · 31/10/2026 06:45 · Trả lời mục "Cần Anh quyết" của báo cáo đêm 31/10
+**Căn cứ:** `bao-cao-ngay\BAO-CAO-DEM-20261031.md` §3; Anh trả lời qua bảng chọn 31/10 06:35–06:44 trong phiên điều phối (sau khi được giải thích câu 2 và 3).
+**Quyết định:**
+1. **Thư viện `cryptography` — ĐỒNG Ý** dùng cho chữ ký Ed25519 của thẻ liên tiến trình (G2-19). Ghim phiên bản trong `pyproject.toml` (đúng bản đang có trên runtime DEMO), ghi CHANGELOG; không thêm thư viện khác kèm theo.
+2. **Sự kiện `moc_da_xay_ra.v1` (G2-CR3) — mở chặn với bộ mặc định:**
+   - (a) tham chiếu **lần ghi ngày thực tế mới nhất** của mốc (bản ghi lịch sử mốc cụ thể, không chỉ `moc_id`);
+   - (b) **"đã xác nhận" = người có quyền sửa mốc** (theo ma trận thẩm quyền) **ghi ngày thực tế kèm căn cứ**; không cần người thứ hai duyệt; mọi lần ghi có nhật ký;
+   - (c) module nhận: **CRM, M3, M10**;
+   - (d) **sửa/xóa ngày thực tế đã báo → phát sự kiện điều chỉnh mới** tham chiếu lần ghi cũ; **giữ** sự kiện cũ (không xóa); module nhận tính lại và ghi nhật ký.
+3. **Engine AI (AI-1b, `ai.hoi@1`, cờ "chỉ AI nội bộ") — giao lead tự chốt** theo TL 48 và `engine\GIAO-ENGINE-1.md` + Opus review; **không thêm quyết định mới ngoài TL 48**; ghi vào chuẩn SDK bản v1.1 (mục "Thay đổi").
+4. **Tác vụ tự khởi động lại (CD-039/040):** giữ chờ Anh bấm xác nhận trực tiếp trong phiên lead hoặc bấm đúp `tools\CAI-TU-KHOI-DONG-LEAD.cmd` khi Anh về máy — đúng cách lead đề xuất.
+5. Danh sách nhân sự đăng nhập: Anh gửi sau (giữ nguyên).
+**Trạng thái:** ĐÃ NHẬN 31/10 07:15. Mục 1 **XONG**: `pyproject.toml` nhóm `core = ["cryptography==49.0.0"]` + CHANGELOG. Mục 2: đã ghi vào CONTRACT-NGHIEP-VU §5.3, giao G2-CR3. Mục 3: Codex soạn `engine/QUYET-DINH-AI-1B.md` → review Opus → chuẩn SDK v1.1. Mục 4, 5: giữ chờ.
