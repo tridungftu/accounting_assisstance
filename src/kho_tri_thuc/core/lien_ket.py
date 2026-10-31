@@ -28,7 +28,8 @@ _LOI = {'TAI_LIEU_PHIEN', 'TAI_LIEU_MTQ', 'TAI_LIEU_CONG_TAC', 'LIEN_KET_PHAM_VI
         'LIEN_KET_RESOLVER', 'LIEN_KET_MODULE_KIEM', 'LIEN_KET_POLICY_KIEM',
         'LIEN_KET_CAN_CU', 'LIEN_KET_XUNG_DOT', 'LIEN_KET_DAU_VAO',
         'LIEN_KET_BAT_BIEN', 'LIEN_KET_VUOT_CHUNG_TU', 'LIEN_KET_VUOT_NGHIA_VU',
-        'LIEN_KET_CAN_READ_COMMITTED', 'KY_DA_KHOA'}
+        'LIEN_KET_CAN_READ_COMMITTED', 'KY_DA_KHOA',
+        'DEMO_LIEN_KET_CHEO', 'DEMO_PHAP_NHAN', 'DEMO_CAN_READ_COMMITTED'}
 _DICH = {'module_nghia_vu', 'loai_nghia_vu', 'nghia_vu_id', 'phien_ban_can_cu_id',
          'ma_bam_phien_ban_can_cu'}
 
