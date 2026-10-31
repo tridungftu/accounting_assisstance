@@ -361,10 +361,37 @@ class AITienTrinhTest(unittest.TestCase):
             with self.subTest(truong=truong):
                 c, so = self._tao()
                 setattr(c, truong, value)
-                with self.assertRaisesRegex(tt.LoiTienTrinh, 'TIEN_TRINH_KHONG_HOP_LE'):
-                    c.khoi_dong()
-                self.assertEqual(so.dong['trang_thai'], 'LOI')
+                self._kiem_ba_lan_loi_khoi_dong(c, so, 'TIEN_TRINH_KHONG_HOP_LE')
                 self.assertNotIn('san_sang', [ten for ten, _ in so.go])
+
+    def _kiem_ba_lan_loi_khoi_dong(self, c, so, ma_loi):
+        for lan, giay in ((1, 2), (2, 4), (3, None)):
+            truoc = datetime.now(timezone.utc)
+            ma = ma_loi if lan < 3 else 'KHOI_DONG_BI_KHOA'
+            with self.assertRaisesRegex(tt.LoiTienTrinh, ma):
+                c.khoi_dong()
+            sau = datetime.now(timezone.utc)
+            self.assertEqual(so.dong['so_loi_khoi_dong'], lan)
+            self.assertEqual(so.dong['trang_thai'], 'LOI' if lan == 3 else 'CORE_GIU')
+            self.assertEqual(so.dong['ma_loi'], ma_loi if lan == 3 else None)
+            self.assertEqual(so.dong['ma_loi_khoi_dong'], ma_loi)
+            if giay is not None:
+                han = datetime.fromisoformat(so.dong['thu_lai_sau'])
+                self.assertGreaterEqual(han, truoc + timedelta(seconds=giay))
+                self.assertLessEqual(han, sau + timedelta(seconds=giay))
+                with patch.object(tt, 'datetime', wraps=datetime) as dong_ho:
+                    dong_ho.now.return_value = han - timedelta(seconds=giay)
+                    with self.assertRaisesRegex(tt.LoiTienTrinh, 'KHOI_DONG_LOI') as bat:
+                        c.khoi_dong()
+                self.assertEqual(bat.exception.headers, {'Retry-After': str(giay)})
+                self.assertEqual(so.dong['so_loi_khoi_dong'], lan)
+                # Cho hết hạn trong fixture, giữ nguyên counter và mã lỗi.
+                so.dong['thu_lai_sau'] = (truoc - timedelta(seconds=1)).isoformat()
+            else:
+                self.assertIsNone(so.dong['thu_lai_sau'])
+        with self.assertRaisesRegex(tt.LoiTienTrinh, 'KHOI_DONG_BI_KHOA'):
+            c.khoi_dong()
+        self.assertEqual(so.dong['so_loi_khoi_dong'], 3)
 
     def test_cong_bi_chiem_khong_doi_cong_khong_dung_chu_listener(self):
         with socket.socket() as la:
@@ -372,8 +399,7 @@ class AITienTrinhTest(unittest.TestCase):
             la.bind(('127.0.0.1', 0))
             la.listen()
             c, so = self._tao(la.getsockname()[1])
-            with self.assertRaisesRegex(tt.LoiTienTrinh, 'CONG_BI_CHIEM'):
-                c.khoi_dong()
+            self._kiem_ba_lan_loi_khoi_dong(c, so, 'CONG_BI_CHIEM')
             self.assertEqual(so.dong['ma_loi'], 'CONG_BI_CHIEM')
             with self._ket_noi(so):
                 accepted, _ = la.accept()
