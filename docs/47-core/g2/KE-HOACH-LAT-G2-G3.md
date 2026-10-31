@@ -237,3 +237,4 @@ Tối đa **bốn Codex đang làm**, tính cả reviewer; hàng dưới là cá
   - mỗi engine một thư mục ở gốc repo `engines\<ten>\`, tự đủ: `engine.json`, mã + adapter, `NGUON.md` (SHA), `contract\`, `tests\`, `README.md`, `CHANGELOG.md`, thư viện ghim;
   - không import chéo; Engine Manager đọc `engines\*\engine.json`; ghi vào chuẩn SDK v1.1.
   - Lát đóng gói **G3-GOI** chuyển HD-1, TRICH-1a, AI-1a / 4a, MASK-1, OCR-4a từ `src\kho_tri_thuc\engines\` sang. Lát engine mới trước đó vẫn viết ở `src\kho_tri_thuc\engines\` để chuyển một lần.
+- **Nợ test CR1:** `test_g2_cr1.py` đọc bảng đặc tả theo số dòng cứng → sửa sang tìm theo tiêu đề (lát nhỏ khi rảnh).
