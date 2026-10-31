@@ -563,4 +563,4 @@
 3. **Giữ Opus review từng lát** chỉ cho lát chạm **tiền** (tính tiền/VAT/lịch, liên kết tiền), **quyền** (RLS, ma trận thẩm quyền, role/GRANT), **phiên/đăng nhập**, **bí mật/khóa/mã hóa**, và **xóa dữ liệu**. Đánh dấu loại lát này trong bản giao việc.
 4. Lead tập trung: chia lát, giữ hàng đợi không trống (CD-009), gộp, chạy PG cả bộ mỗi đợt gộp, đọc kết quả review mảng, báo Anh.
 5. Ghi trong TRANG-THAI số lát qua Codex review, số mảng đã Opus review, số lỗi Chặn tìm được theo từng tầng — để đánh giá cách review mới sau 2 ngày.
-**Trạng thái:** MỚI
+**Trạng thái:** ĐÃ NHẬN 31/10 10:45 — áp từ nay: Codex review mọi lát + gate máy → Đạt thì gộp ngay; Opus từng lát chỉ cho tiền / quyền / phiên / bí mật / xóa (G2-25, G2-23, DM-4…); Opus theo mảng ghi `RV-MANG-<tên>.md`. Số đếm theo tầng ghi trong TRANG-THAI.
