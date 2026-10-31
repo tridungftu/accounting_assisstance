@@ -67,6 +67,13 @@ class HoiAIContractTest(unittest.TestCase):
         self.assertEqual(self.schema['properties']['truong']['default'], [])
         self.assertEqual(self.schema['properties']['dinh_danh_da_biet']['default'], [])
         self.assertIs(self.schema['properties']['chi_cuc_bo']['default'], False)
+        # Core chỉ duyệt schema object; false ở annotation/keyword vẫn hợp lệ.
+        for node in bundle._nodes(self.schema):
+            self.assertIsInstance(node, dict)
+        pair = self.schema['$defs']['dinh_danh']['oneOf'][1]
+        self.assertEqual(pair['prefixItems'], [{'type': 'string'}, {'type': 'string'}])
+        self.assertEqual((pair['minItems'], pair['maxItems']), (2, 2))
+        self.assertNotIn('items', pair)
 
     def test_demo_du_ba_dang_dinh_danh_dat(self):
         self.validate(deepcopy(self.demo))

@@ -2257,12 +2257,12 @@ ngữ cảnh hoặc xác thực mã loại việc của Core/cổng AI.
   "properties": {
     "loai_viec": {
       "$ref": "urn:ktt:contract:chung.v1#/$defs/chuoi",
-      "description": "Kiểm tiếp mã trong LOAI_VIEC hiện có; không bổ sung bảng định tuyến."
+      "$comment": "Kiểm tiếp mã trong LOAI_VIEC hiện có; không bổ sung bảng định tuyến."
     },
     "van_ban": {
       "$ref": "urn:ktt:contract:chung.v1#/$defs/chuoi",
       "pattern": "\\S",
-      "description": "Văn bản gốc không rỗng/không chỉ khoảng trắng; kiểm tiếp theo strip() của Python."
+      "$comment": "Văn bản gốc không rỗng/không chỉ khoảng trắng; kiểm tiếp theo strip() của Python."
     },
     "chi_dan": {"type": "string"},
     "truong": {
@@ -2278,7 +2278,7 @@ ngữ cảnh hoặc xác thực mã loại việc của Core/cổng AI.
     "chi_cuc_bo": {
       "type": "boolean",
       "default": false,
-      "description": "true: 0 lời gọi Cloud cho request; false không tự bật Cloud."
+      "$comment": "true: 0 lời gọi Cloud cho request; false không tự bật Cloud."
     }
   },
   "$defs": {
@@ -2289,8 +2289,7 @@ ngữ cảnh hoặc xác thực mã loại việc của Core/cổng AI.
           "type": "array",
           "minItems": 2,
           "maxItems": 2,
-          "prefixItems": [{"type": "string"}, {"type": "string"}],
-          "items": false
+          "prefixItems": [{"type": "string"}, {"type": "string"}]
         },
         {
           "type": "object",
