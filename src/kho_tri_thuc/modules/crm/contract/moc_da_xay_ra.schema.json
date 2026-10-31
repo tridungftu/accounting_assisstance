@@ -1,0 +1,61 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:ktt:contract:moc_da_xay_ra.v1",
+  "title": "moc_da_xay_ra.v1 — 1.0.0; bus 1",
+  "description": "CRM phát khi người có quyền sửa mốc theo MTQ lưu ngày thực tế kèm căn cứ và nhật ký. Ngày dự kiến không chứng minh mốc đã xảy ra. Bên nhận: CRM, M3, M10; đọc đúng bản ghi lịch sử qua contract công bố được cấp quyền, không đọc bản hiện tại thay bản đã phát.",
+  "$comment": "CONTRACT-NGHIEP-VU.md §5, §5.3, dòng 273–289, 369–407; Anh chốt 31/10/2026, CD-041 mục 2. Đây là bảng tham số phát, không phải transport mới: chỉ tham_chieu là payload bus. Không dùng vo_noi_dung/semver cho tham số bus. Sửa hoặc xóa ngày thực tế đã báo tạo bản ghi lịch sử mới và sự kiện điều chỉnh tham chiếu lần ghi cũ; giữ sự kiện cũ; bên nhận tính lại và ghi nhật ký. Backend xác minh lịch sử thuộc moc_id, bản mới nhất tại thời điểm phát, căn cứ và MTQ; UUID cũ/mới khác nhau. Backend tạo khoa_dedupe = loai + ':' + lich_su_moc_id (UUID chuẩn chữ thường), không phân tích khóa để đọc lịch sử. JSON Schema chỉ kiểm hình dạng khóa, không so chéo giá trị hai trường. Phát cùng transaction nghiệp vụ; kết quả nhận và ACK cùng transaction/kết nối. Không tự đăng ký/kích hoạt hay cấp quyền. Khi tích hợp G2-15, đăng ký từng x-bus schema payload bên dưới, không đưa toàn bộ vỏ này vào loi.su_kien_payload; các payload không dùng $ref/keyword ngoài subset G2-15.",
+  "x-ben-phat": "CRM",
+  "x-ben-nhan": ["CRM", "M3", "M10"],
+  "x-bus": [
+    {"loai": "moc_da_xay_ra", "phien_ban": 1, "payload": "#/$defs/phat_lan_dau"},
+    {"loai": "moc_da_xay_ra.dieu_chinh", "phien_ban": 1, "payload": "#/$defs/dieu_chinh"}
+  ],
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["loai", "phien_ban", "khoa_dedupe", "tham_chieu", "phap_nhan_id", "ben_phat"],
+  "properties": {
+    "loai": {"enum": ["moc_da_xay_ra", "moc_da_xay_ra.dieu_chinh"], "description": "Phát lần đầu / điều chỉnh; loại nằm ngoài payload UUID; §5.3 và CD-041 mục 2(d)."},
+    "phien_ban": {"type": "integer", "const": 1, "description": "Phiên bản bus 1; §5 dòng 282, không phải semver hay số lan lịch sử."},
+    "khoa_dedupe": {"type": "string", "minLength": 1, "maxLength": 200, "description": "Backend tạo theo loại + UUID bản ghi lịch sử mới; phạm vi pháp nhân/bên phát; §5 dòng 283, §5.3 và CD-041 mục 2(a,d)."},
+    "tham_chieu": {"type": "object", "description": "Chỉ UUID tham chiếu; không ngày, số lan, tiền, tên, loại hoặc JSON lồng; §5 dòng 275."},
+    "phap_nhan_id": {"$ref": "urn:ktt:contract:chung.v1#/$defs/id", "description": "Pháp nhân backend lấy từ mốc đã kiểm quyền; §5 dòng 285."},
+    "ben_phat": {"const": "CRM", "description": "Chủ phát CRM do backend xác định; §5.3 dòng 373."}
+  },
+  "oneOf": [
+    {
+      "properties": {
+        "loai": {"const": "moc_da_xay_ra"},
+        "khoa_dedupe": {"pattern": "^moc_da_xay_ra:[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$"},
+        "tham_chieu": {"$ref": "#/$defs/phat_lan_dau"}
+      }
+    },
+    {
+      "properties": {
+        "loai": {"const": "moc_da_xay_ra.dieu_chinh"},
+        "khoa_dedupe": {"pattern": "^moc_da_xay_ra\\.dieu_chinh:[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$"},
+        "tham_chieu": {"$ref": "#/$defs/dieu_chinh"}
+      }
+    }
+  ],
+  "$defs": {
+    "phat_lan_dau": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["moc_id", "lich_su_moc_id"],
+      "properties": {
+        "moc_id": {"type": "string", "format": "uuid", "description": "Mốc dự án đã xác nhận thực tế; §5.3 dòng 379."},
+        "lich_su_moc_id": {"type": "string", "format": "uuid", "description": "UUID bản ghi lịch sử lần ghi ngày thực tế mới nhất tại thời điểm phát, bất biến sau phát; CD-041 mục 2(a); không thay bằng moc_id hoặc số lan."}
+      }
+    },
+    "dieu_chinh": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["moc_id", "lich_su_moc_id", "lich_su_moc_cu_id"],
+      "properties": {
+        "moc_id": {"type": "string", "format": "uuid", "description": "Mốc có ngày thực tế đã báo được sửa/xóa; CD-041 mục 2(d)."},
+        "lich_su_moc_id": {"type": "string", "format": "uuid", "description": "UUID lần ghi lịch sử mới nhất khi sửa/xóa ngày thực tế; bản ghi xóa vẫn có UUID; CD-041 mục 2(a,d)."},
+        "lich_su_moc_cu_id": {"type": "string", "format": "uuid", "description": "UUID lần ghi cũ đang được điều chỉnh; giữ bản cũ và sự kiện cũ, bên nhận tính lại và ghi nhật ký; CD-041 mục 2(d)."}
+      }
+    }
+  }
+}
