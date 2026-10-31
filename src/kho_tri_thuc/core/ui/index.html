@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Kho tri thức · Nghiệp vụ</title>
+  <!-- Tham chiếu tài sản dùng chung chỉ đọc, không chép hoặc sửa asset cũ.
+       Cần lead: CSS/icon UI-1 còn ở lat/ui-1; style.css nền hiện chưa chứa chúng. -->
+  <link rel="stylesheet" href="../../giao_dien/assets/style.css">
+  <style>
+    /* Phần ghép Core; font, màu nền và gk-luoi lấy từ asset dùng chung. */
+    #khung { max-width: none; margin: 0; padding: 0; }
+    button { cursor: pointer; color: inherit; background: #fff; border: 1px solid #cbd6cf; padding: 10px 14px; border-radius: 6px; }
+    button:hover { background: #edf3ee; }
+    :focus-visible { outline: 3px solid #315c4d; outline-offset: 3px; }
+    [hidden] { display: none !important; }
+    .core-header { display: flex; align-items: center; flex-wrap: wrap; gap: 18px; padding: 18px 24px; background: #fff; border-bottom: 1px solid #cbd6cf; }
+    .core-header strong { margin-right: auto; font-size: 20px; }
+    #demo { padding: 6px 12px; background: #fff1d5; color: #744600; border: 2px solid #a96a00; font-weight: 700; }
+    .core-khung { display: grid; grid-template-columns: 136px minmax(0, 1fr); min-height: 80vh; }
+    .core-rail { padding: 20px 12px; background: #e9f0e8; display: flex; flex-direction: column; gap: 10px; }
+    .core-main { padding: 24px 32px; min-width: 0; }
+    .core-breadcrumb { margin-bottom: 20px; }
+    .core-breadcrumb button { border: 0; padding-left: 0; background: transparent; text-decoration: underline; }
+    .core-main > input { width: min(100%, 440px); padding: 12px; border: 1px solid #839d8b; border-radius: 6px; background: #fff; }
+    h1 { font-size: 28px; font-weight: 600; margin: 24px 0; }
+    .core-o { min-height: 132px; display: flex; flex-direction: column; align-items: flex-start; gap: 12px; text-align: left; }
+    .core-icon-hinh { display: inline-grid; place-items: center; width: 38px; height: 38px; border-radius: 10px; color: #fff; background: #315c4d; font-weight: 600; }
+    .core-icon { display: flex; flex-direction: column; align-items: center; gap: 6px; overflow-wrap: anywhere; }
+    .core-hay-dung { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; margin-top: 16px; }
+    .core-hay-dung .core-icon { flex-direction: row; }
+    .core-the { display: flex; flex-wrap: wrap; gap: 16px; margin-bottom: 20px; }
+    .core-the .core-o { flex: 1 1 190px; min-height: 100px; }
+    .core-badge { padding: 3px 8px; border-radius: 12px; background: #fff1d5; color: #744600; font-size: 13px; }
+    .core-chua-du { font-size: 13px; color: #626d65; }
+    .core-noi-dung { margin-top: 28px; overflow: auto; }
+    .core-loi { padding: 12px 18px; border-left: 4px solid #a32d20; background: #fff0e7; }
+    .core-cho { margin: 32px; max-width: 70ch; line-height: 1.6; }
+    @media (max-width: 640px) {
+      .core-khung { grid-template-columns: 1fr; }
+      .core-rail { flex-direction: row; overflow-x: auto; }
+      .core-rail .core-icon { min-width: 100px; }
+      .core-main { padding: 20px 16px; }
+      .core-luoi { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+    }
+  </style>
+  <!-- Bộ ghép G2-32 phục vụ nguyên cây tài sản Core/SDK cùng nguồn. -->
+  <script src="../../sdk_core/trinh_duyet.js" defer></script>
+</head>
+<body>
+  <header class="core-header">
+    <strong>Kho tri thức</strong>
+    <span id="phap-nhan">Chưa chọn pháp nhân</span>
+    <span id="demo" role="status" hidden></span>
+  </header>
+  <main id="khung"><p class="core-cho">Chọn pháp nhân để mở các nghiệp vụ được cấp quyền.</p></main>
+  <noscript>Cần bật JavaScript để sử dụng nghiệp vụ.</noscript>
+  <script>
+    'use strict';
+    // Bộ ghép truyền khai báo đã lọc từ Core; module chỉ dựng nội dung vào root.
+    // Không coi metadata capability /module là khai báo UI hoặc suy ra quyền từ nó.
+    window.addEventListener('DOMContentLoaded', () => {
+      const sdk = KttCore.tao();
+      let view;
+      window.KttShell = {
+        sdk,
+        dung({ khai_bao_da_loc_quyen, phap_nhan, nguoi_dung_id, csrf_token, mo_trang }) {
+          view?.dung();
+          sdk.api.doi_ngu_canh({ nguoi_dung_id, phap_nhan_id: phap_nhan?.id });
+          sdk.api.gan_csrf(csrf_token);
+          document.getElementById('phap-nhan').textContent = phap_nhan?.ten || 'Chưa chọn pháp nhân';
+          KttCore.khung.nhan_demo(document.getElementById('demo'), phap_nhan);
+          view = KttCore.khung.dung(document.getElementById('khung'),
+            phap_nhan?.id ? khai_bao_da_loc_quyen : { module: [] }, {
+              khi_doi_man: ({ module, man }) => sdk.api.doi_ngu_canh({
+                nguoi_dung_id, phap_nhan_id: phap_nhan?.id, module, man }),
+              khi_mo: mo_trang
+            });
+          return view;
+        }
+      };
+    });
+  </script>
+</body>
+</html>
