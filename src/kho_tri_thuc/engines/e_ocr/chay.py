@@ -11,8 +11,9 @@ from __future__ import annotations
 import io
 import socket
 import threading
+import time
 
-from ...sdk_core.bootstrap import Bootstrap, LoiBootstrap
+from ...sdk_core.bootstrap import Bootstrap, LoiBootstrap, PROTOCOL, gui_thong_diep
 from ...sdk_core.engine import SDKEngine
 from ...sdk_core.ngu_canh import _xoa_loi
 
@@ -41,9 +42,17 @@ def xu_ly_viec(sdk, *, backend):
     dau_vao = sdk.doc_dau_vao()
     raw = backend.xu_ly(dau_vao['van_ban_demo'])
     with io.BytesIO(raw) as luong:
-        return sdk.ghi_ket_qua(luong=luong, ten='ocr-demo.txt',
-            du_lieu=dau_vao['du_lieu_ket_qua'],
-            revision_tep_truoc=dau_vao['revision_tep_truoc'])
+        while True:
+            # Core có thể đã đọc hết luồng rồi mới lỗi trước ACK. Giữ cùng
+            # kết quả/lease, gửi lại từ đầu; chỉ giải phóng sau khi được ACK.
+            luong.seek(0)
+            try:
+                return sdk.ghi_ket_qua(luong=luong, ten='ocr-demo.txt',
+                    du_lieu=dau_vao['du_lieu_ket_qua'],
+                    revision_tep_truoc=dau_vao['revision_tep_truoc'])
+            except Exception as exc:
+                _xoa_loi(exc)
+            time.sleep(0.1)
 
 
 class _VongNhan:
@@ -106,8 +115,11 @@ class _VongNhan:
             self.dung = True
 
     def drain(self):
-        self.worker.join()
-        return not self.loi
+        # Chỉ hạn chờ để báo tiến độ; không hủy việc hoặc cắt chờ ACK.
+        self.worker.join(0.1)
+        if self.loi:
+            self._giu_khi_loi.wait(0.1)
+        return not self.worker.is_alive() and not self.loi
 
 
 def chay(*, kiem_chu_ky, nhan_viec, backend=None):
@@ -127,11 +139,26 @@ def chay(*, kiem_chu_ky, nhan_viec, backend=None):
                                kiem_san_sang=backend.san_sang)
         vong.bat_dau()
         bat_dau = True
-        bootstrap.cho_thu_hoi(ngung_accept=vong.ngung_accept, drain=vong.drain)
+        try:
+            bootstrap.cho_thu_hoi(ngung_accept=vong.ngung_accept, drain=vong.drain)
+        except LoiBootstrap as exc:
+            if exc.ma != 'DRAIN_CHUA_XONG':
+                raise
+            _xoa_loi(exc)
+            gui_thong_diep(bootstrap._ra,
+                {'protocol': PROTOCOL, 'kieu': 'drain_chua_xong'})
+            # Lệnh thu hồi đã được bootstrap nhận; không đọc lại stdin hay
+            # đòi Core gửi lại lệnh. Worker tiếp tục retry đến khi có ACK.
+            while not vong.drain():
+                pass
+            bootstrap.socket.close()
+            gui_thong_diep(bootstrap._ra,
+                {'protocol': PROTOCOL, 'kieu': 'da_thu_hoi'})
     finally:
         if bat_dau:
             vong.ngung_accept()
-            if vong.drain():
-                bootstrap.socket.close()
+            while not vong.drain():
+                pass
+            bootstrap.socket.close()
         else:
             bootstrap.socket.close()
