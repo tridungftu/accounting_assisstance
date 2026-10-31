@@ -239,9 +239,13 @@ class SoCongPostgresTest(unittest.TestCase):
         return ma, pn
 
     def _khoa(self):
-        self._nhan()
-        with self.core.transaction():
-            sc.loi_khoi_dong(self.core, self.id, self.instance, 1, ma_loi='CONG_BI_CHIEM')
+        for the_he in range(1, 4):
+            self.instance = uuid4()
+            self._nhan(the_he_cu=the_he-1, doi_chieu_id=uuid4() if the_he>1 else None)
+            with self.core.transaction():
+                sc.loi_khoi_dong(self.core, self.id, self.instance, the_he, ma_loi='CONG_BI_CHIEM')
+            if the_he < 3:
+                self.conn.execute("UPDATE loi.so_cong SET thu_lai_sau=clock_timestamp()-interval '1 second',giu_den=clock_timestamp()-interval '1 second' WHERE id=%s", (self.id,))
         return self._doc()
 
     def _kiem_san_sang_goi_lai(self, bang):
@@ -279,6 +283,8 @@ class SoCongPostgresTest(unittest.TestCase):
         for conn in (self.core, self.module, self.cai_dat):
             self.assertEqual(conn.execute('SELECT session_user,current_user').fetchone(), (conn.info.user,)*2)
         self.conn.execute(SQL)
+        # 016 dinh nghia lai ham vong doi; kho da nang cap phai giu quy tac 022.
+        self.conn.execute((dc.THU_MUC_SQL / '022_vong_doi.sql').read_text(encoding='utf-8'))
         self.assertEqual(self._doc(), self.s)
 
     def test_cong_co_dinh_unique_chu_va_cong(self):
@@ -367,13 +373,14 @@ class SoCongPostgresTest(unittest.TestCase):
     def test_khoa_loi_con_sau_restart_va_ap_lai_sql(self):
         khoa = self._khoa()
         self.conn.execute(SQL)
+        self.conn.execute((dc.THU_MUC_SQL / '022_vong_doi.sql').read_text(encoding='utf-8'))
         with psycopg.connect(**self.cac_thong_tin['core'], autocommit=True) as moi:
             self.assertEqual(self._doc(moi), khoa)
             with self.assertRaises(sc.LoiSoCong) as bat:
-                self._nhan(moi, instance_id=uuid4(), the_he_cu=1, doi_chieu_id=uuid4())
+                self._nhan(moi, instance_id=uuid4(), the_he_cu=3, doi_chieu_id=uuid4())
             self.assertEqual(bat.exception.ma, 'CONG_KHOA_LOI')
         with self.assertRaises(sc.LoiSoCong), self.core.transaction():
-            sc.tra(self.core, self.id, self.instance, 1)
+            sc.tra(self.core, self.id, self.instance, 3)
 
     def test_admin_mo_khoa_cas_co_audit_va_van_can_doi_chieu(self):
         khoa = self._khoa()
@@ -387,7 +394,7 @@ class SoCongPostgresTest(unittest.TestCase):
         self.assertEqual(audit[1:], (pn, request))
         with self.assertRaises(sc.LoiSoCong), self.core.transaction():
             sc.mo_khoa(self.core, self.id, khoa['phien_ban_dong'], ma=ma, phap_nhan_id=pn, request_id=uuid4())
-        self.assertEqual(self._nhan(instance_id=uuid4(), the_he_cu=1, doi_chieu_id=uuid4())['the_he'], 2)
+        self.assertEqual(self._nhan(instance_id=uuid4(), the_he_cu=3, doi_chieu_id=uuid4())['the_he'], 4)
 
     def test_mo_khoa_sai_admin_module_phap_nhan_va_ma_gia(self):
         khoa = self._khoa()
