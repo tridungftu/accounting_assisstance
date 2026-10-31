@@ -34,7 +34,7 @@ SDK_SPEC = ROOT / 'docs/47-core/g1/DAC-TA-SDK.md'
 DRAFT = 'https://json-schema.org/draft/2020-12/schema'
 TECH_NAMES = (
     'chung', 'tham_chieu_tep', 'van_ban_tai_lieu', 'du_lieu_bang',
-    'tham_so', 'noi_dung_da_che', 'tra_loi_ai', 'hoa_don', 'loi_chuan', 'viec',
+    'tham_so', 'noi_dung_da_che', 'tra_loi_ai', 'hoa_don', 'loi_chuan', 'viec', 'hoi_ai',
 )
 EXPECTED = {
     'ky_thuat.json': {'urn:ktt:contract:' + name + '.v1' for name in TECH_NAMES},
@@ -281,7 +281,7 @@ class BundleContractTest(unittest.TestCase):
         key = 'urn:ktt:contract:' + name + '.v1'
         return key, deepcopy(self.examples[key])
 
-    def test_dung_12_id_khong_them_schema_con_cho(self):
+    def test_dung_13_id_khong_them_schema_con_cho(self):
         self.assertEqual(set(self.schemas), set(self.originals))
         for name, ids in EXPECTED.items():
             with self.subTest(file=name):
@@ -364,8 +364,8 @@ class BundleContractTest(unittest.TestCase):
             with self.subTest(ref=ref), self.assertRaises(KeyError):
                 _resolve(ref, {}, self.schemas)
 
-    def test_du_10_vi_du_contract_va_2_manifest_deu_qua(self):
-        self.assertEqual(len(self.examples), 12)
+    def test_du_11_vi_du_contract_va_2_manifest_deu_qua(self):
+        self.assertEqual(len(self.examples), 13)
         self.assertEqual(set(self.examples), set(self.schemas) - {'urn:ktt:contract:chung.v1'}
                          | {'urn:ktt:contract:viec.v1#/$defs/da_nhan'})
         for key, value in self.examples.items():
