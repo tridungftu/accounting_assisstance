@@ -105,10 +105,13 @@ class SoGia:
             assert (d['giu_boi'], d['the_he']) == (str(ts[1]), ts[2])
             assert ts[3] is not None
             d.update(giu_boi=None, trang_thai='LOI' if d['trang_thai']=='LOI' else 'TRONG')
-        if ten in ('san_sang', 'tra', 'loi_khoi_dong', 'gia_han'):
+        if ten in ('san_sang', 'xac_nhan_accept', 'tra', 'loi_khoi_dong', 'gia_han'):
             assert (d['giu_boi'], d['the_he']) == (str(ts[1]), ts[2])
         if ten == 'san_sang':
-            d.update(trang_thai='CON_GIU', so_loi_khoi_dong=0, thu_lai_sau=None)
+            d.update(trang_thai='CON_GIU')
+        if ten == 'xac_nhan_accept':
+            assert d['trang_thai'] == 'CON_GIU'
+            d.update(so_loi_khoi_dong=0, thu_lai_sau=None, ma_loi_khoi_dong=None)
         if ten == 'tra':
             d.update(trang_thai='TRONG', giu_boi=None)
         if ten in ('loi_khoi_dong', 'loi_chua_nhan'):
@@ -167,7 +170,7 @@ class TienTrinhThuanTest(unittest.TestCase):
 
     def test_ban_giao_co_dinh_doc_so_cas_ready_va_chan_accept_core(self):
         self.c.khoi_dong()
-        self.assertEqual([t for t, _ in self.so.go], ['doc', 'nhan', 'san_sang'])
+        self.assertEqual([t for t, _ in self.so.go], ['doc', 'nhan', 'san_sang', 'xac_nhan_accept'])
         self.assertEqual(self.so.dong['trang_thai'], 'CON_GIU')
         self.assertEqual((self.c.trang_thai, self.c.chu_accept), ('ready', 'con'))
         self.nghe.setsockopt.assert_called_once_with(socket.SOL_SOCKET, socket.SO_EXCLUSIVEADDRUSE, 1)
@@ -434,6 +437,59 @@ class TienTrinhThuanTest(unittest.TestCase):
                 ra.set()
             self.assertTrue(drain.result(timeout=1))
 
+    def test_loi_pipe_sau_readiness_lan_3_khoa_khong_reset_som(self):
+        def loi_pipe(kieu):
+            self.assertEqual(kieu, 'nhan_accept')
+            self.assertEqual(self.so.dong['trang_thai'], 'CON_GIU')
+            self.assertEqual(self.so.dong.get('so_loi_khoi_dong', 0), n-1)
+            raise BrokenPipeError('G221_SECRET')
+        with patch.object(self.c, '_gui', side_effect=loi_pipe):
+            for n in range(1, 4):
+                self.proc.poll.return_value = None
+                self.proc.stdin = io.BytesIO()
+                self.job.reset_mock()
+                ma = 'KHOI_DONG_LOI' if n < 3 else 'KHOI_DONG_BI_KHOA'
+                with self.assertRaisesRegex(tt.LoiTienTrinh, ma):
+                    self.c.khoi_dong()
+                self.assertEqual(self.so.dong['so_loi_khoi_dong'], n)
+                self.assertEqual(self.so.dong['trang_thai'], 'LOI' if n == 3 else 'CORE_GIU')
+                if n < 3:
+                    self.so.dong['thu_lai_sau'] = (datetime.now(timezone.utc)-timedelta(seconds=1)).isoformat()
+        self.assertEqual(sum(t == 'san_sang' for t, _ in self.so.go), 3)
+        self.assertNotIn('xac_nhan_accept', [t for t, _ in self.so.go])
+        with self.assertRaisesRegex(tt.LoiTienTrinh, 'KHOI_DONG_BI_KHOA'):
+            self.c.khoi_dong()
+        self.assertEqual(self.spawn.call_count, 3)
+
+    def test_reset_dem_chi_sau_gui_accept_va_commit_core(self):
+        self.so.dong.update(so_loi_khoi_dong=2, ma_loi_khoi_dong='DEMO_LOI',
+                            thu_lai_sau=(datetime.now(timezone.utc)-timedelta(seconds=1)).isoformat())
+        gui = self.c._gui
+        def nhan_accept(kieu):
+            self.assertEqual(self.so.dong['so_loi_khoi_dong'], 2)
+            self.assertEqual(self.so.dong['trang_thai'], 'CON_GIU')
+            self.assertEqual(self.c.trang_thai, 'starting')
+            gui(kieu)
+        xac_nhan = tt._xac_nhan_accept
+        def xac_nhan_core(*args):
+            self.assertEqual(json.loads(self.proc.stdin.getvalue().splitlines()[1])['kieu'], 'nhan_accept')
+            self.assertEqual(self.c.trang_thai, 'starting')
+            return xac_nhan(*args)
+        with patch.object(self.c, '_gui', side_effect=nhan_accept), \
+                patch.object(tt, '_xac_nhan_accept', side_effect=xac_nhan_core):
+            self.c.khoi_dong()
+        self.assertEqual((self.so.dong['so_loi_khoi_dong'], self.so.dong['thu_lai_sau'],
+                          self.so.dong['ma_loi_khoi_dong']), (0, None, None))
+        self.assertEqual(self.c.trang_thai, 'ready')
+
+    def test_loi_xac_nhan_core_sau_gui_accept_van_tinh_mot_loi(self):
+        self.so.dong['so_loi_khoi_dong'] = 1
+        with patch.object(tt, '_xac_nhan_accept', side_effect=sc.LoiSoCong('CONG_CAS')):
+            with self.assertRaisesRegex(tt.LoiTienTrinh, 'KHOI_DONG_LOI'):
+                self.c.khoi_dong()
+        self.assertEqual(json.loads(self.proc.stdin.getvalue().splitlines()[1])['kieu'], 'nhan_accept')
+        self.assertEqual((self.so.dong['so_loi_khoi_dong'], self.so.dong['trang_thai']), (2, 'CORE_GIU'))
+
     def test_loi_popen_chua_co_pid_van_dem_ben_vung_va_khoa_lan_3(self):
         self.spawn.side_effect = OSError('G221_SECRET')
         for n in range(1, 4):
@@ -576,6 +632,51 @@ class BootstrapThuanTest(unittest.TestCase):
         self.assertEqual(b._ra.getvalue(), b'')
 
 
+class PhienTruocNangCapTest(unittest.TestCase):
+    def test_dong_so_khong_ten_job_doi_chieu_pid_lan_tao_va_ghi_bang_chung(self):
+        import ctypes
+        # PID mat, PID tai su dung moi hon, cung PID da dung; con lai phai giu.
+        for handle, loi, tao, wait, cu, da_dung in (
+                (0, 87, None, None, '100', True),
+                (12, 0, '101', 258, '100', True),
+                (12, 0, '100', 0, '100', True),
+                (12, 0, '100', 258, '100', False),
+                (12, 0, '100', 0xffffffff, '100', False),
+                (12, 0, '99', 0, '100', False),
+                (12, 0, 'KHONG_RO', 0, '100', False),
+                (12, 0, '101', 0, 'KHONG_RO', False),
+                (0, 5, None, None, '100', False)):
+            with self.subTest(handle=handle, loi=loi, tao=tao, wait=wait, cu=cu):
+                so = SoGia()
+                so.dong.update(giu_boi=str(uuid4()), the_he=1, trang_thai='CON_GIU')
+                so.phien = dict(id=so.dong['giu_boi'], the_he=1, pid=12345,
+                                dinh_danh_lan_tao=cu, ten_job=None)
+                kernel = MagicMock()
+                kernel.OpenProcess.return_value = handle
+                kernel.WaitForSingleObject.return_value = wait
+                c = _control(so)
+                with patch.object(tt.os, 'name', 'nt'), \
+                        patch.object(ctypes, 'WinDLL', return_value=kernel, create=True), \
+                        patch.object(ctypes, 'get_last_error', return_value=loi, create=True), \
+                        patch.object(tt, 'dinh_danh_lan_tao', return_value=tao):
+                    if da_dung:
+                        self.assertIsNone(c.doi_chieu()['giu_boi'])
+                        self.assertEqual(so.dong['trang_thai'], 'TRONG')
+                        self.assertIsNotNone(next(ts[3] for t, ts in so.go if t == 'doi_chieu'))
+                    else:
+                        with self.assertRaisesRegex(tt.LoiTienTrinh, 'CONG_CAN_DOI_CHIEU'):
+                            c.doi_chieu()
+                        self.assertEqual(so.dong['giu_boi'], so.phien['id'])
+                        self.assertNotIn('doi_chieu', [t for t, _ in so.go])
+                kernel.OpenProcess.assert_called_once_with(0x100000 | 0x1000, False, 12345)
+                kernel.OpenJobObjectW.assert_not_called()
+                if handle:
+                    kernel.CloseHandle.assert_called_once_with(handle)
+                else:
+                    kernel.CloseHandle.assert_not_called()
+                c.dong()
+
+
 @unittest.skipUnless(os.name == 'nt' and hasattr(socket.socket, 'share'),
                      'CHUA_KIEM: cần Windows share/fromshare')
 class TienTrinhLoopbackTest(unittest.TestCase):
@@ -679,7 +780,7 @@ class TienTrinhLoopbackTest(unittest.TestCase):
                                               'dinh_danh_lan_tao': 'PID_CU'}))
             job.dong()
             self.assertTrue(tt._phien_da_dung(phien))
-            self.assertFalse(tt._phien_da_dung({**phien, 'ten_job': None}))
+            self.assertTrue(tt._phien_da_dung({**phien, 'ten_job': None}))
         finally:
             # Chỉ các tiến trình test sở hữu; EOF và chờ terminal trước đóng Job.
             for p in ds:
@@ -861,6 +962,81 @@ class TienTrinhPostgresTest(unittest.TestCase):
         with self.assertRaisesRegex(sc.LoiSoCong, 'CONG_CAS'), self._tx() as conn:
             tt._doi_chieu(conn, self.id, instance, the_he, uuid4())
 
+    def test_pg_loi_pipe_sau_readiness_lan_3_moi_khoa(self):
+        def loi_pipe(kieu):
+            self.assertEqual(kieu, 'nhan_accept')
+            d = self._doc()
+            self.assertEqual((d['trang_thai'], d['so_loi_khoi_dong']), ('CON_GIU', n-1))
+            raise BrokenPipeError('DEMO_PIPE')
+        with patch.object(self.c, '_gui', side_effect=loi_pipe), \
+                patch.object(tt.Trich6Host, '_don'):
+            for n in range(1, 4):
+                self.proc.stdin = io.BytesIO()
+                self.proc.poll.return_value = None
+                ma = 'KHOI_DONG_LOI' if n < 3 else 'KHOI_DONG_BI_KHOA'
+                with self.assertRaisesRegex(tt.LoiTienTrinh, ma):
+                    self.c.khoi_dong()
+                d = self._doc()
+                self.assertEqual((d['so_loi_khoi_dong'], d['trang_thai']),
+                                 (n, 'LOI' if n == 3 else 'CORE_GIU'))
+                self.assertIsNotNone(self.conn.execute(
+                    'SELECT san_sang_luc FROM loi.module_phien_chay WHERE id=%s',
+                    (self.c.instance_id,)).fetchone()[0])
+                if n < 3:
+                    self.conn.execute("UPDATE loi.so_cong SET thu_lai_sau=clock_timestamp()-interval '1 second' WHERE id=%s", (self.id,))
+        with self.assertRaisesRegex(tt.LoiTienTrinh, 'KHOI_DONG_BI_KHOA'):
+            self.c.khoi_dong()
+
+    def test_pg_xac_nhan_accept_can_readiness_lease_va_moi_reset_dem(self):
+        for n in (1, 2):
+            with self._tx() as conn:
+                tt._loi_chua_nhan(conn, self.id, 0, 'DEMO_LOI')
+            self.conn.execute("UPDATE loi.so_cong SET thu_lai_sau=clock_timestamp()-interval '1 second' WHERE id=%s", (self.id,))
+        gui = self.c._gui
+        def nhan_accept(kieu):
+            self.assertEqual((self._doc()['so_loi_khoi_dong'], self.c.trang_thai), (2, 'starting'))
+            gui(kieu)
+        with patch.object(self.c, '_gui', side_effect=nhan_accept):
+            self.c.khoi_dong()
+        d = self._doc()
+        self.assertEqual((d['so_loi_khoi_dong'], d['thu_lai_sau'], d['ma_loi_khoi_dong']),
+                         (0, None, None))
+        instance, the_he = self.c.instance_id, self.c.the_he
+        with self.assertRaisesRegex(sc.LoiSoCong, 'CONG_MAT_LEASE'), self._tx() as conn:
+            tt._xac_nhan_accept(conn, self.id, uuid4(), the_he)
+        self.proc.poll.return_value = 0
+        self.c.kiem_con()
+        self.instance = uuid4()
+        g216.SoCongPostgresTest._nhan(self, the_he_cu=the_he)
+        with self.assertRaisesRegex(sc.LoiSoCong, 'CONG_CAS'), self._tx() as conn:
+            tt._xac_nhan_accept(conn, self.id, self.instance, the_he+1)
+        with self.assertRaisesRegex(sc.LoiSoCong, 'CONG_MAT_LEASE'), self._tx() as conn:
+            tt._xac_nhan_accept(conn, self.id, instance, the_he)
+
+    def test_pg_nang_cap_dong_phien_khong_ten_job_doi_chieu_va_audit(self):
+        import ctypes
+        instance = uuid4()
+        now = datetime.now(timezone.utc)
+        with self._tx() as conn:
+            sc.nhan(conn, self.id, instance, 0, pid=12345, dinh_danh_lan_tao='100',
+                    phien_ban='1', nhan_yeu_cau_luc=now, bat_dau_luc=now)
+            sc.san_sang(conn, self.id, instance, 1, bang_chung_id=uuid4())
+        # Dong theo G2-21 khong ghi ten Job; ap 022 van phai doi chieu duoc.
+        self.conn.execute((Path(tt.__file__).with_name('sql') / '022_vong_doi.sql').read_text(encoding='utf-8'))
+        with self._tx() as conn:
+            self.assertIsNone(tt._doc_phien(conn, self.id)['ten_job'])
+        kernel = MagicMock()
+        kernel.OpenProcess.return_value = 12
+        with patch.object(ctypes, 'WinDLL', return_value=kernel, create=True), \
+                patch.object(tt.os, 'name', 'nt'), \
+                patch.object(tt, 'dinh_danh_lan_tao', return_value='101'):
+            d = self.c.doi_chieu()
+        self.assertEqual((d['trang_thai'], d['giu_boi']), ('TRONG', None))
+        kernel.OpenJobObjectW.assert_not_called()
+        audit = self.conn.execute("SELECT request_id FROM loi.nhat_ky_kiem_toan WHERE doi_tuong_id=%s AND hanh_dong='CORE:CONG:DOI_CHIEU'", (self.id,)).fetchall()
+        self.assertEqual(len(audit), 1)
+        self.assertIsNotNone(audit[0][0])
+
     def test_admin_mo_khoa_reset_dem_van_doi_chieu_danh_tinh_cu(self):
         self.nghe.bind.side_effect = OSError('DEMO')
         for n in range(1, 4):
@@ -895,6 +1071,7 @@ class TienTrinhPostgresTest(unittest.TestCase):
         for conn in (self.module, self.cai_dat):
             for cau, ts in (
                 ('SELECT loi.so_cong_doc_phien(%s)', (self.id,)),
+                ('SELECT loi.so_cong_xac_nhan_accept(%s,%s,%s)', (self.id, uuid4(), 1)),
                 ('SELECT loi.so_cong_doi_chieu(%s,%s,%s,%s)', (self.id, uuid4(), 1, uuid4())),
                 ('SELECT loi.so_cong_loi_chua_nhan(%s,%s,%s)', (self.id, 0, 'DEMO_LOI'))):
                 with self.subTest(cau=cau, login=conn.info.user), self.assertRaises(g216.psycopg.errors.InsufficientPrivilege):

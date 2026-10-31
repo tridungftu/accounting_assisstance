@@ -81,7 +81,7 @@ def _job(ten):
 
 def _phien_da_dung(phien):
     """Chỉ đọc OS; không kill PID/Job lạ, lỗi quyền/truy vấn => chưa xác nhận."""
-    if os.name != 'nt' or not phien.get('ten_job'):
+    if os.name != 'nt':
         return False
     import ctypes as c
     from ctypes import wintypes as w
@@ -96,6 +96,20 @@ def _phien_da_dung(phien):
     if not h and c.get_last_error() != 87:
         return False
     try:
+        # Phien truoc 022 chua co ten Job: chi doi chieu PID + FILETIME.
+        # Khac dinh danh chua du: phai la mot lan tao moi hon phien cu.
+        if phien.get('ten_job') is None:
+            cu = phien.get('dinh_danh_lan_tao')
+            if not isinstance(cu, str) or not re.fullmatch('[0-9]{1,20}', cu) or int(cu) <= 0:
+                return False
+            if not h:  # OpenProcess da xac nhan ERROR_INVALID_PARAMETER (PID khong con).
+                return True
+            tao = dinh_danh_lan_tao(SimpleNamespace(_handle=h))
+            if not isinstance(tao, str) or not re.fullmatch('[0-9]{1,20}', tao):
+                return False
+            if int(tao) > int(cu):
+                return True
+            return int(tao) == int(cu) and k.WaitForSingleObject(h, 0) == 0
         if h:
             tao = dinh_danh_lan_tao(SimpleNamespace(_handle=h))
             if tao == phien['dinh_danh_lan_tao'] and k.WaitForSingleObject(h, 0) != 0:
@@ -131,6 +145,10 @@ def _ghi_job(conn, so_id, instance, the_he, ten):
 
 def _loi_chua_nhan(conn, so_id, the_he, ma):
     return so_cong._goi(conn, 'so_cong_loi_chua_nhan', (so_id, the_he, ma))
+
+
+def _xac_nhan_accept(conn, so_id, instance, the_he):
+    return so_cong._goi(conn, 'so_cong_xac_nhan_accept', (so_id, instance, the_he))
 
 
 def _nhan_co_job(conn, so_id, instance, the_he, *, ten_job, **kwargs):
@@ -339,6 +357,7 @@ class TienTrinhCore:
                     raise LoiTienTrinh('KHOI_DONG_QUA_HAN')
                 self._so(so_cong.san_sang, self.instance_id, self.the_he, bang_chung_id=uuid4())
                 self._gui('nhan_accept')
+                self._so(_xac_nhan_accept, self.instance_id, self.the_he)
                 self.trang_thai = 'ready'
                 return self.instance_id
             except Exception as exc:

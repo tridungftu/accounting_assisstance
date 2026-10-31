@@ -49,8 +49,7 @@ BEGIN
             AND OLD.thu_lai_sau>clock_timestamp() THEN
             RAISE EXCEPTION 'CONG_CAS' USING ERRCODE='40001';
         END IF;
-        IF (NEW.trang_thai='CON_GIU' AND OLD.trang_thai<>'CON_GIU')
-            OR (OLD.trang_thai='LOI' AND NEW.trang_thai='TRONG') THEN
+        IF OLD.trang_thai='LOI' AND NEW.trang_thai='TRONG' THEN
             NEW.so_loi_khoi_dong:=0;
             NEW.thu_lai_sau:=NULL;
             NEW.ma_loi_khoi_dong:=NULL;
@@ -60,6 +59,21 @@ BEGIN
     $ham$;
     CREATE OR REPLACE TRIGGER so_cong_vong_doi BEFORE UPDATE ON loi.so_cong
         FOR EACH ROW EXECUTE FUNCTION loi.so_cong_vong_doi();
+
+    CREATE OR REPLACE FUNCTION loi.so_cong_xac_nhan_accept(p_id uuid,p_instance uuid,p_the_he bigint)
+    RETURNS boolean LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,pg_temp AS $ham$
+    DECLARE s loi.so_cong;
+    BEGIN
+        s:=loi.so_cong_giu(p_id,p_instance,p_the_he);
+        IF s.trang_thai<>'CON_GIU' THEN
+            RAISE EXCEPTION 'CONG_CAS' USING ERRCODE='40001';
+        END IF;
+        -- Core chi xac nhan sau khi gui nhan_accept thanh cong, khong tai readiness.
+        UPDATE loi.so_cong SET so_loi_khoi_dong=0,thu_lai_sau=NULL,ma_loi_khoi_dong=NULL,
+            phien_ban_dong=phien_ban_dong+1 WHERE id=s.id;
+        RETURN true;
+    END;
+    $ham$;
 
     CREATE OR REPLACE FUNCTION loi.so_cong_loi_khoi_dong(p_id uuid,p_instance uuid,p_the_he bigint,p_ma_loi text)
     RETURNS boolean LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,pg_temp AS $ham$
@@ -202,7 +216,7 @@ BEGIN
 
     FOR ham IN SELECT oid::regprocedure AS ck,proname FROM pg_proc
         WHERE pronamespace='loi'::regnamespace AND proname IN
-            ('so_cong_vong_doi','so_cong_loi_khoi_dong','so_cong_loi_chua_nhan','so_cong_mo_khoa','so_cong_ghi_job',
+            ('so_cong_vong_doi','so_cong_xac_nhan_accept','so_cong_loi_khoi_dong','so_cong_loi_chua_nhan','so_cong_mo_khoa','so_cong_ghi_job',
              'so_cong_doc_phien','so_cong_doi_chieu') LOOP
         EXECUTE format('REVOKE ALL ON FUNCTION %s FROM PUBLIC,%I,%I,%I',
             ham.ck,tt||'vai_chay_loi',tt||'dang_nhap_loi',tt||'dang_nhap_cai_dat');
