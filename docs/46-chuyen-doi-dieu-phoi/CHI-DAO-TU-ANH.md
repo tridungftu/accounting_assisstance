@@ -490,3 +490,29 @@
 4. Core đăng ký engine bằng cách đọc `engines\*\engine.json` (Engine Manager); không khai đường dẫn engine cứng trong code Core.
 5. Ghi cấu trúc thư mục này vào chuẩn SDK v1.1 (mục "Thay đổi") để module/engine sau làm theo.
 **Trạng thái:** ĐÃ NHẬN 31/10 07:35 — ghi vào `docs\47-core\g2\KE-HOACH-LAT-G2-G3.md` (lát **G3-GOI** sau khi Core G2 xong; chuyển các engine đã gộp sang `engines\<ten>\` một lần, kèm `NGUON.md` / `README.md` / `CHANGELOG.md` / `contract\` / `tests\`; Engine Manager đọc `engines\*\engine.json`; ghi chuẩn SDK v1.1).
+
+## CD-043 · 31/10/2026 07:50 · Cách gắn module: mỗi module một dự án riêng tại `D:\Claude\Phan mem ho tro ke toan\Module\<mã>\`
+**Căn cứ:** Anh thảo luận và chốt qua bảng chọn 31/10 07:35–07:45; TL 55 §13 (thêm 07:50).
+**Quyết định:**
+1. **Mỗi module là một dự án riêng ngoài repo Core**, tại `D:\Claude\Phan mem ho tro ke toan\Module\<mã>\` (`crm`, `m2`, `m4`…), **mỗi module một git riêng**. Repo Core chỉ còn Core + `engines\` (CD-042).
+2. **Một module = một mảng nghiệp vụ lớn** (CRM, M2, M4); phần bên trong là icon; bật/tắt từng phần bằng ma trận thẩm quyền.
+3. **Core giữ khung giao diện chung**; module chỉ cung cấp nội dung trang, dùng bộ giao diện chung của SDK JS.
+4. **Module cài độc lập**; thiếu dữ liệu module khác → "chờ" có lý do; Core chỉ cảnh báo khi cài nếu module nguồn chưa có.
+**Việc:**
+1. **Phát hành SDK Core dạng gói có phiên bản** (Python + JS) từ repo Core để dự án module dùng; `module.json` khai phiên bản SDK/Core tương thích; bộ kiểm tuân thủ kiểm tương thích.
+2. **Mẫu dự án module** (`Module\_mau\`): `module.json`, `contract\`, `migrations\`, `backend\`, `frontend\`, `quy_trinh\`, `tests\`, `README.md`, `CHANGELOG.md`, script đóng gói → tệp gói có phiên bản + mã băm. Admin cài qua màn quản trị Core; Core giải nén vào thư mục module đã cài do Core quản lý (không chạy thẳng từ thư mục nguồn).
+3. **Module thử Core (CRM, CD-033)** làm ngay theo cấu trúc này tại `Module\crm\`.
+4. **G4 chuyển M4, CRM, M2:** tách code từ repo `hop-nhat` sang `Module\<mã>\` (giữ lịch sử git khi tách được), dùng lại tối đa (CD-036); dữ liệu DEMO giữ qua ánh xạ.
+5. Cập nhật chuẩn SDK v1.1 và chuẩn API (khung giao diện chung, cách module cung cấp trang) ở mục "Thay đổi"; bản sao sang `D:\Claude\QUY-TRINH-CHUNG\CHUAN-CORE\`. Không đẩy GitHub khi Anh chưa ra lệnh.
+**Trạng thái:** ĐÃ NHẬN 31/10 08:05 — lập kế hoạch lát MD-1 … MD-5 trong `docs/47-core/g2/KE-HOACH-LAT-G2-G3.md` (mục "Kế hoạch theo CD-043 / CD-044"); CRM thử Core chuyển sang `Module/crm/`; không đẩy GitHub.
+
+## CD-044 · 31/10/2026 07:50 · Tách module khỏi Core là BẮT BUỘC; đưa dữ liệu DEMO vào CSDL PostgreSQL thật chung dưới pháp nhân DEMO
+**Căn cứ:** Anh 31/10 07:42: "việc tách module ra khỏi Core là việc phải làm; phần dữ liệu DEMO cũng thử đẩy vào PostgreSQL của dự án để quản lý theo đúng cách thức thống nhất ở trên"; chốt 07:45: **đổ chung vào CSDL thật, đánh dấu pháp nhân DEMO** (Anh chọn, không chọn CSDL DEMO riêng). `CLAUDE.md` đã thêm dòng "Dữ liệu DEMO trong CSDL dự án".
+**Việc:**
+1. **Tách module (CD-043) là bắt buộc**, không phải tùy chọn: CRM (G2 thử), rồi M4, M2 sang `Module\<mã>\`; repo Core không còn code nghiệp vụ module sau G4.
+2. **Pháp nhân DEMO** trong `loi.phap_nhan` có cờ `la_demo = true` (một hoặc vài pháp nhân DEMO như cụm DEMO hiện có). Dữ liệu DEMO hiện ở cụm `var\postgresql-ktt-16` → chuyển vào CSDL thật chung theo **đúng khối** (`loi`, `danh_muc`, `mod_crm`, `mod_m2`, `mod_m4`…) bằng công cụ chuyển có biên bản (số dòng từng bảng trước/sau), chạy lại được.
+3. **Rào chắn bắt buộc (test PG dưới vai ứng dụng):** RLS tách pháp nhân DEMO; báo cáo, file soát, file nhập Junsky, tổng hợp toàn tập đoàn **mặc định loại pháp nhân DEMO** (chỉ hiện khi chọn rõ); không ghi chéo DEMO ↔ thật (ràng buộc CSDL); giao diện hiện nhãn **"DEMO"** rõ khi đang ở pháp nhân DEMO; **công cụ xóa sạch theo pháp nhân DEMO** (chỉ Admin, có sao lưu trước, biên bản) — xóa cần Anh cho phép từng lần.
+4. Sao lưu CSDL thật chung (SL-1) chạy trước lần chuyển đầu; ghi biên bản vào `docs\47-core\`.
+5. Test tự động vẫn dùng CSDL test tạm `kho_test_*` (không ghi vào CSDL thật); chỉ dữ liệu DEMO mẫu để thử bằng tay nằm trong CSDL thật chung.
+6. Cụm DEMO cũ giữ nguyên tới khi Anh thử trên CSDL chung thấy đủ; sau đó chuyển vào lưu trữ (không xóa).
+**Trạng thái:** ĐÃ NHẬN 31/10 08:05 — lập kế hoạch lát DM-1 … DM-5 (cờ `la_demo` + rào chắn → sao lưu SL-1 → công cụ chuyển có biên bản → công cụ xóa sạch cần Anh cho phép từng lần). Chưa ghi gì vào CSDL thật.

@@ -238,3 +238,22 @@ Tối đa **bốn Codex đang làm**, tính cả reviewer; hàng dưới là cá
   - không import chéo; Engine Manager đọc `engines\*\engine.json`; ghi vào chuẩn SDK v1.1.
   - Lát đóng gói **G3-GOI** chuyển HD-1, TRICH-1a, AI-1a / 4a, MASK-1, OCR-4a từ `src\kho_tri_thuc\engines\` sang. Lát engine mới trước đó vẫn viết ở `src\kho_tri_thuc\engines\` để chuyển một lần.
 - **Nợ test CR1:** `test_g2_cr1.py` đọc bảng đặc tả theo số dòng cứng → sửa sang tìm theo tiêu đề (lát nhỏ khi rảnh).
+
+## Kế hoạch theo CD-043 / CD-044 (lead lập 31/10 08:05)
+
+**Thứ tự:** xong lõi G2 còn lại (22a/22b, 23, 25, 27…) → các lát dưới đây xen kẽ, mỗi lát ≤ 3 tệp, Codex làm, review chéo / Opus ở điểm quyền.
+
+| Mã | Việc | Ghi chú |
+|---|---|---|
+| **MD-1** | Khung dự án module mẫu `D:\Claude\Phan mem ho tro ke toan\Module\_mau\` (git riêng): `module.json`, `contract\`, `migrations\`, `backend\`, `frontend\`, `quy_trinh\`, `tests\`, `README.md`, `CHANGELOG.md`, script đóng gói ra tệp gói có phiên bản + SHA256 | Lead tạo thư mục / git ngoài sandbox; Codex viết nội dung |
+| **MD-2** | Phát hành SDK Core dạng gói có phiên bản (Python wheel `kho-tri-thuc-sdk` từ `src\kho_tri_thuc\sdk_core\` + SDK JS) để dự án module cài; `module.json` khai `sdk` / `core` tương thích; bộ kiểm tuân thủ kiểm tương thích | Cần `__init__.py` đầy đủ (nợ đóng gói) |
+| **MD-3** | Module thử Core CRM tại `Module\crm\` theo mẫu: chuyển CR1 / CR2 / CR3 contract + các lát G2-CR4… viết thẳng ở đây | Thay đường dẫn `M = src\kho_tri_thuc\modules\crm` trong kế hoạch bằng `Module\crm\` |
+| **MD-4** | Core giải nén gói vào thư mục module đã cài do Core quản lý (không chạy thẳng từ thư mục nguồn) — gộp vào G2-24 / G2-25 | Áp gói đúng owner |
+| **MD-5** | Chuẩn SDK v1.1 / chuẩn API: khung giao diện chung của Core, module chỉ cung cấp nội dung trang qua SDK JS; cấu trúc `Module\<mã>\` | Bản sao `QUY-TRINH-CHUNG\CHUAN-CORE\` |
+| **DM-1** | Cờ `la_demo` trên `loi.phap_nhan` (migration mới) + rào chắn: RLS, không ghi chéo DEMO ↔ thật (ràng buộc CSDL), mặc định loại DEMO khỏi báo cáo / file nhập Junsky / tổng hợp | Test PG dưới vai ứng dụng; review Opus |
+| **DM-2** | **SL-1:** sao lưu CSDL thật chung trước lần chuyển đầu; biên bản `docs\47-core\` | Lead chạy, ngoài sandbox |
+| **DM-3** | Công cụ chuyển dữ liệu DEMO từ cụm `var\postgresql-ktt-16` vào CSDL thật chung theo khối, biên bản số dòng trước / sau, chạy lại được | Chỉ chạy sau DM-1 + DM-2; lead chạy; cụm DEMO cũ giữ nguyên |
+| **DM-4** | Công cụ xóa sạch theo pháp nhân DEMO (chỉ Admin, sao lưu trước, biên bản) | **Mỗi lần xóa cần Anh cho phép** |
+| **DM-5** | Nhãn "DEMO" rõ trên giao diện khi ở pháp nhân DEMO | Thuộc khung giao diện Core (G2-31) |
+
+Test tự động vẫn dùng `kho_test_*`, không ghi CSDL thật.
