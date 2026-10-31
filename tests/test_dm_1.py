@@ -475,7 +475,7 @@ class DemoDanhMucPostgresTest(unittest.TestCase):
         with self.assertRaises(dm.LoiDanhMuc) as bat,self.core.transaction():
             self.core.execute('SET TRANSACTION ISOLATION LEVEL REPEATABLE READ')
             dm.het_hieu_luc(self.core,loai='chung_tu',doi_tuong_id=self.obj,
-                khoa='demo-dm1-het-ct',row_version='1',**self._ctx(g212.SUA))
+                khoa='demo-dm1-het-ct-01',row_version='1',**self._ctx(g212.SUA))
         self.assertEqual(bat.exception.ma,'LIEN_KET_CAN_READ_COMMITTED')
         # Doi tac khong co guard ky: het hieu luc van ghi duoc nhu truoc 023.
         with self.core.transaction():
@@ -483,7 +483,7 @@ class DemoDanhMucPostgresTest(unittest.TestCase):
         with self.core.transaction():
             self.core.execute('SET TRANSACTION ISOLATION LEVEL REPEATABLE READ')
             kq = dm.het_hieu_luc(self.core,loai='doi_tac',doi_tuong_id=self.obj,
-                khoa='demo-dm1-het-dt',row_version='1',**self._ctx(g212.SUA))
+                khoa='demo-dm1-het-dt-01',row_version='1',**self._ctx(g212.SUA))
         self.assertEqual(kq['ket_qua']['row_version'],'2')
 
 
