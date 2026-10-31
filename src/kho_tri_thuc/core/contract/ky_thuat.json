@@ -1,4 +1,62 @@
 {
+  "urn:ktt:contract:hoi_ai.v1": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "urn:ktt:contract:hoi_ai.v1",
+    "title": "hoi_ai.v1 — đầu vào ai.hoi@1",
+    "$comment": "Phien ban 1.0.0; Lead chot AI-1b §6 (31/10/2026).",
+    "type": "object",
+    "additionalProperties": false,
+    "required": ["loai_viec", "van_ban", "chi_dan"],
+    "properties": {
+      "loai_viec": {
+        "$ref": "urn:ktt:contract:chung.v1#/$defs/chuoi",
+        "$comment": "Kiểm tiếp mã trong LOAI_VIEC hiện có; không bổ sung bảng định tuyến."
+      },
+      "van_ban": {
+        "$ref": "urn:ktt:contract:chung.v1#/$defs/chuoi",
+        "pattern": "\\S",
+        "$comment": "Văn bản gốc không rỗng/không chỉ khoảng trắng; kiểm tiếp theo strip() của Python."
+      },
+      "chi_dan": {"type": "string"},
+      "truong": {
+        "type": "array",
+        "default": [],
+        "items": {"$ref": "urn:ktt:contract:chung.v1#/$defs/chuoi"}
+      },
+      "dinh_danh_da_biet": {
+        "type": "array",
+        "default": [],
+        "items": {"$ref": "#/$defs/dinh_danh"}
+      },
+      "chi_cuc_bo": {
+        "type": "boolean",
+        "default": false,
+        "$comment": "true: 0 lời gọi Cloud cho request; false không tự bật Cloud."
+      }
+    },
+    "$defs": {
+      "dinh_danh": {
+        "oneOf": [
+          {"type": "string"},
+          {
+            "type": "array",
+            "minItems": 2,
+            "maxItems": 2,
+            "prefixItems": [{"type": "string"}, {"type": "string"}]
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["gia_tri", "nhom"],
+            "properties": {
+              "gia_tri": {"type": "string"},
+              "nhom": {"type": "string"}
+            }
+          }
+        ]
+      }
+    }
+  },
   "urn:ktt:contract:chung.v1": {
     "$schema": "https://json-schema.org/draft/2020-12/schema",
     "$id": "urn:ktt:contract:chung.v1",

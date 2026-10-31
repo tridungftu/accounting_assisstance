@@ -34,7 +34,7 @@ SDK_SPEC = ROOT / 'docs/47-core/g1/DAC-TA-SDK.md'
 DRAFT = 'https://json-schema.org/draft/2020-12/schema'
 TECH_NAMES = (
     'chung', 'tham_chieu_tep', 'van_ban_tai_lieu', 'du_lieu_bang',
-    'tham_so', 'noi_dung_da_che', 'tra_loi_ai', 'hoa_don', 'loi_chuan', 'viec',
+    'tham_so', 'noi_dung_da_che', 'tra_loi_ai', 'hoa_don', 'loi_chuan', 'viec', 'hoi_ai',
 )
 EXPECTED = {
     'ky_thuat.json': {'urn:ktt:contract:' + name + '.v1' for name in TECH_NAMES},
@@ -71,7 +71,7 @@ def _nodes(schema):
     for key in ('$defs', 'properties'):
         for child in schema.get(key, {}).values():
             yield from _nodes(child)
-    for key in ('allOf', 'anyOf', 'oneOf'):
+    for key in ('allOf', 'anyOf', 'oneOf', 'prefixItems'):
         for child in schema.get(key, []):
             yield from _nodes(child)
     for key in ('items', 'contains', 'if', 'then', 'else', 'not'):
@@ -192,8 +192,11 @@ def _minimal(value, schema, root, schemas):
         require(len(value) <= schema.get('maxItems', math.inf), 'maxItems')
         if schema.get('uniqueItems'):
             require(len({_json_key(item) for item in value}) == len(value), 'uniqueItems')
+        prefix = schema.get('prefixItems', [])
+        for item, child in zip(value, prefix):
+            _minimal(item, child, root, schemas)
         if 'items' in schema:
-            for item in value:
+            for item in value[len(prefix):]:
                 _minimal(item, schema['items'], root, schemas)
         if 'contains' in schema:
             found = False
@@ -281,7 +284,7 @@ class BundleContractTest(unittest.TestCase):
         key = 'urn:ktt:contract:' + name + '.v1'
         return key, deepcopy(self.examples[key])
 
-    def test_dung_12_id_khong_them_schema_con_cho(self):
+    def test_dung_13_id_khong_them_schema_con_cho(self):
         self.assertEqual(set(self.schemas), set(self.originals))
         for name, ids in EXPECTED.items():
             with self.subTest(file=name):
@@ -324,7 +327,7 @@ class BundleContractTest(unittest.TestCase):
         supported = annotations | {
             '$defs', '$ref', 'type', 'const', 'enum', 'properties', 'required',
             'additionalProperties', 'unevaluatedProperties', 'dependentRequired',
-            'allOf', 'anyOf', 'oneOf', 'if', 'then', 'else', 'not', 'items', 'contains',
+            'allOf', 'anyOf', 'oneOf', 'if', 'then', 'else', 'not', 'items', 'contains', 'prefixItems',
             'uniqueItems', 'minItems', 'maxItems', 'minLength', 'maxLength',
             'pattern', 'format', 'minimum', 'maximum', 'exclusiveMinimum',
         }
@@ -336,7 +339,7 @@ class BundleContractTest(unittest.TestCase):
                     if 'type' in node:
                         names = node['type'] if isinstance(node['type'], list) else [node['type']]
                         self.assertTrue(set(names) <= {'object', 'array', 'string', 'integer', 'number', 'boolean', 'null'})
-                    for keyword in ('required', 'enum', 'allOf', 'anyOf', 'oneOf'):
+                    for keyword in ('required', 'enum', 'allOf', 'anyOf', 'oneOf', 'prefixItems'):
                         if keyword in node:
                             self.assertIsInstance(node[keyword], list)
                     if 'required' in node:
@@ -364,8 +367,8 @@ class BundleContractTest(unittest.TestCase):
             with self.subTest(ref=ref), self.assertRaises(KeyError):
                 _resolve(ref, {}, self.schemas)
 
-    def test_du_10_vi_du_contract_va_2_manifest_deu_qua(self):
-        self.assertEqual(len(self.examples), 12)
+    def test_du_11_vi_du_contract_va_2_manifest_deu_qua(self):
+        self.assertEqual(len(self.examples), 13)
         self.assertEqual(set(self.examples), set(self.schemas) - {'urn:ktt:contract:chung.v1'}
                          | {'urn:ktt:contract:viec.v1#/$defs/da_nhan'})
         for key, value in self.examples.items():
